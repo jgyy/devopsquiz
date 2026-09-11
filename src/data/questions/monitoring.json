@@ -4,8 +4,1144 @@
     "domain": "monitoring",
     "difficulty": "easy",
     "type": "boolean",
-    "prompt": "Placeholder monitoring question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "answer": true,
+    "prompt": "The three pillars of observability are commonly described as metrics, logs, and traces.",
+    "explanation": "Metrics, logs, and traces are the three foundational data types most observability tooling is built around.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "fundamentals"
+    ]
+  },
+  {
+    "id": "monitoring-002",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "A value that can arbitrarily go up or down, such as current memory usage",
+      "A cumulative value that only increases (or resets to zero on restart), such as total HTTP requests served",
+      "A snapshot of client-side calculated quantiles",
+      "A running total of observations bucketed by size"
+    ],
+    "answer": 1,
+    "prompt": "In the Prometheus data model, what is a `counter` metric type used for?",
+    "explanation": "A counter is a cumulative metric whose value can only increase, or reset to zero on a process restart; it is not meant to represent values that can decrease.",
+    "reference": "https://prometheus.io/docs/concepts/metric_types/",
+    "tags": [
+      "prometheus",
+      "metric-types"
+    ]
+  },
+  {
+    "id": "monitoring-003",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Counter",
+      "Gauge",
+      "Histogram",
+      "Summary"
+    ],
+    "answer": 1,
+    "prompt": "Which Prometheus metric type represents a single numerical value that can arbitrarily go up and down, such as current queue length or CPU temperature?",
+    "explanation": "A gauge is the metric type meant for values that can increase or decrease, unlike a counter which only ever increases.",
+    "reference": "https://prometheus.io/docs/concepts/metric_types/",
+    "tags": [
+      "prometheus",
+      "metric-types"
+    ]
+  },
+  {
+    "id": "monitoring-004",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Histograms store every raw sample value so exact quantiles can always be recomputed",
+      "Histogram buckets are cumulative counters that can be summed across instances and then passed to `histogram_quantile()`, while summary quantiles are pre-calculated per instance and cannot be meaningfully combined",
+      "Histograms always use less memory per instance than summaries in every configuration",
+      "Summaries cannot be scraped by Prometheus at all"
+    ],
+    "answer": 1,
+    "prompt": "What is the key operational advantage of a Prometheus `histogram` over a `summary` when quantiles need to be aggregated across many instances?",
+    "explanation": "Histogram buckets are cumulative counters that can be summed across instances (e.g. with `sum by`) and then passed to `histogram_quantile()`, whereas a summary's quantiles are pre-computed per instance and cannot be validly averaged together.",
+    "reference": "https://prometheus.io/docs/practices/histograms/",
+    "tags": [
+      "prometheus",
+      "histogram",
+      "summary"
+    ]
+  },
+  {
+    "id": "monitoring-005",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "answer": [
+      "rate"
+    ],
+    "prompt": "Which PromQL function computes the per-second average rate of increase of a counter over a given time range, e.g. `rate(http_requests_total[5m])`?",
+    "explanation": "`rate()` calculates the per-second average rate of increase of a counter over the supplied range vector, automatically accounting for counter resets.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
+    "tags": [
+      "promql"
+    ],
+    "pattern": "^rate(\\(\\))?$"
+  },
+  {
+    "id": "monitoring-006",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "answer": [
+      "histogram_quantile"
+    ],
+    "prompt": "Which PromQL function calculates an approximate quantile (e.g. the 0.95th) from the cumulative bucket counters of a Prometheus histogram metric?",
+    "explanation": "`histogram_quantile()` estimates a quantile from the `_bucket` time series produced by a histogram metric, using linear interpolation within the bucket containing the target quantile.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
+    "tags": [
+      "promql"
+    ],
+    "pattern": "^histogram_quantile(\\(\\))?$"
+  },
+  {
+    "id": "monitoring-007",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "When graphing slow-moving, human-viewed dashboards where smoothing over a longer window is desirable",
+      "When you need a highly reactive, per-second value calculated from only the last two data points, useful for volatile counters but risky for alerting due to noise",
+      "When the metric being queried is a gauge rather than a counter",
+      "When computing quantiles instead of rates"
+    ],
+    "answer": 1,
+    "prompt": "When should PromQL's `irate()` generally be preferred over `rate()`?",
+    "explanation": "`irate()` uses only the last two data points in the range to compute an instantaneous per-second rate, which is useful for graphing volatile, fast-moving counters, but it is discouraged for alerting because it is noisy and can miss slower trends.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
+    "tags": [
+      "promql"
+    ]
+  },
+  {
+    "id": "monitoring-008",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "It doesn't \u2014 counter resets always silently produce wrong, uncorrected negative rates",
+      "`rate()` automatically detects apparent decreases and adjusts its calculation to account for the reset, avoiding a large negative spike in the computed rate",
+      "Counter resets are impossible in Prometheus by design, so this never needs handling",
+      "`rate()` only operates on gauges, not counters, so resets are irrelevant to it"
+    ],
+    "answer": 1,
+    "prompt": "Why does PromQL's `rate()` function need to specifically account for counter resets, such as when a process restarts and its counter value drops back to zero?",
+    "explanation": "`rate()` detects apparent decreases within a series and treats them as resets, adjusting the calculation so a restart doesn't produce a large, misleading negative spike in the computed rate.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
+    "tags": [
+      "promql",
+      "counters"
+    ]
+  },
+  {
+    "id": "monitoring-009",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Targets push metrics to Prometheus over gRPC",
+      "Prometheus pulls (scrapes) metrics by sending HTTP GET requests to each target's metrics endpoint on an interval",
+      "Targets write metrics directly into Prometheus's storage files on disk",
+      "Prometheus subscribes to a Kafka topic that every target publishes metrics to"
+    ],
+    "answer": 1,
+    "prompt": "By default, how does Prometheus collect metrics from the systems it monitors?",
+    "explanation": "Prometheus is fundamentally a pull-based system: it scrapes metrics by issuing HTTP GET requests against each target's metrics endpoint (typically `/metrics`) on a configured interval.",
+    "reference": "https://prometheus.io/docs/introduction/overview/",
+    "tags": [
+      "prometheus",
+      "scraping"
+    ]
+  },
+  {
+    "id": "monitoring-010",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": false,
+    "prompt": "The Prometheus Pushgateway is recommended as the standard way to expose metrics for all long-running services, since it lets Prometheus remain purely pull-based.",
+    "explanation": "The Pushgateway is intended only for short-lived or batch jobs that would otherwise disappear before being scraped; using it for regular long-running services is explicitly discouraged, as it becomes a single point of failure and loses per-instance scrape semantics.",
+    "reference": "https://prometheus.io/docs/practices/pushing/",
+    "tags": [
+      "prometheus",
+      "pushgateway"
+    ]
+  },
+  {
+    "id": "monitoring-011",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "Executing PromQL queries on a schedule and storing the results as new metrics",
+      "Receiving alerts from Prometheus servers and handling deduplication, grouping, silencing, and routing to receivers like email, Slack, or PagerDuty",
+      "Rendering Grafana dashboards directly from alerting rules",
+      "Storing long-term historical time series data for alerts"
+    ],
+    "answer": 1,
+    "prompt": "What is the primary role of Prometheus Alertmanager?",
+    "explanation": "Alertmanager receives firing alerts sent by Prometheus servers and handles deduplication, grouping, silencing, inhibition, and routing them to receivers such as email, Slack, or PagerDuty.",
+    "reference": "https://prometheus.io/docs/alerting/latest/alertmanager/",
+    "tags": [
+      "alertmanager"
+    ]
+  },
+  {
+    "id": "monitoring-012",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "options": [
+      "Grouping related alerts into a single notification",
+      "Silencing alerts for a defined time window",
+      "Long-term storage of raw time series data",
+      "Routing alerts to different receivers based on labels",
+      "Executing recording rules to precompute expensive queries"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "prompt": "Which of the following are core features provided by Prometheus Alertmanager? (select all that apply)",
+    "explanation": "Alertmanager groups related alerts, supports silences and label-based routing to receivers. It does not store raw time series data (that's Prometheus's job) and does not execute recording rules (those run inside the Prometheus server).",
+    "reference": "https://prometheus.io/docs/alerting/latest/alertmanager/",
+    "tags": [
+      "alertmanager"
+    ]
+  },
+  {
+    "id": "monitoring-013",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Storing and indexing raw log lines",
+      "Building dashboards to visualize and explore metrics, logs, and traces from multiple data sources",
+      "Acting as a service mesh sidecar proxy",
+      "Collecting distributed traces emitted by instrumented applications"
+    ],
+    "answer": 1,
+    "prompt": "What is Grafana primarily used for in an observability stack?",
+    "explanation": "Grafana is a visualization and dashboarding layer that can query and combine data from many backends (Prometheus, Loki, Elasticsearch, SQL databases, and more).",
+    "reference": "https://grafana.com/docs/grafana/latest/introduction/",
+    "tags": [
+      "grafana"
+    ]
+  },
+  {
+    "id": "monitoring-014",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "boolean",
+    "answer": false,
+    "prompt": "Grafana can only visualize data stored in Prometheus; it has no built-in support for other data sources such as Loki, Elasticsearch, or SQL databases.",
+    "explanation": "Grafana ships with a large ecosystem of data source plugins, including Loki, Elasticsearch/OpenSearch, MySQL, PostgreSQL, CloudWatch, Tempo, and many more, in addition to Prometheus.",
+    "reference": "https://grafana.com/docs/grafana/latest/datasources/",
+    "tags": [
+      "grafana"
+    ]
+  },
+  {
+    "id": "monitoring-015",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "Service Level Indicator",
+      "System Load Index",
+      "Service Latency Interval",
+      "Site Level Integrity"
+    ],
+    "answer": 0,
+    "prompt": "What does SLI stand for in the context of site reliability engineering?",
+    "explanation": "SLI stands for Service Level Indicator: a quantitative measurement of some aspect of the level of service provided, such as request latency or error rate.",
+    "reference": "https://sre.google/sre-book/service-level-objectives/",
+    "tags": [
+      "sre",
+      "sli-slo-sla"
+    ]
+  },
+  {
+    "id": "monitoring-016",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "A legally binding contract between a company and its customers",
+      "A target value or range for an SLI over a period of time that a service aims to meet",
+      "The raw measurement being collected, such as request latency in milliseconds",
+      "A tool used to page on-call engineers"
+    ],
+    "answer": 1,
+    "prompt": "What is a Service Level Objective (SLO)?",
+    "explanation": "An SLO is a target value or range for an SLI over a defined period, expressing the reliability level a service aims to meet, generally used as an internal engineering goal.",
+    "reference": "https://sre.google/sre-book/service-level-objectives/",
+    "tags": [
+      "sre",
+      "sli-slo-sla"
+    ]
+  },
+  {
+    "id": "monitoring-017",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "An SLA is an internal engineering target with no consequences, while an SLO is a legal contract",
+      "An SLA is a customer-facing agreement that usually includes consequences for missing it, while an SLO is an internal, often stricter target used to catch problems early",
+      "They are exactly the same concept, just different names used by different companies",
+      "An SLA always measures latency while an SLO always measures availability"
+    ],
+    "answer": 1,
+    "prompt": "How does a Service Level Agreement (SLA) typically differ from a Service Level Objective (SLO)?",
+    "explanation": "An SLA is usually a customer-facing, often contractual agreement that carries consequences (like service credits) if missed, while an SLO is an internal target \u2014 frequently stricter than the SLA \u2014 used to catch problems before the SLA itself is at risk.",
+    "reference": "https://sre.google/sre-book/service-level-objectives/",
+    "tags": [
+      "sre",
+      "sli-slo-sla"
+    ]
+  },
+  {
+    "id": "monitoring-018",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "The service must have zero downtime across the entire 30 days",
+      "The amount of acceptable unreliability, roughly 43 minutes of downtime over 30 days, before the SLO is considered violated",
+      "The monetary budget allocated to the team for fixing production bugs",
+      "The maximum number of alerts allowed to fire per day"
+    ],
+    "answer": 1,
+    "prompt": "If a service has an availability SLO of 99.9% over a 30-day period, what does its 'error budget' for that period represent?",
+    "explanation": "The error budget (here, roughly 0.1% of 30 days, about 43 minutes) is the amount of unreliability the service is allowed to spend before it violates its SLO; it does not mean zero downtime is required.",
+    "reference": "https://sre.google/sre-book/embracing-risk/",
+    "tags": [
+      "sre",
+      "error-budget"
+    ]
+  },
+  {
+    "id": "monitoring-019",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "To reduce Prometheus storage costs by scanning less data per query",
+      "The short window gives fast detection of a fast error-budget burn while the long window confirms it is sustained, reducing false positives from brief blips",
+      "Short windows are used only for warning-severity alerts and have no relationship to burn rate",
+      "PromQL cannot technically evaluate range vectors shorter than one hour"
+    ],
+    "answer": 1,
+    "prompt": "In multi-window, multi-burn-rate SLO alerting (as described in Google's SRE Workbook), why are a short window (e.g. 5 minutes) and a long window (e.g. 1 hour or more) typically evaluated together against the same burn-rate threshold?",
+    "explanation": "The short window gives fast detection of a severe, fast error-budget burn, while the long window confirms the burn is sustained rather than a brief blip, which together reduce both detection time and false positives.",
+    "reference": "https://sre.google/workbook/alerting-on-slos/",
+    "tags": [
+      "sre",
+      "alerting",
+      "error-budget"
+    ]
+  },
+  {
+    "id": "monitoring-020",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "options": [
+      "Latency",
+      "Traffic",
+      "Errors",
+      "Saturation",
+      "Popularity",
+      "Compliance"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "prompt": "According to Google's SRE book, which of the following are among the four 'golden signals' recommended for monitoring a user-facing system? (select all that apply)",
+    "explanation": "The four golden signals are latency, traffic, errors, and saturation \u2014 a compact set intended to cover most user-facing service health without needing to monitor every low-level metric.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "sre",
+      "golden-signals"
+    ]
+  },
+  {
+    "id": "monitoring-021",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "Redundancy, Efficiency, Downtime",
+      "Rate, Errors, Duration \u2014 requests per second, failed requests, and request latency",
+      "Replication, Encryption, Deployment",
+      "Recovery time, Escalation, Downtime"
+    ],
+    "answer": 1,
+    "prompt": "What does the RED method (popularized by Weaveworks for monitoring request-driven microservices) track for each service?",
+    "explanation": "RED stands for Rate, Errors, Duration: the number of requests per second, the fraction of those requests that fail, and how long requests take to serve.",
+    "reference": "https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/",
+    "tags": [
+      "red-method"
+    ]
+  },
+  {
+    "id": "monitoring-022",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "Uptime, Scalability, Efficiency of application code",
+      "For every resource: Utilization, Saturation, and Errors",
+      "User experience, Session tracking, Error logging",
+      "Uptime, Security, Encryption"
+    ],
+    "answer": 1,
+    "prompt": "What does the USE method (proposed by Brendan Gregg) focus on when analyzing system performance?",
+    "explanation": "USE stands for Utilization, Saturation, and Errors, applied to every physical resource (CPU, memory, disks, network interfaces, and so on) to quickly locate performance bottlenecks.",
+    "reference": "https://www.brendangregg.com/usemethod.html",
+    "tags": [
+      "use-method"
+    ]
+  },
+  {
+    "id": "monitoring-023",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": true,
+    "prompt": "The USE method is generally best applied to individual physical resources like CPUs and disks, while the RED method is generally best applied to request-driven services.",
+    "explanation": "USE (Utilization, Saturation, Errors) targets resources, while RED (Rate, Errors, Duration) targets request-driven services; they are complementary but aimed at different layers.",
+    "reference": "https://www.brendangregg.com/usemethod.html",
+    "tags": [
+      "use-method",
+      "red-method"
+    ]
+  },
+  {
+    "id": "monitoring-024",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Writing logs strictly as free-form, human-readable sentences",
+      "Emitting log entries in a consistent, machine-parseable format such as JSON key-value pairs",
+      "Storing all logs exclusively inside a relational database",
+      "Compressing log files before they are archived"
+    ],
+    "answer": 1,
+    "prompt": "What is 'structured logging'?",
+    "explanation": "Structured logging emits each log entry in a consistent, machine-parseable format, most commonly JSON key-value pairs, rather than free-form text sentences.",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/logs/",
+    "tags": [
+      "logging"
+    ]
+  },
+  {
+    "id": "monitoring-025",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A distributed tracing backend",
+      "A horizontally-scalable log aggregation system that indexes metadata (labels) rather than the full text of log lines",
+      "A Prometheus alerting rule engine",
+      "A metrics exporter for Kubernetes objects"
+    ],
+    "answer": 1,
+    "prompt": "What is Grafana Loki?",
+    "explanation": "Loki is a horizontally-scalable log aggregation system, inspired by Prometheus's architecture, that indexes only metadata (labels) for each log stream rather than the full text of every log line.",
+    "reference": "https://grafana.com/docs/loki/latest/",
+    "tags": [
+      "loki",
+      "log-aggregation"
+    ]
+  },
+  {
+    "id": "monitoring-026",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Elasticsearch, Logstash, Kibana",
+      "Elastic, Log, Kubernetes",
+      "Event, Log, Kafka",
+      "Elasticsearch, Loki, Kafka"
+    ],
+    "answer": 0,
+    "prompt": "What does the 'ELK' in the ELK Stack stand for?",
+    "explanation": "ELK refers to Elasticsearch (storage and search), Logstash (ingestion and processing), and Kibana (visualization).",
+    "reference": "https://www.elastic.co/elastic-stack",
+    "tags": [
+      "elk",
+      "log-aggregation"
+    ]
+  },
+  {
+    "id": "monitoring-027",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Elastic discontinued Elasticsearch entirely",
+      "Elastic changed Elasticsearch and Kibana's license away from a fully open-source license, so contributors forked the last Apache 2.0 versions to create OpenSearch",
+      "OpenSearch predates Elasticsearch and was the original project",
+      "Elasticsearch dropped support for full-text search features"
+    ],
+    "answer": 1,
+    "prompt": "Why was OpenSearch created as a fork of Elasticsearch and Kibana?",
+    "explanation": "In 2021 Elastic changed the license of Elasticsearch and Kibana away from a fully open-source license, prompting AWS and other contributors to fork the last Apache 2.0-licensed versions into what became OpenSearch.",
+    "reference": "https://opensearch.org/docs/latest/about/",
+    "tags": [
+      "opensearch",
+      "log-aggregation"
+    ]
+  },
+  {
+    "id": "monitoring-028",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Fluent Bit is written in C and designed to be lightweight, making it popular as a per-node log forwarder, whereas Fluentd offers a richer plugin ecosystem",
+      "Fluent Bit is a proprietary paid product while Fluentd is free and open source",
+      "Fluent Bit can only forward logs to Fluentd and to no other destination",
+      "Fluentd is the lightweight forwarder while Fluent Bit is the full-featured aggregator"
+    ],
+    "answer": 0,
+    "prompt": "How does Fluent Bit generally compare to Fluentd for collecting and forwarding logs?",
+    "explanation": "Fluent Bit is written in C and built to be lightweight in CPU and memory usage, making it popular as a per-node or sidecar log forwarder, while Fluentd (Ruby with C extensions) offers a larger plugin ecosystem at a higher resource cost.",
+    "reference": "https://docs.fluentbit.io/manual",
+    "tags": [
+      "fluent-bit",
+      "log-aggregation"
+    ]
+  },
+  {
+    "id": "monitoring-029",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "boolean",
+    "answer": true,
+    "prompt": "Fluent Bit is a CNCF project commonly deployed as a Kubernetes DaemonSet to collect and forward container logs from every node.",
+    "explanation": "Fluent Bit is a CNCF graduated project frequently run as a DaemonSet so exactly one instance runs per node, tailing container log files and shipping them onward.",
+    "reference": "https://docs.fluentbit.io/manual/concepts/data-pipeline",
+    "tags": [
+      "fluent-bit",
+      "kubernetes"
+    ]
+  },
+  {
+    "id": "monitoring-030",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Disk fragmentation on a single host",
+      "Understanding how a single request flows across multiple services, and where time or errors occur along that path",
+      "Static analysis of source code for security vulnerabilities",
+      "Optimizing individual SQL query execution plans"
+    ],
+    "answer": 1,
+    "prompt": "What problem does distributed tracing primarily help diagnose?",
+    "explanation": "Distributed tracing follows a single request as it travels across multiple services, showing where time is spent and where errors occur along that path.",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/traces/",
+    "tags": [
+      "tracing"
+    ]
+  },
+  {
+    "id": "monitoring-031",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A fixed time window used for Prometheus range vector queries",
+      "A single unit of work, such as one service call, with a start time, duration, and metadata, forming one node of a trace",
+      "The complete set of all traces collected during one day",
+      "A Grafana panel type used to visualize gauge values"
+    ],
+    "answer": 1,
+    "prompt": "In distributed tracing terminology, what is a 'span'?",
+    "explanation": "A span represents a single unit of work, such as one service call or database query, carrying a name, start time, duration, and metadata; it is the basic building block of a trace.",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/traces/",
+    "tags": [
+      "tracing",
+      "spans"
+    ]
+  },
+  {
+    "id": "monitoring-032",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A commercial APM product sold exclusively by one vendor",
+      "A vendor-neutral observability framework providing APIs, SDKs, and tools to generate, collect, and export traces, metrics, and logs",
+      "A log storage engine intended to replace Elasticsearch",
+      "A Kubernetes-only sidecar for service mesh traffic management"
+    ],
+    "answer": 1,
+    "prompt": "What is OpenTelemetry (OTel)?",
+    "explanation": "OpenTelemetry is a vendor-neutral, CNCF observability framework offering APIs, SDKs, and tools to generate, collect, and export telemetry data \u2014 traces, metrics, and logs.",
+    "reference": "https://opentelemetry.io/docs/what-is-opentelemetry/",
+    "tags": [
+      "opentelemetry"
+    ]
+  },
+  {
+    "id": "monitoring-033",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "options": [
+      "Traces",
+      "Metrics",
+      "Logs",
+      "Database schemas",
+      "Dashboard UI themes"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "prompt": "Which of the following telemetry signal types does OpenTelemetry provide standardized instrumentation APIs and SDKs for? (select all that apply)",
+    "explanation": "OpenTelemetry's three core signals are traces, metrics, and logs; it does not standardize database schemas or UI themes.",
+    "reference": "https://opentelemetry.io/docs/what-is-opentelemetry/",
+    "tags": [
+      "opentelemetry"
+    ]
+  },
+  {
+    "id": "monitoring-034",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Copying an entire database across regions for disaster recovery",
+      "Passing trace identifiers between services, typically via HTTP headers, so downstream spans link into the same trace",
+      "Replicating Prometheus metrics between federated servers",
+      "Encrypting log files before they are shipped to a central store"
+    ],
+    "answer": 1,
+    "prompt": "What is 'context propagation' in distributed tracing?",
+    "explanation": "Context propagation passes trace identifiers, such as the trace ID and current span ID, between services \u2014 typically via HTTP headers \u2014 so spans created by downstream services can be linked into the same overall trace.",
+    "reference": "https://opentelemetry.io/docs/concepts/context-propagation/",
+    "tags": [
+      "tracing",
+      "context-propagation"
+    ]
+  },
+  {
+    "id": "monitoring-035",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "fill",
+    "answer": [
+      "traceparent"
+    ],
+    "prompt": "What is the name of the standard HTTP header, defined by the W3C Trace Context specification, used to propagate trace ID, span ID, and trace flags between services?",
+    "explanation": "The `traceparent` header carries the trace ID, parent span ID, and trace flags, and is the interoperable header adopted by OpenTelemetry and most modern tracing tools.",
+    "reference": "https://www.w3.org/TR/trace-context/",
+    "tags": [
+      "tracing",
+      "context-propagation"
+    ]
+  },
+  {
+    "id": "monitoring-036",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A Prometheus-compatible metrics database",
+      "An open-source, CNCF-graduated distributed tracing system originally created at Uber",
+      "A log-shipping agent written in Go",
+      "A Kubernetes admission controller"
+    ],
+    "answer": 1,
+    "prompt": "What is Jaeger?",
+    "explanation": "Jaeger is an open-source, CNCF-graduated distributed tracing system, originally created at Uber, used to monitor and troubleshoot request flows in microservice architectures.",
+    "reference": "https://www.jaegertracing.io/docs/latest/",
+    "tags": [
+      "jaeger",
+      "tracing"
+    ]
+  },
+  {
+    "id": "monitoring-037",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A distributed tracing backend that stores trace data cheaply in object storage and is queried primarily by trace ID",
+      "A Prometheus remote-write compatible long-term metrics store",
+      "A log parsing plugin for Fluent Bit",
+      "A vulnerability scanner for container images"
+    ],
+    "answer": 0,
+    "prompt": "What is Grafana Tempo?",
+    "explanation": "Tempo is a distributed tracing backend that stores trace data cost-effectively in object storage and is designed to be queried primarily by trace ID, integrating tightly with Grafana, Loki, and Prometheus exemplars.",
+    "reference": "https://grafana.com/docs/tempo/latest/",
+    "tags": [
+      "tempo",
+      "tracing"
+    ]
+  },
+  {
+    "id": "monitoring-038",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Head-based sampling decides at the very start of a trace, often randomly, while tail-based sampling waits until the trace completes and can sample based on outcomes like errors or latency",
+      "Head-based sampling applies only to logs, and tail-based sampling applies only to metrics",
+      "Tail-based sampling always captures strictly less data overall than head-based sampling",
+      "There is no real difference; they are two names for the same technique"
+    ],
+    "answer": 0,
+    "prompt": "What is the key difference between head-based and tail-based sampling in distributed tracing?",
+    "explanation": "Head-based sampling decides whether to keep a trace right at its start, usually via a random probability, before the outcome is known; tail-based sampling waits until a trace completes and can then sample based on final characteristics such as errors or high latency.",
+    "reference": "https://opentelemetry.io/docs/concepts/sampling/",
+    "tags": [
+      "tracing",
+      "sampling"
+    ]
+  },
+  {
+    "id": "monitoring-039",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "options": [
+      "Scraping targets too infrequently, which leaves gaps in the collected data",
+      "Using a label with unbounded or high-variety values, such as a raw user ID or full URL, causing the number of unique time series to grow extremely large",
+      "Using too few labels on a metric, leaving it ambiguous",
+      "Configuring Alertmanager with an unusually large number of receivers"
+    ],
+    "answer": 1,
+    "prompt": "What causes a 'cardinality explosion' problem in a metrics system like Prometheus?",
+    "explanation": "Using a label whose values are effectively unbounded or highly variable, such as a raw user ID, request ID, or full URL with query parameters, causes the number of unique time series to grow extremely large, straining memory and storage.",
+    "reference": "https://prometheus.io/docs/practices/naming/",
+    "tags": [
+      "cardinality",
+      "prometheus"
+    ]
+  },
+  {
+    "id": "monitoring-040",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": false,
+    "prompt": "Adding a high-cardinality label, such as a raw customer email address or a full request URL including query parameters, to a Prometheus metric is a recommended best practice because it makes the metric more queryable.",
+    "explanation": "Prometheus documentation explicitly warns against high-cardinality label values (unbounded sets like user IDs, emails, or full URLs), because each unique combination of label values creates a new time series, which can overwhelm memory and storage.",
+    "reference": "https://prometheus.io/docs/practices/naming/",
+    "tags": [
+      "cardinality",
+      "prometheus"
+    ]
+  },
+  {
+    "id": "monitoring-041",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "The Prometheus server's hostname alone",
+      "The combination of the metric name and its set of key-value label pairs",
+      "Only the numeric value of the most recent sample",
+      "The scrape interval configured for that particular target"
+    ],
+    "answer": 1,
+    "prompt": "In the Prometheus data model, what uniquely identifies a specific time series?",
+    "explanation": "A time series is uniquely identified by its metric name together with its complete set of key-value label pairs; the same metric name with a different label set is a distinct series.",
+    "reference": "https://prometheus.io/docs/concepts/data_model/",
+    "tags": [
+      "prometheus",
+      "data-model"
+    ]
+  },
+  {
+    "id": "monitoring-042",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "answer": [
+      "up"
+    ],
+    "prompt": "What is the name of the automatically generated Prometheus metric whose value is 1 if the most recent scrape of a target succeeded and 0 if it failed?",
+    "explanation": "Prometheus automatically exposes an `up` metric for every scrape target, making it a common building block for availability alerts and dashboards.",
+    "reference": "https://prometheus.io/docs/concepts/jobs_instances/",
+    "tags": [
+      "prometheus",
+      "data-model"
+    ]
+  },
+  {
+    "id": "monitoring-043",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "fill",
+    "answer": [
+      "topk"
+    ],
+    "prompt": "Which PromQL aggregation operator returns the largest `k` elements by sample value from an instant vector, e.g. `topk(5, http_requests_total)`?",
+    "explanation": "`topk()` returns the k series with the largest values from the given instant vector, commonly used to find the noisiest or busiest series on a dashboard.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/operators/",
+    "tags": [
+      "promql",
+      "aggregation"
+    ],
+    "pattern": "^topk(\\(\\))?$"
+  },
+  {
+    "id": "monitoring-044",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "Alerting on user-visible problems, such as high error rate or latency, rather than on every possible internal cause",
+      "Alerting only after a postmortem document has already been written",
+      "Alerting exclusively based on CPU utilization thresholds",
+      "Disabling all automated alerts until a human manually inspects the system"
+    ],
+    "answer": 0,
+    "prompt": "What does it mean to write 'symptom-based' alerts rather than 'cause-based' alerts?",
+    "explanation": "Symptom-based alerting pages on the user-visible problem, such as elevated error rate or latency, instead of firing a separate alert for every possible internal cause, such as one disk nearing capacity.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "alerting",
+      "sre"
+    ]
+  },
+  {
+    "id": "monitoring-045",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "A hardware condition where monitoring servers physically overheat",
+      "The desensitization of on-call responders from receiving too many low-value alerts, leading to important alerts being missed or ignored",
+      "A Prometheus feature that automatically resolves alerts once they go stale",
+      "The delay between an incident starting and Alertmanager receiving its first data point"
+    ],
+    "answer": 1,
+    "prompt": "What is 'alert fatigue'?",
+    "explanation": "Alert fatigue is the desensitization of on-call responders caused by receiving too many alerts, especially low-value or noisy ones, which can lead to important alerts being missed, delayed, or ignored.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "alerting",
+      "on-call"
+    ]
+  },
+  {
+    "id": "monitoring-046",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "options": [
+      "Alert on symptoms that directly affect users, such as elevated error rate or latency, rather than every low-level internal signal",
+      "Every page-worthy alert should link to a runbook describing how to investigate and respond",
+      "Configure as many alerting rules as possible so that no anomaly, however minor, ever goes unnoticed",
+      "An alert should be actionable \u2014 if nobody needs to do anything when it fires, it probably shouldn't page anyone",
+      "Route all alerts, regardless of severity, to immediately page the on-call engineer"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "prompt": "Which of the following are widely considered best practices for writing effective, actionable alerts? (select all that apply)",
+    "explanation": "Good alerts are symptom-focused, actionable, and point responders to a runbook. Paging on every minor anomaly or every alert regardless of severity instead drives alert fatigue rather than preventing it.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "alerting",
+      "best-practices"
+    ]
+  },
+  {
+    "id": "monitoring-047",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "A changelog listing every git commit included in a release",
+      "A documented set of steps for diagnosing and responding to a specific type of alert or incident",
+      "A dashboard that shows only uptime percentages",
+      "The default landing page shown when Grafana starts up"
+    ],
+    "answer": 1,
+    "prompt": "What is a 'runbook' in an incident response context?",
+    "explanation": "A runbook is a documented set of steps for diagnosing and responding to a specific type of alert or incident, meant to guide an on-call responder quickly and consistently.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "runbooks",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "monitoring-048",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": true,
+    "prompt": "A blameless postmortem process aims to identify contributing factors and systemic fixes after an incident without assigning personal blame, which encourages honest and complete reporting.",
+    "explanation": "Blameless postmortems focus on the systemic and process factors that allowed an incident to occur, rather than singling out an individual, which in practice leads to more honest reporting and better long-term fixes.",
+    "reference": "https://sre.google/sre-book/postmortem-culture/",
+    "tags": [
+      "postmortem",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "monitoring-049",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "To determine which individual engineer should be formally disciplined",
+      "To document the incident timeline, root cause(s), impact, and follow-up action items so the organization can learn and reduce recurrence",
+      "To calculate the exact financial cost of the outage strictly for legal purposes",
+      "To immediately roll back the most recent deploy without any further analysis"
+    ],
+    "answer": 1,
+    "prompt": "What is the primary goal of a postmortem written after a production incident?",
+    "explanation": "A postmortem documents the incident timeline, root cause(s), impact, and concrete follow-up action items, so the organization can learn from the incident and reduce the chance it recurs.",
+    "reference": "https://sre.google/sre-book/postmortem-culture/",
+    "tags": [
+      "postmortem",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "monitoring-050",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Being permanently assigned to write product documentation",
+      "Being designated as the primary responder who is paged to investigate and respond to alerts or incidents during a defined rotation",
+      "Attending every sprint planning meeting for the team",
+      "Manually executing every deployment to production"
+    ],
+    "answer": 1,
+    "prompt": "What does being 'on-call' typically mean for an engineer?",
+    "explanation": "Being on-call means an engineer is designated as the primary responder during a defined rotation or shift, expected to be reachable and to investigate and respond to alerts or incidents as they occur.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "on-call",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "monitoring-051",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "options": [
+      "Monitoring based solely on aggregated traffic from real users",
+      "Proactively simulating user actions or requests against a system, from outside it and on a schedule, to catch problems before real users do",
+      "A method for encrypting metrics while they are in transit",
+      "A Kubernetes liveness probe that runs inside the same pod being checked"
+    ],
+    "answer": 1,
+    "prompt": "What is 'synthetic monitoring' (also called synthetic checks)?",
+    "explanation": "Synthetic monitoring proactively simulates user actions or simple requests against a system, from outside it and on a schedule, to detect availability or performance problems before real users encounter them.",
+    "reference": "https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/",
+    "tags": [
+      "synthetic-monitoring",
+      "uptime"
+    ]
+  },
+  {
+    "id": "monitoring-052",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "options": [
+      "A heavyweight distributed tracing collector written in Java",
+      "A simple network daemon that listens for metrics sent by applications over a lightweight text protocol, then aggregates and forwards them to backend systems",
+      "A Kubernetes controller responsible for managing StatefulSets",
+      "A client library that only works with Prometheus"
+    ],
+    "answer": 1,
+    "prompt": "What is StatsD?",
+    "explanation": "StatsD is a simple network daemon, originally from Etsy, that listens for metrics (counters, timers, gauges) sent over a lightweight text protocol, then aggregates and flushes them to one or more backend systems.",
+    "reference": "https://github.com/statsd/statsd",
+    "tags": [
+      "statsd"
+    ]
+  },
+  {
+    "id": "monitoring-053",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": true,
+    "prompt": "StatsD traditionally receives metrics over UDP, which trades guaranteed delivery for low overhead so that a slow or unavailable StatsD daemon does not block the instrumented application.",
+    "explanation": "Using UDP means the sending application fires metrics and moves on without waiting for acknowledgment, so StatsD being slow or down does not add latency or cause the application to block, at the cost of possible packet loss.",
+    "reference": "https://github.com/statsd/statsd",
+    "tags": [
+      "statsd"
+    ]
+  },
+  {
+    "id": "monitoring-054",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "options": [
+      "DEBUG",
+      "INFO",
+      "ERROR",
+      "COMMIT",
+      "ROLLBACK"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "prompt": "Which of the following are conventional log severity levels used by most structured logging libraries? (select all that apply)",
+    "explanation": "DEBUG, INFO, and ERROR (alongside others like WARN and FATAL) are standard log severity levels; 'COMMIT' and 'ROLLBACK' are database transaction terms, not log levels.",
+    "tags": [
+      "logging"
+    ]
+  },
+  {
+    "id": "monitoring-055",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "options": [
+      "Counter",
+      "Gauge",
+      "Histogram",
+      "Summary",
+      "Timer",
+      "Span"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "prompt": "Which of the following are valid Prometheus metric types? (select all that apply)",
+    "explanation": "Prometheus defines four core metric types: counter, gauge, histogram, and summary. 'Timer' is a StatsD concept and 'span' belongs to distributed tracing, not Prometheus's metric model.",
+    "reference": "https://prometheus.io/docs/concepts/metric_types/",
+    "tags": [
+      "prometheus",
+      "metric-types"
+    ]
+  },
+  {
+    "id": "monitoring-056",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "multi",
+    "options": [
+      "node_exporter",
+      "blackbox_exporter",
+      "statsd_exporter",
+      "Alertmanager",
+      "Grafana"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "prompt": "Which of the following are official Prometheus exporters used to expose metrics for scraping? (select all that apply)",
+    "explanation": "`node_exporter`, `blackbox_exporter`, and `statsd_exporter` are all exporters that expose metrics in Prometheus format. Alertmanager and Grafana are not exporters: Alertmanager routes alerts, and Grafana visualizes data.",
+    "reference": "https://prometheus.io/docs/instrumenting/exporters/",
+    "tags": [
+      "prometheus",
+      "exporters"
+    ]
+  },
+  {
+    "id": "monitoring-057",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "options": [
+      "rate",
+      "irate",
+      "histogram_quantile",
+      "topk",
+      "JOIN",
+      "SELECT"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "prompt": "Which of the following are valid PromQL functions? (select all that apply)",
+    "explanation": "`rate`, `irate`, `histogram_quantile`, and `topk` are all real PromQL functions/operators. `JOIN` and `SELECT` are SQL keywords with no equivalent in PromQL's query language.",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
+    "tags": [
+      "promql"
+    ]
+  },
+  {
+    "id": "monitoring-058",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "multi",
+    "options": [
+      "Receivers",
+      "Processors",
+      "Exporters",
+      "Retrievers",
+      "Aggregators"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "prompt": "Which of the following are core pipeline component types configured in the OpenTelemetry Collector? (select all that apply)",
+    "explanation": "An OpenTelemetry Collector pipeline is built from receivers (ingest telemetry), processors (transform, filter, or batch it), and exporters (send it to a backend). 'Retrievers' and 'aggregators' are not OpenTelemetry Collector pipeline component types.",
+    "reference": "https://opentelemetry.io/docs/collector/",
+    "tags": [
+      "opentelemetry",
+      "collector"
+    ]
+  },
+  {
+    "id": "monitoring-059",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "answer": [
+      "increase"
+    ],
+    "prompt": "Which PromQL function returns the total increase of a counter over a time range, accounting for resets, e.g. `increase(http_requests_total[1h])`?",
+    "explanation": "`increase()` calculates the total increase in a counter's value over the given range, internally extrapolating using the same reset-aware logic as `rate()` (it is equivalent to `rate()` multiplied by the number of seconds in the range).",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/#increase",
+    "tags": [
+      "promql"
+    ],
+    "pattern": "^increase(\\(\\))?$"
   }
 ]

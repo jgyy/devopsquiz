@@ -3,9 +3,1124 @@
     "id": "kubernetes-001",
     "domain": "kubernetes",
     "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the smallest deployable unit that can be created and managed directly in Kubernetes?",
+    "options": [
+      "A Pod",
+      "A Container",
+      "A Node",
+      "A Deployment"
+    ],
+    "answer": 0,
+    "explanation": "A Pod is the smallest deployable unit in Kubernetes; it wraps one or more containers that share network and storage. Containers cannot be scheduled directly, and Nodes and Deployments are higher-level concepts.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
+    "tags": [
+      "pods",
+      "fundamentals"
+    ]
+  },
+  {
+    "id": "kubernetes-002",
+    "domain": "kubernetes",
+    "difficulty": "easy",
     "type": "boolean",
-    "prompt": "Placeholder kubernetes question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "prompt": "Containers that belong to the same Pod share the same network namespace, so they can reach each other over `localhost`.",
+    "answer": true,
+    "explanation": "All containers in a Pod share the Pod's network namespace (and IP address), so they communicate via `localhost`, and they can optionally share storage through mounted volumes.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
+    "tags": [
+      "pods",
+      "networking"
+    ]
+  },
+  {
+    "id": "kubernetes-003",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of a `ReplicaSet`?",
+    "options": [
+      "To ensure a specified number of identical Pod replicas are running at all times",
+      "To expose a set of Pods as a network service",
+      "To store configuration data for Pods",
+      "To schedule Pods onto specific nodes"
+    ],
+    "answer": 0,
+    "explanation": "A ReplicaSet's purpose is to maintain a stable set of replica Pods running at any given time, creating or removing Pods as needed to match the desired count.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/",
+    "tags": [
+      "replicaset"
+    ]
+  },
+  {
+    "id": "kubernetes-004",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does a `Deployment` improve on managing Pods with a bare `ReplicaSet` directly?",
+    "options": [
+      "It adds declarative rolling updates, rollback, and revision history on top of ReplicaSet management",
+      "It removes the need for a ReplicaSet entirely",
+      "It allows Pods to run without a container image",
+      "It replaces the need for a scheduler"
+    ],
+    "answer": 0,
+    "explanation": "A Deployment manages ReplicaSets for you and adds features like declarative rolling updates, pausing/resuming rollouts, and rolling back to a previous revision — capabilities a bare ReplicaSet does not provide on its own.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+    "tags": [
+      "deployment",
+      "replicaset"
+    ]
+  },
+  {
+    "id": "kubernetes-005",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A StatefulSet named `web` with 3 replicas creates Pods with which naming pattern?",
+    "options": [
+      "web-0, web-1, web-2",
+      "web-a, web-b, web-c",
+      "web-pod1, web-pod2, web-pod3",
+      "Randomly generated names, just like a ReplicaSet"
+    ],
+    "answer": 0,
+    "explanation": "StatefulSet Pods get a sticky, unique ordinal index appended to the StatefulSet name, producing predictable names such as `web-0`, `web-1`, `web-2`, which persist across rescheduling.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
+    "tags": [
+      "statefulset"
+    ]
+  },
+  {
+    "id": "kubernetes-006",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A StatefulSet must be paired with a headless Service (`clusterIP: None`) to provide the stable network identity for its Pods.",
+    "answer": true,
+    "explanation": "StatefulSets rely on a governing headless Service to give each Pod a stable, predictable DNS name (for example `web-0.web.default.svc.cluster.local`); without it, the Pods lack this stable network identity.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
+    "tags": [
+      "statefulset",
+      "dns"
+    ]
+  },
+  {
+    "id": "kubernetes-007",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does a `DaemonSet` guarantee?",
+    "options": [
+      "That a copy of a Pod runs on all (or a selected subset of) nodes in the cluster",
+      "That exactly one Pod runs in the entire cluster",
+      "That Pods are automatically scaled based on CPU usage",
+      "That a Pod restarts every time it completes successfully"
+    ],
+    "answer": 0,
+    "explanation": "A DaemonSet ensures that all (or some, via node selectors/affinity) nodes run a copy of a Pod — commonly used for node-level agents like log collectors or monitoring daemons.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/",
+    "tags": [
+      "daemonset"
+    ]
+  },
+  {
+    "id": "kubernetes-008",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement correctly describes a Kubernetes `Job`?",
+    "options": [
+      "It creates one or more Pods and ensures a specified number of them terminate successfully; its Pod template's `restartPolicy` must be `OnFailure` or `Never`",
+      "It runs Pods on a repeating cron schedule",
+      "It keeps a Pod running forever, restarting it with `restartPolicy: Always`",
+      "It exposes a stable virtual IP for a set of Pods"
+    ],
+    "answer": 0,
+    "explanation": "A Job creates Pods and tracks successful completions; because a Job's Pods are expected to terminate, the Pod template cannot use `restartPolicy: Always` — only `OnFailure` or `Never` are allowed. Running Pods on a repeating schedule is instead the job of a CronJob.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/job/",
+    "tags": [
+      "job"
+    ]
+  },
+  {
+    "id": "kubernetes-009",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Write the standard 5-field cron schedule expression that runs a `CronJob` once every day at midnight (00:00).",
+    "answer": [
+      "0 0 * * *"
+    ],
+    "explanation": "CronJob schedules use the standard crontab format `minute hour day-of-month month day-of-week`. `0 0 * * *` means minute 0, hour 0, every day, every month, every weekday — i.e. midnight daily.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/",
+    "tags": [
+      "cronjob",
+      "cron"
+    ],
+    "pattern": "^0\\s+0\\s+\\*\\s+\\*\\s+\\*$"
+  },
+  {
+    "id": "kubernetes-010",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "If you create a Service without specifying `type`, what type does it default to?",
+    "options": [
+      "ClusterIP",
+      "NodePort",
+      "LoadBalancer",
+      "ExternalName"
+    ],
+    "answer": 0,
+    "explanation": "`ClusterIP` is the default Service type; it exposes the Service on an internal IP reachable only from within the cluster.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "tags": [
+      "service"
+    ]
+  },
+  {
+    "id": "kubernetes-011",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "By default, what port range does Kubernetes allocate for `NodePort` Services?",
+    "options": [
+      "30000-32767",
+      "1024-2048",
+      "8000-9000",
+      "20000-30000"
+    ],
+    "answer": 0,
+    "explanation": "Unless the API server's `--service-node-port-range` flag is changed, NodePort Services are assigned a port from the default range 30000-32767 on every node.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "tags": [
+      "service",
+      "nodeport"
+    ]
+  },
+  {
+    "id": "kubernetes-012",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid built-in `type` values for a Kubernetes Service? (Select all that apply.)",
+    "options": [
+      "ClusterIP",
+      "NodePort",
+      "LoadBalancer",
+      "ExternalName",
+      "Ingress",
+      "Gateway"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "The four built-in Service types are `ClusterIP`, `NodePort`, `LoadBalancer`, and `ExternalName`. `Ingress` and `Gateway` are separate API objects for routing HTTP(S) traffic, not Service types.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "tags": [
+      "service",
+      "types"
+    ]
+  },
+  {
+    "id": "kubernetes-013",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You create a Service with `type: LoadBalancer` on a self-managed cluster with no cloud-controller-manager or load-balancer integration configured. What happens?",
+    "options": [
+      "The Service's external IP stays `<pending>`, and it otherwise behaves like a NodePort Service",
+      "Kubernetes automatically provisions a software load balancer using kube-proxy",
+      "The Service creation is rejected by the API server",
+      "The Service silently becomes a ClusterIP Service"
+    ],
+    "answer": 0,
+    "explanation": "Without a controller that can provision an external load balancer, a `LoadBalancer` Service simply never gets an external IP assigned (it stays `<pending>`), while still receiving the NodePort and ClusterIP allocations a LoadBalancer Service also gets.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "tags": [
+      "service",
+      "loadbalancer"
+    ]
+  },
+  {
+    "id": "kubernetes-014",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the effect of setting `clusterIP: None` on a Service (a 'headless' Service)?",
+    "options": [
+      "DNS queries for the Service return the individual Pod IPs directly instead of a single virtual cluster IP",
+      "The Service is disabled and stops routing traffic",
+      "The Service is assigned a new random internal IP on every query",
+      "All traffic to the Service is dropped until an Ingress is created"
+    ],
+    "answer": 0,
+    "explanation": "A headless Service has no cluster IP; DNS lookups for it return the set of individual Pod IPs (or per-Pod DNS records for a StatefulSet) instead of load-balancing through a single virtual IP, letting clients discover and connect to individual Pods directly.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "tags": [
+      "service",
+      "dns",
+      "headless"
+    ]
+  },
+  {
+    "id": "kubernetes-015",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of an `Ingress` resource in Kubernetes?",
+    "options": [
+      "To expose HTTP and HTTPS routes from outside the cluster to Services inside it, based on host and path rules",
+      "To store TLS certificates for Pods",
+      "To assign static IP addresses to Pods",
+      "To restrict network traffic between Pods"
+    ],
+    "answer": 0,
+    "explanation": "Ingress defines rules for routing external HTTP/HTTPS traffic to internal Services, typically based on hostname and URL path, and can also terminate TLS.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress/",
+    "tags": [
+      "ingress"
+    ]
+  },
+  {
+    "id": "kubernetes-016",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Creating an `Ingress` resource has no routing effect unless an Ingress controller is also running in the cluster to implement it.",
+    "answer": true,
+    "explanation": "Kubernetes does not ship a built-in Ingress controller; the Ingress resource is just a set of rules, and an Ingress controller (for example ingress-nginx or a cloud provider's controller) must be deployed to actually watch and fulfil those rules.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/",
+    "tags": [
+      "ingress",
+      "ingress-controller"
+    ]
+  },
+  {
+    "id": "kubernetes-017",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is a `ConfigMap` primarily used for?",
+    "options": [
+      "Storing non-confidential configuration data as key-value pairs that Pods can consume",
+      "Storing TLS certificates and passwords securely",
+      "Defining RBAC permissions for a namespace",
+      "Persisting data across Pod restarts like a database"
+    ],
+    "answer": 0,
+    "explanation": "ConfigMaps hold non-sensitive configuration data (such as settings, file contents, or CLI arguments) that can be injected into Pods as environment variables, command-line arguments, or mounted files. Sensitive data belongs in a `Secret` instead.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
+    "tags": [
+      "configmap"
+    ]
+  },
+  {
+    "id": "kubernetes-018",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "By default, Kubernetes `Secret` values are only base64-encoded, not encrypted, when stored in etcd.",
+    "answer": true,
+    "explanation": "Base64 is an encoding, not encryption — anyone with API or etcd access can trivially decode it. Encryption at rest requires explicitly configuring an `EncryptionConfiguration` (for example with a KMS provider) for the API server.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
+    "tags": [
+      "secret",
+      "security"
+    ]
+  },
+  {
+    "id": "kubernetes-019",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid ways for a Pod to consume data from a `ConfigMap`? (Select all that apply.)",
+    "options": [
+      "As individual environment variables via `valueFrom.configMapKeyRef`",
+      "As a full set of environment variables via `envFrom`",
+      "As files in a mounted volume",
+      "As the container's base image",
+      "As the Pod's `restartPolicy`"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "ConfigMap data can populate individual environment variables, be bulk-imported with `envFrom`, or be mounted as files in a volume. A ConfigMap cannot supply a container image or a `restartPolicy`.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
+    "tags": [
+      "configmap"
+    ]
+  },
+  {
+    "id": "kubernetes-020",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which built-in Secret type is designed to hold credentials for pulling images from a private container registry?",
+    "options": [
+      "kubernetes.io/dockerconfigjson",
+      "kubernetes.io/tls",
+      "Opaque",
+      "kubernetes.io/service-account-token"
+    ],
+    "answer": 0,
+    "explanation": "`kubernetes.io/dockerconfigjson` stores a Docker config file used for authenticating to private registries, referenced from a Pod via `imagePullSecrets`. `kubernetes.io/tls` holds certificate/key pairs, `Opaque` is the generic default type, and `kubernetes.io/service-account-token` holds a ServiceAccount's token.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
+    "tags": [
+      "secret",
+      "registry"
+    ]
+  },
+  {
+    "id": "kubernetes-021",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does a `PersistentVolumeClaim` (PVC) represent?",
+    "options": [
+      "A user's request for storage, which Kubernetes binds to a matching PersistentVolume",
+      "A physical disk attached directly to a node",
+      "A snapshot of an existing volume",
+      "A StorageClass definition"
+    ],
+    "answer": 0,
+    "explanation": "A PVC is a request for storage made by a user (or Pod); Kubernetes binds it to a `PersistentVolume` that satisfies its size, access mode, and (optionally) StorageClass requirements.",
+    "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
+    "tags": [
+      "pvc",
+      "storage"
+    ]
+  },
+  {
+    "id": "kubernetes-022",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main purpose of a `StorageClass`?",
+    "options": [
+      "To enable dynamic provisioning of PersistentVolumes with a given set of parameters",
+      "To encrypt data written to any volume",
+      "To limit the number of Pods per node",
+      "To define network policies for storage traffic"
+    ],
+    "answer": 0,
+    "explanation": "A StorageClass describes a 'class' of storage (provisioner, parameters, reclaim policy) that lets the cluster automatically (dynamically) provision a PersistentVolume when a matching PVC is created, instead of requiring an administrator to pre-create volumes.",
+    "reference": "https://kubernetes.io/docs/concepts/storage/storage-classes/",
+    "tags": [
+      "storageclass",
+      "storage"
+    ]
+  },
+  {
+    "id": "kubernetes-023",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A `PersistentVolume` is a cluster-scoped resource (not namespaced), while a `PersistentVolumeClaim` that uses it is namespaced.",
+    "answer": true,
+    "explanation": "PersistentVolumes are cluster-level resources like Nodes, visible cluster-wide, whereas PersistentVolumeClaims live in a namespace and can only be used by Pods in that same namespace.",
+    "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
+    "tags": [
+      "pv",
+      "pvc",
+      "storage"
+    ]
+  },
+  {
+    "id": "kubernetes-024",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of these are valid PersistentVolume access modes? (Select all that apply.)",
+    "options": [
+      "ReadWriteOnce",
+      "ReadOnlyMany",
+      "ReadWriteMany",
+      "ReadWriteOncePod",
+      "ReadWriteAny"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Kubernetes defines `ReadWriteOnce` (read-write by a single node), `ReadOnlyMany`, `ReadWriteMany`, and the newer `ReadWriteOncePod` (read-write by a single Pod cluster-wide). `ReadWriteAny` is not a real access mode.",
+    "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
+    "tags": [
+      "pv",
+      "access-modes"
+    ]
+  },
+  {
+    "id": "kubernetes-025",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the main purpose of a Kubernetes `Namespace`?",
+    "options": [
+      "To provide a mechanism for isolating and scoping groups of resources within a single cluster",
+      "To physically separate clusters onto different hardware",
+      "To define network firewall rules between Pods",
+      "To limit which container images can be pulled"
+    ],
+    "answer": 0,
+    "explanation": "Namespaces divide a single cluster into multiple virtual clusters, scoping resource names and letting teams or environments share a cluster without name collisions. They do not provide network isolation by themselves.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
+    "tags": [
+      "namespace"
+    ]
+  },
+  {
+    "id": "kubernetes-026",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "When you create a resource without specifying a namespace, and your kubeconfig context sets none, which namespace is it created in?",
+    "answer": [
+      "default"
+    ],
+    "explanation": "Kubernetes provides an initial namespace called `default` for objects that don't specify one.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
+    "tags": [
+      "namespace"
+    ],
+    "pattern": "^default$"
+  },
+  {
+    "id": "kubernetes-027",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the key difference between a `Role` and a `ClusterRole` in RBAC?",
+    "options": [
+      "A `Role` grants permissions within a single namespace, while a `ClusterRole` grants permissions cluster-wide (or reusable across namespaces)",
+      "A `Role` can only be bound to ServiceAccounts, while a `ClusterRole` can only be bound to users",
+      "A `Role` controls network access, while a `ClusterRole` controls storage access",
+      "There is no real difference; they are aliases for the same object"
+    ],
+    "answer": 0,
+    "explanation": "A `Role` is namespaced and its rules only apply within that namespace, whereas a `ClusterRole` is a cluster-scoped resource that can grant access to cluster-scoped resources or be reused across multiple namespaces.",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
+    "tags": [
+      "rbac",
+      "role"
+    ]
+  },
+  {
+    "id": "kubernetes-028",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "How does a `LimitRange` differ from a `ResourceQuota` in a namespace?",
+    "options": [
+      "A `LimitRange` sets default/min/max resource constraints per Pod or container, while a `ResourceQuota` caps the total aggregate resource consumption across the whole namespace",
+      "A `LimitRange` applies cluster-wide while `ResourceQuota` applies only per Pod",
+      "A `LimitRange` and a `ResourceQuota` are two names for the same object",
+      "A `LimitRange` restricts the number of Secrets, while `ResourceQuota` restricts CPU only"
+    ],
+    "answer": 0,
+    "explanation": "`LimitRange` constrains individual Pods/containers (for example default requests/limits, or min/max), while `ResourceQuota` constrains the sum total of resources (CPU, memory, object counts, and so on) consumed by everything in a namespace.",
+    "reference": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+    "tags": [
+      "rbac",
+      "resourcequota",
+      "limitrange"
+    ]
+  },
+  {
+    "id": "kubernetes-029",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `ServiceAccount` in Kubernetes?",
+    "options": [
+      "To provide an identity that processes running inside a Pod use to authenticate to the Kubernetes API server",
+      "To provide login credentials for human users of `kubectl`",
+      "To store a Pod's environment variables",
+      "To define which node a Pod should run on"
+    ],
+    "answer": 0,
+    "explanation": "ServiceAccounts give an identity to processes running in Pods so they can authenticate API requests; they are distinct from the user accounts humans use to access the cluster.",
+    "reference": "https://kubernetes.io/docs/concepts/security/service-accounts/",
+    "tags": [
+      "rbac",
+      "serviceaccount"
+    ]
+  },
+  {
+    "id": "kubernetes-030",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which two-word `kubectl` subcommand pair lets you check whether an identity is allowed to perform a given action, as in `kubectl ___ create pods --namespace dev`?",
+    "answer": [
+      "auth can-i",
+      "kubectl auth can-i"
+    ],
+    "explanation": "`kubectl auth can-i <verb> <resource>` queries the API server's authorization layer (via a SelfSubjectAccessReview) to report whether the acting identity is permitted to perform that action.",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/authorization/",
+    "tags": [
+      "rbac",
+      "kubectl"
+    ],
+    "pattern": "^(kubectl\\s+)?auth\\s+can-i$"
+  },
+  {
+    "id": "kubernetes-031",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What happens when a container's liveness probe fails repeatedly (past its failure threshold)?",
+    "options": [
+      "The kubelet kills and restarts the container according to the Pod's restart policy",
+      "The Pod is immediately deleted and rescheduled to another node",
+      "The container is removed from Service endpoints but left running",
+      "Nothing happens; liveness probes are only used for monitoring dashboards"
+    ],
+    "answer": 0,
+    "explanation": "A failing liveness probe tells the kubelet the container is unhealthy, so it kills the container and restarts it (subject to the Pod's `restartPolicy`). This differs from a readiness probe, which only affects Service endpoint membership.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+    "tags": [
+      "probes",
+      "liveness"
+    ]
+  },
+  {
+    "id": "kubernetes-032",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the effect of a container's readiness probe failing?",
+    "options": [
+      "The Pod's IP is removed from the endpoints of any Service that selects it, without restarting the container",
+      "The container is immediately restarted by the kubelet",
+      "The Pod is deleted and a new one is scheduled",
+      "The Node is cordoned and marked unschedulable"
+    ],
+    "answer": 0,
+    "explanation": "A failing readiness probe only removes the Pod from Service endpoints (so it stops receiving traffic) — the container keeps running and is not restarted, unlike a failing liveness probe.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+    "tags": [
+      "probes",
+      "readiness"
+    ]
+  },
+  {
+    "id": "kubernetes-033",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid mechanisms for defining a Pod probe (liveness, readiness, or startup)? (Select all that apply.)",
+    "options": [
+      "`httpGet`",
+      "`tcpSocket`",
+      "`exec`",
+      "`grpc`",
+      "`ping`"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Kubernetes probes can be implemented as an HTTP GET request (`httpGet`), a TCP connection check (`tcpSocket`), an in-container command (`exec`), or a gRPC health check (`grpc`). There is no built-in `ping` probe mechanism.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+    "tags": [
+      "probes"
+    ]
+  },
+  {
+    "id": "kubernetes-034",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "When the Kubernetes scheduler decides which node to place a Pod on, which value does it primarily use to check the node has enough capacity?",
+    "options": [
+      "The container's resource `requests`",
+      "The container's resource `limits`",
+      "The node's total memory only",
+      "The Pod's `priorityClassName`"
+    ],
+    "answer": 0,
+    "explanation": "The scheduler filters nodes based on whether they have enough allocatable capacity to satisfy the sum of a Pod's container `requests`; `limits` only bound runtime usage and are not used for the scheduling capacity check.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+    "tags": [
+      "scheduling",
+      "resources"
+    ]
+  },
+  {
+    "id": "kubernetes-035",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A container exceeds its configured memory limit, and separately a container exceeds its configured CPU limit. What is the difference in outcome?",
+    "options": [
+      "Exceeding the memory limit gets the container OOMKilled, while exceeding the CPU limit only throttles it and does not kill it",
+      "Both situations result in the container being immediately killed",
+      "Exceeding the memory limit throttles the container, while exceeding the CPU limit kills it",
+      "Neither has any effect unless a `LimitRange` is also defined"
+    ],
+    "answer": 0,
+    "explanation": "Memory is not compressible: a container that exceeds its memory limit is terminated by the kernel's OOM killer. CPU is compressible: a container that exceeds its CPU limit is simply throttled (slowed down) via CFS quotas, not killed.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+    "tags": [
+      "resources",
+      "limits"
+    ]
+  },
+  {
+    "id": "kubernetes-036",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of these are valid Kubernetes Quality of Service (QoS) classes assigned to Pods? (Select all that apply.)",
+    "options": [
+      "Guaranteed",
+      "Burstable",
+      "BestEffort",
+      "Reserved",
+      "Priority"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Kubernetes assigns every Pod one of three QoS classes based on its requests/limits: `Guaranteed` (requests equal limits for every container), `Burstable` (at least one request set, but not Guaranteed), or `BestEffort` (no requests or limits set at all). `Reserved` and `Priority` are not QoS classes.",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+    "tags": [
+      "qos",
+      "resources"
+    ]
+  },
+  {
+    "id": "kubernetes-037",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the simplest way to constrain a Pod to run only on nodes that have a specific label, such as `disktype=ssd`?",
+    "options": [
+      "Set `nodeSelector: { disktype: ssd }` in the Pod spec",
+      "Set the Pod's `priorityClassName` to `ssd`",
+      "Add a `taint` to the Pod",
+      "Set the container's `resources.requests.disktype`"
+    ],
+    "answer": 0,
+    "explanation": "`nodeSelector` is the simplest form of node selection constraint: the Pod is only scheduled onto nodes carrying all of the specified labels. Node affinity offers a more expressive alternative for complex rules.",
+    "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
+    "tags": [
+      "scheduling",
+      "nodeselector"
+    ]
+  },
+  {
+    "id": "kubernetes-038",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Pod uses node affinity with `requiredDuringSchedulingIgnoredDuringExecution`. What does the `IgnoredDuringExecution` part mean?",
+    "options": [
+      "If a node's labels change after the Pod has been scheduled there, the Pod is not evicted even though it no longer matches the rule",
+      "The rule is ignored entirely and has no effect on scheduling",
+      "The Pod is evicted immediately if the node's labels ever change",
+      "The rule only applies while the Pod is being deleted"
+    ],
+    "answer": 0,
+    "explanation": "`IgnoredDuringExecution` means the affinity rule is only enforced at scheduling time; Kubernetes does not continuously re-evaluate it, so a running Pod stays on its node even if the node's labels later change and no longer satisfy the rule.",
+    "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
+    "tags": [
+      "scheduling",
+      "affinity"
+    ]
+  },
+  {
+    "id": "kubernetes-039",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are valid `effect` values for a node taint? (Select all that apply.)",
+    "options": [
+      "NoSchedule",
+      "PreferNoSchedule",
+      "NoExecute",
+      "NoAdmit",
+      "BlockSchedule"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "A taint's effect must be one of `NoSchedule` (don't schedule non-tolerating Pods), `PreferNoSchedule` (try to avoid it), or `NoExecute` (also evict already-running non-tolerating Pods). `NoAdmit` and `BlockSchedule` are not real taint effects.",
+    "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/",
+    "tags": [
+      "scheduling",
+      "taints"
+    ]
+  },
+  {
+    "id": "kubernetes-040",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does a `HorizontalPodAutoscaler` (HPA) do?",
+    "options": [
+      "Automatically adjusts the number of Pod replicas in a workload based on observed metrics such as CPU or memory usage",
+      "Automatically increases a container's CPU and memory limits over time",
+      "Automatically adds more nodes to the cluster",
+      "Automatically resizes Persistent Volumes"
+    ],
+    "answer": 0,
+    "explanation": "An HPA watches metrics (CPU/memory utilization, or custom/external metrics) and scales the number of replicas of a target Deployment, ReplicaSet, or StatefulSet up or down to meet a target value. Adding nodes is instead the job of a cluster autoscaler.",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+    "tags": [
+      "hpa",
+      "autoscaling"
+    ]
+  },
+  {
+    "id": "kubernetes-041",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "For a `HorizontalPodAutoscaler` to scale based on CPU or memory utilization, the metrics-server (or an equivalent metrics API) must be installed in the cluster.",
+    "answer": true,
+    "explanation": "The HPA controller reads resource metrics from the `metrics.k8s.io` API, which is served by metrics-server (or a compatible implementation); without it, CPU/memory-based autoscaling has no data to act on.",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+    "tags": [
+      "hpa",
+      "metrics-server"
+    ]
+  },
+  {
+    "id": "kubernetes-042",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "If a `Deployment`'s `spec.strategy.type` is left unset, which update strategy is used when the Pod template changes?",
+    "options": [
+      "RollingUpdate",
+      "Recreate",
+      "BlueGreen",
+      "Canary"
+    ],
+    "answer": 0,
+    "explanation": "`RollingUpdate` is the default Deployment strategy: old Pods are gradually replaced by new ones. `Recreate` must be explicitly set, and `BlueGreen`/`Canary` are not built-in Deployment strategies (they are patterns you implement yourself or via other tooling).",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+    "tags": [
+      "deployment",
+      "rollout"
+    ]
+  },
+  {
+    "id": "kubernetes-043",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "During a `RollingUpdate`, what do the `maxUnavailable` and `maxSurge` fields control?",
+    "options": [
+      "How many Pods can be unavailable, and how many extra Pods above the desired count can be created, during the rollout",
+      "The maximum number of container restarts allowed per Pod",
+      "The maximum time in seconds a rollout is allowed to run",
+      "The maximum number of ReplicaSets kept in revision history"
+    ],
+    "answer": 0,
+    "explanation": "`maxUnavailable` caps how many Pods can be down at once during the rollout, and `maxSurge` caps how many extra Pods beyond the desired replica count can be created temporarily, together controlling the rollout's speed versus availability trade-off.",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+    "tags": [
+      "deployment",
+      "rollout"
+    ]
+  },
+  {
+    "id": "kubernetes-044",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Write the `kubectl` command to stream the logs of a running Pod named `web-1`.",
+    "answer": [
+      "kubectl logs web-1"
+    ],
+    "explanation": "`kubectl logs <pod-name>` prints the logs of a Pod's (default) container; add `-f` to stream them continuously, or `-c <container>` to pick a specific container in a multi-container Pod.",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
+    "tags": [
+      "kubectl",
+      "logs"
+    ],
+    "pattern": "^kubectl\\s+logs\\s+web-1$"
+  },
+  {
+    "id": "kubernetes-045",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Write the `kubectl` command to create or update resources defined in a manifest file named `app.yaml`.",
+    "answer": [
+      "kubectl apply -f app.yaml"
+    ],
+    "explanation": "`kubectl apply -f <file>` declaratively creates resources that don't yet exist and updates ones that do, reconciling the cluster state with what's defined in the manifest.",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
+    "tags": [
+      "kubectl",
+      "apply"
+    ],
+    "pattern": "^kubectl\\s+apply\\s+-f\\s+app\\.yaml$"
+  },
+  {
+    "id": "kubernetes-046",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "How does `kubectl describe <resource> <name>` differ from `kubectl get <resource> <name>`?",
+    "options": [
+      "`describe` prints detailed, human-readable information including recent events, while `get` prints a concise summary (often a single table row)",
+      "`describe` and `get` are exact aliases of each other",
+      "`describe` deletes the resource after printing it, unlike `get`",
+      "`get` shows recent events, while `describe` never does"
+    ],
+    "answer": 0,
+    "explanation": "`kubectl get` is meant for quick, scriptable summaries (often one line per object), while `kubectl describe` gives a verbose, human-focused view of a single object, including its recent Events — very useful for debugging.",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
+    "tags": [
+      "kubectl"
+    ]
+  },
+  {
+    "id": "kubernetes-047",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `kubectl rollout undo deployment/web` do?",
+    "options": [
+      "Reverts the `web` Deployment's Pods to the configuration used in the previous revision",
+      "Deletes the `web` Deployment and all of its Pods permanently",
+      "Pauses the current rollout without changing any existing Pods",
+      "Scales the `web` Deployment down to zero replicas"
+    ],
+    "answer": 0,
+    "explanation": "`kubectl rollout undo` rolls a Deployment back to its previous revision (or a specific one with `--to-revision`), using the revision history retained by the Deployment's ReplicaSets.",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
+    "tags": [
+      "kubectl",
+      "rollout"
+    ]
+  },
+  {
+    "id": "kubernetes-048",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which control-plane component exposes the Kubernetes REST API and is the central point of contact for all other components and clients, including `kubectl`?",
+    "options": [
+      "kube-apiserver",
+      "etcd",
+      "kube-scheduler",
+      "kubelet"
+    ],
+    "answer": 0,
+    "explanation": "kube-apiserver is the front end of the control plane; it validates and processes REST requests and is the only component that talks directly to etcd, with every other component and client communicating through it.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/components/",
+    "tags": [
+      "control-plane",
+      "apiserver"
+    ]
+  },
+  {
+    "id": "kubernetes-049",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "`etcd` is the consistent, highly-available key-value store that holds all of a Kubernetes cluster's persistent state.",
+    "answer": true,
+    "explanation": "etcd is the cluster's single source of truth, storing the entire cluster state (objects, configuration, and status); only kube-apiserver talks to it directly.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/components/",
+    "tags": [
+      "control-plane",
+      "etcd"
+    ]
+  },
+  {
+    "id": "kubernetes-050",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are control-plane components of a Kubernetes cluster? (Select all that apply.)",
+    "options": [
+      "kube-apiserver",
+      "etcd",
+      "kube-scheduler",
+      "kube-controller-manager",
+      "kubelet",
+      "kube-proxy"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "kube-apiserver, etcd, kube-scheduler, and kube-controller-manager (plus, in cloud environments, cloud-controller-manager) make up the control plane. `kubelet` and `kube-proxy` are node components that run on every worker (and typically control-plane) node instead.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/components/",
+    "tags": [
+      "control-plane"
+    ]
+  },
+  {
+    "id": "kubernetes-051",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following run as an agent on every worker node in a Kubernetes cluster? (Select all that apply.)",
+    "options": [
+      "kubelet",
+      "kube-proxy",
+      "A container runtime (e.g. containerd)",
+      "kube-scheduler",
+      "etcd (as the cluster's primary datastore)"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Every node runs a `kubelet` (manages Pods on that node), `kube-proxy` (maintains network rules for Services), and a container runtime. `kube-scheduler` and the cluster's primary `etcd` datastore are control-plane components, not per-node agents.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/components/",
+    "tags": [
+      "node-components",
+      "kubelet",
+      "kube-proxy"
+    ]
+  },
+  {
+    "id": "kubernetes-052",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In Kubernetes' networking model, how do Pods on different nodes communicate by default?",
+    "options": [
+      "Every Pod gets its own cluster-wide unique IP address, and Pods can reach each other directly without NAT",
+      "Pods can only communicate through a Service; there is no direct Pod-to-Pod networking",
+      "All Pods on a node share a single IP address and are distinguished by port",
+      "Pod-to-Pod traffic is routed through the API server"
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes requires a 'flat' network model where every Pod gets its own unique IP address and can communicate with any other Pod's IP across nodes without NAT, which is what CNI plugins implement.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/",
+    "tags": [
+      "networking",
+      "pod-ip"
+    ]
+  },
+  {
+    "id": "kubernetes-053",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What role does a CNI (Container Network Interface) plugin play in a Kubernetes cluster?",
+    "options": [
+      "It implements the actual Pod networking (IP allocation and routing) so Pods on different nodes can communicate, fulfilling Kubernetes' networking model",
+      "It builds and pushes container images to a registry",
+      "It authenticates users against the API server",
+      "It schedules Pods onto nodes based on resource requests"
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes itself does not implement Pod networking; it delegates that to a CNI plugin (for example Calico, Cilium, or Flannel), which is responsible for assigning Pod IPs and setting up routing so the required flat network model is realized.",
+    "reference": "https://kubernetes.io/docs/concepts/cluster-administration/networking/",
+    "tags": [
+      "networking",
+      "cni"
+    ]
+  },
+  {
+    "id": "kubernetes-054",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "CoreDNS is the default cluster add-on that provides DNS-based service discovery for Services and Pods in a Kubernetes cluster.",
+    "answer": true,
+    "explanation": "CoreDNS runs as Pods inside the cluster and serves DNS records (for example `my-svc.my-namespace.svc.cluster.local`) so that workloads can discover Services and Pods by name instead of hardcoding IPs. It replaced kube-dns as the default in modern Kubernetes.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/",
+    "tags": [
+      "networking",
+      "dns",
+      "coredns"
+    ]
+  },
+  {
+    "id": "kubernetes-055",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "If no `NetworkPolicy` objects exist in a namespace, Kubernetes' default behavior is to allow all pod-to-pod network traffic.",
+    "answer": true,
+    "explanation": "Kubernetes networking is non-isolating by default: traffic is unrestricted unless a `NetworkPolicy` selects the Pod, at which point that Pod's traffic becomes restricted to what the policy (or policies) allow. Enforcement additionally requires a CNI plugin that supports NetworkPolicy.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+    "tags": [
+      "networking",
+      "networkpolicy"
+    ]
+  },
+  {
+    "id": "kubernetes-056",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is a Helm 'chart'?",
+    "options": [
+      "A package of pre-configured Kubernetes resource templates that can be deployed together as one unit",
+      "A dashboard for visualizing cluster metrics",
+      "A YAML file listing a cluster's nodes",
+      "A built-in Kubernetes object for defining RBAC rules"
+    ],
+    "answer": 0,
+    "explanation": "A Helm chart is a package format bundling Kubernetes manifest templates plus metadata and default configuration, letting you install, upgrade, and version an application as a single release.",
+    "reference": "https://helm.sh/docs/topics/charts/",
+    "tags": [
+      "helm",
+      "chart"
+    ]
+  },
+  {
+    "id": "kubernetes-057",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the purpose of a chart's `values.yaml` file in Helm?",
+    "options": [
+      "It supplies the default configuration values used to render the chart's templates, which can be overridden at install/upgrade time",
+      "It lists the Kubernetes API versions supported by the cluster",
+      "It stores the chart's release history",
+      "It defines the RBAC Role bound to the chart's ServiceAccount"
+    ],
+    "answer": 0,
+    "explanation": "`values.yaml` holds the default parameters referenced by a chart's templates (for example `{{ .Values.replicaCount }}`); users can override them with `--set` or a custom values file on `helm install`/`helm upgrade`.",
+    "reference": "https://helm.sh/docs/chart_template_guide/values_files/",
+    "tags": [
+      "helm",
+      "values"
+    ]
+  },
+  {
+    "id": "kubernetes-058",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Helm 3 removed the server-side component called Tiller that Helm 2 required to be installed in the cluster.",
+    "answer": true,
+    "explanation": "Helm 2 needed a cluster-side component, Tiller, which raised security concerns due to its broad permissions. Helm 3 removed Tiller entirely, so the Helm client talks directly to the Kubernetes API server using the user's own credentials and RBAC.",
+    "reference": "https://helm.sh/docs/intro/using_helm/",
+    "tags": [
+      "helm",
+      "tiller"
+    ]
   }
 ]

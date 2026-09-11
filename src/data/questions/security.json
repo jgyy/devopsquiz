@@ -3,9 +3,1126 @@
     "id": "security-001",
     "domain": "security",
     "difficulty": "easy",
+    "type": "single",
+    "prompt": "A developer hardcodes a third-party API key directly in application source code and commits it to a shared git repository. What is the main security risk?",
+    "options": [
+      "The key becomes part of the repository's history and is visible to anyone with read access (and often CI logs, forks, or backups), even after the file is later deleted",
+      "The repository's disk usage will increase noticeably",
+      "The linter will fail the build",
+      "The build will run slightly slower"
+    ],
+    "answer": 0,
+    "explanation": "Once a secret is committed, it persists in git history. Deleting the file in a later commit does not remove it from history, so the only reliable fix is to rotate/invalidate the exposed secret and then clean the history.",
+    "tags": [
+      "secrets",
+      "git"
+    ]
+  },
+  {
+    "id": "security-002",
+    "domain": "security",
+    "difficulty": "medium",
     "type": "boolean",
-    "prompt": "Placeholder security question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "prompt": "If a secret is accidentally committed to git and then removed in a later commit, it is no longer accessible to anyone who has already cloned the repository or who inspects its history.",
+    "answer": false,
+    "explanation": "Git preserves full history by default. Removing a file in a new commit does not erase it from earlier commits, so the secret remains recoverable. The only dependable remedy is to rotate the exposed secret.",
+    "tags": [
+      "secrets",
+      "git"
+    ]
+  },
+  {
+    "id": "security-003",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does the 'principle of least privilege' mean for access control?",
+    "options": [
+      "Every user and service should default to administrator access for convenience",
+      "Users and systems should be granted only the minimum permissions needed to perform their tasks, nothing more",
+      "Privileges only need to be reviewed once, when an account is created",
+      "All applications should share a single, highly privileged service account"
+    ],
+    "answer": 1,
+    "explanation": "Least privilege limits the blast radius if an account, process, or credential is ever compromised, by ensuring it never has more access than its job requires.",
+    "tags": [
+      "least-privilege",
+      "iam"
+    ]
+  },
+  {
+    "id": "security-004",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is 'shift-left security' in a DevSecOps context?",
+    "options": [
+      "Delaying every security scan until after production deployment",
+      "Relocating the security team to sit closer to the release managers",
+      "Moving security testing, reviews, and controls earlier into the development lifecycle instead of only at the end",
+      "Moving all responsibility for security onto the operations team"
+    ],
+    "answer": 2,
+    "explanation": "Shift-left means catching issues as early as code is written or reviewed (e.g., in the IDE, pre-commit hooks, or pull requests) rather than only at release time, when defects are far more expensive to fix.",
+    "tags": [
+      "shift-left",
+      "sdlc"
+    ]
+  },
+  {
+    "id": "security-005",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Shifting security left generally increases the total cost of fixing vulnerabilities because it requires more tooling earlier in the pipeline.",
+    "answer": false,
+    "explanation": "Shift-left is intended to reduce overall cost and risk: defects caught during coding or code review are far cheaper and faster to fix than the same defects found in production.",
+    "tags": [
+      "shift-left",
+      "sdlc"
+    ]
+  },
+  {
+    "id": "security-006",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement best describes SAST (Static Application Security Testing)?",
+    "options": [
+      "It only checks third-party open-source dependencies for known CVEs",
+      "It benchmarks application performance under simulated load",
+      "It analyzes a running application by sending it crafted HTTP requests, like an external attacker would",
+      "It analyzes source code, bytecode, or binaries for vulnerabilities without executing the application"
+    ],
+    "answer": 3,
+    "explanation": "SAST is a 'white-box' technique: it inspects the application's own code or compiled artifacts directly, without running the application, to find issues like injection flaws or insecure patterns.",
+    "tags": [
+      "sast",
+      "appsec"
+    ]
+  },
+  {
+    "id": "security-007",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement best describes DAST (Dynamic Application Security Testing)?",
+    "options": [
+      "It tests a running instance of the application from the outside, similarly to how an attacker would probe it, without needing access to source code",
+      "It signs container images so their provenance can be verified",
+      "It reviews source code line by line before the application is compiled or built",
+      "It generates a Software Bill of Materials listing every dependency"
+    ],
+    "answer": 0,
+    "explanation": "DAST is a 'black-box' technique that exercises a deployed, running application (e.g., a web app) and observes its behavior and responses to find exploitable vulnerabilities.",
+    "tags": [
+      "dast",
+      "appsec"
+    ]
+  },
+  {
+    "id": "security-008",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of Software Composition Analysis (SCA) tools?",
+    "options": [
+      "To encrypt data at rest in a database",
+      "To identify known vulnerabilities and license issues in third-party and open-source dependencies used by an application",
+      "To measure the percentage of code covered by unit tests",
+      "To automatically reformat source code to a consistent style"
+    ],
+    "answer": 1,
+    "explanation": "SCA tools inventory the open-source and third-party components an application depends on and flag ones with known vulnerabilities (CVEs) or problematic licenses.",
+    "tags": [
+      "sca",
+      "dependencies"
+    ]
+  },
+  {
+    "id": "security-009",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about SAST, DAST, and SCA are correct?",
+    "options": [
+      "SAST can be run without deploying or executing the application",
+      "DAST requires a running instance of the application to test",
+      "SCA primarily analyzes an application's own custom business logic for design flaws",
+      "SCA helps detect known vulnerable versions of open-source libraries",
+      "DAST can only be performed by reading source code, never against a running service"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "SAST works on source/binaries without running the app; DAST needs a live, running target; SCA focuses on third-party/open-source dependency risk (known CVEs and licenses), not custom business logic \u2014 that distinction is exactly what SCA does not cover.",
+    "tags": [
+      "sast",
+      "dast",
+      "sca"
+    ]
+  },
+  {
+    "id": "security-010",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What does the acronym `SBOM` \u2014 a formal inventory of the components, libraries, and dependencies that make up a piece of software \u2014 stand for?",
+    "answer": [
+      "Software Bill of Materials"
+    ],
+    "explanation": "An SBOM lists every component in a software artifact, similar to an ingredient list, so consumers can identify what they're running and check it against vulnerability databases.",
+    "pattern": "^software\\s+bill\\s+of\\s+materials$",
+    "tags": [
+      "sbom",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-011",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of the following are widely used standard formats for representing a Software Bill of Materials (SBOM)?",
+    "options": [
+      "CycloneDX",
+      "SPDX",
+      "Dockerfile",
+      "OpenAPI",
+      "SWID"
+    ],
+    "answer": [
+      0,
+      1,
+      4
+    ],
+    "explanation": "CycloneDX, SPDX, and SWID (Software Identification tags) are recognized SBOM formats. A Dockerfile builds container images and an OpenAPI document describes an HTTP API \u2014 neither is an SBOM format.",
+    "tags": [
+      "sbom",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-012",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the main purpose of scanning a container image before it is deployed?",
+    "options": [
+      "To reduce the on-disk size of the image",
+      "To automatically generate Kubernetes manifests for the image",
+      "To detect known vulnerabilities (CVEs) in the OS packages and libraries baked into the image",
+      "To improve the container's startup time"
+    ],
+    "answer": 2,
+    "explanation": "Image scanners inspect the layers of a container image and compare installed packages and libraries against vulnerability databases, surfacing known CVEs before the image ever runs.",
+    "tags": [
+      "containers",
+      "image-scanning"
+    ]
+  },
+  {
+    "id": "security-013",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does the `cosign` tool, part of the Sigstore project, primarily do?",
+    "options": [
+      "It generates Kubernetes `NetworkPolicy` objects from traffic captures",
+      "It scans container images for outdated OS packages",
+      "It compiles a Dockerfile into an OCI-compliant image",
+      "It signs and verifies container images and other software artifacts, optionally without needing to manage long-lived private keys"
+    ],
+    "answer": 3,
+    "explanation": "cosign lets teams sign artifacts (like container images) and later verify those signatures, giving consumers assurance about who published an artifact and that it hasn't been tampered with. It supports 'keyless' signing tied to an OIDC identity.",
+    "reference": "https://docs.sigstore.dev/",
+    "tags": [
+      "sigstore",
+      "cosign",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-014",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are components of the Sigstore project's keyless-signing ecosystem?",
+    "options": [
+      "Fulcio \u2014 a certificate authority that issues short-lived certificates tied to an OIDC identity",
+      "Rekor \u2014 a public transparency log that records signing events",
+      "cosign \u2014 the CLI used to sign and verify artifacts",
+      "kube-bench \u2014 a CIS Kubernetes benchmark scanner",
+      "Terraform \u2014 an infrastructure-as-code provisioning tool"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Fulcio, Rekor, and cosign together make up Sigstore's keyless signing flow: Fulcio issues a short-lived cert bound to an OIDC identity, cosign uses it to sign, and Rekor timestamps the signing event in a public, tamper-evident log. kube-bench and Terraform are unrelated tools.",
+    "reference": "https://docs.sigstore.dev/",
+    "tags": [
+      "sigstore",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-015",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "SLSA (Supply-chain Levels for Software Artifacts) provenance attestations are primarily intended to help answer which question about a software artifact?",
+    "options": [
+      "How the artifact was built, from what source, and by which build system \u2014 i.e., build integrity",
+      "Which team should be billed for the artifact's cloud usage",
+      "Which known CVEs affect the artifact's dependencies",
+      "How much memory the artifact consumes at runtime"
+    ],
+    "answer": 0,
+    "explanation": "SLSA focuses on the integrity of the build process itself \u2014 proving what source and build steps produced an artifact and that it wasn't tampered with \u2014 which is a different concern from SBOM/SCA (what components are inside) or runtime monitoring.",
+    "reference": "https://slsa.dev/",
+    "tags": [
+      "slsa",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-016",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the OWASP Top 10?",
+    "options": [
+      "A certification exam required for penetration testers",
+      "A regularly updated awareness document that ranks the most critical security risks to web applications",
+      "A built-in Kubernetes admission controller",
+      "A list of the ten most popular JavaScript frameworks"
+    ],
+    "answer": 1,
+    "explanation": "The OWASP Top 10 is a broadly referenced awareness document, periodically updated by the OWASP community, that highlights the categories of risk considered most critical for web applications at the time of publication.",
+    "reference": "https://owasp.org/www-project-top-ten/",
+    "tags": [
+      "owasp"
+    ]
+  },
+  {
+    "id": "security-017",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In the OWASP Top 10 (2021 edition), which category covers flaws such as SQL injection and OS command injection, where untrusted input is interpreted as part of a command or query?",
+    "options": [
+      "Cryptographic Failures",
+      "Server-Side Request Forgery",
+      "Injection",
+      "Security Misconfiguration"
+    ],
+    "answer": 2,
+    "explanation": "Injection covers cases where untrusted data is sent to an interpreter (SQL, OS shell, LDAP, etc.) as part of a command or query, letting an attacker alter its intended behavior.",
+    "reference": "https://owasp.org/www-project-top-ten/",
+    "tags": [
+      "owasp",
+      "injection"
+    ]
+  },
+  {
+    "id": "security-018",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In the OWASP Top 10 (2021 edition), what does the 'Broken Access Control' category refer to?",
+    "options": [
+      "Sending verbose stack traces to end users in error pages",
+      "Using outdated TLS cipher suites in a web server",
+      "Storing passwords with a fast, unsalted hash",
+      "Failures that let users act outside their intended permissions, such as viewing another user's data or bypassing authorization checks"
+    ],
+    "answer": 3,
+    "explanation": "Broken Access Control covers enforcement failures around what an authenticated user is actually allowed to do or see, letting them escalate privileges or access resources they shouldn't.",
+    "reference": "https://owasp.org/www-project-top-ten/",
+    "tags": [
+      "owasp",
+      "access-control"
+    ]
+  },
+  {
+    "id": "security-019",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does TLS (Transport Layer Security) primarily provide for data sent over a network?",
+    "options": [
+      "Encryption, integrity checking, and authentication of the communicating parties",
+      "Automatic load balancing across backend servers",
+      "Compression of HTTP response bodies only",
+      "Faster DNS resolution for the destination host"
+    ],
+    "answer": 0,
+    "explanation": "TLS protects data in transit by encrypting it (confidentiality), detecting tampering (integrity), and typically authenticating at least the server via its certificate.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
+    "tags": [
+      "tls",
+      "pki"
+    ]
+  },
+  {
+    "id": "security-020",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A typical TLS connection uses asymmetric cryptography during the handshake (for authentication and key exchange) and then switches to a symmetric cipher, such as AES, to encrypt the bulk of the session's data.",
+    "answer": true,
+    "explanation": "Asymmetric operations are computationally expensive, so TLS uses them briefly to authenticate the server and establish a shared session key, then relies on fast symmetric encryption for the actual data transfer \u2014 a hybrid approach.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
+    "tags": [
+      "tls",
+      "symmetric",
+      "asymmetric"
+    ]
+  },
+  {
+    "id": "security-021",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the key property that distinguishes hashing from encryption?",
+    "options": [
+      "Encryption is only ever used to protect passwords",
+      "Hashing is a one-way function that cannot feasibly be reversed to recover the original input, while encryption is designed to be reversible with the correct key",
+      "Hashing requires a secret key to compute, just like encryption",
+      "Hashing always produces output the same length as its input"
+    ],
+    "answer": 1,
+    "explanation": "A cryptographic hash is a one-way digest \u2014 you cannot feasibly recover the input from it. Encryption is deliberately reversible: anyone holding the correct key can decrypt the ciphertext back to plaintext.",
+    "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html",
+    "tags": [
+      "hashing",
+      "encryption"
+    ]
+  },
+  {
+    "id": "security-022",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Base64 encoding provides meaningful confidentiality for sensitive data, comparable to encryption.",
+    "answer": false,
+    "explanation": "Base64 is a reversible encoding scheme for representing binary data as text. It uses no secret key, and anyone can decode it instantly, so it provides no confidentiality at all \u2014 it is not a substitute for encryption.",
+    "tags": [
+      "encoding",
+      "encryption"
+    ]
+  },
+  {
+    "id": "security-023",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In symmetric encryption, how many distinct keys are used to encrypt and then decrypt the same data?",
+    "options": [
+      "A new, unrelated key for every byte of data",
+      "No key is required at all",
+      "One shared key is used for both encrypting and decrypting",
+      "Two independent keys: one public, one private"
+    ],
+    "answer": 2,
+    "explanation": "Symmetric algorithms like AES use a single shared secret key for both encryption and decryption, which makes them fast but requires securely distributing that key to every party who needs it.",
+    "tags": [
+      "symmetric",
+      "encryption"
+    ]
+  },
+  {
+    "id": "security-024",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which of these is an example of an asymmetric (public-key) cryptographic algorithm?",
+    "options": [
+      "bcrypt",
+      "AES",
+      "ChaCha20",
+      "RSA"
+    ],
+    "answer": 3,
+    "explanation": "RSA uses a mathematically linked public/private key pair \u2014 one key encrypts or verifies, the other decrypts or signs. AES and ChaCha20 are symmetric ciphers, and bcrypt is a password-hashing function, not an encryption algorithm.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Glossary/Public-key_cryptography",
+    "tags": [
+      "asymmetric",
+      "encryption"
+    ]
+  },
+  {
+    "id": "security-025",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which practice is essential for securely managing SSH keys?",
+    "options": [
+      "Keeping your private key secret at all times and only ever distributing the matching public key to servers",
+      "Committing your private key to a shared git repository so the team can back it up",
+      "Reusing one passphrase-less private key across every server and every teammate",
+      "Emailing your private key to teammates so they can log in as you when you're on leave"
+    ],
+    "answer": 0,
+    "explanation": "SSH's security model depends on the private key never leaving your control. Only the public key should ever be placed on remote servers (in `authorized_keys`); sharing or exposing the private key breaks the whole trust model.",
+    "tags": [
+      "ssh"
+    ]
+  },
+  {
+    "id": "security-026",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Best practice is for each individual user to have their own personal SSH key pair, rather than an entire team sharing a single private key.",
+    "answer": true,
+    "explanation": "Individual key pairs preserve an audit trail (each login is attributable to one person) and let you revoke a single compromised or departed user's access without having to rotate credentials for the whole team.",
+    "tags": [
+      "ssh"
+    ]
+  },
+  {
+    "id": "security-027",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is multi-factor authentication (MFA)?",
+    "options": [
+      "Logging in from several devices at the same time",
+      "Requiring two or more independent forms of evidence from different factor categories \u2014 such as a password plus a one-time code \u2014 to verify identity",
+      "Changing your password several times throughout the year",
+      "Requiring an unusually long single password"
+    ],
+    "answer": 1,
+    "explanation": "MFA combines evidence from at least two distinct categories (something you know, have, or are) so that compromising just one factor, like a password, is not enough to authenticate as the user.",
+    "tags": [
+      "mfa",
+      "authentication"
+    ]
+  },
+  {
+    "id": "security-028",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are recognized categories of authentication factors used in MFA?",
+    "options": [
+      "Something you know (e.g., a password or PIN)",
+      "Something you have (e.g., a hardware token or authenticator app)",
+      "Something you are (e.g., a fingerprint or other biometric)",
+      "Something you bought (e.g., the price of your laptop)",
+      "Somewhere you registered an email address"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The three classic authentication factor categories are knowledge ('something you know'), possession ('something you have'), and inherence ('something you are'). Using factors from two or more different categories is what makes authentication multi-factor.",
+    "tags": [
+      "mfa",
+      "authentication"
+    ]
+  },
+  {
+    "id": "security-029",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why is regularly rotating credentials such as API keys and database passwords considered good practice?",
+    "options": [
+      "It makes credentials easier for humans to memorize",
+      "It is required syntax in most programming languages",
+      "It limits the window of time during which a leaked or stolen credential remains useful to an attacker",
+      "It removes the need for any access control checks"
+    ],
+    "answer": 2,
+    "explanation": "Even with strong safeguards, credentials can leak. Rotating them regularly (and immediately after suspected compromise) shrinks the amount of time a stolen credential stays valid and useful.",
+    "tags": [
+      "secrets",
+      "rotation"
+    ]
+  },
+  {
+    "id": "security-030",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "If you strongly suspect a credential, such as a cloud API key, has been exposed, you should rotate it immediately rather than waiting for its next scheduled rotation.",
+    "answer": true,
+    "explanation": "Waiting for a scheduled rotation leaves a known-exposed credential usable by an attacker in the meantime. Suspected compromise should always trigger immediate rotation and, where possible, revocation of the old credential.",
+    "tags": [
+      "secrets",
+      "rotation"
+    ]
+  },
+  {
+    "id": "security-031",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of HashiCorp Vault?",
+    "options": [
+      "It is a CI/CD pipeline execution engine",
+      "It is an authoritative DNS server",
+      "It is a container orchestration platform, similar to Kubernetes",
+      "It centrally stores and controls access to secrets, and can dynamically generate short-lived credentials such as database passwords or API keys"
+    ],
+    "answer": 3,
+    "explanation": "Vault provides centralized secrets storage, fine-grained access control, encryption as a service, and the ability to generate dynamic, short-lived credentials on demand instead of relying on long-lived static secrets.",
+    "reference": "https://developer.hashicorp.com/vault/docs/what-is-vault",
+    "tags": [
+      "vault",
+      "secrets"
+    ]
+  },
+  {
+    "id": "security-032",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In Vault, credentials that are generated on demand for a specific request, tied to a lease, and automatically revoked once that lease expires, are known by what two-word term?",
+    "answer": [
+      "dynamic secrets",
+      "dynamic secret"
+    ],
+    "explanation": "Dynamic secrets are created fresh for each consumer and have a limited lifetime (lease), so there is no long-lived static credential sitting around waiting to be leaked.",
+    "pattern": "^dynamic\\s+secrets?$",
+    "reference": "https://developer.hashicorp.com/vault/docs/secrets",
+    "tags": [
+      "vault",
+      "secrets"
+    ]
+  },
+  {
+    "id": "security-033",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does RBAC (Role-Based Access Control) allow Kubernetes administrators to do?",
+    "options": [
+      "Define roles that bundle sets of permissions, and bind those roles to users, groups, or service accounts",
+      "Automatically scale pods based on CPU usage",
+      "Encrypt all traffic between pods on the cluster network",
+      "Schedule pods onto specific nodes based on labels"
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes RBAC lets you define `Role`/`ClusterRole` objects describing allowed actions on resources, then grant them to subjects via `RoleBinding`/`ClusterRoleBinding`, enabling least-privilege access to the API server.",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
+    "tags": [
+      "kubernetes",
+      "rbac"
+    ]
+  },
+  {
+    "id": "security-034",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Kubernetes Pod Security Standards define three policy levels. Which level is the most restrictive, enforcing current pod hardening best practices such as running as a non-root user?",
+    "options": [
+      "Baseline",
+      "Restricted",
+      "Permissive",
+      "Privileged"
+    ],
+    "answer": 1,
+    "explanation": "The three Pod Security Standards levels are Privileged (unrestricted), Baseline (blocks known privilege escalations), and Restricted (the most locked-down, following current hardening best practices like non-root execution and dropped capabilities).",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+    "tags": [
+      "kubernetes",
+      "pod-security-standards"
+    ]
+  },
+  {
+    "id": "security-035",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "By default, if no `NetworkPolicy` objects are defined in a Kubernetes cluster, all pods can communicate with all other pods without restriction.",
+    "answer": true,
+    "explanation": "Kubernetes pod networking is flat and permissive by default. NetworkPolicy resources are additive and restrictive: once a policy selects a pod, that pod becomes default-deny for the traffic types the policy governs, assuming the CNI plugin enforces NetworkPolicy.",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+    "tags": [
+      "kubernetes",
+      "network-policy"
+    ]
+  },
+  {
+    "id": "security-036",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Setting `securityContext.runAsNonRoot: true` on a Kubernetes pod or container does what?",
+    "options": [
+      "It automatically patches any known vulnerabilities in the container image",
+      "It grants the container additional Linux capabilities it would not otherwise have",
+      "It causes the container to fail to start if it is configured to run as the root user (UID 0), reducing the impact of a potential container breakout",
+      "It encrypts the container's root filesystem at rest"
+    ],
+    "answer": 2,
+    "explanation": "`runAsNonRoot` is a guardrail: Kubernetes refuses to start the container if it would run as UID 0, so that even if an attacker escapes the application, they don't land with root privileges inside the container.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+    "tags": [
+      "kubernetes",
+      "non-root"
+    ]
+  },
+  {
+    "id": "security-037",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What does setting `securityContext.readOnlyRootFilesystem: true` achieve for a container?",
+    "options": [
+      "It makes the resulting container image smaller on disk",
+      "It disables all network access for the container",
+      "It automatically provisions a persistent volume for the pod",
+      "It prevents the container's root filesystem from being written to at runtime, making it harder for an attacker to tamper with binaries or drop malware"
+    ],
+    "answer": 3,
+    "explanation": "With a read-only root filesystem, an attacker who compromises the running process can't write new files or modify existing ones on the container's filesystem; any directory the app legitimately needs to write to should be mounted as a separate writable volume.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+    "tags": [
+      "kubernetes",
+      "read-only-filesystem"
+    ]
+  },
+  {
+    "id": "security-038",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following `securityContext` settings help harden a Kubernetes pod in line with the 'restricted' Pod Security Standard?",
+    "options": [
+      "`allowPrivilegeEscalation: false`",
+      "`capabilities.drop: [\"ALL\"]`",
+      "`privileged: true`",
+      "`runAsNonRoot: true`",
+      "`hostNetwork: true`"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "Disallowing privilege escalation, dropping all Linux capabilities by default, and forcing non-root execution are core hardening controls. `privileged: true` and `hostNetwork: true` do the opposite \u2014 they widen the container's access to the host.",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+    "tags": [
+      "kubernetes",
+      "security-context"
+    ]
+  },
+  {
+    "id": "security-039",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What does the acronym `CVE`, used to uniquely identify a publicly disclosed security vulnerability (for example, CVE-2021-44228), stand for?",
+    "answer": [
+      "Common Vulnerabilities and Exposures"
+    ],
+    "explanation": "CVE provides a standardized identifier and description for a publicly known vulnerability, so different tools, vendors, and researchers can all refer to the same issue unambiguously.",
+    "pattern": "^common\\s+vulnerabilities\\s+and\\s+exposures$",
+    "tags": [
+      "cve"
+    ]
+  },
+  {
+    "id": "security-040",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "The CVSS (Common Vulnerability Scoring System) base score falls within which numeric range?",
+    "options": [
+      "0.0 to 10.0",
+      "1 to 100",
+      "-1.0 to 1.0",
+      "0 to 5"
+    ],
+    "answer": 0,
+    "explanation": "CVSS base scores range from 0.0 (no measurable severity) to 10.0 (most severe), and are typically mapped onto qualitative bands such as Low, Medium, High, and Critical.",
+    "tags": [
+      "cvss"
+    ]
+  },
+  {
+    "id": "security-041",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which principle best summarizes the 'zero trust' security model?",
+    "options": [
+      "Rely solely on a strong perimeter firewall to keep attackers out",
+      "Never trust, always verify: every request must be authenticated and authorized based on identity and context, regardless of where it originates",
+      "Trust is granted permanently to a user once they complete MFA at login",
+      "Trust any device or user automatically once they are inside the corporate network perimeter"
+    ],
+    "answer": 1,
+    "explanation": "Zero trust replaces implicit, location-based trust (e.g., 'inside the network = safe') with continuous, explicit verification of identity, device posture, and authorization for every request.",
+    "tags": [
+      "zero-trust"
+    ]
+  },
+  {
+    "id": "security-042",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A zero trust architecture assumes that traffic originating from inside the corporate network is inherently more trustworthy than traffic from outside it.",
+    "answer": false,
+    "explanation": "Zero trust explicitly rejects trust based on network location. Internal traffic must be authenticated and authorized just like external traffic \u2014 there is no automatically trusted 'inside'.",
+    "tags": [
+      "zero-trust"
+    ]
+  },
+  {
+    "id": "security-043",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary function of a Web Application Firewall (WAF)?",
+    "options": [
+      "It encrypts database backups before they are stored",
+      "It manages an organization's DNS records",
+      "It monitors and filters HTTP/HTTPS traffic to a web application to block common attacks such as SQL injection and cross-site scripting",
+      "It compiles application source code for deployment"
+    ],
+    "answer": 2,
+    "explanation": "A WAF sits in front of a web application and inspects incoming HTTP(S) requests, blocking or flagging traffic that matches known attack patterns before it ever reaches the application.",
+    "tags": [
+      "waf"
+    ]
+  },
+  {
+    "id": "security-044",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What best describes a Distributed Denial-of-Service (DDoS) attack?",
+    "options": [
+      "An attacker forging a digital signature to trust a malicious container image",
+      "An attacker repeatedly guessing a single user's password",
+      "An attacker exploiting a SQL injection flaw to read data out of a database",
+      "Traffic generated from many distributed sources overwhelms a target's resources or bandwidth so legitimate users can no longer access it"
+    ],
+    "answer": 3,
+    "explanation": "DDoS attacks flood a target with traffic from numerous distributed sources simultaneously, exhausting network bandwidth, connection limits, or application resources so real users can't get through.",
+    "tags": [
+      "ddos"
+    ]
+  },
+  {
+    "id": "security-045",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following help mitigate the impact of a DDoS attack?",
+    "options": [
+      "Rate limiting requests per client",
+      "Traffic scrubbing services or an anycast CDN that absorbs and filters traffic",
+      "Autoscaling backend capacity to absorb traffic spikes",
+      "Disabling TLS to reduce server processing overhead",
+      "Removing all firewalls to maximize throughput"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Rate limiting, scrubbing/CDN absorption, and autoscaling all help a service withstand or deflect a flood of traffic. Disabling TLS or removing firewalls would weaken security without meaningfully helping against volumetric attacks.",
+    "tags": [
+      "ddos"
+    ]
+  },
+  {
+    "id": "security-046",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main purpose of audit logging in a production system?",
+    "options": [
+      "To record who did what, when, and to which resource, supporting accountability, forensics, and compliance",
+      "To automatically remediate discovered vulnerabilities",
+      "To reduce cloud storage costs",
+      "To improve application response times"
+    ],
+    "answer": 0,
+    "explanation": "Audit logs create a tamper-evident record of security-relevant events (logins, permission changes, data access, etc.), which is essential for investigating incidents and demonstrating compliance.",
+    "tags": [
+      "audit-logging"
+    ]
+  },
+  {
+    "id": "security-047",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about compliance frameworks are correct?",
+    "options": [
+      "PCI DSS focuses on protecting payment cardholder data",
+      "GDPR primarily governs the protection and privacy of personal data belonging to individuals in the EU",
+      "HIPAA is a benchmark for hardening Kubernetes clusters",
+      "SOC 2 reports evaluate a service organization's controls around criteria such as security and availability",
+      "Passing a compliance audit guarantees an application has zero vulnerabilities"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "PCI DSS targets cardholder data protection, GDPR targets personal data privacy for EU individuals, and SOC 2 assesses trust-service controls like security and availability. HIPAA concerns health information privacy (not Kubernetes), and no compliance certification can guarantee zero vulnerabilities.",
+    "tags": [
+      "compliance"
+    ]
+  },
+  {
+    "id": "security-048",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Why should application passwords never be stored in plaintext in a database?",
+    "options": [
+      "Plaintext values take up noticeably more disk space",
+      "If the database is ever breached, plaintext passwords are immediately usable by an attacker to access accounts \u2014 and, due to password reuse, potentially other services too",
+      "Plaintext passwords cannot be checked against a login form",
+      "Most databases technically cannot store text values"
+    ],
+    "answer": 1,
+    "explanation": "Storing passwords in plaintext means a single database breach instantly compromises every user's credentials, with no additional work required by the attacker.",
+    "tags": [
+      "passwords"
+    ]
+  },
+  {
+    "id": "security-049",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Why are bcrypt and Argon2 preferred over a single fast round of SHA-256 for storing user passwords?",
+    "options": [
+      "They do not require any salt to be secure",
+      "They produce a shorter digest than SHA-256",
+      "They are deliberately slow and tunable (a configurable work factor) and are designed to be used with a per-user salt, which makes large-scale brute-force and rainbow-table attacks far more expensive",
+      "They run faster than SHA-256, so logins feel snappier"
+    ],
+    "answer": 2,
+    "explanation": "General-purpose hashes like SHA-256 are built to be fast, which is exactly the wrong property for password storage \u2014 it lets attackers try billions of guesses per second. bcrypt and Argon2 are intentionally slow and configurable, and are used with salts to defeat precomputed rainbow tables.",
+    "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
+    "tags": [
+      "passwords",
+      "bcrypt",
+      "argon2"
+    ]
+  },
+  {
+    "id": "security-050",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which password-hashing algorithm won the 2015 Password Hashing Competition and, in its Argon2id variant, is now widely recommended for storing passwords?",
+    "answer": [
+      "Argon2",
+      "Argon2id"
+    ],
+    "explanation": "Argon2 (particularly the Argon2id variant) is the modern, competition-vetted choice for password hashing, alongside longstanding options like bcrypt and scrypt.",
+    "pattern": "^argon2(id)?$",
+    "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
+    "tags": [
+      "passwords",
+      "argon2"
+    ]
+  },
+  {
+    "id": "security-051",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A JWT (JSON Web Token) typically consists of three base64url-encoded parts separated by dots. What are they, in order?",
+    "options": [
+      "key.certificate.chain",
+      "request.response.status",
+      "subject.issuer.audience",
+      "header.payload.signature"
+    ],
+    "answer": 3,
+    "explanation": "A compact JWT has three dot-separated segments: a header (algorithm/type metadata), a payload (the claims), and a signature that lets a verifier check the token's integrity.",
+    "tags": [
+      "jwt"
+    ]
+  },
+  {
+    "id": "security-052",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "By default, the payload (claims) of a standard signed JWT (JWS) is encrypted and unreadable to anyone who does not hold the signing key.",
+    "answer": false,
+    "explanation": "The payload is only base64url-*encoded*, not encrypted \u2014 anyone holding the token can decode and read it. The signature only protects integrity, not confidentiality, so sensitive data shouldn't be placed in a plain JWT payload unless it is separately encrypted (e.g., using JWE).",
+    "tags": [
+      "jwt"
+    ]
+  },
+  {
+    "id": "security-053",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What problem does CORS (Cross-Origin Resource Sharing) solve?",
+    "options": [
+      "It provides a browser-enforced, header-based mechanism that lets a server explicitly allow specific other origins to make requests to its resources, relaxing the default same-origin policy",
+      "It unconditionally blocks every cross-origin request",
+      "It replaces the need for authentication tokens entirely",
+      "It encrypts traffic exchanged between two different origins"
+    ],
+    "answer": 0,
+    "explanation": "Browsers enforce the same-origin policy by default. CORS is the opt-in, header-based protocol (e.g., `Access-Control-Allow-Origin`) that lets a server relax that restriction for specific origins it trusts.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
+    "tags": [
+      "cors"
+    ]
+  },
+  {
+    "id": "security-054",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What best describes a Cross-Site Request Forgery (CSRF) attack?",
+    "options": [
+      "An attacker injects malicious JavaScript that later executes in victims' browsers",
+      "An attacker tricks a logged-in victim's browser into unknowingly submitting a request to a site where the victim is authenticated, relying on cookies the browser attaches automatically",
+      "An attacker floods a server with traffic to exhaust its resources",
+      "An attacker repeatedly guesses a user's password through a login form"
+    ],
+    "answer": 1,
+    "explanation": "CSRF exploits the browser's automatic inclusion of credentials (like session cookies) on requests: a malicious page can cause the victim's browser to submit a state-changing request to another site the victim is already authenticated to, without the victim's knowledge.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
+    "tags": [
+      "csrf"
+    ]
+  },
+  {
+    "id": "security-055",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are effective mitigations against CSRF attacks?",
+    "options": [
+      "Using anti-CSRF (synchronizer) tokens that must be included in state-changing requests",
+      "Setting the `SameSite` attribute on session cookies to `Lax` or `Strict`",
+      "Disabling TLS to simplify how requests are handled",
+      "Validating the `Origin` or `Referer` header on sensitive requests",
+      "Increasing the session cookie's expiration time to 30 days"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "CSRF tokens, the `SameSite` cookie attribute, and Origin/Referer validation are all standard, effective CSRF defenses. Disabling TLS removes an unrelated protection and weakens security, and lengthening cookie lifetime does nothing to stop CSRF.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
+    "tags": [
+      "csrf"
+    ]
+  },
+  {
+    "id": "security-056",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which HTTP response header instructs browsers to only ever connect to a site over HTTPS, even if the user types `http://` or follows an HTTP link?",
+    "answer": [
+      "Strict-Transport-Security",
+      "HSTS"
+    ],
+    "explanation": "The `Strict-Transport-Security` header (commonly abbreviated HSTS) tells a compliant browser to automatically upgrade future requests to that host to HTTPS, helping prevent protocol-downgrade and cookie-hijacking attacks.",
+    "pattern": "^(strict-transport-security|hsts)$",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
+    "tags": [
+      "security-headers",
+      "hsts"
+    ]
+  },
+  {
+    "id": "security-057",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does the `X-Content-Type-Options: nosniff` header prevent?",
+    "options": [
+      "Pages from being rendered on mobile browsers",
+      "The server from logging incoming requests",
+      "Browsers from MIME-sniffing a response into a different content type than the server declared, which can prevent certain content-type-confusion attacks",
+      "Cookies from ever being sent on cross-site requests"
+    ],
+    "answer": 2,
+    "explanation": "Without `nosniff`, some browsers try to guess a resource's type from its content rather than trusting the declared `Content-Type`, which attackers have abused to get a file treated as executable script; `nosniff` disables that guessing.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
+    "tags": [
+      "security-headers"
+    ]
+  },
+  {
+    "id": "security-058",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following HTTP response headers help improve a web application's security posture?",
+    "options": [
+      "`Content-Security-Policy`",
+      "`Strict-Transport-Security`",
+      "`X-Content-Type-Options`",
+      "`Content-Length`",
+      "`Accept-Language`"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "CSP, HSTS, and X-Content-Type-Options are all security-focused response headers. `Content-Length` and `Accept-Language` are ordinary functional headers with no direct security purpose.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy",
+    "tags": [
+      "security-headers"
+    ]
+  },
+  {
+    "id": "security-059",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is Open Policy Agent (OPA) primarily used for?",
+    "options": [
+      "It is a secrets manager comparable to Vault",
+      "It is a certificate authority that issues TLS certificates",
+      "It is a container runtime, similar to containerd",
+      "It is a general-purpose policy engine that lets teams define and enforce policies as code \u2014 for example, Kubernetes admission control, service authorization, or CI/CD checks \u2014 decoupled from the services that enforce them"
+    ],
+    "answer": 3,
+    "explanation": "OPA is a standalone, general-purpose policy engine: you author policies once and evaluate them from many different enforcement points (Kubernetes via Gatekeeper, API gateways, CI pipelines, etc.), keeping policy logic out of application code.",
+    "tags": [
+      "opa",
+      "policy-as-code"
+    ]
+  },
+  {
+    "id": "security-060",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "What is the name of the declarative query and policy language used to author policies for Open Policy Agent (OPA)?",
+    "answer": [
+      "Rego"
+    ],
+    "explanation": "Rego is OPA's purpose-built language for expressing policy rules that are evaluated against structured input data to produce an allow/deny (or other) decision.",
+    "pattern": "^rego$",
+    "tags": [
+      "opa",
+      "policy-as-code"
+    ]
   }
 ]

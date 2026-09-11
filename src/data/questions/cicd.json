@@ -3,9 +3,1058 @@
     "id": "cicd-001",
     "domain": "cicd",
     "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does the `CI` in CI/CD stand for?",
+    "explanation": "CI stands for Continuous Integration, the practice of frequently merging code changes into a shared repository where they are automatically built and tested.",
+    "options": [
+      "Continuous Integration",
+      "Continuous Installation",
+      "Code Inspection",
+      "Continuous Improvement"
+    ],
+    "answer": 0,
+    "tags": [
+      "concepts"
+    ]
+  },
+  {
+    "id": "cicd-002",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which statement best describes Continuous Delivery?",
+    "explanation": "Continuous Delivery means every change that passes automated tests is automatically prepared for a release, but a human still decides when to actually push it to production.",
+    "options": [
+      "Every change that passes the pipeline is automatically released to production with no human involvement",
+      "Every change that passes automated tests is kept in a releasable state, with production release requiring manual approval",
+      "Code is only merged to the main branch once a month",
+      "Developers manually test every change before committing it"
+    ],
+    "answer": 1,
+    "tags": [
+      "concepts"
+    ]
+  },
+  {
+    "id": "cicd-003",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the key difference between Continuous Delivery and Continuous Deployment?",
+    "explanation": "In Continuous Delivery a human approves the final push to production, whereas Continuous Deployment removes that manual gate so every change that passes the pipeline is released automatically.",
+    "options": [
+      "Continuous Deployment requires manual approval before release; Continuous Delivery does not",
+      "There is no real difference; the terms are interchangeable",
+      "Continuous Delivery ends with a releasable build awaiting manual approval; Continuous Deployment automatically releases every passing change to production",
+      "Continuous Delivery only applies to mobile apps"
+    ],
+    "answer": 2,
+    "tags": [
+      "concepts"
+    ]
+  },
+  {
+    "id": "cicd-004",
+    "domain": "cicd",
+    "difficulty": "easy",
     "type": "boolean",
-    "prompt": "Placeholder cicd question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "prompt": "Continuous Deployment requires a human to manually approve every release before it reaches production.",
+    "explanation": "That describes Continuous Delivery. Continuous Deployment goes a step further and automatically deploys every change that passes the pipeline, without manual approval.",
+    "answer": false,
+    "tags": [
+      "concepts"
+    ]
+  },
+  {
+    "id": "cicd-005",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a CI/CD pipeline, what does a `stage` typically represent?",
+    "explanation": "A stage is a logical grouping of jobs (for example `build`, `test`, `deploy`) that usually run in a defined order, with jobs inside a stage often running in parallel.",
+    "options": [
+      "A single shell command",
+      "A logical group of related jobs, such as build, test, or deploy",
+      "A container image used only for testing",
+      "A Git branch name"
+    ],
+    "answer": 1,
+    "tags": [
+      "pipelines"
+    ]
+  },
+  {
+    "id": "cicd-006",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In most CI/CD systems (e.g. GitHub Actions, GitLab CI), what is the smallest individually executable unit inside a job?",
+    "explanation": "A job is made up of one or more steps, and each step runs a single command or action; steps are the smallest unit of execution within a job.",
+    "options": [
+      "A workflow",
+      "A stage",
+      "A step",
+      "A pipeline"
+    ],
+    "answer": 2,
+    "tags": [
+      "pipelines"
+    ]
+  },
+  {
+    "id": "cicd-007",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a GitHub Actions workflow YAML file, which top-level key defines the events that trigger the workflow to run?",
+    "explanation": "The `on` key lists the events (such as `push`, `pull_request`, or `schedule`) that cause the workflow to run.",
+    "answer": [
+      "on"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-008",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Where must GitHub Actions workflow YAML files be located in a repository to be picked up automatically?",
+    "explanation": "GitHub Actions looks for workflow definitions in the `.github/workflows/` directory at the root of the repository.",
+    "options": [
+      ".github/workflows/",
+      ".ci/pipelines/",
+      "workflows/",
+      ".github/actions/"
+    ],
+    "answer": 0,
+    "reference": "https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-009",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a GitHub Actions job, which key specifies the type of runner/machine the job executes on (e.g. `ubuntu-latest`)?",
+    "explanation": "The `runs-on` key selects the runner environment, such as `ubuntu-latest`, `windows-latest`, or a self-hosted runner label.",
+    "answer": [
+      "runs-on",
+      "runs on"
+    ],
+    "pattern": "^runs-on$",
+    "reference": "https://docs.github.com/en/actions/using-jobs/choosing-the-runner-for-a-job",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-010",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid `on:` event triggers for a GitHub Actions workflow?",
+    "explanation": "`push`, `pull_request`, `workflow_dispatch`, and `schedule` are all valid GitHub Actions events. `compile` is not a recognized workflow trigger.",
+    "options": [
+      "push",
+      "pull_request",
+      "workflow_dispatch",
+      "schedule",
+      "compile"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "reference": "https://docs.github.com/en/actions/using-workflows/triggering-a-workflow",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-011",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a GitHub Actions step, what does the `uses` key specify?",
+    "explanation": "The `uses` key tells the step to run a reusable action, such as `actions/checkout@v4`, instead of running a shell command directly.",
+    "options": [
+      "A reusable action to run, referenced by repository and version",
+      "The shell command to execute",
+      "The name of the job's runner",
+      "The secret to inject into the environment"
+    ],
+    "answer": 0,
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-012",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the purpose of a `strategy.matrix` block in a GitHub Actions job?",
+    "explanation": "A build matrix runs the same job multiple times with different combinations of variables (e.g. OS versions, language versions), letting you test across many configurations without duplicating job definitions.",
+    "options": [
+      "It encrypts secrets used by the job",
+      "It runs the job once, then caches the result for all future runs",
+      "It automatically generates a matrix of dependencies to install",
+      "It runs multiple copies of a job in parallel with different variable combinations, such as OS or language versions"
+    ],
+    "answer": 3,
+    "reference": "https://docs.github.com/en/actions/using-jobs/using-a-build-matrix-for-your-jobs",
+    "tags": [
+      "github-actions"
+    ]
+  },
+  {
+    "id": "cicd-013",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "GitHub Actions automatically masks the value of a secret if it appears in workflow log output.",
+    "explanation": "GitHub Actions registers secret values and redacts them from logs, replacing occurrences with `***`, though this masking is not a guarantee against every possible leak (e.g. secrets can still leak if transformed before printing).",
+    "answer": true,
+    "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions",
+    "tags": [
+      "github-actions",
+      "security"
+    ]
+  },
+  {
+    "id": "cicd-014",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a GitHub Actions workflow, what expression syntax is used to reference a repository secret named `API_KEY`?",
+    "explanation": "Secrets are accessed through the `secrets` context using `${{ secrets.API_KEY }}`.",
+    "answer": [
+      "${{ secrets.API_KEY }}",
+      "secrets.API_KEY"
+    ],
+    "pattern": "secrets\\.API_KEY",
+    "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions",
+    "tags": [
+      "github-actions",
+      "security"
+    ]
+  },
+  {
+    "id": "cicd-015",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "To let a GitHub Actions workflow authenticate to a cloud provider using OpenID Connect (OIDC) instead of a long-lived secret, which job-level permission must be granted?",
+    "explanation": "OIDC-based cloud authentication requires the workflow to request an OIDC token, which is granted with the `id-token: write` permission; the cloud provider then exchanges that short-lived token for temporary credentials.",
+    "options": [
+      "contents: write",
+      "id-token: write",
+      "actions: write",
+      "packages: write"
+    ],
+    "answer": 1,
+    "reference": "https://docs.github.com/en/actions/security-guides/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+    "tags": [
+      "github-actions",
+      "security",
+      "oidc"
+    ]
+  },
+  {
+    "id": "cicd-016",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which official GitHub Actions action is commonly used to cache dependencies (such as npm or Maven packages) between workflow runs?",
+    "explanation": "`actions/cache` saves and restores files such as dependency directories, keyed by a cache key, to speed up subsequent workflow runs.",
+    "answer": [
+      "actions/cache"
+    ],
+    "pattern": "actions/cache",
+    "reference": "https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows",
+    "tags": [
+      "github-actions",
+      "caching"
+    ]
+  },
+  {
+    "id": "cicd-017",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which GitHub Actions action is used to upload build outputs so they can be downloaded after a workflow run or used by a later job?",
+    "explanation": "`actions/upload-artifact` publishes files as a workflow artifact, which can then be downloaded from the run summary or fetched by another job with `actions/download-artifact`.",
+    "options": [
+      "actions/cache",
+      "actions/upload-artifact",
+      "actions/checkout",
+      "actions/setup-node"
+    ],
+    "answer": 1,
+    "reference": "https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts",
+    "tags": [
+      "github-actions",
+      "artifacts"
+    ]
+  },
+  {
+    "id": "cicd-018",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the default filename GitLab looks for at the root of a repository to define a CI/CD pipeline?",
+    "explanation": "GitLab CI/CD reads pipeline definitions from `.gitlab-ci.yml` in the repository root by default (a different path can be configured).",
+    "answer": [
+      ".gitlab-ci.yml"
+    ],
+    "pattern": "\\.gitlab-ci\\.yml",
+    "reference": "https://docs.gitlab.com/ee/ci/yaml/",
+    "tags": [
+      "gitlab-ci"
+    ]
+  },
+  {
+    "id": "cicd-019",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In `.gitlab-ci.yml`, what does the top-level `stages` keyword control?",
+    "explanation": "The `stages` keyword lists the pipeline stages and the order they execute in; jobs assigned to the same stage run in parallel, and the pipeline moves to the next stage only once the current one completes.",
+    "options": [
+      "The list of Docker images available to jobs",
+      "The order in which pipeline stages execute",
+      "The branches allowed to trigger a pipeline",
+      "The list of environment variables shared across jobs"
+    ],
+    "answer": 1,
+    "reference": "https://docs.gitlab.com/ee/ci/pipelines/",
+    "tags": [
+      "gitlab-ci"
+    ]
+  },
+  {
+    "id": "cicd-020",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the role of a GitLab Runner?",
+    "explanation": "A GitLab Runner is the agent process that picks up jobs from GitLab CI/CD and executes them, reporting results back to GitLab.",
+    "options": [
+      "It stores GitLab's Git repositories",
+      "It executes the jobs defined in a pipeline and reports results back to GitLab",
+      "It is GitLab's built-in issue tracker",
+      "It only renders the GitLab web UI"
+    ],
+    "answer": 1,
+    "reference": "https://docs.gitlab.com/ee/ci/runners/",
+    "tags": [
+      "gitlab-ci"
+    ]
+  },
+  {
+    "id": "cicd-021",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "In GitLab CI/CD, jobs assigned to the same stage run in parallel by default.",
+    "explanation": "Jobs within the same stage have no dependency on each other by default, so GitLab CI/CD runs them concurrently (subject to available runners).",
+    "answer": true,
+    "reference": "https://docs.gitlab.com/ee/ci/pipelines/",
+    "tags": [
+      "gitlab-ci"
+    ]
+  },
+  {
+    "id": "cicd-022",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the main advantage of GitLab CI/CD's `rules` keyword over the older `only`/`except` keywords?",
+    "explanation": "`rules` evaluates an ordered list of conditions (based on variables, changes, pipeline source, etc.) and lets you also control the job's behaviour, such as `when: manual` or `allow_failure`, offering far more flexibility than the simpler `only`/`except` filters.",
+    "options": [
+      "`rules` runs faster because it skips YAML parsing",
+      "`rules` can only be used with Docker executors",
+      "`rules` supports ordered, more expressive conditions and can set job behaviour like `when` or `allow_failure`",
+      "`rules` is required for every job, while `only`/`except` is optional"
+    ],
+    "answer": 2,
+    "reference": "https://docs.gitlab.com/ee/ci/yaml/#rules",
+    "tags": [
+      "gitlab-ci"
+    ]
+  },
+  {
+    "id": "cicd-023",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is a `Jenkinsfile`?",
+    "explanation": "A Jenkinsfile is a text file, checked into source control, that defines a Jenkins Pipeline as code using either Declarative or Scripted syntax.",
+    "options": [
+      "A Jenkins server configuration file for plugins",
+      "A text file that defines a Jenkins Pipeline as code, stored in source control",
+      "A log file produced after every Jenkins build",
+      "A Java class that implements a custom Jenkins plugin"
+    ],
+    "answer": 1,
+    "reference": "https://www.jenkins.io/doc/book/pipeline/jenkinsfile/",
+    "tags": [
+      "jenkins"
+    ]
+  },
+  {
+    "id": "cicd-024",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main difference between Declarative and Scripted Jenkins Pipeline syntax?",
+    "explanation": "Declarative Pipeline uses a structured, opinionated syntax (a `pipeline { }` block with predefined sections) that is easier to read and validate, while Scripted Pipeline is written as arbitrary Groovy code inside a `node { }` block, offering more flexibility but less structure.",
+    "options": [
+      "Declarative pipelines cannot run on agents, only Scripted pipelines can",
+      "Scripted pipelines cannot use plugins",
+      "Declarative uses a structured, predefined syntax; Scripted is written as flexible Groovy code",
+      "There is no difference; both compile to the same YAML"
+    ],
+    "answer": 2,
+    "reference": "https://www.jenkins.io/doc/book/pipeline/syntax/",
+    "tags": [
+      "jenkins"
+    ]
+  },
+  {
+    "id": "cicd-025",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In Jenkins, what does an `agent` (also called a node) provide?",
+    "explanation": "An agent is a machine (or container) that connects to the Jenkins controller and executes pipeline steps, allowing work to be distributed across multiple machines.",
+    "options": [
+      "A machine that executes pipeline steps on behalf of the Jenkins controller",
+      "A plugin that formats console output",
+      "A YAML file describing environment variables",
+      "The main Jenkins web dashboard"
+    ],
+    "answer": 0,
+    "reference": "https://www.jenkins.io/doc/book/pipeline/",
+    "tags": [
+      "jenkins"
+    ]
+  },
+  {
+    "id": "cicd-026",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Jenkins Pipelines can only be written using Declarative syntax; Scripted syntax was removed in recent Jenkins versions.",
+    "explanation": "Both Declarative and Scripted syntax remain supported in Jenkins Pipeline; Declarative is simply the newer, more structured and recommended style for most use cases.",
+    "answer": false,
+    "reference": "https://www.jenkins.io/doc/book/pipeline/syntax/",
+    "tags": [
+      "jenkins"
+    ]
+  },
+  {
+    "id": "cicd-027",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of caching in a CI/CD pipeline?",
+    "explanation": "Caching stores files (such as installed dependencies) between pipeline runs so subsequent runs can reuse them instead of re-downloading or rebuilding from scratch, which speeds up the pipeline.",
+    "options": [
+      "To permanently store the final release artifact",
+      "To reuse previously downloaded or built files across pipeline runs and speed them up",
+      "To encrypt secrets used during the build",
+      "To replace the need for automated tests"
+    ],
+    "answer": 1,
+    "tags": [
+      "caching"
+    ]
+  },
+  {
+    "id": "cicd-028",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid reasons to cache dependencies in a CI/CD pipeline?",
+    "explanation": "Caching reduces build time and network/bandwidth usage. It does not guarantee bit-for-bit identical output on every run (a cache can go stale or be invalidated) and it is not a substitute for storing release artifacts.",
+    "options": [
+      "Faster builds by avoiding repeated downloads",
+      "Reduced network usage and lower cost",
+      "Guarantees the exact same build output on every run",
+      "Fewer redundant installation steps across pipeline runs"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "tags": [
+      "caching"
+    ]
+  },
+  {
+    "id": "cicd-029",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is a recommended best practice when choosing a cache key for dependency caching in CI/CD?",
+    "explanation": "Including a hash of the lockfile (e.g. `package-lock.json` or `yarn.lock`) in the cache key ensures the cache is automatically invalidated whenever dependencies change, avoiding stale or incorrect caches.",
+    "options": [
+      "Use a constant cache key that never changes, so the cache is always reused",
+      "Include a hash of the dependency lockfile in the key so the cache invalidates when dependencies change",
+      "Use the current timestamp as the key so a new cache is created on every run",
+      "Store the cache key inside the secret store"
+    ],
+    "answer": 1,
+    "reference": "https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows",
+    "tags": [
+      "caching"
+    ]
+  },
+  {
+    "id": "cicd-030",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the key difference between a pipeline `artifact` and a pipeline `cache`?",
+    "explanation": "Artifacts are the output of a job (such as a compiled binary or test report) that are meant to be kept, passed to later stages, or downloaded; caches exist purely to speed up future runs by reusing intermediate files like dependencies, and are not guaranteed to persist or represent a release output.",
+    "options": [
+      "They are the same thing, just named differently by different tools",
+      "Artifacts are outputs meant to be kept or passed between jobs; caches are reusable intermediate files meant only to speed up future runs",
+      "Caches can only contain Docker images, while artifacts can contain any file",
+      "Artifacts are always deleted at the end of a pipeline, while caches are permanent"
+    ],
+    "answer": 1,
+    "tags": [
+      "artifacts",
+      "caching"
+    ]
+  },
+  {
+    "id": "cicd-031",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "It is a security best practice to store API keys and passwords directly as plain text inside a pipeline's YAML configuration file.",
+    "explanation": "Secrets should never be committed as plain text in pipeline configuration; they should be stored in a dedicated secret manager or the CI/CD platform's encrypted secrets store and injected at runtime.",
+    "answer": false,
+    "tags": [
+      "security",
+      "secrets"
+    ]
+  },
+  {
+    "id": "cicd-032",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which approach best reflects good secret management practice in a CI/CD pipeline?",
+    "explanation": "Secrets should be stored in a dedicated, encrypted secret store (such as the CI platform's built-in secrets, or an external manager like Vault), scoped narrowly to the jobs/environments that need them, and rotated periodically.",
+    "options": [
+      "Store secrets in an environment variable set inside the Dockerfile and commit it",
+      "Share a single long-lived admin credential across every pipeline and repository for convenience",
+      "Store secrets in the CI/CD platform's encrypted secret store, scoped to only the jobs and environments that need them, and rotate them regularly",
+      "Print secret values to the build log so engineers can verify they were loaded correctly"
+    ],
+    "answer": 2,
+    "tags": [
+      "security",
+      "secrets"
+    ]
+  },
+  {
+    "id": "cicd-033",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following reflect the principle of least privilege when configuring credentials for a CI/CD pipeline?",
+    "explanation": "Least privilege means scoping credentials as narrowly as possible: limit tokens to the specific repositories/resources and actions they need, prefer short-lived OIDC-issued credentials over long-lived static secrets, and grant elevated access only for the job or stage that requires it. Sharing one broad admin credential across all pipelines violates least privilege.",
+    "options": [
+      "Scope access tokens to only the repositories and permissions a job actually needs",
+      "Prefer short-lived OIDC tokens over long-lived static cloud credentials",
+      "Grant deploy credentials only to the job/environment that performs the deployment, not every job",
+      "Use a single organization-wide admin token for all pipelines so nothing ever breaks"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://docs.github.com/en/actions/security-guides/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+    "tags": [
+      "security",
+      "least-privilege"
+    ]
+  },
+  {
+    "id": "cicd-034",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of the following are common ways to trigger a CI/CD pipeline run?",
+    "explanation": "Pipelines are commonly triggered by a push to a branch, opening/updating a pull or merge request, a scheduled (cron-like) timer, or a manual click in the CI/CD UI. There is no standard trigger based on a code review comment alone.",
+    "options": [
+      "A push to a branch",
+      "Opening or updating a pull/merge request",
+      "A scheduled cron-style timer",
+      "Manually clicking 'run pipeline' in the CI/CD UI",
+      "A teammate leaving a code review comment"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tags": [
+      "triggers"
+    ]
+  },
+  {
+    "id": "cicd-035",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What best describes trunk-based development?",
+    "explanation": "Trunk-based development is a branching strategy where developers integrate small, frequent changes directly into a shared main branch (the trunk), avoiding long-lived feature branches and relying on techniques like feature flags to keep unfinished work out of the way.",
+    "options": [
+      "A strategy where every feature is developed on its own long-lived branch and merged only at release time",
+      "A strategy where developers commit small changes directly (or via very short-lived branches) to a shared main branch multiple times a day",
+      "A strategy that forbids any automated testing before merging",
+      "A branching model used exclusively with Subversion, not Git"
+    ],
+    "answer": 1,
+    "tags": [
+      "branching",
+      "trunk-based"
+    ]
+  },
+  {
+    "id": "cicd-036",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Trunk-based development commonly relies on feature flags to hide incomplete or in-progress work rather than isolating it on a long-lived branch.",
+    "explanation": "Because changes are merged to the trunk frequently and in small increments, feature flags let teams merge unfinished functionality safely, keeping it disabled until it's ready to release.",
+    "answer": true,
+    "tags": [
+      "branching",
+      "trunk-based",
+      "feature-flags"
+    ]
+  },
+  {
+    "id": "cicd-037",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are branch types used in the GitFlow branching model?",
+    "explanation": "GitFlow defines long-lived `develop` and `main`/`master` branches plus supporting branches: `feature`, `release`, and `hotfix`. `trunk` is not a GitFlow branch type; it is the term used in trunk-based development.",
+    "options": [
+      "develop",
+      "feature",
+      "release",
+      "hotfix",
+      "trunk"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tags": [
+      "branching",
+      "gitflow"
+    ]
+  },
+  {
+    "id": "cicd-038",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is a blue-green deployment?",
+    "explanation": "Blue-green deployment runs two identical production environments; traffic is routed to one (e.g. blue) while the new version is deployed to the other (green), then traffic is switched over once the new version is verified.",
+    "options": [
+      "Deploying to two separate identical environments and switching traffic from the old one to the new one once it's verified",
+      "Gradually shifting a small percentage of traffic to the new version over time",
+      "Replacing instances one at a time while the rest keep serving traffic",
+      "Deploying directly to production with no testing beforehand"
+    ],
+    "answer": 0,
+    "tags": [
+      "deployment-strategies"
+    ]
+  },
+  {
+    "id": "cicd-039",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is a canary deployment?",
+    "explanation": "A canary deployment releases a new version to a small subset of users or servers first, monitors it for problems, and then gradually increases the rollout to the rest of the fleet if it looks healthy.",
+    "options": [
+      "Deploying the new version to 100% of servers at once, with no gradual rollout",
+      "Releasing a new version to a small subset of traffic first, then gradually increasing rollout based on observed health",
+      "Running two full production environments simultaneously at all times",
+      "Deploying only during a scheduled maintenance window once a quarter"
+    ],
+    "answer": 1,
+    "tags": [
+      "deployment-strategies"
+    ]
+  },
+  {
+    "id": "cicd-040",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following statements about rolling deployments are true?",
+    "explanation": "A rolling deployment gradually replaces old instances with new ones (often one batch at a time) so the service stays available throughout, and it can typically be paused or aborted mid-rollout if problems appear. It does not require maintaining two full parallel environments the way blue-green does, and it does not shift all traffic to the new version instantly.",
+    "options": [
+      "Old instances are replaced with new ones gradually, batch by batch",
+      "The rollout can typically be paused or rolled back partway through",
+      "It requires maintaining two complete, separate production environments like blue-green",
+      "All traffic switches to the new version instantly with no gradual transition"
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "tags": [
+      "deployment-strategies"
+    ]
+  },
+  {
+    "id": "cicd-041",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are true about blue-green deployments?",
+    "explanation": "Blue-green deployments allow near-instant rollback by routing traffic back to the previously live environment, and they achieve a effectively zero-downtime cutover. Because two full environments exist simultaneously, they typically require double the infrastructure during the switch. Gradually shifting a percentage of traffic over time describes canary deployment, not blue-green.",
+    "options": [
+      "Rollback can be near-instant by switching the router/load balancer back to the previous environment",
+      "It typically requires running double the infrastructure while both environments exist",
+      "It enables a zero-downtime cutover between versions",
+      "It works by gradually shifting an increasing percentage of traffic to the new version over hours or days"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "tags": [
+      "deployment-strategies"
+    ]
+  },
+  {
+    "id": "cicd-042",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the main purpose of a feature flag (feature toggle) in software delivery?",
+    "explanation": "A feature flag lets teams turn a feature on or off at runtime without deploying new code, which enables merging unfinished work safely, gradual rollouts, and quick disabling of a problematic feature.",
+    "options": [
+      "To permanently disable old, deprecated code paths",
+      "To enable or disable a feature at runtime without requiring a new deployment",
+      "To flag which files changed in the last commit",
+      "To mark which tests are allowed to fail"
+    ],
+    "answer": 1,
+    "tags": [
+      "feature-flags"
+    ]
+  },
+  {
+    "id": "cicd-043",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Feature flags allow a team to decouple deploying code (shipping it to production) from releasing it (making it visible/active for users).",
+    "explanation": "Because a flagged feature can be deployed while turned off, teams can deploy code at any time and separately decide, later, when to flip the flag and make it visible to users.",
+    "answer": true,
+    "tags": [
+      "feature-flags"
+    ]
+  },
+  {
+    "id": "cicd-044",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In a blue-green deployment setup, what is typically the fastest way to roll back a bad release?",
+    "explanation": "Since the previous version is still fully running in the other environment, rollback is as fast as switching the router/load balancer back to it, avoiding the need to rebuild or redeploy anything.",
+    "options": [
+      "Redeploy the previous version's artifact from scratch",
+      "Switch the router or load balancer back to point at the previous (still-running) environment",
+      "Manually patch the broken code directly in production",
+      "Wait for the next scheduled deployment window"
+    ],
+    "answer": 1,
+    "tags": [
+      "deployment-strategies",
+      "rollback"
+    ]
+  },
+  {
+    "id": "cicd-045",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In the testing pyramid, which layer typically has the largest number of tests and runs fastest?",
+    "explanation": "Unit tests sit at the base of the testing pyramid: they are numerous, fast, and cheap to run, which is why CI pipelines usually run them first and most frequently.",
+    "options": [
+      "End-to-end (UI) tests",
+      "Manual exploratory tests",
+      "Unit tests",
+      "Integration tests"
+    ],
+    "answer": 2,
+    "tags": [
+      "testing"
+    ]
+  },
+  {
+    "id": "cicd-046",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In the testing pyramid, which layer typically has the fewest tests and is the slowest and most expensive to run?",
+    "explanation": "End-to-end (UI/system) tests sit at the top of the pyramid; there should be relatively few of them because they are slow, brittle, and expensive compared to unit or integration tests.",
+    "options": [
+      "Unit tests",
+      "End-to-end (UI/system) tests",
+      "Static analysis checks",
+      "Linting"
+    ],
+    "answer": 1,
+    "tags": [
+      "testing"
+    ]
+  },
+  {
+    "id": "cicd-047",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are typically run early in a CI pipeline because they are fast and give quick feedback?",
+    "explanation": "Linting, static analysis, and unit tests are fast and cheap, so they are usually run first to fail quickly on obvious problems. Full end-to-end/UI test suites are slow and expensive, so they usually run later, only after cheaper checks pass.",
+    "options": [
+      "Linting",
+      "Static analysis",
+      "Unit tests",
+      "Full end-to-end UI test suite"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "tags": [
+      "testing"
+    ]
+  },
+  {
+    "id": "cicd-048",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What does 'shift-left testing' mean in a CI/CD context?",
+    "explanation": "Shift-left testing means moving quality activities (testing, security scanning, code review) earlier in the development process, ideally into the CI pipeline on every commit, rather than only testing right before release.",
+    "options": [
+      "Running all tests only after deployment to production",
+      "Moving testing and quality checks earlier in the development lifecycle, such as running them on every commit",
+      "Testing exclusively on the left-most environment in a multi-region setup",
+      "Skipping automated tests in favor of manual QA at the end"
+    ],
+    "answer": 1,
+    "tags": [
+      "testing",
+      "shift-left"
+    ]
+  },
+  {
+    "id": "cicd-049",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which of the following is NOT one of the four key DORA (DevOps Research and Assessment) metrics?",
+    "explanation": "The four DORA metrics are deployment frequency, lead time for changes, change failure rate, and time to restore service (previously called MTTR). Number of open pull requests is not one of them.",
+    "options": [
+      "Deployment frequency",
+      "Lead time for changes",
+      "Change failure rate",
+      "Number of open pull requests"
+    ],
+    "answer": 3,
+    "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
+    "tags": [
+      "dora"
+    ]
+  },
+  {
+    "id": "cicd-050",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In DORA metrics, what does 'deployment frequency' measure?",
+    "explanation": "Deployment frequency measures how often an organization successfully releases to production; elite performers tend to deploy on demand, often multiple times per day.",
+    "options": [
+      "How many developers are on the team",
+      "How often code is successfully deployed to production",
+      "How many bugs are found in QA",
+      "How long the CI pipeline takes to run"
+    ],
+    "answer": 1,
+    "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
+    "tags": [
+      "dora"
+    ]
+  },
+  {
+    "id": "cicd-051",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In DORA metrics, what does 'time to restore service' (formerly MTTR) measure?",
+    "explanation": "Time to restore service measures how long it typically takes to recover from a failure or incident in production, such as an outage caused by a bad deployment.",
+    "options": [
+      "How long it takes to write a new feature",
+      "How long it takes to restore service after a failure or incident in production",
+      "How long code review takes on average",
+      "How long a deployment pipeline takes to run end to end"
+    ],
+    "answer": 1,
+    "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
+    "tags": [
+      "dora"
+    ]
+  },
+  {
+    "id": "cicd-052",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "According to DORA research, elite-performing software delivery teams typically deploy to production on demand, often multiple times per day.",
+    "explanation": "DORA's State of DevOps research consistently finds that elite performers deploy far more frequently than low performers, often multiple times per day, while maintaining low change failure rates and fast recovery times.",
+    "answer": true,
+    "reference": "https://dora.dev/",
+    "tags": [
+      "dora"
+    ]
+  },
+  {
+    "id": "cicd-053",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Semantic Versioning defines a version number in the format MAJOR.MINOR.PATCH. What is the term for a version increment that changes only the third number, e.g. going from 1.2.3 to 1.2.4?",
+    "explanation": "That is called a PATCH release, reserved for backward-compatible bug fixes that don't change the public API.",
+    "answer": [
+      "patch"
+    ],
+    "pattern": "^patch$",
+    "tags": [
+      "semver"
+    ]
+  },
+  {
+    "id": "cicd-054",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Under Semantic Versioning (MAJOR.MINOR.PATCH), when should the MAJOR version be incremented?",
+    "explanation": "The MAJOR version increments when you make incompatible, breaking API changes; MINOR is for backward-compatible new functionality, and PATCH is for backward-compatible bug fixes.",
+    "options": [
+      "When you fix a bug without changing the API",
+      "When you add a backward-compatible new feature",
+      "When you make an incompatible, breaking change to the public API",
+      "Every time a new commit is pushed to main"
+    ],
+    "answer": 2,
+    "tags": [
+      "semver"
+    ]
+  },
+  {
+    "id": "cicd-055",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Under Semantic Versioning (MAJOR.MINOR.PATCH), when should the MINOR version be incremented?",
+    "explanation": "MINOR is incremented when backward-compatible functionality is added; it should not break existing consumers of the API.",
+    "options": [
+      "When you add functionality in a backward-compatible manner",
+      "When you make a breaking API change",
+      "When you fix a typo in the documentation only",
+      "Whenever the build number changes"
+    ],
+    "answer": 0,
+    "tags": [
+      "semver"
+    ]
+  },
+  {
+    "id": "cicd-056",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "In Semantic Versioning, incrementing the PATCH number (e.g. 1.2.3 to 1.2.4) signals a breaking, backward-incompatible change.",
+    "explanation": "Patch releases are reserved for backward-compatible bug fixes. Breaking changes require a MAJOR version increment instead.",
+    "answer": false,
+    "tags": [
+      "semver"
+    ]
+  },
+  {
+    "id": "cicd-057",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What best describes the GitOps approach to deployment?",
+    "explanation": "GitOps uses a Git repository as the single source of truth for declarative infrastructure and application configuration; an automated controller continuously reconciles the live system state to match what's declared in Git, rather than engineers running ad-hoc deploy commands.",
+    "options": [
+      "Storing only source code, never configuration, in Git",
+      "Using a Git repository as the source of truth for declarative config, with an automated controller reconciling the live system to match it",
+      "Manually SSHing into servers and applying changes, then recording them in a changelog",
+      "A branching strategy that forbids using Git tags"
+    ],
+    "answer": 1,
+    "tags": [
+      "gitops"
+    ]
+  },
+  {
+    "id": "cicd-058",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about Argo CD are true?",
+    "explanation": "Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes: it continuously compares the desired state defined in a Git repository against the live cluster state and can automatically sync (and optionally self-heal) any drift. It is not limited to imperative `kubectl apply` commands run by hand, and it is specific to Kubernetes rather than a generic non-Kubernetes deployment tool.",
+    "options": [
+      "It is a declarative GitOps continuous delivery tool for Kubernetes",
+      "It continuously compares the live cluster state to the desired state defined in Git",
+      "It can be configured to automatically sync and self-heal configuration drift",
+      "It only supports manually running `kubectl apply` and has no automated sync feature"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://argo-cd.readthedocs.io/en/stable/core_concepts/",
+    "tags": [
+      "gitops",
+      "argocd"
+    ]
   }
 ]

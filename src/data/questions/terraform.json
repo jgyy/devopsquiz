@@ -3,9 +3,1132 @@
     "id": "terraform-001",
     "domain": "terraform",
     "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does the acronym HCL stand for, the language Terraform configuration files are written in?",
+    "explanation": "HCL stands for HashiCorp Configuration Language, a declarative language designed to be both human-readable and machine-friendly.",
+    "options": [
+      "HashiCorp Configuration Language",
+      "High-level Cloud Language",
+      "Hardware Control Language",
+      "Hosted Config Layer"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/syntax/configuration",
+    "tags": [
+      "hcl",
+      "basics"
+    ]
+  },
+  {
+    "id": "terraform-002",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What file extension do native (non-JSON) Terraform configuration files use?",
+    "explanation": "Terraform configuration files use the `.tf` extension (or `.tf.json` for the JSON variant of the syntax); variable definition files use `.tfvars`.",
+    "options": [
+      ".tf",
+      ".hcl",
+      ".tfconfig",
+      ".tform"
+    ],
+    "answer": 0,
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "terraform-003",
+    "domain": "terraform",
+    "difficulty": "easy",
     "type": "boolean",
-    "prompt": "Placeholder terraform question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "prompt": "Terraform is primarily a declarative infrastructure-as-code tool: you describe the desired end state and Terraform figures out how to reach it, rather than scripting each step imperatively.",
+    "explanation": "Terraform configurations describe the desired end state of infrastructure; the Terraform engine computes and executes the plan of API calls needed to reach that state.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/intro",
+    "tags": [
+      "concepts"
+    ]
+  },
+  {
+    "id": "terraform-004",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `provider` block in a Terraform configuration?",
+    "explanation": "A `provider` block configures the named provider (for example `aws` or `azurerm`), such as region and credentials, so Terraform can authenticate and communicate with that platform's API.",
+    "options": [
+      "It configures a plugin that lets Terraform communicate with a specific API, such as a cloud platform",
+      "It declares an input variable that must be supplied on the command line",
+      "It defines a reusable set of resources that can be called from other configurations",
+      "It stores the current state of managed infrastructure"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/providers",
+    "tags": [
+      "providers"
+    ]
+  },
+  {
+    "id": "terraform-005",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which line correctly declares a resource block for an AWS EC2 instance named `web`?",
+    "explanation": "Resource blocks use the syntax `resource \"<TYPE>\" \"<LOCAL NAME>\" { ... }`, so `resource \"aws_instance\" \"web\" { ... }` is correct; the type comes from the provider and the local name is chosen by the author.",
+    "options": [
+      "resource \"aws_instance\" \"web\" { ... }",
+      "resource web \"aws_instance\" { ... }",
+      "aws_instance \"web\" \"resource\" { ... }",
+      "resource { type = \"aws_instance\" name = \"web\" ... }"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/syntax",
+    "tags": [
+      "resources",
+      "hcl"
+    ]
+  },
+  {
+    "id": "terraform-006",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which command initializes a Terraform working directory, downloading required providers and modules and configuring the backend?",
+    "explanation": "`terraform init` prepares a working directory for other commands by installing provider plugins and modules and setting up the configured backend. It is safe to run repeatedly.",
+    "answer": [
+      "terraform init"
+    ],
+    "pattern": "^terraform\\s+init(\\s+-upgrade)?$",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/init",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-007",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does `terraform plan` do?",
+    "explanation": "`terraform plan` creates an execution plan, showing what actions Terraform would take to reach the desired state, without actually making any changes to real infrastructure.",
+    "options": [
+      "It shows what changes Terraform would make without applying them",
+      "It permanently deletes all resources described in the configuration",
+      "It applies changes to infrastructure immediately without confirmation",
+      "It downloads provider plugins referenced by the configuration"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-008",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does `terraform apply` do by default when run interactively?",
+    "explanation": "`terraform apply` generates an execution plan (like `terraform plan`) and then, after the user types `yes` at the interactive confirmation prompt, carries out the described actions to reach the desired state.",
+    "options": [
+      "It shows a plan, asks for confirmation, then makes the real infrastructure changes",
+      "It only validates syntax and never touches real infrastructure",
+      "It silently applies changes with no way to preview them first",
+      "It only works when passed a saved plan file"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/apply",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-009",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of the `terraform destroy` command?",
+    "explanation": "`terraform destroy` destroys all remote objects that are managed by the current Terraform configuration and state, effectively tearing down the infrastructure Terraform created.",
+    "options": [
+      "It destroys all resources tracked in the current state",
+      "It deletes the local `.tf` configuration files",
+      "It removes only the `.terraform.lock.hcl` file",
+      "It resets the state file to an empty file without touching infrastructure"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/destroy",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-010",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which command rewrites Terraform configuration files into a canonical format and style (indentation, alignment, spacing)?",
+    "explanation": "`terraform fmt` automatically formats `.tf` files to a canonical style; adding `-recursive` also formats files in subdirectories.",
+    "answer": [
+      "terraform fmt"
+    ],
+    "pattern": "^terraform\\s+fmt(\\s+-recursive)?(\\s+-check)?$",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/fmt",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-011",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about `terraform validate` are true?",
+    "explanation": "`terraform validate` checks that a configuration is syntactically valid and internally consistent (correct argument types, required arguments present, valid references) using only the configuration on disk. It does not contact the target platform's API, does not require valid cloud credentials, and cannot guarantee that `apply` will succeed, since that depends on real-world state and permissions.",
+    "options": [
+      "It checks the configuration is syntactically valid and internally consistent",
+      "It does not require access to remote APIs or valid cloud credentials",
+      "It guarantees that a subsequent `terraform apply` will succeed",
+      "It can catch errors such as a required argument being missing from a resource block",
+      "It refreshes and rewrites the remote state file"
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/validate",
+    "tags": [
+      "cli",
+      "validate"
+    ]
+  },
+  {
+    "id": "terraform-012",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about Terraform data sources are true?",
+    "explanation": "Data sources (declared with a `data` block) let a configuration read information about infrastructure that already exists, including resources managed outside the current configuration; they support `count`, `for_each`, and `depends_on` like resources do. They are read-only and cannot create, modify, or destroy infrastructure.",
+    "options": [
+      "They allow a configuration to read information about infrastructure not managed by it",
+      "They are declared using a `data` block",
+      "They support `count` and `for_each` meta-arguments",
+      "They can create new infrastructure objects in the target platform",
+      "Terraform re-creates them every time `terraform destroy` is run"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/data-sources",
+    "tags": [
+      "data-sources"
+    ]
+  },
+  {
+    "id": "terraform-013",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `variable` block in Terraform?",
+    "explanation": "A `variable` block declares an input variable, letting a configuration be parameterized so the same code can be reused with different values supplied via CLI flags, `.tfvars` files, environment variables, or defaults.",
+    "options": [
+      "It declares an input parameter that can be set when the configuration is used",
+      "It defines a value computed once and reused elsewhere in the module",
+      "It exposes a value for use by a calling module or the CLI",
+      "It configures which cloud provider Terraform should talk to"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables",
+    "tags": [
+      "variables"
+    ]
+  },
+  {
+    "id": "terraform-014",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of an `output` block in Terraform?",
+    "explanation": "An `output` block exposes a value from a module, such as the root module, so it can be displayed after `apply`, queried with `terraform output`, or consumed by a calling module or another configuration via remote state.",
+    "options": [
+      "It exposes a value from a module for display or use by other configurations",
+      "It declares a required input parameter for the module",
+      "It defines a local, module-private computed value",
+      "It configures the backend used to store state"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/values/outputs",
+    "tags": [
+      "outputs"
+    ]
+  },
+  {
+    "id": "terraform-015",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the purpose of a `locals` block in Terraform?",
+    "explanation": "A `locals` block assigns names to expressions so they can be reused multiple times within a module without repeating the logic; unlike variables, locals are not set by the caller, they are computed within the module.",
+    "options": [
+      "It defines named, reusable expressions computed within the module",
+      "It declares an input value that must be supplied by the caller",
+      "It defines a value returned to a module's caller",
+      "It configures locking behavior for the remote state backend"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/values/locals",
+    "tags": [
+      "locals"
+    ]
+  },
+  {
+    "id": "terraform-016",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Terraform's state file records a mapping between the resources declared in configuration and the real-world objects they correspond to in the target platform.",
+    "explanation": "The state file (by default `terraform.tfstate`) tracks metadata and attributes for every managed resource, mapping configuration resource addresses to real-world object IDs so Terraform can detect drift and compute diffs.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/language/state",
+    "tags": [
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-017",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "If a Terraform configuration does not define a `backend` block, where is the state stored by default?",
+    "explanation": "With no backend configured, Terraform uses the `local` backend, which stores the state file as plain JSON on disk (`terraform.tfstate`) in the working directory.",
+    "options": [
+      "In a local file on disk, using the local backend",
+      "In HCP Terraform automatically, with no configuration needed",
+      "State is not persisted at all between runs",
+      "In an in-memory cache that is discarded when the command exits"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/backend",
+    "tags": [
+      "state",
+      "backend"
+    ]
+  },
+  {
+    "id": "terraform-018",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid Terraform state backend types?",
+    "explanation": "Terraform ships with several backends for storing state remotely, including `s3` (AWS), `azurerm` (Azure Blob Storage), `gcs` (Google Cloud Storage), and `remote` (HCP Terraform / Terraform Enterprise). \"docker\" and \"github\" are not backend types.",
+    "options": [
+      "s3",
+      "azurerm",
+      "gcs",
+      "docker",
+      "github"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/backend",
+    "tags": [
+      "state",
+      "backend"
+    ]
+  },
+  {
+    "id": "terraform-019",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "If a team runs Terraform against a shared remote backend without state locking enabled, what are realistic consequences?",
+    "explanation": "Without locking, two people (or a person and a CI pipeline) can run `apply` concurrently against the same state, which can cause one run's changes to be silently overwritten, the state file to become corrupted, or Terraform to lose track of created resources. Locking does not, by itself, prevent drift caused by manual changes made outside Terraform.",
+    "options": [
+      "Concurrent applies can overwrite each other's state changes",
+      "The state file can become corrupted from simultaneous writes",
+      "Terraform can lose track of resources it created",
+      "Terraform automatically queues concurrent runs so no conflicts can occur",
+      "Manual changes made in the cloud console outside Terraform are prevented"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/state/locking",
+    "tags": [
+      "state",
+      "locking"
+    ]
+  },
+  {
+    "id": "terraform-020",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which command lists the resource addresses currently tracked in the Terraform state?",
+    "explanation": "`terraform state list` prints the addresses of all resources (and data sources) recorded in the current state, optionally filtered by a resource address pattern.",
+    "options": [
+      "terraform state list",
+      "terraform state show",
+      "terraform show state",
+      "terraform list resources"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/list",
+    "tags": [
+      "state",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-021",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `terraform state mv` do?",
+    "explanation": "`terraform state mv` moves an item (or items) within the state, such as renaming a resource or moving it into a module, updating the state's bookkeeping without destroying and recreating the underlying real-world object.",
+    "options": [
+      "It moves or renames a resource's tracking entry within the state, without touching the real object",
+      "It moves the state file from a local backend to a remote backend",
+      "It destroys the resource and recreates it under a new name",
+      "It copies a resource's configuration into a new module directory"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/mv",
+    "tags": [
+      "state",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-022",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `terraform state rm` do?",
+    "explanation": "`terraform state rm` removes one or more resources from the state file so Terraform no longer manages them; it does not delete or modify the actual infrastructure object, which keeps running untouched outside of Terraform's management.",
+    "options": [
+      "It stops Terraform tracking a resource, without deleting the real infrastructure",
+      "It deletes the real infrastructure object and removes it from state",
+      "It removes the entire state file from the backend",
+      "It marks a resource for recreation on the next apply"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/rm",
+    "tags": [
+      "state",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-023",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Running `terraform state rm aws_instance.web` deletes the actual EC2 instance from AWS, in addition to removing it from Terraform's state.",
+    "explanation": "`terraform state rm` only edits the state file; it does not call the provider's API to delete anything. The real EC2 instance keeps running but is no longer managed by Terraform.",
+    "answer": false,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/rm",
+    "tags": [
+      "state",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-024",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does the `terraform.workspace` expression return inside a configuration?",
+    "explanation": "`terraform.workspace` evaluates to the name of the currently selected workspace (for example `default`), and is commonly used to vary resource names or settings per workspace.",
+    "options": [
+      "The name of the currently selected workspace",
+      "The absolute filesystem path of the working directory",
+      "The version of Terraform CLI currently running",
+      "The name of the configured backend"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/state/workspaces",
+    "tags": [
+      "workspaces"
+    ]
+  },
+  {
+    "id": "terraform-025",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which command creates a new Terraform workspace named `staging` and switches to it?",
+    "explanation": "`terraform workspace new <name>` creates a new named workspace with its own state and immediately selects it as the active workspace.",
+    "answer": [
+      "terraform workspace new staging"
+    ],
+    "pattern": "^terraform\\s+workspace\\s+new\\s+staging$",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/workspace/new",
+    "tags": [
+      "workspaces",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-026",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a `module` block, what does the `source` argument specify?",
+    "explanation": "The `source` argument tells Terraform where to find the module's code: a local relative path, a Terraform Registry address such as `terraform-aws-modules/vpc/aws`, a Git repository URL, or another supported source type.",
+    "options": [
+      "Where to find the module's source code, such as a local path, registry address, or Git URL",
+      "The AWS region the module's resources should be created in",
+      "The Terraform CLI version required to use the module",
+      "The name under which outputs from the module are exposed"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/modules/sources",
+    "tags": [
+      "modules"
+    ]
+  },
+  {
+    "id": "terraform-027",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the \"root module\" in a Terraform configuration?",
+    "explanation": "The root module is the module made up of the `.tf` files in the directory where you run Terraform commands directly; it may call other (child) modules, whose resources become part of the overall configuration.",
+    "options": [
+      "The module in the working directory where Terraform commands are run directly",
+      "The first child module called by any configuration",
+      "The module published at the top of the Terraform Registry",
+      "A special module that stores only provider configuration"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/modules",
+    "tags": [
+      "modules"
+    ]
+  },
+  {
+    "id": "terraform-028",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A module block specifies `version = \"~> 3.0\"`. Which versions of that module does this constraint allow?",
+    "explanation": "The `~>` (pessimistic constraint) operator allows only the rightmost component shown to increment, so `~> 3.0` permits any `3.x` release (`3.0.0`, `3.5.2`, and so on) but excludes `4.0.0` and above.",
+    "options": [
+      "Any 3.x version, but not 4.0.0 or later",
+      "Only exactly version 3.0.0",
+      "Any version greater than or equal to 3.0.0, with no upper bound",
+      "Any version less than 3.0.0"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/expressions/version-constraints",
+    "tags": [
+      "modules",
+      "versions"
+    ]
+  },
+  {
+    "id": "terraform-029",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Running `terraform init` downloads the provider plugins and any external modules referenced by the configuration.",
+    "explanation": "As part of preparing a working directory, `terraform init` installs the provider plugins declared (directly or transitively) in the configuration and downloads any modules referenced by non-local `source` addresses.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/init",
+    "tags": [
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-030",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the purpose of the `-out` flag on `terraform plan`?",
+    "explanation": "`terraform plan -out=tfplan` saves the generated execution plan to a binary file, which can later be passed to `terraform apply tfplan` to apply exactly the reviewed plan without Terraform recomputing it or prompting again.",
+    "options": [
+      "It saves the generated plan to a file so it can be applied later exactly as reviewed",
+      "It writes the plan as human-readable JSON to standard output only",
+      "It applies the plan immediately after generating it",
+      "It exports the current state file to the given path"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "tags": [
+      "cli",
+      "plan"
+    ]
+  },
+  {
+    "id": "terraform-031",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are valid meta-arguments that can be set inside a resource's `lifecycle` block?",
+    "explanation": "Terraform's `lifecycle` block supports `create_before_destroy`, `prevent_destroy`, `ignore_changes`, and (since 1.2) `replace_triggered_by`. `depends_on` and `count` are meta-arguments too, but they are set directly on the resource, not nested inside `lifecycle`.",
+    "options": [
+      "create_before_destroy",
+      "prevent_destroy",
+      "ignore_changes",
+      "depends_on",
+      "count"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle",
+    "tags": [
+      "lifecycle"
+    ]
+  },
+  {
+    "id": "terraform-032",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does setting `create_before_destroy = true` in a resource's `lifecycle` block do?",
+    "explanation": "With `create_before_destroy`, Terraform creates the replacement object before destroying the old one when a change requires replacement, which reduces downtime for resources that would otherwise be unavailable during recreation.",
+    "options": [
+      "It creates the new replacement resource before destroying the old one",
+      "It prevents the resource from ever being destroyed",
+      "It ignores changes to specific attributes when planning",
+      "It forces the resource to be recreated on every apply"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle",
+    "tags": [
+      "lifecycle"
+    ]
+  },
+  {
+    "id": "terraform-033",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What effect does `prevent_destroy = true` have on a resource?",
+    "explanation": "`prevent_destroy` causes Terraform to reject, with an error, any plan that would destroy that resource, helping guard critical resources like production databases against accidental deletion. It does not block updates, only destroys.",
+    "options": [
+      "Terraform refuses to run any plan that would destroy the resource",
+      "Terraform silently skips destroying the resource but still reports success",
+      "Terraform prevents any updates to the resource, not just destroys",
+      "Terraform automatically backs up the resource before every destroy"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle",
+    "tags": [
+      "lifecycle"
+    ]
+  },
+  {
+    "id": "terraform-034",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the purpose of the `ignore_changes` argument inside a `lifecycle` block?",
+    "explanation": "`ignore_changes` tells Terraform to disregard differences in the listed attributes (or all attributes, with `ignore_changes = all`) when computing a diff, which is useful when something outside Terraform, such as an autoscaler, legitimately modifies those attributes.",
+    "options": [
+      "It tells Terraform to ignore future changes to specific attributes when planning",
+      "It tells Terraform to ignore the resource entirely and never manage it",
+      "It prevents the resource from being destroyed",
+      "It ignores errors returned by the provider during apply"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle",
+    "tags": [
+      "lifecycle"
+    ]
+  },
+  {
+    "id": "terraform-035",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are genuine advantages of `for_each` over `count` when creating multiple similar resource instances?",
+    "explanation": "With `for_each`, each instance is tracked by a stable map/set key rather than a numeric index, so removing or reordering an item in the middle of the collection does not force Terraform to destroy and recreate unrelated instances the way shifting `count` indices can; it also naturally accepts a map, giving each instance access to both a key and a value.",
+    "options": [
+      "Instances are addressed by a stable key instead of a shifting numeric index",
+      "Removing an item from the middle of the collection does not force-recreate unrelated instances",
+      "It can iterate over a map, giving each instance both a key and a value",
+      "It is the only meta-argument that works with modules as well as resources",
+      "It removes the need to ever use the `count.index` value"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/for_each",
+    "tags": [
+      "for_each",
+      "count"
+    ]
+  },
+  {
+    "id": "terraform-036",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Inside a resource block that uses `count`, which expression gives the zero-based index of the current instance being created?",
+    "explanation": "`count.index` provides the current iteration number, starting at 0, and is commonly used to derive unique names or pick values from a list by position.",
+    "answer": [
+      "count.index"
+    ],
+    "pattern": "^count\\.index$",
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/count",
+    "tags": [
+      "count"
+    ]
+  },
+  {
+    "id": "terraform-037",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Inside a resource block that uses `for_each` over a map, what does `each.value` refer to?",
+    "explanation": "When `for_each` iterates over a map, `each.key` is bound to the map key for the current instance and `each.value` is bound to the corresponding map value; for a set of strings, both `each.key` and `each.value` equal the set element.",
+    "options": [
+      "The value associated with the current map key being iterated over",
+      "The zero-based position of the current instance",
+      "The total number of instances being created",
+      "The resource's unique ID assigned by the provider"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/for_each",
+    "tags": [
+      "for_each"
+    ]
+  },
+  {
+    "id": "terraform-038",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A single resource block can use both `count` and `for_each` at the same time.",
+    "explanation": "`count` and `for_each` are mutually exclusive on the same resource or module block; Terraform reports an error if both are set, since they are two different strategies for creating multiple instances.",
+    "answer": false,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/for_each",
+    "tags": [
+      "for_each",
+      "count"
+    ]
+  },
+  {
+    "id": "terraform-039",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "When should you add an explicit `depends_on` to a resource?",
+    "explanation": "Terraform automatically infers most ordering from references between resources and data sources in expressions. `depends_on` is needed only when a dependency exists that is not visible through any expression reference, such as a hidden dependency on side effects (for example, an IAM policy that must exist before an API call in another resource succeeds).",
+    "options": [
+      "When a dependency exists that Terraform cannot infer from expression references",
+      "On every resource, since Terraform never infers dependencies automatically",
+      "Only when using the `local` backend instead of a remote backend",
+      "Only inside `data` blocks, never inside `resource` blocks"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/depends_on",
+    "tags": [
+      "depends_on"
+    ]
+  },
+  {
+    "id": "terraform-040",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which provisioner runs the given command on the machine running Terraform, rather than on the resource being created?",
+    "explanation": "The `local-exec` provisioner executes a command on the machine running Terraform (for example your laptop or CI runner). Its counterpart, `remote-exec`, instead connects to the newly created resource over SSH or WinRM and runs commands there.",
+    "options": [
+      "local-exec",
+      "remote-exec",
+      "file",
+      "connection"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/provisioners/local-exec",
+    "tags": [
+      "provisioners"
+    ]
+  },
+  {
+    "id": "terraform-041",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "According to HashiCorp's own documentation, how should provisioners be treated in Terraform configurations?",
+    "explanation": "HashiCorp explicitly recommends using provisioners only \"as a last resort\": prefer built-in provider mechanisms (such as `user_data` / cloud-init) or a dedicated configuration management tool for bootstrapping, since provisioners fall outside Terraform's usual planning and state-tracking guarantees.",
+    "options": [
+      "As a last resort, after built-in provider features or dedicated tools have been ruled out",
+      "As the primary, recommended way to configure software on every resource",
+      "As a required step before any resource can be marked `prevent_destroy`",
+      "As a replacement for the `lifecycle` block on most resources"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/provisioners/syntax",
+    "tags": [
+      "provisioners"
+    ]
+  },
+  {
+    "id": "terraform-042",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Why do the Terraform docs discourage relying heavily on provisioners such as `local-exec` and `remote-exec`?",
+    "explanation": "Provisioners run arbitrary scripts that Terraform cannot inspect, so it cannot predict their effect during `plan`, detect drift they cause, or guarantee they are idempotent; `remote-exec` also depends on network reachability and valid SSH/WinRM credentials at creation time, and a failed provisioner leaves the resource in a tainted, only partially known state.",
+    "options": [
+      "Terraform cannot predict or diff their effects the way it does for resource arguments",
+      "They are not guaranteed to be idempotent if re-run",
+      "remote-exec depends on network access and valid credentials at creation time",
+      "They automatically roll back all previous resources if they fail",
+      "Provisioner scripts are checked into the dependency lock file for consistency"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/provisioners/syntax",
+    "tags": [
+      "provisioners"
+    ]
+  },
+  {
+    "id": "terraform-043",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the purpose of the classic `terraform import <address> <id>` command?",
+    "explanation": "`terraform import` brings an existing real-world object under Terraform management by writing an entry for it into the state file, associated with a resource address that must already have a matching (even if mostly empty) resource block in configuration; the classic command populates state only, it does not write HCL configuration for you.",
+    "options": [
+      "It attaches an existing infrastructure object to a resource address in the state file",
+      "It generates a brand-new resource in the target platform and adds it to state",
+      "It converts an entire existing account's infrastructure into a full Terraform configuration automatically",
+      "It exports the current state file into a portable JSON format"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/import",
+    "tags": [
+      "import"
+    ]
+  },
+  {
+    "id": "terraform-044",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which `terraform plan` flag, used together with a configuration `import` block, tells Terraform to generate HCL resource configuration for the object being imported?",
+    "explanation": "Since Terraform 1.5, declarative `import` blocks can be combined with `terraform plan -generate-config-out=FILENAME`, which writes generated HCL for the imported resource to the given file so you can review and adapt it instead of hand-writing it.",
+    "options": [
+      "-generate-config-out",
+      "-out",
+      "-target",
+      "-refresh-only"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/import",
+    "tags": [
+      "import"
+    ]
+  },
+  {
+    "id": "terraform-045",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `terraform taint <resource address>` mark a resource instance to do?",
+    "explanation": "Tainting a resource instance forces Terraform to destroy and recreate it on the next `apply`, even though its configuration has not changed, which is useful when a resource is known to be broken or misconfigured outside of Terraform's view.",
+    "options": [
+      "Destroy and recreate the resource instance on the next apply",
+      "Permanently prevent the resource from being modified again",
+      "Remove the resource from state without destroying it",
+      "Mark the resource as read-only so future applies skip it"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/taint",
+    "tags": [
+      "taint"
+    ]
+  },
+  {
+    "id": "terraform-046",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What CLI flag on `terraform apply` forces replacement of a specific resource instance, identified by its address, without editing configuration?",
+    "explanation": "`terraform apply -replace=<resource address>` (for example `terraform apply -replace=aws_instance.web`) is the modern, plan-based way to force a resource to be destroyed and recreated, superseding the older `terraform taint` workflow.",
+    "answer": [
+      "terraform apply -replace",
+      "-replace"
+    ],
+    "pattern": "^(terraform\\s+apply\\s+)?-replace(=\\S+)?$",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "tags": [
+      "taint",
+      "replace"
+    ]
+  },
+  {
+    "id": "terraform-047",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "The `terraform taint` and `terraform untaint` subcommands are deprecated in favor of the `-replace` flag on `terraform plan` and `terraform apply`.",
+    "explanation": "HashiCorp deprecated the `taint`/`untaint` commands starting with Terraform 0.15.2, recommending `terraform apply -replace=<address>` instead, since it goes through the normal plan review step rather than mutating state directly outside of a plan.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/taint",
+    "tags": [
+      "taint",
+      "replace"
+    ]
+  },
+  {
+    "id": "terraform-048",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the effect of the `-target` flag on `terraform plan` or `terraform apply`?",
+    "explanation": "`-target=<address>` restricts the operation to the specified resource (plus anything it depends on), rather than the whole configuration, which is useful for narrowly scoped operations such as recovering from a specific error.",
+    "options": [
+      "It limits the plan or apply to only the specified resource and its dependencies",
+      "It targets a specific remote backend to store the resulting state",
+      "It selects which Terraform workspace the command runs against",
+      "It targets a specific provider version to use for the run"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "tags": [
+      "targeting"
+    ]
+  },
+  {
+    "id": "terraform-049",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Why does HashiCorp caution against routinely using `-target` as part of a normal workflow?",
+    "explanation": "Because `-target` only plans a subset of the configuration, the resulting plan can be inconsistent with what a full plan would produce, potentially leaving other resources out of sync with configuration; HashiCorp recommends it only for exceptional situations, such as working around an error, followed by a normal full `apply`.",
+    "options": [
+      "A targeted plan can be inconsistent with the full configuration and mask other pending changes",
+      "It permanently deletes all resources not included in the target list",
+      "It is only usable with the local backend and fails on remote backends",
+      "It disables state locking for the duration of the run"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "tags": [
+      "targeting"
+    ]
+  },
+  {
+    "id": "terraform-050",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What happens when a Terraform input variable is declared with `sensitive = true`?",
+    "explanation": "Terraform redacts the variable's value from `plan` and `apply` console output, displaying `(sensitive value)` instead, to reduce the chance of secrets being exposed in logs or a terminal.",
+    "options": [
+      "Its value is hidden from normal plan and apply console output",
+      "Its value is encrypted wherever Terraform stores it",
+      "It can no longer be referenced anywhere else in the configuration",
+      "Terraform refuses to apply the configuration unless it is set via an environment variable"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables",
+    "tags": [
+      "sensitive"
+    ]
+  },
+  {
+    "id": "terraform-051",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Marking a variable or output as `sensitive = true` in Terraform hides its value from CLI output, but the value is still stored in plain text inside the state file.",
+    "explanation": "The `sensitive` flag only affects what Terraform prints to the console; it does not encrypt the value within the state. Anyone with read access to the state file can see sensitive values in plain text, so state storage itself needs to be secured (for example an encrypted remote backend with restricted access).",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/language/state/sensitive-data",
+    "tags": [
+      "sensitive",
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-052",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does the built-in `nonsensitive()` function do in Terraform?",
+    "explanation": "`nonsensitive()` takes a value that carries the sensitive marking and returns an identical value with that marking removed, letting it be shown in output; it should be used deliberately, since it intentionally exposes a value that was marked sensitive.",
+    "options": [
+      "It returns a copy of a sensitive value with the sensitive marking removed",
+      "It permanently deletes a sensitive value from the state file",
+      "It encrypts a value before writing it to state",
+      "It marks a previously public value as sensitive"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/functions/nonsensitive",
+    "tags": [
+      "sensitive",
+      "functions"
+    ]
+  },
+  {
+    "id": "terraform-053",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about Terraform version constraints are true?",
+    "explanation": "`required_version` in the `terraform` block constrains which Terraform CLI versions may run the configuration, and `required_providers` declares each provider's source address plus a version constraint. The `~>` operator only allows the rightmost specified segment to increment. None of this guarantees identical output across provider versions, since providers can change behavior between releases even within an allowed range.",
+    "options": [
+      "`required_version` in the `terraform` block constrains which CLI versions may run the configuration",
+      "`required_providers` declares each provider's source address and version constraint",
+      "The `~>` operator allows only the rightmost specified version segment to increment",
+      "Satisfying a version constraint guarantees identical infrastructure output across all allowed provider versions",
+      "Version constraints are only enforceable inside child modules, never the root module"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://developer.hashicorp.com/terraform/language/expressions/version-constraints",
+    "tags": [
+      "versions"
+    ]
+  },
+  {
+    "id": "terraform-054",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the name of the file that Terraform creates and updates to record the exact provider versions and checksums selected during `init`?",
+    "explanation": "The dependency lock file, `.terraform.lock.hcl`, is written to the working directory by `terraform init` and records the exact provider versions and checksums in use so that runs are consistent across machines and CI.",
+    "answer": [
+      ".terraform.lock.hcl",
+      "terraform.lock.hcl"
+    ],
+    "pattern": "^\\.?terraform\\.lock\\.hcl$",
+    "reference": "https://developer.hashicorp.com/terraform/language/files/dependency-lock",
+    "tags": [
+      "lock-file"
+    ]
+  },
+  {
+    "id": "terraform-055",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why does HashiCorp recommend committing `.terraform.lock.hcl` to version control for a typical application configuration?",
+    "explanation": "Committing the lock file ensures every teammate and CI run installs the exact same provider versions (verified by checksum) until someone deliberately runs `terraform init -upgrade`, preventing surprise provider upgrades from silently changing behavior between runs.",
+    "options": [
+      "So every run installs the exact same, checksum-verified provider versions until deliberately upgraded",
+      "So Terraform can skip downloading providers entirely on every run",
+      "So the lock file can replace the `required_providers` block",
+      "So state locking is enabled automatically for the configuration"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/files/dependency-lock",
+    "tags": [
+      "lock-file"
+    ]
+  },
+  {
+    "id": "terraform-056",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "If you run `terraform apply` twice in a row with no changes to the configuration or the real infrastructure in between, the second run should report that there are no changes to make.",
+    "explanation": "This describes idempotency: applying the same configuration against infrastructure already in the desired state should produce no further changes, which is a core property Terraform aims to guarantee for well-behaved providers.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/intro",
+    "tags": [
+      "idempotency"
+    ]
+  },
+  {
+    "id": "terraform-057",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In infrastructure-as-code terminology, what does \"drift\" refer to?",
+    "explanation": "Drift is the divergence between the actual state of real-world infrastructure and what is recorded in the IaC tool's state or configuration, typically caused by manual, out-of-band changes made outside the tool (for example editing a resource directly in a cloud console).",
+    "options": [
+      "A mismatch between real infrastructure and what the state or configuration describes",
+      "The time delay between running `plan` and running `apply`",
+      "The process of moving a resource from one provider to another",
+      "A deliberate, planned change made through Terraform configuration"
+    ],
+    "answer": 0,
+    "reference": "https://developer.hashicorp.com/terraform/language/state",
+    "tags": [
+      "drift"
+    ]
+  },
+  {
+    "id": "terraform-058",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "\"Immutable infrastructure\" means that when a change is needed, existing servers are replaced with new ones built from an updated image or configuration, rather than being modified in place.",
+    "explanation": "Immutable infrastructure treats deployed instances as disposable: instead of patching a running server, you build a new image or launch configuration and replace the old instance entirely, which reduces configuration drift and makes deployments more predictable.",
+    "answer": true,
+    "reference": "https://developer.hashicorp.com/terraform/intro",
+    "tags": [
+      "immutable-infrastructure"
+    ]
+  },
+  {
+    "id": "terraform-059",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements correctly compare Terraform to other infrastructure-as-code and configuration-management tools?",
+    "explanation": "Pulumi lets you write infrastructure definitions in general-purpose languages (TypeScript, Python, Go, and others) instead of a dedicated DSL like HCL. AWS CloudFormation is AWS-native and can only manage AWS resources, whereas Terraform's provider model targets many clouds and services. Ansible is primarily an agentless, push-based configuration management tool best known for configuring software on existing hosts, and it is procedural by default rather than maintaining a persistent state file the way Terraform does.",
+    "options": [
+      "Pulumi lets you define infrastructure using general-purpose programming languages instead of a DSL",
+      "AWS CloudFormation only manages AWS resources, while Terraform supports many providers",
+      "Ansible is primarily an agentless, push-based configuration management tool",
+      "CloudFormation, Ansible, and Pulumi are all incapable of managing any cloud infrastructure",
+      "Terraform, unlike Ansible by default, keeps a persistent state file describing managed resources"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "tags": [
+      "comparisons"
+    ]
+  },
+  {
+    "id": "terraform-060",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement best captures a key difference between Terraform and Ansible?",
+    "explanation": "Terraform is a declarative, stateful provisioning tool centered on creating and tracking infrastructure resources over time, while Ansible is primarily an agentless, procedural configuration-management tool used to install and configure software on already-provisioned hosts. The two are often used together rather than as strict substitutes.",
+    "options": [
+      "Terraform is a stateful provisioning tool, while Ansible is primarily an agentless configuration-management tool",
+      "Ansible requires a persistent state file for every run, while Terraform does not",
+      "Terraform cannot be combined with Ansible in the same workflow",
+      "Ansible is used exclusively for provisioning cloud infrastructure, never for configuring servers"
+    ],
+    "answer": 0,
+    "tags": [
+      "comparisons"
+    ]
   }
 ]

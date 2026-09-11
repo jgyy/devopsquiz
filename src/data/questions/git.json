@@ -3,9 +3,1147 @@
     "id": "git-001",
     "domain": "git",
     "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command creates a new, empty Git repository in the current directory?",
+    "options": [
+      "git init",
+      "git start",
+      "git new",
+      "git create"
+    ],
+    "answer": 0,
+    "explanation": "`git init` creates a new `.git` subdirectory, turning the current directory into a Git repository. The other commands are not real Git commands.",
+    "reference": "https://git-scm.com/docs/git-init",
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "git-002",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command moves changes from the working directory into the staging area (index) so they will be included in the next commit?",
+    "options": [
+      "git commit",
+      "git stage",
+      "git add",
+      "git track"
+    ],
+    "answer": 2,
+    "explanation": "`git add <file>` stages changes. `git stage` is not a built-in Git command, and `git commit` records already-staged changes rather than staging new ones.",
+    "reference": "https://git-scm.com/docs/git-add",
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "git-003",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command shows which files are staged, unstaged, or untracked in the working directory?",
+    "options": [
+      "git diff",
+      "git status",
+      "git log",
+      "git show"
+    ],
+    "answer": 1,
+    "explanation": "`git status` summarizes the state of the working directory and staging area. `git diff` shows line-by-line changes, and `git log` shows commit history.",
+    "reference": "https://git-scm.com/docs/git-status",
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "git-004",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command records the currently staged snapshot as a new commit in the repository history?",
+    "options": [
+      "git save",
+      "git push",
+      "git commit",
+      "git checkout"
+    ],
+    "answer": 2,
+    "explanation": "`git commit` creates a new commit from whatever is currently staged. `git push` sends commits to a remote, and `git save` is not a Git command.",
+    "reference": "https://git-scm.com/docs/git-commit",
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "git-005",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command displays the commit history for the current branch?",
+    "options": [
+      "git log",
+      "git history",
+      "git track",
+      "git commits"
+    ],
+    "answer": 0,
+    "explanation": "`git log` lists commits reachable from HEAD, newest first by default. `git history`, `git track`, and `git commits` are not Git commands.",
+    "reference": "https://git-scm.com/docs/git-log",
+    "tags": [
+      "basics"
+    ]
+  },
+  {
+    "id": "git-006",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `.gitignore` file?",
+    "options": [
+      "It lists files and directories that Git should not track or stage",
+      "It stores commit messages for reuse",
+      "It configures the remote repository URL",
+      "It lists branches that cannot be deleted"
+    ],
+    "answer": 0,
+    "explanation": "`.gitignore` contains patterns matching files Git should leave untracked, such as build artifacts or secrets, so they never get accidentally staged.",
+    "reference": "https://git-scm.com/docs/gitignore",
+    "tags": [
+      "basics",
+      "gitignore"
+    ]
+  },
+  {
+    "id": "git-007",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command switches your working directory to an existing branch named `develop`?",
+    "options": [
+      "git branch develop",
+      "git switch develop",
+      "git merge develop",
+      "git fetch develop"
+    ],
+    "answer": 1,
+    "explanation": "`git switch develop` (or the older `git checkout develop`) changes the currently checked-out branch. `git branch develop` only creates a branch without switching to it.",
+    "reference": "https://git-scm.com/docs/git-switch",
+    "tags": [
+      "branching"
+    ]
+  },
+  {
+    "id": "git-008",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You run `git branch -d old-feature` and it fails with an error saying the branch is not fully merged. What does this tell you?",
+    "options": [
+      "The branch contains commits that are not reachable from your current branch's history, so Git refuses to delete it to avoid losing work",
+      "The branch name is invalid",
+      "You must first push the branch to a remote before deleting it",
+      "Git never allows deleting local branches"
+    ],
+    "answer": 0,
+    "explanation": "`-d` is the safe delete flag: Git refuses if deleting the branch would make commits unreachable. Using `-D` forces deletion regardless.",
+    "reference": "https://git-scm.com/docs/git-branch",
+    "tags": [
+      "branching"
+    ]
+  },
+  {
+    "id": "git-009",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is a 'fast-forward' merge?",
+    "options": [
+      "A merge where the current branch's pointer is simply moved forward to the target commit because no divergent commits exist on the current branch",
+      "A merge that automatically resolves all conflicts",
+      "A merge performed with the `--force` flag",
+      "A merge that squashes all commits into one before merging"
+    ],
+    "answer": 0,
+    "explanation": "A fast-forward happens when the current branch has no commits of its own since it diverged, so Git can just move the branch pointer forward instead of creating a merge commit.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
+    "tags": [
+      "merging"
+    ]
+  },
+  {
+    "id": "git-010",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Compared to `git merge`, what does `git rebase` do to integrate changes from one branch onto another?",
+    "options": [
+      "It replays your branch's commits one by one on top of the target branch, producing a linear history without a merge commit",
+      "It deletes the commits from the other branch",
+      "It only works on remote branches, never local ones",
+      "It automatically squashes every commit into a single commit"
+    ],
+    "answer": 0,
+    "explanation": "Rebase re-applies each commit from your branch onto the tip of the target branch, resulting in a linear history instead of the merge commit that `git merge` would create.",
+    "reference": "https://git-scm.com/docs/git-rebase",
+    "tags": [
+      "rebasing"
+    ]
+  },
+  {
+    "id": "git-011",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "During a merge conflict, what do the `<<<<<<<`, `=======`, and `>>>>>>>` markers in a file indicate?",
+    "options": [
+      "They separate the conflicting content from your current branch and the branch being merged in",
+      "They mark lines that Git has permanently deleted",
+      "They indicate syntax errors unrelated to the merge",
+      "They are automatically removed and can be ignored"
+    ],
+    "answer": 0,
+    "explanation": "Git inserts these markers around the conflicting sections: content above `=======` comes from your current branch (HEAD), content below comes from the branch being merged in. You must edit the file to resolve them.",
+    "reference": "https://git-scm.com/docs/git-merge#_how_to_resolve_conflicts",
+    "tags": [
+      "merging",
+      "conflicts"
+    ]
+  },
+  {
+    "id": "git-012",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the key difference between `git fetch` and `git pull`?",
+    "options": [
+      "`git fetch` only downloads remote history without changing your working branch, while `git pull` fetches and then merges (or rebases) into your current branch",
+      "`git fetch` uploads commits while `git pull` downloads them",
+      "There is no difference; they are aliases for the same command",
+      "`git pull` only works on the first clone of a repository"
+    ],
+    "answer": 0,
+    "explanation": "`git pull` is effectively `git fetch` followed by `git merge` (or `git rebase` with `--rebase`). `git fetch` alone updates remote-tracking branches but never touches your local branches.",
+    "reference": "https://git-scm.com/docs/git-pull",
+    "tags": [
+      "remotes"
+    ]
+  },
+  {
+    "id": "git-013",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command uploads your local commits on the current branch to a remote repository?",
+    "options": [
+      "git push",
+      "git send",
+      "git upload",
+      "git commit --remote"
+    ],
+    "answer": 0,
+    "explanation": "`git push` transfers local commits to a remote repository and updates the corresponding remote branch.",
+    "reference": "https://git-scm.com/docs/git-push",
+    "tags": [
+      "remotes"
+    ]
+  },
+  {
+    "id": "git-014",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Fill in the missing command: to register a remote repository named `origin` pointing at `https://example.com/repo.git`, you would run: `___ origin https://example.com/repo.git`",
+    "answer": [
+      "git remote add",
+      "git remote add origin",
+      "remote add"
+    ],
+    "explanation": "Full command accepted too.",
+    "reference": "https://git-scm.com/docs/git-remote",
+    "pattern": "^(git\\s+)?remote\\s+add(\\s+origin\\s+https?:\\/\\/\\S+)?$",
+    "tags": [
+      "remotes"
+    ]
+  },
+  {
+    "id": "git-015",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Fill in the command that pushes the current branch to `origin` and, in the same step, sets it as the upstream tracking branch.",
+    "answer": [
+      "git push -u origin HEAD",
+      "git push --set-upstream origin HEAD",
+      "git push -u origin <branch>",
+      "git push --set-upstream origin <branch>"
+    ],
+    "explanation": "The `-u`/`--set-upstream` flag on `git push` both pushes the branch and records the tracking relationship.",
+    "reference": "https://git-scm.com/docs/git-push",
+    "pattern": "^git\\s+push\\s+(-u|--set-upstream)\\s+origin\\s+\\S+$",
+    "tags": [
+      "remotes",
+      "tracking-branches"
+    ]
+  },
+  {
+    "id": "git-016",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of `git stash`?",
+    "options": [
+      "To temporarily shelve uncommitted changes so you can switch context (e.g. branches) and reapply them later",
+      "To permanently delete uncommitted changes",
+      "To create a backup branch automatically on every commit",
+      "To compress the `.git` repository to save disk space"
+    ],
+    "answer": 0,
+    "explanation": "`git stash` saves your uncommitted working directory and index changes on a stack, restoring a clean working directory so you can do something else, then reapply the changes later with `git stash pop` or `git stash apply`.",
+    "reference": "https://git-scm.com/docs/git-stash",
+    "tags": [
+      "stash"
+    ]
+  },
+  {
+    "id": "git-017",
+    "domain": "git",
+    "difficulty": "easy",
     "type": "boolean",
-    "prompt": "Placeholder git question, replaced in the content task.",
-    "explanation": "Placeholder.",
-    "answer": true
+    "prompt": "You can have more than one stash entry saved at the same time, and `git stash list` will show all of them.",
+    "answer": true,
+    "explanation": "`git stash` pushes each stash onto a stack, so multiple stashes can coexist; `git stash list` shows them all, most recent first.",
+    "reference": "https://git-scm.com/docs/git-stash",
+    "tags": [
+      "stash"
+    ]
+  },
+  {
+    "id": "git-018",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `git reset --soft HEAD~1` do?",
+    "options": [
+      "Moves the branch pointer back one commit, but leaves the index and working directory unchanged, so the previous commit's changes appear staged",
+      "Deletes the last commit's changes from disk permanently",
+      "Moves the branch pointer back one commit and unstages the changes, but keeps them in the working directory",
+      "Discards all local commits and matches the remote"
+    ],
+    "answer": 0,
+    "explanation": "`--soft` only moves HEAD (and the branch ref); the index and working tree are untouched, so the changes from the undone commit remain staged and ready to be recommitted.",
+    "reference": "https://git-scm.com/docs/git-reset",
+    "tags": [
+      "reset"
+    ]
+  },
+  {
+    "id": "git-019",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `git reset --mixed HEAD~1` (the default mode of `git reset`) do?",
+    "options": [
+      "Moves the branch pointer back one commit and resets the index to match, but leaves working directory files unchanged",
+      "Moves the branch pointer back and also deletes working directory changes",
+      "Only updates the working directory, leaving the index untouched",
+      "Creates a new commit that undoes the previous one"
+    ],
+    "answer": 0,
+    "explanation": "`--mixed` is the default: it moves HEAD and resets the staging area to match the new HEAD, but working directory files are left as-is, so changes appear as unstaged modifications.",
+    "reference": "https://git-scm.com/docs/git-reset",
+    "tags": [
+      "reset"
+    ]
+  },
+  {
+    "id": "git-020",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why is `git reset --hard` considered dangerous?",
+    "options": [
+      "It moves the branch pointer and overwrites both the index and the working directory, permanently discarding any uncommitted changes",
+      "It permanently deletes the remote repository",
+      "It rewrites the history of every branch in the repository",
+      "It disables the ability to ever commit again"
+    ],
+    "answer": 0,
+    "explanation": "`--hard` resets HEAD, the index, and the working directory to match the target commit, discarding uncommitted work with no confirmation. Committed work may still be recoverable via the reflog, but uncommitted changes are generally lost.",
+    "reference": "https://git-scm.com/docs/git-reset",
+    "tags": [
+      "reset"
+    ]
+  },
+  {
+    "id": "git-021",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why is `git revert` generally preferred over `git reset` for undoing a commit that has already been pushed and shared with others?",
+    "options": [
+      "`git revert` creates a new commit that undoes the changes, preserving history, while `git reset` rewrites history which can break other collaborators' clones",
+      "`git revert` is faster to type",
+      "`git reset` only works on remote branches",
+      "`git revert` cannot undo merge commits"
+    ],
+    "answer": 0,
+    "explanation": "Because `revert` adds a new commit instead of removing or rewriting existing ones, it is safe to use on shared branches. `reset` moves the branch pointer and, if the rewritten history is pushed, forces collaborators to reconcile diverged histories.",
+    "reference": "https://git-scm.com/docs/git-revert",
+    "tags": [
+      "revert",
+      "reset"
+    ]
+  },
+  {
+    "id": "git-022",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Running `git revert <commit>` deletes the target commit from the repository's history.",
+    "answer": false,
+    "explanation": "`git revert` does not remove or rewrite the original commit; it creates a brand new commit that applies the inverse of the target commit's changes, keeping full history intact.",
+    "reference": "https://git-scm.com/docs/git-revert",
+    "tags": [
+      "revert"
+    ]
+  },
+  {
+    "id": "git-023",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `git cherry-pick <commit>` do?",
+    "options": [
+      "Applies the changes introduced by a specific commit from another branch onto the current branch as a new commit",
+      "Deletes a commit from the current branch",
+      "Merges two entire branches together",
+      "Lists commits that have not yet been pushed"
+    ],
+    "answer": 0,
+    "explanation": "`cherry-pick` takes the diff introduced by one specific commit and applies it to the current branch, creating a new commit with (by default) a new hash.",
+    "reference": "https://git-scm.com/docs/git-cherry-pick",
+    "tags": [
+      "cherry-pick"
+    ]
+  },
+  {
+    "id": "git-024",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A `git cherry-pick` can fail with a conflict, in which case you must resolve it manually and then run `git cherry-pick --continue`, just as you would during a rebase.",
+    "answer": true,
+    "explanation": "Cherry-picking replays a commit's diff onto a potentially different tree, so conflicts can occur. Git pauses and lets you resolve files, `git add` them, and then run `git cherry-pick --continue` (or `--abort` to cancel).",
+    "reference": "https://git-scm.com/docs/git-cherry-pick",
+    "tags": [
+      "cherry-pick",
+      "conflicts"
+    ]
+  },
+  {
+    "id": "git-025",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main difference between a lightweight tag and an annotated tag in Git?",
+    "options": [
+      "An annotated tag is a full object stored in the database with a message, tagger name, and date, while a lightweight tag is just a pointer (a name) to a commit",
+      "A lightweight tag can only be created on the `main` branch",
+      "An annotated tag automatically pushes itself to all remotes",
+      "A lightweight tag can point to multiple commits at once"
+    ],
+    "answer": 0,
+    "explanation": "Annotated tags (`git tag -a`) create a full tag object with metadata and are recommended for releases; lightweight tags are simply a named reference to a commit with no extra metadata.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Basics-Tagging",
+    "tags": [
+      "tags"
+    ]
+  },
+  {
+    "id": "git-026",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Fill in the command to create an annotated tag named `v1.0.0` with the message `\"Release 1.0.0\"` on the current commit.",
+    "answer": [
+      "git tag -a v1.0.0 -m \"Release 1.0.0\"",
+      "git tag -a v1.0.0 -m 'Release 1.0.0'"
+    ],
+    "explanation": "The `-a` flag creates an annotated tag object, and `-m` supplies its message, similarly to a commit.",
+    "reference": "https://git-scm.com/docs/git-tag",
+    "pattern": "^git\\s+tag\\s+-a\\s+v1\\.0\\.0\\s+-m\\s+.*Release 1\\.0\\.0.*$",
+    "tags": [
+      "tags"
+    ]
+  },
+  {
+    "id": "git-027",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are fundamental object types stored in Git's object database?",
+    "options": [
+      "blob",
+      "tree",
+      "commit",
+      "tag",
+      "index",
+      "branch"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Git's object database stores exactly four object types: blobs (file contents), trees (directory listings), commits, and tag objects. The index and branches are not stored as objects; the index is a separate file and a branch is just a ref (a pointer) to a commit.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects",
+    "tags": [
+      "internals"
+    ]
+  },
+  {
+    "id": "git-028",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does `HEAD` refer to in a Git repository?",
+    "options": [
+      "A reference to the commit (usually via a branch) that you currently have checked out",
+      "The very first commit ever made in the repository",
+      "The most recently created tag",
+      "The default remote repository"
+    ],
+    "answer": 0,
+    "explanation": "`HEAD` is a symbolic reference that normally points at the branch you have checked out, which in turn points at a commit; it represents your current position in history.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
+    "tags": [
+      "internals",
+      "head"
+    ]
+  },
+  {
+    "id": "git-029",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does it mean when Git reports you are in a 'detached HEAD' state?",
+    "options": [
+      "HEAD points directly at a specific commit instead of at a branch, so new commits will not belong to any branch unless you create one",
+      "The repository has lost its `.git` directory",
+      "You have deleted the current branch by accident",
+      "Your working directory has uncommitted changes that conflict with HEAD"
+    ],
+    "answer": 0,
+    "explanation": "A detached HEAD occurs when you check out a specific commit, tag, or remote branch directly rather than a local branch; HEAD then points at that commit itself rather than at a branch reference.",
+    "reference": "https://git-scm.com/docs/git-checkout#_detached_head",
+    "tags": [
+      "internals",
+      "head"
+    ]
+  },
+  {
+    "id": "git-030",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Where does Git store the reference for a local branch named `main` inside the repository?",
+    "options": [
+      ".git/refs/heads/main",
+      ".git/branches/main",
+      ".git/objects/main",
+      ".git/HEAD/main"
+    ],
+    "answer": 0,
+    "explanation": "Local branch references live as files under `.git/refs/heads/`, each containing the SHA-1 (or SHA-256) of the commit the branch points to. Remote-tracking branches live under `.git/refs/remotes/`.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
+    "tags": [
+      "internals",
+      "refs"
+    ]
+  },
+  {
+    "id": "git-031",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the purpose of `git reflog`?",
+    "options": [
+      "It shows a local, chronological log of where HEAD and branch tips have pointed, letting you recover commits that are no longer reachable from any branch",
+      "It shows the commit history exactly like `git log`, but formatted differently",
+      "It lists every file ever tracked by the repository",
+      "It synchronizes reflog entries with all remotes so collaborators can see them"
+    ],
+    "answer": 0,
+    "explanation": "The reflog records every movement of HEAD (commits, resets, rebases, checkouts) on your local machine, which is invaluable for recovering 'lost' commits after a hard reset or a bad rebase. It is purely local and is never pushed to a remote.",
+    "reference": "https://git-scm.com/docs/git-reflog",
+    "tags": [
+      "internals",
+      "reflog"
+    ]
+  },
+  {
+    "id": "git-032",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Detached HEAD commits and reflog entries are pushed to the remote automatically the next time you run `git push`, so other collaborators can see them.",
+    "answer": false,
+    "explanation": "The reflog is entirely local metadata and is never transmitted by push or fetch. Likewise, commits made in a detached HEAD state are not on any branch, so a plain `git push` will not send them anywhere; they can be lost once garbage collected unless you point a branch or tag at them.",
+    "reference": "https://git-scm.com/docs/git-reflog",
+    "tags": [
+      "internals",
+      "reflog"
+    ]
+  },
+  {
+    "id": "git-033",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the purpose of `git bisect`?",
+    "options": [
+      "It performs a binary search through commit history, checking out candidate commits so you can mark each as good or bad, to quickly find the commit that introduced a bug",
+      "It splits a branch into two new branches at the current commit",
+      "It compares two branches and lists only the commits unique to each",
+      "It automatically bisects (halves) large files to reduce repository size"
+    ],
+    "answer": 0,
+    "explanation": "`git bisect` automates a binary search: you tell it one known-good and one known-bad commit, it checks out a midpoint, and you test and mark it good/bad, repeating until it narrows down the exact commit that introduced the regression.",
+    "reference": "https://git-scm.com/docs/git-bisect",
+    "tags": [
+      "bisect"
+    ]
+  },
+  {
+    "id": "git-034",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are real `git bisect` subcommands?",
+    "options": [
+      "git bisect start",
+      "git bisect good",
+      "git bisect bad",
+      "git bisect commit",
+      "git bisect finish"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`git bisect start` begins a session, and each candidate commit is marked with `git bisect good` or `git bisect bad`. There is no `git bisect commit` or `git bisect finish` subcommand; a session is ended with `git bisect reset`.",
+    "reference": "https://git-scm.com/docs/git-bisect",
+    "tags": [
+      "bisect"
+    ]
+  },
+  {
+    "id": "git-035",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which command opens an editable list of commits so you can reorder, edit, squash, or drop them before they are replayed onto a new base?",
+    "options": [
+      "git rebase -i <base>",
+      "git log -i <base>",
+      "git commit --amend <base>",
+      "git merge -i <base>"
+    ],
+    "answer": 0,
+    "explanation": "`git rebase -i <base>` (interactive rebase) opens a 'todo list' of commits since `<base>` in your editor, where each line's action (pick, reword, edit, squash, drop, etc.) controls what happens to that commit.",
+    "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
+    "tags": [
+      "rebasing",
+      "interactive-rebase"
+    ]
+  },
+  {
+    "id": "git-036",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "In an interactive rebase todo list, which of the following are valid commands you can use for a commit line?",
+    "options": [
+      "pick",
+      "squash",
+      "reword",
+      "drop",
+      "rename",
+      "amend"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Valid interactive rebase todo commands include `pick` (keep as-is), `reword` (keep changes, edit message), `squash`/`fixup` (combine into previous commit), `edit` (pause to amend), and `drop` (remove the commit). `rename` and `amend` are not todo-list commands.",
+    "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
+    "tags": [
+      "rebasing",
+      "interactive-rebase"
+    ]
+  },
+  {
+    "id": "git-037",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the main benefit of squashing several small commits (e.g. 'wip', 'fix typo', 'fix again') into one before merging a feature branch?",
+    "options": [
+      "It produces a cleaner, more meaningful history where each commit represents a coherent, logical change",
+      "It makes the code run faster",
+      "It automatically fixes any bugs in the commits",
+      "It is required before Git will allow a push"
+    ],
+    "answer": 0,
+    "explanation": "Squashing combines noisy, incremental commits into a single well-described commit, making the project history easier to read, bisect, and review without losing the final result.",
+    "reference": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
+    "tags": [
+      "squash",
+      "interactive-rebase"
+    ]
+  },
+  {
+    "id": "git-038",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Rebasing (including interactive rebase and squashing) creates brand new commits with different SHA-1 hashes, even if the resulting file content is identical to the originals.",
+    "answer": true,
+    "explanation": "Because a commit's hash is derived from its content, parent, author, and committer timestamp, replaying a commit onto a new base (or combining commits) always produces a new commit object with a new hash, distinct from the originals.",
+    "reference": "https://git-scm.com/docs/git-rebase",
+    "tags": [
+      "rebasing"
+    ]
+  },
+  {
+    "id": "git-039",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Where are a repository's Git hook scripts stored by default?",
+    "options": [
+      ".git/hooks/",
+      ".githooks/",
+      ".git/scripts/",
+      "hooks/ in the repository root"
+    ],
+    "answer": 0,
+    "explanation": "Git looks for executable scripts named things like `pre-commit` or `pre-push` inside `.git/hooks/` by default. Since `.git/` is not cloned as regular content, these are local-only unless a `core.hooksPath` pointing at a tracked directory is configured.",
+    "reference": "https://git-scm.com/docs/githooks",
+    "tags": [
+      "hooks"
+    ]
+  },
+  {
+    "id": "git-040",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Because hooks live inside the `.git/hooks/` directory, they are automatically tracked, committed, and shared with everyone who clones the repository.",
+    "answer": false,
+    "explanation": "The `.git` directory itself is never version-controlled by Git, so files under `.git/hooks/` are local to each clone and are not shared automatically. Teams typically share hooks by storing them in a tracked directory and configuring `core.hooksPath`, or by using a hook manager tool.",
+    "reference": "https://git-scm.com/docs/githooks",
+    "tags": [
+      "hooks"
+    ]
+  },
+  {
+    "id": "git-041",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Fill in the command to add the repository at `https://example.com/lib.git` as a submodule located at the path `vendor/lib`.",
+    "answer": [
+      "git submodule add https://example.com/lib.git vendor/lib"
+    ],
+    "explanation": "`git submodule add <url> <path>` clones the given repository into `<path>` and records it, along with the commit it is pinned to, in a `.gitmodules` file.",
+    "reference": "https://git-scm.com/docs/git-submodule",
+    "pattern": "^git\\s+submodule\\s+add\\s+https?:\\/\\/\\S+\\s+vendor\\/lib$",
+    "tags": [
+      "submodules"
+    ]
+  },
+  {
+    "id": "git-042",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "When cloning a repository that contains submodules, which command ensures the submodules are also cloned and checked out in one step?",
+    "options": [
+      "git clone --recurse-submodules <url>",
+      "git clone --with-submodules <url>",
+      "git clone --deep <url>",
+      "git clone --all <url>"
+    ],
+    "answer": 0,
+    "explanation": "By default, `git clone` leaves submodule directories empty; passing `--recurse-submodules` tells Git to also initialize and clone each registered submodule at the commit the superproject expects.",
+    "reference": "https://git-scm.com/docs/git-clone",
+    "tags": [
+      "submodules"
+    ]
+  },
+  {
+    "id": "git-043",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What does `git worktree add ../hotfix hotfix-branch` accomplish?",
+    "options": [
+      "It checks out `hotfix-branch` into a brand-new, separate working directory (`../hotfix`) linked to the same repository, letting you work on two branches at once without cloning",
+      "It creates a new branch called `hotfix` inside the current working directory",
+      "It merges the `hotfix-branch` into the current branch at path `../hotfix`",
+      "It deletes the working directory and recreates it from the `hotfix-branch`"
+    ],
+    "answer": 0,
+    "explanation": "`git worktree add` creates an additional working directory attached to the same repository (sharing the same `.git` object database), each with its own checked-out branch, so you can avoid stashing or cloning to work on multiple branches simultaneously.",
+    "reference": "https://git-scm.com/docs/git-worktree",
+    "tags": [
+      "worktrees"
+    ]
+  },
+  {
+    "id": "git-044",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which flag on `git commit` creates a cryptographically signed commit (using a configured GPG or SSH signing key)?",
+    "options": [
+      "-S",
+      "-s",
+      "-G",
+      "--verify"
+    ],
+    "answer": 0,
+    "explanation": "The uppercase `-S` flag signs the commit with your configured signing key. (The lowercase `-s` instead adds a `Signed-off-by` trailer, which is a plain text convention unrelated to cryptographic signing.)",
+    "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--S",
+    "tags": [
+      "signing"
+    ]
+  },
+  {
+    "id": "git-045",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which command lets you inspect a commit's cryptographic signature status directly, showing whether it is good, bad, or unverifiable?",
+    "options": [
+      "git verify-commit <commit>",
+      "git status --sign",
+      "git log --amend",
+      "git fsck --signed"
+    ],
+    "answer": 0,
+    "explanation": "`git verify-commit` validates a commit's GPG/SSH signature. You can also see signature status inline with `git log --show-signature`.",
+    "reference": "https://git-scm.com/docs/git-verify-commit",
+    "tags": [
+      "signing"
+    ]
+  },
+  {
+    "id": "git-046",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following branch types are part of the traditional 'Git flow' branching model (popularized by Vincent Driessen)?",
+    "options": [
+      "feature",
+      "develop",
+      "release",
+      "hotfix",
+      "trunk",
+      "staging"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Git flow defines long-lived `main`/`master` and `develop` branches, plus short-lived supporting branches: `feature/*`, `release/*`, and `hotfix/*`. 'trunk' and 'staging' are not part of this named model.",
+    "reference": "https://nvie.com/posts/a-successful-git-branching-model/",
+    "tags": [
+      "workflows",
+      "git-flow"
+    ]
+  },
+  {
+    "id": "git-047",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which statement best describes the 'GitHub flow' workflow?",
+    "options": [
+      "A lightweight model with a single long-lived `main` branch; work happens on short-lived feature branches that are opened as pull requests, reviewed, and merged (or deployed) directly into `main`",
+      "A model that requires a separate `develop` branch and scheduled release branches for every deploy",
+      "A model where every developer commits directly to `main` with no branches or reviews at all",
+      "A model exclusive to open-source projects hosted outside of GitHub"
+    ],
+    "answer": 0,
+    "explanation": "GitHub flow simplifies Git flow: there is no `develop` or `release` branch, just `main` plus short-lived feature branches merged via reviewed pull requests, suited to teams that deploy frequently.",
+    "reference": "https://docs.github.com/en/get-started/using-github/github-flow",
+    "tags": [
+      "workflows",
+      "github-flow"
+    ]
+  },
+  {
+    "id": "git-048",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is a defining characteristic of trunk-based development?",
+    "options": [
+      "Developers integrate small, short-lived branches (or commit directly) into a single shared trunk/main branch very frequently, often multiple times a day",
+      "All work happens on long-lived feature branches that are merged only once a quarter",
+      "Every feature requires its own permanent branch that is never deleted",
+      "It forbids the use of feature flags"
+    ],
+    "answer": 0,
+    "explanation": "Trunk-based development minimizes long-lived branches and merge drift by having developers integrate small changes into the trunk frequently, often paired with feature flags to hide incomplete work.",
+    "reference": "https://trunkbaseddevelopment.com/",
+    "tags": [
+      "workflows",
+      "trunk-based"
+    ]
+  },
+  {
+    "id": "git-049",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A pull request automatically merges a branch's changes into the target branch as soon as it is opened, without any review or approval step.",
+    "answer": false,
+    "explanation": "A pull (or merge) request is a proposal to merge changes; it stays open for discussion, review, and required checks, and only merges when someone with permission explicitly merges it (or when configured automation does, after conditions are met) — it is not an automatic, immediate merge.",
+    "reference": "https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests",
+    "tags": [
+      "workflows",
+      "pull-requests"
+    ]
+  },
+  {
+    "id": "git-050",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the primary purpose of enabling 'branch protection' (a protected branch) on a repository's `main` branch?",
+    "options": [
+      "To enforce rules such as requiring pull request reviews and passing status checks, and to block force pushes or direct pushes, before changes can land on that branch",
+      "To make the branch read-only forever, even for administrators",
+      "To automatically back up the branch to a second remote",
+      "To hide the branch's commit history from contributors"
+    ],
+    "answer": 0,
+    "explanation": "Protected branches let a team require reviews, passing CI checks, and up-to-date branches, and typically block force-pushes or deletions, keeping an important branch like `main` from being broken or rewritten accidentally.",
+    "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
+    "tags": [
+      "workflows",
+      "protected-branches"
+    ]
+  },
+  {
+    "id": "git-051",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are typical protections you can enable for a protected branch on a platform like GitHub or GitLab?",
+    "options": [
+      "Require pull request reviews before merging",
+      "Require status checks to pass before merging",
+      "Prevent force pushes",
+      "Automatically delete the repository",
+      "Grant every visitor admin access"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Protected branches commonly require reviews and passing CI checks and block force pushes or deletions. Deleting the repository or granting broad admin access are not branch protection features — they are the opposite of what protection is for.",
+    "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
+    "tags": [
+      "workflows",
+      "protected-branches"
+    ]
+  },
+  {
+    "id": "git-052",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Per the Conventional Commits specification, what single-word type prefix should a commit message use for a change that introduces a new feature (e.g. `___: add dark mode toggle`)?",
+    "answer": [
+      "feat"
+    ],
+    "explanation": "Conventional Commits defines standard type prefixes such as `feat` for new features and `fix` for bug fixes, enabling automated changelog and version generation.",
+    "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
+    "pattern": "^feat$",
+    "tags": [
+      "conventional-commits"
+    ]
+  },
+  {
+    "id": "git-053",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are standard 'type' prefixes recognized by the Conventional Commits specification?",
+    "options": [
+      "feat",
+      "fix",
+      "chore",
+      "docs",
+      "update",
+      "change"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Conventional Commits defines types such as `feat`, `fix`, `docs`, `style`, `refactor`, `test`, and `chore`. Generic words like `update` or `change` are not part of the specification.",
+    "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
+    "tags": [
+      "conventional-commits"
+    ]
+  },
+  {
+    "id": "git-054",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following revision expressions all refer to the first parent of the commit currently pointed to by HEAD?",
+    "options": [
+      "HEAD~1",
+      "HEAD^",
+      "HEAD^1",
+      "HEAD@{1}",
+      "HEAD:1"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`HEAD~1`, `HEAD^`, and `HEAD^1` are all equivalent ways to name the first parent of HEAD. `HEAD@{1}` instead refers to where HEAD pointed one reflog entry ago (a different, local-only concept), and `HEAD:1` is not valid revision syntax.",
+    "reference": "https://git-scm.com/docs/gitrevisions",
+    "tags": [
+      "internals",
+      "revisions"
+    ]
+  },
+  {
+    "id": "git-055",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following `git reset` modes are real options?",
+    "options": [
+      "--soft",
+      "--mixed",
+      "--hard",
+      "--force",
+      "--delete"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`git reset` supports `--soft`, `--mixed` (the default), and `--hard`, plus the less common `--merge` and `--keep`. There is no `--force` or `--delete` mode for `git reset`.",
+    "reference": "https://git-scm.com/docs/git-reset",
+    "tags": [
+      "reset"
+    ]
+  },
+  {
+    "id": "git-056",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of these commands can bring new data down FROM a remote repository into your local repository?",
+    "options": [
+      "git fetch",
+      "git pull",
+      "git clone",
+      "git push",
+      "git add"
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`git fetch`, `git pull`, and `git clone` all retrieve data from a remote. `git push` sends local commits up to a remote, and `git add` only affects the local staging area, never touching a remote at all.",
+    "reference": "https://git-scm.com/docs/git-fetch",
+    "tags": [
+      "remotes"
+    ]
+  },
+  {
+    "id": "git-057",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Running `git fetch` immediately updates the files in your working directory to match the remote branch's latest commit.",
+    "answer": false,
+    "explanation": "`git fetch` only downloads new objects and updates remote-tracking references (e.g. `origin/main`); it never touches your working directory or local branches. You need `git merge`, `git rebase`, or `git pull` to actually bring those changes into your checked-out branch.",
+    "reference": "https://git-scm.com/docs/git-fetch",
+    "tags": [
+      "remotes"
+    ]
+  },
+  {
+    "id": "git-058",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does `git stash apply` do differently from `git stash pop`?",
+    "options": [
+      "`apply` re-applies the stashed changes to the working directory but leaves the stash entry on the stash list, while `pop` applies it and then removes it from the list",
+      "`apply` deletes the stash without restoring the changes, while `pop` restores them",
+      "`apply` only works on the most recent stash, while `pop` can target any stash",
+      "There is no difference between the two commands"
+    ],
+    "answer": 0,
+    "explanation": "Both commands restore stashed changes to the working directory, but `git stash pop` also drops that stash entry afterward, whereas `git stash apply` keeps it so it can be reapplied elsewhere if needed.",
+    "reference": "https://git-scm.com/docs/git-stash",
+    "tags": [
+      "stash"
+    ]
+  },
+  {
+    "id": "git-059",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Fill in the command to apply the changes from commit `abc1234` (made on another branch) onto your current branch as a new commit.",
+    "answer": [
+      "git cherry-pick abc1234"
+    ],
+    "explanation": "`git cherry-pick <commit>` replays the diff introduced by the given commit onto the current branch.",
+    "reference": "https://git-scm.com/docs/git-cherry-pick",
+    "pattern": "^git\\s+cherry-pick\\s+abc1234$",
+    "tags": [
+      "cherry-pick"
+    ]
+  },
+  {
+    "id": "git-060",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Running `git commit --amend` edits the previous commit in place, keeping the same commit hash while updating its message or contents.",
+    "answer": false,
+    "explanation": "`--amend` actually creates a brand-new commit object that replaces the previous one; because the content and/or timestamp differ, the new commit gets a different hash, and the old commit becomes unreferenced (recoverable via `git reflog` until garbage collected).",
+    "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---amend",
+    "tags": [
+      "basics"
+    ]
   }
 ]
