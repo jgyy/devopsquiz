@@ -151,3 +151,11 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
   .quiz-body.has-feedback { grid-template-columns: minmax(0, 1fr); }
   .quiz-body > .feedback { position: static; max-height: none; }
 }
+
+/* Diagram lightbox: expand a sidebar diagram to the full viewport. */
+.diagram { position: relative; }
+.diagram-expand { display: block; margin: 0.4rem 0 0 auto; font-size: 0.85rem; }
+.diagram-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.7); display: grid; place-items: center; padding: 1rem; }
+.diagram-overlay-body { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem 1rem 1rem; max-width: 95vw; max-height: 95vh; overflow: auto; }
+.diagram-close { position: absolute; top: 0.6rem; right: 0.9rem; }
+.diagram-svg.large svg { max-width: none; width: max(60vw, 100%); height: auto; }
