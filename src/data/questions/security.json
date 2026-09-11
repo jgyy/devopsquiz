@@ -1523,5 +1523,741 @@
       "opa",
       "policy-as-code"
     ]
+  },
+  {
+    "id": "security-061",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You must apply a NetworkPolicy in namespace `prod` that blocks all ingress and egress traffic to every Pod in that namespace, so that teams then add explicit allow rules. Which manifest fragment achieves a full default deny?",
+    "options": [
+      "`spec: {podSelector: {}, policyTypes: [Ingress, Egress]}` with no `ingress` or `egress` rules",
+      "`spec: {podSelector: {}, policyTypes: [Ingress]}` with an empty `ingress: [{}]` rule",
+      "`spec: {podSelector: {matchLabels: {deny: \"all\"}}, policyTypes: [Ingress, Egress]}`",
+      "`spec: {podSelector: {}}` with `ingress: [{}]` and `egress: [{}]`"
+    ],
+    "optionNotes": [
+      "An empty `podSelector` selects every Pod in the namespace, and listing both `Ingress` and `Egress` in `policyTypes` with no rules means nothing is allowed in either direction, which is the standard default-deny pattern.",
+      "`ingress: [{}]` is a rule that matches all sources, so this actually allows all ingress; egress is not covered at all because it is not listed in `policyTypes`.",
+      "This only selects Pods carrying the label `deny=all`; Pods without that label are unaffected and remain fully open.",
+      "Without `policyTypes`, `Egress` is only inferred when an `egress` section exists, and `ingress: [{}]` / `egress: [{}]` are allow-all rules, so this permits all traffic rather than denying it."
+    ],
+    "answer": 0,
+    "explanation": "A default-deny policy uses an empty `podSelector` (all Pods in the namespace) and declares both `Ingress` and `Egress` in `policyTypes` while providing no rules, so no traffic matches an allow. An empty rule object `{}` is the opposite: it matches everything and therefore allows all traffic. Label-scoped selectors leave unlabeled Pods unprotected.",
+    "example": "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\n  namespace: prod\nspec:\n  podSelector: {}        # every Pod in prod\n  policyTypes:\n  - Ingress\n  - Egress               # no rules listed -> nothing allowed",
+    "diagram": "flowchart LR\n    EXT[\"Any client\"] -->|\"ingress blocked\"| P[\"Pods in prod\"]\n    P -->|\"egress blocked\"| DST[\"Any destination\"]\n    NP[\"NetworkPolicy podSelector empty\"] --> P\n    NP --> T[\"policyTypes Ingress and Egress\"]\n    ALLOW[\"Additional allow policies\"] -->|\"punch holes\"| P",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+    "tags": [
+      "cks",
+      "networkpolicy",
+      "cluster-setup"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-062",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Name the open-source tool from Aqua Security that runs the CIS Kubernetes Benchmark checks against a control-plane or worker node and reports PASS, FAIL and WARN for each control.",
+    "answer": [
+      "kube-bench",
+      "kubebench"
+    ],
+    "explanation": "`kube-bench` implements the CIS Kubernetes Benchmark as automated checks and is the standard tool for auditing node and control-plane configuration against it. `kube-hunter` is a penetration-testing tool for finding exposed cluster weaknesses, and `trivy` scans images and configs for vulnerabilities rather than benchmark controls.",
+    "example": "# run on a control-plane node as a Job or directly\nkube-bench run --targets master\n# example output\n[FAIL] 1.2.1 Ensure that the --anonymous-auth argument is set to false\n[PASS] 1.2.6 Ensure that the --kubelet-certificate-authority argument is set",
+    "diagram": "flowchart LR\n    CIS[\"CIS Kubernetes Benchmark\"] --> KB[\"kube-bench\"]\n    KB -->|\"inspects\"| API[\"kube-apiserver flags\"]\n    KB -->|\"inspects\"| KL[\"kubelet config\"]\n    KB -->|\"inspects\"| FS[\"file permissions in /etc/kubernetes\"]\n    KB --> R[\"PASS FAIL WARN report\"]\n    R --> FIX[\"Remediate manifests and rerun\"]",
+    "reference": "https://kubernetes.io/docs/concepts/security/",
+    "tags": [
+      "cks",
+      "cis-benchmark",
+      "kube-bench"
+    ],
+    "pattern": "^kube-?bench$",
+    "domain": "security"
+  },
+  {
+    "id": "security-063",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "If a ServiceAccount has `automountServiceAccountToken: false`, a Pod using that ServiceAccount can still get a token mounted by setting `automountServiceAccountToken: true` in its own Pod spec.",
+    "answer": true,
+    "explanation": "The Pod-level `automountServiceAccountToken` field takes precedence over the ServiceAccount-level setting, so a Pod can opt back in even when the ServiceAccount disables mounting. This is why hardening guidance recommends setting it to `false` on the ServiceAccount as a default and also reviewing Pod specs, or enforcing it with admission policy. Only Pods that genuinely call the API should carry a token.",
+    "example": "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: app\nautomountServiceAccountToken: false   # default for Pods using this SA\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: needs-api\nspec:\n  serviceAccountName: app\n  automountServiceAccountToken: true  # Pod-level wins",
+    "diagram": "flowchart TD\n    SA[\"ServiceAccount automount false\"] --> D{\"Pod spec sets field?\"}\n    D -->|\"unset\"| N[\"No token volume\"]\n    D -->|\"true\"| Y[\"Token projected at /var/run/secrets\"]\n    D -->|\"false\"| N\n    Y --> R[\"Container can call API server\"]",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/",
+    "tags": [
+      "cks",
+      "serviceaccount",
+      "cluster-hardening"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-064",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "During a hardening review you run `curl -k https://<control-plane>:6443/api` without credentials and receive a `403 Forbidden` for user `system:anonymous` rather than `401 Unauthorized`. Which kube-apiserver flag change makes unauthenticated requests be rejected outright at the authentication stage?",
+    "options": [
+      "`--anonymous-auth=false`",
+      "`--authorization-mode=RBAC`",
+      "`--insecure-port=0`",
+      "`--enable-admission-plugins=NodeRestriction`"
+    ],
+    "optionNotes": [
+      "`--anonymous-auth=false` stops the API server from mapping unauthenticated requests to `system:anonymous`, so they fail authentication with `401` instead of reaching authorization. This is the CIS-recommended setting.",
+      "RBAC is already what produced the `403`: the anonymous user was authenticated and then denied. Changing the authorizer does not stop the anonymous identity from being created.",
+      "The insecure port was removed in Kubernetes 1.20 and this flag no longer exists; it would have addressed an unauthenticated HTTP listener, not anonymous requests on 6443.",
+      "`NodeRestriction` is an admission plugin that limits what kubelets can modify; admission runs after authentication and authorization and does not affect anonymous access."
+    ],
+    "answer": 0,
+    "explanation": "A `403` for `system:anonymous` shows anonymous authentication is enabled: the request was authenticated as the anonymous user and then rejected by RBAC. Setting `--anonymous-auth=false` rejects such requests at the authentication step. Note that some health endpoints need anonymous access for probes, so review liveness configuration before changing it in production.",
+    "example": "# /etc/kubernetes/manifests/kube-apiserver.yaml\nspec:\n  containers:\n  - command:\n    - kube-apiserver\n    - --anonymous-auth=false          # reject unauthenticated requests\n    - --authorization-mode=Node,RBAC\n# verify\ncurl -k https://10.0.0.10:6443/api   # now 401 Unauthorized",
+    "diagram": "flowchart LR\n    C[\"Unauthenticated request\"] --> A{\"anonymous-auth?\"}\n    A -->|\"true\"| U[\"user system:anonymous\"]\n    U --> Z[\"RBAC authorization\"]\n    Z --> F[\"403 Forbidden\"]\n    A -->|\"false\"| R[\"401 Unauthorized\"]",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/authentication/",
+    "tags": [
+      "cks",
+      "api-server",
+      "cluster-hardening"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-065",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "You want to confine a container with a custom AppArmor profile named `k8s-deny-write`. Which statements about doing this on a current Kubernetes cluster are correct? (Select all that apply.)",
+    "options": [
+      "The profile must already be loaded into the kernel on every node where the Pod may be scheduled, for example with `apparmor_parser`.",
+      "The profile is referenced in `securityContext.appArmorProfile` with `type: Localhost` and `localhostProfile: k8s-deny-write`.",
+      "Kubernetes automatically distributes the profile file to nodes when the Pod is created.",
+      "If the node does not have the profile loaded, the Pod is rejected or stays blocked rather than running unconfined.",
+      "AppArmor profiles are applied through the `seccompProfile` field with `type: AppArmor`."
+    ],
+    "optionNotes": [
+      "Correct: Kubernetes only references profiles by name; loading them onto each node is an operator responsibility, typically done with `apparmor_parser -r` or a DaemonSet.",
+      "Correct: since v1.30 the `appArmorProfile` field in the Pod or container `securityContext` (GA) replaces the older `container.apparmor.security.beta.kubernetes.io/<name>` annotation.",
+      "Incorrect: Kubernetes has no mechanism to ship AppArmor profiles to nodes; it only asks the container runtime to apply an already-loaded profile.",
+      "Correct: the kubelet validates that the profile exists; if it does not, the Pod fails to start rather than silently running unconfined.",
+      "Incorrect: `seccompProfile` configures seccomp syscall filtering, a different Linux security module; AppArmor uses its own `appArmorProfile` field."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "AppArmor confinement works only when the named profile is loaded in the node kernel; Kubernetes then references it through `securityContext.appArmorProfile` (GA in v1.30, replacing the beta annotation). The kubelet refuses to run a container whose profile is missing. Seccomp is a separate mechanism with its own field.",
+    "example": "# on each node\nsudo apparmor_parser -r /etc/apparmor.d/k8s-deny-write\nsudo aa-status | grep k8s-deny-write\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: hello\nspec:\n  securityContext:\n    appArmorProfile:\n      type: Localhost\n      localhostProfile: k8s-deny-write\n  containers:\n  - name: app\n    image: busybox\n    command: [\"sh\",\"-c\",\"touch /tmp/x || echo denied; sleep 3600\"]",
+    "diagram": "flowchart LR\n    OP[\"Operator loads profile with apparmor_parser\"] --> K[\"Node kernel has k8s-deny-write\"]\n    POD[\"Pod securityContext appArmorProfile Localhost\"] --> KL[\"kubelet validates profile exists\"]\n    KL -->|\"found\"| RT[\"Runtime applies profile to container\"]\n    KL -->|\"missing\"| ERR[\"Pod fails to start\"]\n    K --> KL",
+    "reference": "https://kubernetes.io/docs/tutorials/security/apparmor/",
+    "tags": [
+      "cks",
+      "apparmor",
+      "system-hardening"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-066",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a Pod or container `securityContext`, what value of `seccompProfile.type` applies the container runtime's built-in default seccomp profile, as required by the `restricted` Pod Security Standard?",
+    "answer": [
+      "RuntimeDefault",
+      "runtimedefault",
+      "runtime/default"
+    ],
+    "explanation": "`seccompProfile.type: RuntimeDefault` tells the kubelet to apply the container runtime's default seccomp profile (for example containerd's), which blocks dangerous syscalls such as `reboot` and `mount`. `Localhost` references a custom profile file under the kubelet seccomp directory, and `Unconfined` disables filtering. The `restricted` PSS level requires `RuntimeDefault` or `Localhost`.",
+    "example": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: audited\nspec:\n  securityContext:\n    seccompProfile:\n      type: RuntimeDefault    # runtime's default syscall allowlist\n  containers:\n  - name: app\n    image: nginx:1.27",
+    "diagram": "flowchart LR\n    SC[\"securityContext.seccompProfile.type\"] --> RD[\"RuntimeDefault - runtime default profile\"]\n    SC --> LH[\"Localhost - custom JSON on node\"]\n    SC --> UC[\"Unconfined - no filtering\"]\n    RD --> OK[\"Allowed by restricted PSS\"]\n    LH --> OK\n    UC --> NO[\"Rejected by restricted PSS\"]",
+    "reference": "https://kubernetes.io/docs/tutorials/security/seccomp/",
+    "tags": [
+      "cks",
+      "seccomp",
+      "system-hardening"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-067",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A namespace carries the labels `pod-security.kubernetes.io/enforce: baseline`, `pod-security.kubernetes.io/warn: restricted` and `pod-security.kubernetes.io/audit: restricted`. A user applies a Pod that runs as root but does not use host namespaces or privileged mode. What happens?",
+    "options": [
+      "The Pod is created, the user sees a warning in kubectl output, and an audit annotation is recorded",
+      "The Pod is rejected because it violates the restricted level",
+      "The Pod is created silently because baseline is satisfied",
+      "The Pod is rejected because audit mode logs and blocks the request"
+    ],
+    "optionNotes": [
+      "Correct: running as root is allowed by `baseline`, so `enforce` passes; but it violates `restricted`, so the `warn` mode returns a client-side warning and `audit` mode adds an annotation to the audit log entry. Neither of those modes blocks.",
+      "Only the `enforce` mode can reject Pods, and it is set to `baseline`, which permits running as root.",
+      "`warn` and `audit` are evaluated against `restricted`, which the Pod fails, so the creation is not silent.",
+      "`audit` mode never blocks; it only records a `pod-security.kubernetes.io/audit-violations` annotation in the audit event."
+    ],
+    "answer": 0,
+    "explanation": "Pod Security Admission evaluates each mode independently against its own level. `enforce` is the only mode that rejects; `warn` returns a warning to the client and `audit` annotates the audit log. Because root is permitted by `baseline` but forbidden by `restricted`, the Pod is admitted with a warning and an audit annotation, a common pattern for previewing a stricter policy before enforcing it.",
+    "example": "kubectl label ns dev \\\n  pod-security.kubernetes.io/enforce=baseline \\\n  pod-security.kubernetes.io/warn=restricted \\\n  pod-security.kubernetes.io/audit=restricted\nkubectl run root -n dev --image=nginx\n# Warning: would violate PodSecurity \"restricted:latest\": runAsNonRoot != true ...\n# pod/root created",
+    "diagram": "flowchart TD\n    P[\"Pod runs as root\"] --> E{\"enforce baseline\"}\n    E -->|\"pass\"| W{\"warn restricted\"}\n    W -->|\"violation\"| WM[\"Warning returned to client\"]\n    P --> A{\"audit restricted\"}\n    A -->|\"violation\"| AN[\"Audit annotation\"]\n    WM --> C[\"Pod created\"]\n    AN --> C",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-admission/",
+    "tags": [
+      "cks",
+      "pod-security-admission",
+      "microservice-vulnerabilities"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-068",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You add an `EncryptionConfiguration` with an `aescbc` provider listed first and `identity` second, restart kube-apiserver, and then read a Secret directly from etcd with `etcdctl get` but it is still plaintext. Why, and what fixes it?",
+    "options": [
+      "Existing Secrets are only encrypted when written; run `kubectl get secrets -A -o json | kubectl replace -f -` to rewrite them",
+      "The `identity` provider must be listed first so reads succeed; reorder the providers and restart",
+      "The API server ignores `EncryptionConfiguration` until the `--encryption-provider-config-automatic-reload` flag is set",
+      "The Secret is encrypted; `etcdctl` transparently decrypts values using the API server's key"
+    ],
+    "optionNotes": [
+      "Correct: the first provider is used to encrypt new writes, but data already in etcd stays in whatever form it was stored; a rewrite of every Secret forces it through the encrypting provider.",
+      "Listing `identity` first would make the API server write plaintext; `identity` is placed last precisely so that old unencrypted data can still be read while new writes are encrypted.",
+      "That flag only lets the API server reload a changed config without restart; the configuration is active as soon as `--encryption-provider-config` points at the file.",
+      "`etcdctl` talks directly to etcd and has no access to the API server's encryption keys; encrypted values appear with a `k8s:enc:aescbc:v1:` prefix."
+    ],
+    "answer": 0,
+    "explanation": "Encryption at rest is applied on write. The first provider in the list encrypts new data, and every listed provider is tried in order when reading, which is why `identity` goes last to keep legacy plaintext readable. To encrypt pre-existing Secrets you must rewrite them, after which `etcdctl` shows the `k8s:enc:aescbc:v1:` prefix instead of plaintext.",
+    "example": "apiVersion: apiserver.config.k8s.io/v1\nkind: EncryptionConfiguration\nresources:\n- resources: [secrets]\n  providers:\n  - aescbc:\n      keys:\n      - name: key1\n        secret: <base64 32-byte key>\n  - identity: {}          # read old plaintext, never first\n# after restart, re-encrypt existing data\nkubectl get secrets -A -o json | kubectl replace -f -",
+    "diagram": "flowchart LR\n    W[\"Write Secret\"] --> P1[\"Provider 1 aescbc encrypts\"]\n    P1 --> E[\"etcd value k8s:enc:aescbc:v1\"]\n    R[\"Read Secret\"] --> T[\"Try providers in order\"]\n    T --> P1\n    T --> ID[\"identity reads legacy plaintext\"]\n    OLD[\"Pre-existing plaintext\"] -->|\"kubectl replace\"| W",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/",
+    "tags": [
+      "cks",
+      "encryption-at-rest",
+      "etcd"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-069",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You configure the `ImagePolicyWebhook` admission controller with `defaultAllow: false` in its `imagePolicy` configuration. During an incident the external image policy backend becomes unreachable. What is the effect on new Pod creations?",
+    "options": [
+      "All new Pods are rejected until the backend is reachable again",
+      "All new Pods are admitted because the webhook fails open",
+      "Only Pods using images with mutable tags are rejected",
+      "Pods are admitted but flagged with an `imagepolicy.k8s.io/failed-open` annotation"
+    ],
+    "optionNotes": [
+      "Correct: `defaultAllow: false` means that when the backend cannot be contacted (or returns an error), the admission decision defaults to deny, so Pod creation fails closed.",
+      "Failing open is the behaviour of `defaultAllow: true`; it prioritises availability over enforcement and is the setting the question rules out.",
+      "The webhook does not inspect tag mutability itself; it forwards the image references to the backend, and with no backend there is no per-image decision.",
+      "`failed-open` annotations are added only when `defaultAllow: true` lets a request through after a backend failure."
+    ],
+    "answer": 0,
+    "explanation": "The `ImagePolicyWebhook` plugin sends an `ImageReview` to an external service for every Pod. `defaultAllow` decides what happens when that service is unavailable: `false` fails closed and blocks Pods, `true` fails open and admits them with an annotation. Choosing `false` is safer for supply-chain enforcement but makes the backend a hard availability dependency.",
+    "example": "# admission configuration file passed via --admission-control-config-file\napiVersion: apiserver.config.k8s.io/v1\nkind: AdmissionConfiguration\nplugins:\n- name: ImagePolicyWebhook\n  configuration:\n    imagePolicy:\n      kubeConfigFile: /etc/kubernetes/imagepolicy/kubeconfig.yaml\n      allowTTL: 50\n      denyTTL: 50\n      retryBackoff: 500\n      defaultAllow: false     # fail closed when backend is down",
+    "diagram": "flowchart LR\n    C[\"kubectl create pod\"] --> API[\"kube-apiserver admission\"]\n    API --> W[\"ImagePolicyWebhook\"]\n    W -->|\"ImageReview\"| B[\"External policy backend\"]\n    B -->|\"allowed true\"| OK[\"Pod created\"]\n    B -->|\"allowed false\"| NO[\"Pod rejected\"]\n    W -->|\"backend unreachable and defaultAllow false\"| NO",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#imagepolicywebhook",
+    "tags": [
+      "cks",
+      "supply-chain",
+      "admission-control"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-070",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You are writing a kube-apiserver audit `Policy`. For Secret writes you want the event to include the request metadata and the request body, but you do not want the response body stored. Which audit `level` should the rule use?",
+    "options": [
+      "`Request`",
+      "`RequestResponse`",
+      "`Metadata`",
+      "`None`"
+    ],
+    "optionNotes": [
+      "Correct: `Request` logs event metadata plus the request body but omits the response body; it is the highest level that still keeps the returned object out of the log.",
+      "`RequestResponse` logs metadata, request body and response body, so the returned Secret contents would be written to the audit log.",
+      "`Metadata` records only who did what to which resource (user, verb, resource, timestamp) without any request body.",
+      "`None` disables logging for matching requests entirely."
+    ],
+    "answer": 0,
+    "explanation": "Audit rules are matched top to bottom and the first matching rule sets the level. The four levels are cumulative: `None`, `Metadata`, `Request` (adds request body) and `RequestResponse` (adds response body as well). For sensitive kinds like Secrets, `Metadata` is the common recommendation; if you need the request body, `Request` is the highest level that avoids persisting the response.",
+    "example": "apiVersion: audit.k8s.io/v1\nkind: Policy\nomitStages: [\"RequestReceived\"]\nrules:\n- level: Request              # metadata + request body, no response\n  resources:\n  - group: \"\"\n    resources: [\"secrets\"]\n  verbs: [\"create\",\"update\",\"patch\",\"delete\"]\n- level: Metadata\n  omitStages: [\"RequestReceived\"]",
+    "diagram": "flowchart LR\n    N[\"None - nothing\"] --> M[\"Metadata - user verb resource\"]\n    M --> R[\"Request - plus request body\"]\n    R --> RR[\"RequestResponse - plus response body\"]\n    S[\"Stages RequestReceived ResponseStarted ResponseComplete Panic\"] --> M",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+    "tags": [
+      "cks",
+      "audit-logging",
+      "runtime-security"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-071",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "The '4Cs of Cloud Native Security' model describes security as layered. Ordered from the outermost layer to the innermost, what are the four layers?",
+    "options": [
+      "Cloud, Cluster, Container, Code",
+      "Code, Container, Cluster, Cloud",
+      "Cloud, Cluster, Code, Container",
+      "Compliance, Cluster, Container, Code"
+    ],
+    "optionNotes": [
+      "Correct: the cloud (or datacenter) is the outermost layer, the cluster sits inside it, containers run inside the cluster, and application code is innermost; each layer relies on the security of the layer outside it.",
+      "This is the correct set of layers but reversed; the model is presented from the outside in, with Code as the innermost layer.",
+      "Container sits between Cluster and Code; the container image and runtime configuration protect the code running inside.",
+      "Compliance is not one of the 4Cs; the outermost layer is the Cloud or infrastructure provider."
+    ],
+    "answer": 0,
+    "explanation": "The 4Cs model is Cloud, Cluster, Container and Code, from outer to inner. Its key message is that each inner layer inherits the weaknesses of the layers around it: strong application code cannot compensate for a cluster whose API server is exposed, or a cloud account with over-permissive IAM.",
+    "example": "# one control per layer\nCloud:     restrict API server access to a private CIDR\nCluster:   RBAC + Pod Security Admission + NetworkPolicy\nContainer: scan images, run as non-root, drop capabilities\nCode:      dependency scanning, TLS, input validation",
+    "diagram": "flowchart TD\n    CL[\"Cloud - provider IAM network\"] --> CU[\"Cluster - API server RBAC policies\"]\n    CU --> CO[\"Container - images runtime settings\"]\n    CO --> CD[\"Code - application and dependencies\"]\n    CD -.->|\"depends on outer layers\"| CL",
+    "reference": "https://kubernetes.io/docs/concepts/security/overview/",
+    "tags": [
+      "kcsa",
+      "4cs",
+      "fundamentals"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-072",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a STRIDE threat model of a Kubernetes cluster, an attacker who captures a ServiceAccount token from a compromised Pod and uses it to make API requests as that ServiceAccount is exploiting which threat category?",
+    "options": [
+      "Spoofing",
+      "Tampering",
+      "Repudiation",
+      "Denial of Service"
+    ],
+    "optionNotes": [
+      "Correct: Spoofing is impersonating another identity; presenting a stolen credential to act as the ServiceAccount is textbook identity spoofing.",
+      "Tampering is unauthorised modification of data or code, such as altering etcd contents or an image in a registry; reusing a token does not itself modify anything.",
+      "Repudiation is the ability to deny having performed an action, typically due to missing audit logs; it is a consequence that could follow but not the category of the attack.",
+      "Denial of Service concerns exhausting resources or availability, which is not the goal of token replay."
+    ],
+    "answer": 0,
+    "explanation": "STRIDE classifies threats as Spoofing, Tampering, Repudiation, Information disclosure, Denial of service and Elevation of privilege. Using a stolen token to act as another principal is Spoofing. Kubernetes mitigations include short-lived projected tokens, `automountServiceAccountToken: false`, and least-privilege RBAC so a stolen token has limited value.",
+    "example": "# attacker inside a compromised Pod\nTOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\ncurl -sk -H \"Authorization: Bearer $TOKEN\" \\\n  https://kubernetes.default.svc/api/v1/namespaces/prod/secrets\n# API server sees the request as the ServiceAccount, not the attacker",
+    "diagram": "flowchart LR\n    A[\"Attacker in compromised Pod\"] -->|\"reads token file\"| T[\"ServiceAccount token\"]\n    A -->|\"presents token\"| API[\"API server\"]\n    API -->|\"authenticates as SA\"| S[\"Spoofing\"]\n    M[\"Mitigations short-lived tokens least privilege RBAC\"] --> API",
+    "reference": "https://kubernetes.io/docs/concepts/security/",
+    "tags": [
+      "kcsa",
+      "threat-model",
+      "stride"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-073",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A request to the Kubernetes API server passes through three security stages before the object is persisted to etcd. In what order are they evaluated?",
+    "options": [
+      "Authentication, authorization, admission control",
+      "Admission control, authentication, authorization",
+      "Authorization, authentication, admission control",
+      "Authentication, admission control, authorization"
+    ],
+    "optionNotes": [
+      "Correct: the API server first establishes who is calling (authentication), then whether that identity may perform the verb on the resource (authorization), and finally runs mutating and validating admission plugins on the request content.",
+      "Admission control needs to know the authenticated user and only runs on requests that are already authorized, so it cannot come first.",
+      "Authorization decisions are made about an identity, so authentication must happen before authorization.",
+      "Admission plugins run after authorization; an unauthorized request is rejected before any admission webhook is called."
+    ],
+    "answer": 0,
+    "explanation": "Every API request is authenticated (certificates, tokens, OIDC), then authorized (RBAC, Node, Webhook), then passed through admission control (mutating, then validating) before being written to etcd. Failing any stage rejects the request, and admission control only applies to requests that create, modify or delete objects.",
+    "example": "kubectl auth whoami                              # authentication result\nkubectl auth can-i create pods -n prod           # authorization check\nkubectl get validatingwebhookconfigurations      # admission stage",
+    "diagram": "flowchart LR\n    R[\"Request\"] --> AN[\"Authentication - who are you\"]\n    AN --> AZ[\"Authorization - may you do this\"]\n    AZ --> MA[\"Mutating admission\"]\n    MA --> VA[\"Validating admission\"]\n    VA --> E[\"Persist to etcd\"]",
+    "reference": "https://kubernetes.io/docs/concepts/security/controlling-access/",
+    "tags": [
+      "kcsa",
+      "authentication",
+      "admission-control"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-074",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "The `baseline` Pod Security Standard allows a Pod to use `hostNetwork: true` as long as it does not run in privileged mode.",
+    "answer": false,
+    "explanation": "The `baseline` level forbids sharing host namespaces, so `hostNetwork`, `hostPID` and `hostIPC` must all be unset or false, along with privileged containers, most added capabilities, hostPath volumes and hostPorts. Only the `privileged` level is unrestricted. `restricted` builds on `baseline` by additionally requiring non-root, dropping all capabilities and a seccomp profile.",
+    "example": "# rejected in a namespace with enforce=baseline\napiVersion: v1\nkind: Pod\nmetadata:\n  name: sniffer\nspec:\n  hostNetwork: true      # host namespace -> violates baseline\n  containers:\n  - name: tcpdump\n    image: nicolaka/netshoot",
+    "diagram": "flowchart TD\n    PR[\"privileged - no restrictions\"] --> BL[\"baseline - no host namespaces no privileged no hostPath\"]\n    BL --> RS[\"restricted - plus non-root drop ALL seccomp\"]\n    HN[\"hostNetwork true\"] -->|\"allowed only at\"| PR",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+    "tags": [
+      "kcsa",
+      "pod-security-standards",
+      "baseline"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-075",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about workload isolation techniques in Kubernetes are accurate? (Select all that apply.)",
+    "options": [
+      "Namespaces alone do not prevent Pods in different namespaces from communicating over the network.",
+      "Sandboxed runtimes such as gVisor or Kata Containers reduce the attack surface of the shared host kernel.",
+      "Placing sensitive workloads on dedicated nodes via taints and node affinity is a form of physical isolation.",
+      "Creating a separate namespace automatically gives its Pods a separate kernel.",
+      "A NetworkPolicy applied in one namespace blocks traffic for all namespaces in the cluster."
+    ],
+    "optionNotes": [
+      "Correct: namespaces are a logical scoping mechanism for names, RBAC and quotas; without NetworkPolicy, cross-namespace traffic is allowed.",
+      "Correct: gVisor intercepts syscalls in a user-space kernel and Kata runs each Pod in a lightweight VM, so a container escape does not directly reach the host kernel.",
+      "Correct: node-level isolation ensures multi-tenant or untrusted workloads never share a kernel with sensitive ones, complementing logical controls.",
+      "Incorrect: all containers on a node share that node's kernel regardless of namespace; only sandboxing or separate nodes change the kernel boundary.",
+      "Incorrect: NetworkPolicy is namespaced and only affects Pods selected within its own namespace."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Isolation in Kubernetes is layered: namespaces provide logical separation, NetworkPolicy provides network segmentation within the namespace it lives in, sandboxed runtimes isolate the kernel boundary, and dedicated nodes provide hardware-level separation. Namespaces never change the shared-kernel model on their own.",
+    "example": "apiVersion: node.k8s.io/v1\nkind: RuntimeClass\nmetadata:\n  name: gvisor\nhandler: runsc            # sandboxed runtime\n---\n# Pod opts in and is pinned to hardened nodes\nspec:\n  runtimeClassName: gvisor\n  nodeSelector:\n    tier: sensitive\n  tolerations:\n  - key: sensitive\n    operator: Exists",
+    "diagram": "flowchart TD\n    L[\"Isolation layers\"] --> NS[\"Namespace - names RBAC quotas\"]\n    L --> NP[\"NetworkPolicy - segmentation\"]\n    L --> SB[\"Sandbox - gVisor Kata kernel boundary\"]\n    L --> ND[\"Dedicated nodes - taints affinity\"]\n    NS -.->|\"does not isolate\"| K[\"Shared host kernel\"]\n    SB -->|\"isolates\"| K",
+    "reference": "https://kubernetes.io/docs/concepts/security/multi-tenancy/",
+    "tags": [
+      "kcsa",
+      "isolation",
+      "sandboxing"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-076",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A security team wants a reference that catalogues real-world adversary tactics and techniques specific to containers, such as 'Deploy Container' for execution or 'Escape to Host' for privilege escalation, to map detections against. Which framework is this?",
+    "options": [
+      "MITRE ATT&CK Containers matrix",
+      "CIS Kubernetes Benchmark",
+      "NIST SP 800-190",
+      "PCI DSS"
+    ],
+    "optionNotes": [
+      "Correct: the ATT&CK Containers matrix organises observed attacker behaviour into tactics (Initial Access, Execution, Persistence, Privilege Escalation and so on) and techniques, which teams use to assess detection coverage.",
+      "The CIS Benchmark is a prescriptive checklist of configuration hardening controls with pass/fail checks, not a catalogue of attacker techniques.",
+      "NIST SP 800-190 is the Application Container Security Guide, a set of risk descriptions and countermeasure recommendations rather than a tactic/technique matrix.",
+      "PCI DSS is a compliance standard for organisations handling payment card data; it defines requirements, not adversary behaviour."
+    ],
+    "answer": 0,
+    "explanation": "MITRE ATT&CK is a knowledge base of adversary tactics and techniques; its Containers matrix covers orchestration and container-level attacks. CIS Benchmarks and NIST SP 800-190 describe how to configure and secure systems, and PCI DSS is a regulatory compliance standard. Teams often combine them: harden with CIS, assess risk with NIST, and validate detections against ATT&CK.",
+    "example": "# example Falco rule mapped to ATT&CK technique\n- rule: Container Escape via Mount\n  desc: Detect mount syscall from a container (T1611 Escape to Host)\n  condition: container and evt.type = mount\n  output: \"Mount in container (user=%user.name cmd=%proc.cmdline)\"\n  priority: WARNING\n  tags: [container, mitre_privilege_escalation, T1611]",
+    "diagram": "flowchart LR\n    A[\"MITRE ATT&CK Containers\"] --> T1[\"Initial Access - exposed dashboard\"]\n    A --> T2[\"Execution - deploy container\"]\n    A --> T3[\"Privilege Escalation - escape to host\"]\n    A --> T4[\"Credential Access - steal tokens\"]\n    D[\"Detection rules\"] -->|\"mapped to\"| A\n    C[\"CIS benchmark - hardening checklist\"] -.->|\"different purpose\"| A",
+    "reference": "https://kubernetes.io/docs/concepts/security/",
+    "tags": [
+      "kcsa",
+      "compliance",
+      "mitre-attack"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-077",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which kube-apiserver command-line flag points to the YAML audit `Policy` file that defines which events are recorded and at what level?",
+    "answer": [
+      "--audit-policy-file",
+      "audit-policy-file"
+    ],
+    "explanation": "`--audit-policy-file` tells the API server where to find the audit `Policy` object; without it, no audit events are recorded. It is normally paired with `--audit-log-path` (where to write the log) and `--audit-log-maxage`/`--audit-log-maxbackup` for rotation, and the file must be mounted into the static Pod on kubeadm clusters.",
+    "example": "# kube-apiserver static Pod\n- --audit-policy-file=/etc/kubernetes/audit/policy.yaml\n- --audit-log-path=/var/log/kubernetes/audit.log\n- --audit-log-maxage=30\n- --audit-log-maxbackup=10\n# and matching volumeMounts / hostPath volumes",
+    "diagram": "flowchart LR\n    F[\"--audit-policy-file policy.yaml\"] --> API[\"kube-apiserver\"]\n    REQ[\"API request\"] --> API\n    API -->|\"match rules\"| LVL[\"None Metadata Request RequestResponse\"]\n    LVL --> LOG[\"--audit-log-path audit.log\"]\n    LOG --> SIEM[\"Log shipper and SIEM\"]",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+    "tags": [
+      "kcsa",
+      "audit-logs",
+      "observability"
+    ],
+    "pattern": "^-{0,2}audit-policy-file$",
+    "domain": "security"
+  },
+  {
+    "id": "security-078",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "With a default Kubernetes installation and no additional configuration, how are `Secret` objects stored in etcd?",
+    "options": [
+      "Base64-encoded but not encrypted, readable by anyone with etcd or broad API access",
+      "Encrypted with AES using a key generated automatically by kubeadm",
+      "Encrypted using each node's kubelet client certificate",
+      "Stored only in memory on the API server and never written to etcd"
+    ],
+    "optionNotes": [
+      "Correct: by default Secret values are base64-encoded (an encoding, not encryption) and written to etcd as-is, so etcd access, backups and over-broad RBAC all expose them; encryption at rest must be configured explicitly.",
+      "No encryption key is generated by default; enabling encryption at rest requires an `EncryptionConfiguration` supplied to the API server.",
+      "Kubelet certificates authenticate nodes to the API server; they play no role in storing Secrets.",
+      "Secrets are persisted in etcd like any other object; the in-memory behaviour is a property of tmpfs mounts on nodes, not of storage."
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes Secrets are a separate object type mainly so RBAC can restrict them, but by default they sit in etcd unencrypted. Good practice is to enable encryption at rest (ideally with a KMS provider), restrict `get`/`list` on Secrets via RBAC, protect etcd and its backups, and consider an external secret manager for high-value credentials.",
+    "example": "# what etcd holds by default\nETCDCTL_API=3 etcdctl get /registry/secrets/default/db-pass \\\n  --cacert=/etc/kubernetes/pki/etcd/ca.crt \\\n  --cert=/etc/kubernetes/pki/etcd/server.crt \\\n  --key=/etc/kubernetes/pki/etcd/server.key | strings\n# ... password=hunter2   <- plaintext",
+    "diagram": "flowchart LR\n    S[\"Secret manifest base64 values\"] --> API[\"API server\"]\n    API -->|\"default no encryption\"| E[\"etcd plaintext\"]\n    API -->|\"with EncryptionConfiguration\"| EE[\"etcd ciphertext\"]\n    B[\"etcd backups\"] --- E\n    R[\"RBAC on secrets\"] --> API\n    X[\"External secret manager\"] -.-> API",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
+    "tags": [
+      "kcsa",
+      "secrets",
+      "etcd"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-079",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In Kyverno, what is the difference between a `ClusterPolicy` and a `Policy`?",
+    "options": [
+      "`ClusterPolicy` is cluster-scoped and applies to resources in any namespace; `Policy` is namespaced and applies only to resources in its own namespace",
+      "`ClusterPolicy` can only contain validate rules; `Policy` can also contain mutate and generate rules",
+      "`ClusterPolicy` is evaluated by the admission webhook; `Policy` is only evaluated by background scans",
+      "`Policy` is the legacy v1 kind and `ClusterPolicy` replaced it in Kyverno 1.10"
+    ],
+    "optionNotes": [
+      "Correct: the two kinds share the same spec; the only difference is scope. A `ClusterPolicy` matches across all namespaces (and cluster-scoped resources), while a `Policy` lives in a namespace and only affects resources there, making it suitable for tenant self-service.",
+      "Both kinds support all rule types; the rule types are not tied to scope.",
+      "Both are enforced at admission and both can be background-scanned.",
+      "Both kinds exist in the current `kyverno.io/v1` API and neither is deprecated."
+    ],
+    "answer": 0,
+    "explanation": "`ClusterPolicy` and `Policy` are identical in structure and capability; the difference is scope. Cluster administrators typically use `ClusterPolicy` for organisation-wide guardrails, while namespaced `Policy` resources let teams add their own rules without cluster-wide permissions. Namespaced policies cannot match cluster-scoped resources.",
+    "example": "apiVersion: kyverno.io/v1\nkind: Policy                 # namespaced\nmetadata:\n  name: require-team-label\n  namespace: team-a          # only affects team-a\nspec:\n  validationFailureAction: Enforce\n  rules:\n  - name: check-team\n    match:\n      any:\n      - resources:\n          kinds: [Deployment]\n    validate:\n      message: \"team label is required\"\n      pattern:\n        metadata:\n          labels:\n            team: \"?*\"",
+    "diagram": "flowchart TD\n    CP[\"ClusterPolicy\"] --> N1[\"namespace a\"]\n    CP --> N2[\"namespace b\"]\n    CP --> CS[\"cluster-scoped resources\"]\n    P[\"Policy in namespace a\"] --> N1\n    P -.->|\"cannot reach\"| N2",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/",
+    "tags": [
+      "kca",
+      "clusterpolicy",
+      "policy-scope"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-080",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of these are rule types you can declare inside a Kyverno `ClusterPolicy` rule? (Select all that apply.)",
+    "options": [
+      "`validate`",
+      "`mutate`",
+      "`verifyImages`",
+      "`enforce`",
+      "`audit`",
+      "`alert`"
+    ],
+    "optionNotes": [
+      "Correct: `validate` checks resources against a pattern, deny conditions or CEL expressions.",
+      "Correct: `mutate` modifies resources at admission or on existing resources, using strategic merge or JSON patches.",
+      "Correct: `verifyImages` checks container image signatures and attestations, typically with cosign or notary.",
+      "Incorrect: `Enforce` is a value of `validationFailureAction`, not a rule type.",
+      "Incorrect: `Audit` is the other `validationFailureAction` value; it controls whether validate failures block or only report.",
+      "Incorrect: Kyverno has no `alert` rule type; alerting is done from PolicyReports by external tooling."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "A Kyverno rule declares exactly one of `validate`, `mutate`, `generate`, `verifyImages` or (in `CleanupPolicy` resources) cleanup behaviour. `Enforce` and `Audit` are values for `validationFailureAction`, which decides whether a failing validate rule blocks the request or just records a report entry.",
+    "example": "spec:\n  rules:\n  - name: check-labels\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    validate: { ... }        # one of\n  - name: add-default-sc\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    mutate: { ... }\n  - name: check-sig\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    verifyImages: [ ... ]",
+    "diagram": "flowchart LR\n    R[\"Kyverno rule\"] --> V[\"validate\"]\n    R --> M[\"mutate\"]\n    R --> G[\"generate\"]\n    R --> VI[\"verifyImages\"]\n    CP[\"CleanupPolicy\"] --> CL[\"cleanup\"]\n    V --> FA[\"validationFailureAction Enforce or Audit\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/",
+    "tags": [
+      "kca",
+      "rule-types",
+      "validate"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-081",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A Kyverno validate rule with `validationFailureAction: Audit` blocks admission of any resource that fails the rule and records the failure in a PolicyReport.",
+    "answer": false,
+    "explanation": "`Audit` mode never blocks: the resource is admitted and the violation is recorded as a `fail` result in a PolicyReport (and as a warning in the API response). Only `Enforce` rejects the request. Teams typically roll out new policies in `Audit`, review the reports, then switch to `Enforce`.",
+    "example": "spec:\n  validationFailureAction: Audit   # admit, but report\n  rules:\n  - name: require-requests\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    validate:\n      message: \"CPU and memory requests are required\"\n      pattern:\n        spec:\n          containers:\n          - resources:\n              requests:\n                cpu: \"?*\"\n                memory: \"?*\"\n# kubectl get policyreport -A   -> shows FAIL entries",
+    "diagram": "flowchart TD\n    REQ[\"Resource fails validate rule\"] --> A{\"validationFailureAction\"}\n    A -->|\"Enforce\"| DENY[\"Request rejected\"]\n    A -->|\"Audit\"| ADMIT[\"Request admitted\"]\n    ADMIT --> PR[\"PolicyReport fail entry\"]\n    ADMIT --> W[\"Warning to client\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/validate/",
+    "tags": [
+      "kca",
+      "validationfailureaction",
+      "audit"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-082",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You need a Kyverno ClusterPolicy that validates every Deployment in the cluster except those in the `kube-system` and `kyverno` namespaces. How should the rule's selection be written?",
+    "options": [
+      "`match.any[].resources.kinds: [Deployment]` plus `exclude.any[].resources.namespaces: [kube-system, kyverno]`",
+      "`match.any[].resources.kinds: [Deployment]` plus `match.any[].resources.namespaces: [\"!kube-system\", \"!kyverno\"]`",
+      "Two separate `match` blocks, one for each excluded namespace, with `negate: true`",
+      "`match.any[].resources.kinds: [Deployment]` and a `preconditions` entry with operator `NotEquals` on `request.namespace`"
+    ],
+    "optionNotes": [
+      "Correct: `match` selects the resource kind and `exclude` removes specific namespaces; both blocks accept `any`/`all` lists with `resources`, `subjects`, `roles` and `clusterRoles` filters.",
+      "Namespace filters in `match` do not support a `!` negation prefix; listing names there only includes those namespaces.",
+      "A rule has a single `match` block and there is no `negate` field; exclusion is expressed with the dedicated `exclude` block.",
+      "`preconditions` can technically filter by `{{request.namespace}}`, but it is evaluated after matching and is meant for context-based conditions; the idiomatic and reportable way to skip namespaces is `exclude`."
+    ],
+    "answer": 0,
+    "explanation": "Kyverno rules select resources with `match` and remove a subset with `exclude`; both support `any` (OR) and `all` (AND) lists of resource, subject, role and clusterRole filters, including `namespaces`, `names`, `selector` and `namespaceSelector`. Using `exclude` keeps intent explicit and shows correctly in `kyverno apply` and reports.",
+    "example": "spec:\n  rules:\n  - name: require-owner\n    match:\n      any:\n      - resources:\n          kinds: [Deployment]\n    exclude:\n      any:\n      - resources:\n          namespaces: [kube-system, kyverno]\n    validate:\n      message: \"owner label required\"\n      pattern:\n        metadata:\n          labels:\n            owner: \"?*\"",
+    "diagram": "flowchart LR\n    ALL[\"All Deployments\"] --> M[\"match kinds Deployment\"]\n    M --> X{\"exclude namespaces kube-system kyverno\"}\n    X -->|\"excluded\"| SKIP[\"Rule skipped\"]\n    X -->|\"not excluded\"| V[\"validate runs\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/match-exclude/",
+    "tags": [
+      "kca",
+      "match",
+      "exclude"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-083",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Kyverno validate `pattern` contains `spec: { =(hostNetwork): false }`. How does Kyverno evaluate a Pod against this pattern?",
+    "options": [
+      "If `spec.hostNetwork` is present it must equal `false`; if it is absent the rule passes",
+      "`spec.hostNetwork` must be present and equal to `false`, otherwise the rule fails",
+      "If `spec.hostNetwork` is absent Kyverno adds it with value `false`",
+      "The rule only applies when `spec.hostNetwork` is present and, in that case, checks the rest of the pattern"
+    ],
+    "optionNotes": [
+      "Correct: `=()` is the equality anchor: it makes validation of the wrapped key conditional on its presence. An absent key is not a violation.",
+      "This is the behaviour of a plain key without any anchor; a missing `hostNetwork` would then fail because the pattern expects a value.",
+      "Adding a default is the job of the `+()` add-if-not-present anchor, which is only valid in `mutate` rules, not in `validate` patterns.",
+      "That describes the conditional anchor `()`: if the anchored key/value matches, the remaining sibling fields in the pattern are validated. The equality anchor checks the anchored key's value itself."
+    ],
+    "answer": 0,
+    "explanation": "Kyverno anchors change how a pattern key is interpreted. `=(key)` validates the value only if the key exists, `(key)` makes the sibling fields conditional on the anchored key/value matching, `+(key)` adds the field if missing (mutate only), `^()` matches at least one list element, and `X()` negates. For `hostNetwork`, `=(hostNetwork): false` allows Pods that omit the field, which defaults to false.",
+    "example": "validate:\n  message: \"host namespaces are not allowed\"\n  pattern:\n    spec:\n      =(hostNetwork): false     # only checked if present\n      =(hostPID): false\n      =(hostIPC): false\n# conditional anchor example\n#    containers:\n#    - (image): \"*:latest\"       # if image is latest ...\n#      imagePullPolicy: Always   # ... then this must hold",
+    "diagram": "flowchart TD\n    P[\"Pod spec\"] --> Q{\"hostNetwork present?\"}\n    Q -->|\"no\"| PASS1[\"pass\"]\n    Q -->|\"yes\"| V{\"value false?\"}\n    V -->|\"yes\"| PASS2[\"pass\"]\n    V -->|\"no\"| FAIL[\"fail\"]\n    A[\"Anchors =() equality, () conditional, +() add-if-absent\"] -.-> Q",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/validate/",
+    "tags": [
+      "kca",
+      "anchors",
+      "validate"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-084",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a Kyverno `generate` rule, what boolean field must be set to `true` so that changes to the source resource are propagated to the generated copies and generated resources are recreated if deleted?",
+    "answer": [
+      "synchronize",
+      "synchronize: true",
+      "sync"
+    ],
+    "explanation": "`synchronize: true` turns a generate rule into a continuous controller: Kyverno keeps the generated resource in sync with the `data` or `clone` source, restores it if someone deletes it, and removes it when the triggering resource goes away. Without it, generation is a one-time action at creation.",
+    "example": "rules:\n- name: default-deny\n  match: {any: [{resources: {kinds: [Namespace]}}]}\n  generate:\n    apiVersion: networking.k8s.io/v1\n    kind: NetworkPolicy\n    name: default-deny\n    namespace: \"{{request.object.metadata.name}}\"\n    synchronize: true          # keep in sync, recreate if deleted\n    data:\n      spec:\n        podSelector: {}\n        policyTypes: [Ingress, Egress]",
+    "diagram": "flowchart LR\n    NS[\"New Namespace created\"] --> G[\"generate rule\"]\n    G --> NP[\"NetworkPolicy default-deny\"]\n    NP -->|\"deleted by user\"| G\n    SRC[\"Source data changes\"] -->|\"synchronize true\"| NP\n    NS -->|\"namespace deleted\"| RM[\"generated resource removed\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/generate/",
+    "tags": [
+      "kca",
+      "generate",
+      "synchronize"
+    ],
+    "pattern": "^(synchronize(:\\s*true)?|sync)$",
+    "domain": "security"
+  },
+  {
+    "id": "security-085",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Kyverno `verifyImages` rule with a cosign public key successfully verifies the signature on `ghcr.io/acme/api:1.4.0` during admission. Besides admitting the Pod, what does Kyverno do to the Pod by default?",
+    "options": [
+      "It mutates the image reference to include the verified digest, e.g. `ghcr.io/acme/api:1.4.0@sha256:...`",
+      "It adds an `imagePullSecret` for the registry to the Pod",
+      "It records the signature in a `ClusterPolicyReport` and leaves the Pod unchanged",
+      "It sets `imagePullPolicy: Always` so the tag is re-verified on every restart"
+    ],
+    "optionNotes": [
+      "Correct: `mutateDigest` defaults to `true`, so Kyverno rewrites the image to its immutable digest form. This guarantees the running image is exactly the one whose signature was checked, defeating tag mutation after admission.",
+      "Kyverno reads registry credentials for its own verification but does not inject pull secrets into workloads.",
+      "Verification results can appear in reports, but by default the Pod is also mutated; it is not left unchanged unless `mutateDigest: false` is set.",
+      "Kyverno does not change `imagePullPolicy`; digest pinning already makes the reference immutable."
+    ],
+    "answer": 0,
+    "explanation": "`verifyImages` rules check signatures (cosign key, keyless, or notary) and optional attestations such as SBOMs or vulnerability scans. On success, Kyverno by default adds the digest to the image reference (`mutateDigest: true`) and, with `verifyDigest: true`, ensures a digest is present. Set `mutateDigest: false` if another controller must own the image field.",
+    "example": "rules:\n- name: check-signature\n  match: {any: [{resources: {kinds: [Pod]}}]}\n  verifyImages:\n  - imageReferences: [\"ghcr.io/acme/*\"]\n    mutateDigest: true        # default\n    attestors:\n    - entries:\n      - keys:\n          publicKeys: |-\n            -----BEGIN PUBLIC KEY-----\n            MFkw...\n            -----END PUBLIC KEY-----",
+    "diagram": "flowchart LR\n    P[\"Pod image ghcr.io/acme/api:1.4.0\"] --> K[\"Kyverno verifyImages\"]\n    K -->|\"fetch signature\"| R[\"Registry OCI signature\"]\n    R -->|\"cosign verify with key\"| K\n    K -->|\"valid\"| M[\"Mutate image to tag@sha256 digest\"]\n    M --> A[\"Pod admitted\"]\n    K -->|\"invalid\"| D[\"Pod rejected\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/verify-images/",
+    "tags": [
+      "kca",
+      "verifyimages",
+      "cosign"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-086",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You write a Kyverno validate rule that references `{{request.userInfo.username}}` to block Pods created by a specific user. Applying the policy fails with an error about the variable. What is the cause and the fix?",
+    "options": [
+      "Background scanning is enabled by default and `request.userInfo` does not exist outside admission; set `spec.background: false`",
+      "`request.userInfo` is only available in `mutate` rules; convert the rule to a mutate rule with a `deny` patch",
+      "Variables must be referenced as `${request.userInfo.username}`; fix the variable syntax",
+      "`spec.validationFailureAction` must be `Enforce` for user-based variables; change it from `Audit`"
+    ],
+    "optionNotes": [
+      "Correct: `background` defaults to `true`, meaning Kyverno also applies the rule to existing resources in reports; there is no admission request in that context, so variables like `request.userInfo`, `request.operation` and `serviceAccountName` are disallowed unless `background: false`.",
+      "Admission-time variables are available to all rule types during admission; the problem is background scanning, not the rule type.",
+      "Kyverno uses JMESPath in double curly braces `{{ }}`; the syntax in the question is already correct.",
+      "`validationFailureAction` only controls blocking versus reporting and has no effect on which variables are permitted."
+    ],
+    "answer": 0,
+    "explanation": "Kyverno policies can run in two contexts: admission and background scans that populate PolicyReports for pre-existing resources. Background mode has no `AdmissionRequest`, so policies that use request-specific variables are rejected at creation unless `spec.background: false` is set. `request.object`, `request.namespace` and context variables from ConfigMaps or API calls remain usable in background mode.",
+    "example": "apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: block-user\nspec:\n  background: false            # required: uses request.userInfo\n  validationFailureAction: Enforce\n  rules:\n  - name: deny-bob\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    validate:\n      message: \"{{request.userInfo.username}} may not create Pods\"\n      deny:\n        conditions:\n          any:\n          - key: \"{{request.userInfo.username}}\"\n            operator: Equals\n            value: bob",
+    "diagram": "flowchart TD\n    POL[\"ClusterPolicy uses request.userInfo\"] --> B{\"spec.background\"}\n    B -->|\"true default\"| BS[\"Background scan of existing resources\"]\n    BS --> ERR[\"No AdmissionRequest - policy rejected\"]\n    B -->|\"false\"| ADM[\"Admission only\"]\n    ADM --> OK[\"Variable resolved from request\"]\n    ADM -.->|\"no entries for existing resources\"| PR[\"PolicyReport\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/background/",
+    "tags": [
+      "kca",
+      "background",
+      "variables"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-087",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A ClusterPolicy in `Enforce` mode requires all containers to run as non-root. One legacy Deployment named `legacy-agent` in namespace `ops` genuinely needs root, and the platform team does not want to weaken or edit the ClusterPolicy for everyone. Which Kyverno resource is designed for this?",
+    "options": [
+      "A `PolicyException` that names the policy and rule and matches the `legacy-agent` Deployment in `ops`",
+      "An annotation `kyverno.io/ignore: \"true\"` on the Deployment",
+      "A namespaced `Policy` in `ops` with `validationFailureAction: Audit` that overrides the ClusterPolicy",
+      "A `CleanupPolicy` that removes the PolicyReport entries for `legacy-agent`"
+    ],
+    "optionNotes": [
+      "Correct: `PolicyException` is a dedicated resource (kyverno.io/v2) that exempts matching resources from specific policy rules; it can be managed with RBAC and, optionally, restricted to namespaces so exceptions are auditable rather than buried in the policy.",
+      "Kyverno does not honour a generic ignore annotation; allowing one would let any user bypass policy.",
+      "Policies do not override each other; both would be evaluated and the `Enforce` ClusterPolicy would still reject the Deployment.",
+      "`CleanupPolicy` deletes Kubernetes resources on a schedule; it does not affect admission decisions."
+    ],
+    "answer": 0,
+    "explanation": "`PolicyException` lets you carve out exemptions without touching the policy itself. It lists `policyName`/`ruleNames` in `exceptions` and a `match` block selecting the exempted resources; exceptions must be enabled in the Kyverno deployment (`--enablePolicyExceptions`) and can be limited to a namespace with `--exceptionNamespace` so only administrators can create them.",
+    "example": "apiVersion: kyverno.io/v2\nkind: PolicyException\nmetadata:\n  name: legacy-agent-root\n  namespace: kyverno-exceptions\nspec:\n  exceptions:\n  - policyName: require-run-as-nonroot\n    ruleNames: [run-as-non-root]\n  match:\n    any:\n    - resources:\n        kinds: [Deployment, ReplicaSet, Pod]\n        namespaces: [ops]\n        names: [\"legacy-agent*\"]",
+    "diagram": "flowchart LR\n    D[\"Deployment legacy-agent in ops\"] --> K[\"Kyverno admission\"]\n    K --> CP[\"ClusterPolicy require-run-as-nonroot Enforce\"]\n    PE[\"PolicyException matches legacy-agent\"] -->|\"exempts rule\"| K\n    K -->|\"exception applies\"| OK[\"Admitted and reported as skip\"]\n    O[\"Other Deployments\"] --> K\n    K -->|\"no exception\"| NO[\"Rejected if root\"]",
+    "reference": "https://kyverno.io/docs/policy-types/exceptions/",
+    "tags": [
+      "kca",
+      "policyexception",
+      "enforce"
+    ],
+    "domain": "security"
   }
 ]

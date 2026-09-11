@@ -1,0 +1,646 @@
+[
+  {
+    "id": "gitops-001",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In an Argo CD `Application` manifest, which field tells the controller which cluster and namespace the rendered manifests should be deployed into?",
+    "options": [
+      "`spec.destination`",
+      "`spec.source`",
+      "`spec.project`",
+      "`spec.syncPolicy`"
+    ],
+    "optionNotes": [
+      "`spec.destination` holds `server` (or `name`) and `namespace`, identifying the target cluster and namespace, so it is the correct answer.",
+      "`spec.source` points at where the manifests come from: the Git/Helm repo URL, `targetRevision`, and `path` or `chart`.",
+      "`spec.project` names the `AppProject` that scopes what repos and destinations the Application is allowed to use; it is not the destination itself.",
+      "`spec.syncPolicy` controls how syncing happens (automated, prune, selfHeal, syncOptions), not where the resources go."
+    ],
+    "answer": 0,
+    "explanation": "An Argo CD `Application` is essentially a mapping from a source (repo, revision, path) to a destination (cluster server/name plus namespace). `spec.destination` is where you put the target cluster and namespace. `spec.source` describes the origin, `spec.project` links to an `AppProject`, and `spec.syncPolicy` configures sync behaviour.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: guestbook\n  namespace: argocd\nspec:\n  project: default\n  source:\n    repoURL: https://github.com/argoproj/argocd-example-apps.git\n    targetRevision: HEAD\n    path: guestbook\n  destination:\n    server: https://kubernetes.default.svc   # in-cluster\n    namespace: guestbook",
+    "diagram": "flowchart LR\n    G[\"Git repo path guestbook\"] -->|\"spec.source\"| A[\"Application CR\"]\n    A -->|\"spec.destination\"| C[\"Cluster https://kubernetes.default.svc\"]\n    C --> N[\"Namespace guestbook\"]\n    P[\"AppProject default\"] -->|\"spec.project scopes\"| A",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/",
+    "tags": [
+      "capa",
+      "argocd",
+      "application"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-002",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which settings are valid child fields of `spec.syncPolicy.automated` in an Argo CD `Application`? (Select all that apply.)",
+    "options": [
+      "`prune`",
+      "`selfHeal`",
+      "`allowEmpty`",
+      "`CreateNamespace`",
+      "`retry`",
+      "`hardRefresh`"
+    ],
+    "optionNotes": [
+      "`prune: true` lets an automated sync delete cluster resources whose manifests were removed from Git; it defaults to false for safety.",
+      "`selfHeal: true` makes Argo CD re-sync when live state drifts from Git even without a new commit; it is a valid `automated` field.",
+      "`allowEmpty: true` permits an automated sync that would result in zero resources, which is otherwise blocked as a guard against accidental wipe-outs.",
+      "`CreateNamespace=true` is a sync option that lives under `spec.syncPolicy.syncOptions`, not under `automated`.",
+      "`retry` is a sibling of `automated` under `spec.syncPolicy` (with `limit` and `backoff`), not a child of it.",
+      "There is no `hardRefresh` field; a hard refresh is an action triggered via the CLI/UI or the `argocd.argoproj.io/refresh: hard` annotation."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`spec.syncPolicy.automated` accepts `prune`, `selfHeal`, and `allowEmpty`. Prune and self-heal both default to false because they cause destructive or unrequested changes. `CreateNamespace=true` belongs in `syncOptions`, `retry` sits next to `automated`, and hard refresh is an operation, not a policy field.",
+    "example": "spec:\n  syncPolicy:\n    automated:\n      prune: true       # delete resources removed from Git\n      selfHeal: true    # revert manual drift\n      allowEmpty: false # refuse to sync to nothing\n    syncOptions:\n    - CreateNamespace=true\n    retry:\n      limit: 3",
+    "diagram": "flowchart TD\n    S[\"spec.syncPolicy\"] --> A[\"automated\"]\n    S --> O[\"syncOptions e.g. CreateNamespace=true\"]\n    S --> R[\"retry limit and backoff\"]\n    A --> P[\"prune\"]\n    A --> H[\"selfHeal\"]\n    A --> E[\"allowEmpty\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/",
+    "tags": [
+      "capa",
+      "argocd",
+      "sync-policy"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-003",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Give the full annotation key you add to a Kubernetes manifest so that Argo CD applies it in a specific ordered phase (for example, a CRD before the resources that use it).",
+    "answer": [
+      "argocd.argoproj.io/sync-wave",
+      "sync-wave"
+    ],
+    "pattern": "^(argocd\\.argoproj\\.io/)?sync-wave$",
+    "explanation": "Sync waves are set with the `argocd.argoproj.io/sync-wave` annotation whose value is an integer; lower waves are applied first and Argo CD waits for each wave to be healthy before moving on. Resources without the annotation are in wave 0. This is separate from hooks (`argocd.argoproj.io/hook`), which choose the phase (PreSync, Sync, PostSync).",
+    "example": "apiVersion: apiextensions.k8s.io/v1\nkind: CustomResourceDefinition\nmetadata:\n  name: widgets.example.com\n  annotations:\n    argocd.argoproj.io/sync-wave: \"-1\"   # applied before wave 0\n---\napiVersion: example.com/v1\nkind: Widget\nmetadata:\n  annotations:\n    argocd.argoproj.io/sync-wave: \"1\"    # applied after the CRD is healthy",
+    "diagram": "flowchart LR\n    W0[\"wave -1 CRD and Namespace\"] -->|\"healthy\"| W1[\"wave 0 Deployment and Service\"]\n    W1 -->|\"healthy\"| W2[\"wave 1 custom resources\"]\n    W2 -->|\"healthy\"| W3[\"wave 2 smoke test Job\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-waves/",
+    "tags": [
+      "capa",
+      "argocd",
+      "sync-waves"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-004",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You need a Kubernetes `Job` that runs database schema migrations before Argo CD applies the new version of your Deployment, and you want the Job deleted once it succeeds. Which hook annotations achieve this?",
+    "options": [
+      "`argocd.argoproj.io/hook: PreSync` with `argocd.argoproj.io/hook-delete-policy: HookSucceeded`",
+      "`argocd.argoproj.io/hook: PostSync` with `argocd.argoproj.io/hook-delete-policy: BeforeHookCreation`",
+      "`argocd.argoproj.io/hook: Sync` with `argocd.argoproj.io/sync-wave: \"-1\"`",
+      "`argocd.argoproj.io/hook: SyncFail` with `argocd.argoproj.io/hook-delete-policy: HookFailed`"
+    ],
+    "optionNotes": [
+      "`PreSync` runs before the main sync phase, and `HookSucceeded` removes the hook resource after it completes successfully, which is exactly the migration-then-cleanup requirement.",
+      "`PostSync` runs after all Sync-phase resources are healthy, so the migration would run after the new Deployment rolled out; `BeforeHookCreation` only deletes the old hook when the next one is about to be created.",
+      "A `Sync` hook runs during the main phase; sync waves order resources within a phase but the Job would still be part of the same phase as the Deployment and would not be cleaned up automatically.",
+      "`SyncFail` hooks only run when the sync operation fails, making them suitable for cleanup or notifications, not for a migration that must precede the rollout."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD resource hooks run at defined points of a sync: `PreSync` before manifests are applied, `Sync` alongside them, `PostSync` after everything is healthy, and `SyncFail` on failure. Pairing `PreSync` with `hook-delete-policy: HookSucceeded` runs the migration first and garbage-collects the Job on success. The other combinations either run too late or only on failure.",
+    "example": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  generateName: db-migrate-\n  annotations:\n    argocd.argoproj.io/hook: PreSync\n    argocd.argoproj.io/hook-delete-policy: HookSucceeded\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: migrate\n        image: registry.example.com/app:1.4.0\n        command: [\"./migrate\", \"up\"]",
+    "diagram": "flowchart LR\n    S[\"argocd app sync\"] --> P[\"PreSync hook db-migrate Job\"]\n    P -->|\"succeeded then deleted\"| M[\"Sync phase apply Deployment\"]\n    M -->|\"healthy\"| Q[\"PostSync hook e.g. smoke test\"]\n    M -->|\"error\"| F[\"SyncFail hook\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/resource_hooks/",
+    "tags": [
+      "capa",
+      "argocd",
+      "hooks"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-005",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "An Argo CD Application can report sync status `Synced` and health status `Degraded` at the same time.",
+    "answer": true,
+    "explanation": "Sync status and health status are independent. Sync status compares the desired manifests in Git with the live resources (`Synced` or `OutOfSync`), while health status is derived from the live objects themselves (`Healthy`, `Progressing`, `Degraded`, `Suspended`, `Missing`, `Unknown`). A Deployment whose Pods are crash-looping matches Git exactly but is `Degraded`.",
+    "example": "$ argocd app get guestbook\nName:          argocd/guestbook\nSync Status:   Synced to HEAD (a1b2c3d)\nHealth Status: Degraded   # Pods CrashLoopBackOff, manifests still match Git",
+    "diagram": "flowchart LR\n    G[\"Manifests in Git\"] -->|\"diff\"| SS[\"Sync status Synced or OutOfSync\"]\n    L[\"Live resources\"] -->|\"diff\"| SS\n    L -->|\"resource conditions\"| HS[\"Health status Healthy Progressing Degraded\"]\n    SS --> UI[\"Application card\"]\n    HS --> UI",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/health/",
+    "tags": [
+      "capa",
+      "argocd",
+      "health"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-006",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Your monorepo has one directory per microservice under `apps/`, and you want Argo CD to create one `Application` for every directory automatically, picking up new directories as they are committed. Which `ApplicationSet` generator fits best?",
+    "options": [
+      "Git directory generator",
+      "List generator",
+      "Cluster generator",
+      "Pull Request generator"
+    ],
+    "optionNotes": [
+      "The Git generator in directory mode scans a repo path pattern such as `apps/*` and emits one Application per matching directory, so newly committed directories appear automatically.",
+      "The List generator uses a static list of key/value elements written into the ApplicationSet itself; you would have to edit it each time a service is added.",
+      "The Cluster generator produces one Application per cluster registered in Argo CD, which is for fan-out across clusters rather than across directories.",
+      "The Pull Request generator creates ephemeral Applications for open pull requests from an SCM provider, which targets preview environments, not the set of services in a repo."
+    ],
+    "answer": 0,
+    "explanation": "ApplicationSet generators produce parameter sets that are templated into Applications. The Git directory generator walks the repository at a path glob and yields `{{path}}` and `{{path.basename}}` for each directory, which is the standard way to bootstrap one Application per service in a monorepo. List, Cluster, and Pull Request generators solve different fan-out problems.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: services\nspec:\n  generators:\n  - git:\n      repoURL: https://github.com/example/platform.git\n      revision: main\n      directories:\n      - path: apps/*\n  template:\n    metadata:\n      name: '{{path.basename}}'\n    spec:\n      source:\n        repoURL: https://github.com/example/platform.git\n        path: '{{path}}'",
+    "diagram": "flowchart LR\n    R[\"repo apps/*\"] --> G[\"Git directory generator\"]\n    G --> P1[\"path apps/api\"]\n    G --> P2[\"path apps/web\"]\n    G --> P3[\"path apps/worker\"]\n    P1 --> A1[\"Application api\"]\n    P2 --> A2[\"Application web\"]\n    P3 --> A3[\"Application worker\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Git/",
+    "tags": [
+      "capa",
+      "argocd",
+      "applicationset"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-007",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An Argo CD Application still shows `OutOfSync` after you pushed a fix, and you suspect the controller is serving stale rendered manifests from the repo-server cache rather than re-rendering. What is the correct way to force Argo CD to discard cached manifests and regenerate them?",
+    "options": [
+      "Run `argocd app get <app> --hard-refresh` (a hard refresh)",
+      "Run `argocd app sync <app>`",
+      "Run `argocd app diff <app>`",
+      "Wait for the next automatic reconciliation, which always re-renders manifests"
+    ],
+    "optionNotes": [
+      "A hard refresh (`--hard-refresh` on `app get`, or the `argocd.argoproj.io/refresh: hard` annotation) invalidates the repo-server manifest cache and re-renders from the commit, which is what is needed here.",
+      "`argocd app sync` applies whatever manifests Argo CD currently believes are desired; if those are cached and stale, syncing does not fix the underlying cache problem.",
+      "`argocd app diff` shows the difference between live and desired state using the same cached manifests, so it reports the problem but does not clear it.",
+      "A normal (soft) refresh, which the default 3-minute reconciliation performs, checks for a new commit but reuses cached manifests for the same commit and parameters, so it may not re-render."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD distinguishes a refresh (compare the latest Git commit against live state, reusing cached rendered manifests) from a hard refresh (also invalidate the manifest cache and re-run Helm/Kustomize/plugin rendering). Stale cache issues, for example after a Helm dependency or plugin change, require the hard variant. Sync and diff operate on the already-rendered desired state.",
+    "example": "# soft refresh: check for new commit, reuse cached manifests\nargocd app get guestbook --refresh\n# hard refresh: drop the repo-server cache and re-render\nargocd app get guestbook --hard-refresh\n# declarative equivalent\nkubectl -n argocd annotate application guestbook argocd.argoproj.io/refresh=hard",
+    "diagram": "flowchart LR\n    U[\"argocd app get --hard-refresh\"] --> C[\"application-controller\"]\n    C -->|\"invalidate cache\"| RS[\"repo-server\"]\n    RS -->|\"clone and render Helm or Kustomize\"| M[\"fresh manifests\"]\n    M --> D[\"compare with live state\"]\n    S[\"soft refresh\"] -->|\"reuses cached manifests\"| D",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_get/",
+    "tags": [
+      "capa",
+      "argocd",
+      "refresh"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-008",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A `HorizontalPodAutoscaler` keeps changing `spec.replicas` on a Deployment that Argo CD manages, so the Application flips to `OutOfSync` and self-heal fights the autoscaler. What is the recommended fix inside the `Application` spec?",
+    "options": [
+      "Add an `ignoreDifferences` entry for the Deployment with `jsonPointers: [/spec/replicas]`",
+      "Set `spec.syncPolicy.automated.prune: false`",
+      "Add the `argocd.argoproj.io/sync-wave: \"1\"` annotation to the Deployment",
+      "Set `spec.syncPolicy.syncOptions: [ApplyOutOfSyncOnly=true]`"
+    ],
+    "optionNotes": [
+      "`ignoreDifferences` tells Argo CD to exclude the given JSON pointers (or JQ path expressions) from the diff, so HPA-driven replica changes no longer count as drift; this is the documented solution.",
+      "`prune` controls whether resources removed from Git are deleted; it has nothing to do with field-level diffs on an existing resource.",
+      "Sync waves control ordering during a sync and do not affect how the diff is computed.",
+      "`ApplyOutOfSyncOnly` makes syncs apply only resources that are out of sync; the Deployment would still be considered out of sync and self-heal would still overwrite replicas."
+    ],
+    "answer": 0,
+    "explanation": "When another controller legitimately mutates a field, `spec.ignoreDifferences` lets you exclude that field from Argo CD's comparison, using `jsonPointers`, `jqPathExpressions`, or `managedFieldsManagers`. Combining it with the `RespectIgnoreDifferences=true` sync option also keeps syncs from overwriting the field. Prune, waves, and `ApplyOutOfSyncOnly` do not change what counts as a difference.",
+    "example": "spec:\n  ignoreDifferences:\n  - group: apps\n    kind: Deployment\n    jsonPointers:\n    - /spec/replicas          # let the HPA own this field\n  syncPolicy:\n    syncOptions:\n    - RespectIgnoreDifferences=true   # do not overwrite it on sync",
+    "diagram": "flowchart LR\n    H[\"HPA\"] -->|\"sets replicas 5\"| D[\"Deployment live\"]\n    G[\"Git replicas 2\"] --> C[\"Argo CD diff\"]\n    D --> C\n    I[\"ignoreDifferences /spec/replicas\"] -->|\"mask field\"| C\n    C --> S[\"Synced no self-heal fight\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/",
+    "tags": [
+      "capa",
+      "argocd",
+      "diffing"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-009",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In Argo Workflows, which template type lets you declare tasks with explicit `dependencies` so that independent tasks run in parallel and dependent ones wait for their predecessors?",
+    "options": [
+      "`dag`",
+      "`steps`",
+      "`container`",
+      "`suspend`"
+    ],
+    "optionNotes": [
+      "A `dag` template lists `tasks`, each optionally naming `dependencies` (or a `depends` expression); the controller schedules the graph so unrelated tasks run concurrently, which is the described behaviour.",
+      "A `steps` template is a list of lists: the outer list runs sequentially and each inner list runs in parallel, giving ordering by position rather than by declared dependencies.",
+      "A `container` template is a leaf that runs a single container image; it does not orchestrate other templates.",
+      "A `suspend` template pauses the workflow until it is resumed manually or after a duration; it is not a way to compose tasks."
+    ],
+    "answer": 0,
+    "explanation": "Argo Workflows offers two ways to orchestrate templates: `steps` (sequential outer list, parallel inner lists) and `dag` (a graph of tasks whose ordering comes from `dependencies`). DAGs are usually preferred for complex fan-out/fan-in because they express only real dependencies. `container` and `suspend` are leaf template types.",
+    "example": "templates:\n- name: pipeline\n  dag:\n    tasks:\n    - name: build\n      template: build\n    - name: unit-test\n      template: test\n      dependencies: [build]\n    - name: lint\n      template: lint\n      dependencies: [build]     # runs in parallel with unit-test\n    - name: deploy\n      template: deploy\n      dependencies: [unit-test, lint]",
+    "diagram": "flowchart LR\n    B[\"build\"] --> T[\"unit-test\"]\n    B --> L[\"lint\"]\n    T --> D[\"deploy\"]\n    L --> D",
+    "reference": "https://argo-workflows.readthedocs.io/en/stable/walk-through/dag/",
+    "tags": [
+      "capa",
+      "argo-workflows",
+      "dag"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-010",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "In Argo Workflows, a `WorkflowTemplate` is itself executed on a schedule by the workflow controller, whereas a `Workflow` is only a one-off manual run.",
+    "answer": false,
+    "explanation": "A `WorkflowTemplate` is a reusable, namespaced library of templates that does nothing on its own; it is invoked by a `Workflow` via `workflowTemplateRef` or `templateRef`, or submitted with `argo submit --from workflowtemplate/<name>`. Scheduled execution is the job of the separate `CronWorkflow` resource. A `Workflow` is the actual execution, whether created manually, by a CronWorkflow, or by an Argo Events sensor.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nmetadata:\n  generateName: nightly-etl-\nspec:\n  workflowTemplateRef:\n    name: etl-template     # reuse the WorkflowTemplate\n  arguments:\n    parameters:\n    - name: date\n      value: \"2026-09-11\"\n# schedule it instead with kind: CronWorkflow and spec.schedule",
+    "diagram": "flowchart LR\n    WT[\"WorkflowTemplate reusable definition\"]\n    CW[\"CronWorkflow schedule\"] -->|\"creates\"| W[\"Workflow execution\"]\n    M[\"argo submit --from\"] -->|\"creates\"| W\n    W -->|\"workflowTemplateRef\"| WT\n    W --> P[\"Pods run steps\"]",
+    "reference": "https://argo-workflows.readthedocs.io/en/stable/workflow-templates/",
+    "tags": [
+      "capa",
+      "argo-workflows",
+      "workflowtemplate"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-011",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An Argo Rollouts canary strategy has the steps `setWeight: 20`, `pause: {}`, `setWeight: 60`, `pause: {duration: 10m}`, then full promotion. After the new ReplicaSet reaches 20% of traffic, what happens next?",
+    "options": [
+      "The rollout pauses indefinitely at 20% until someone runs `kubectl argo rollouts promote` (or an analysis or UI action promotes it)",
+      "The rollout waits 10 minutes at 20% and then automatically moves to 60%",
+      "The rollout immediately shifts to 60% because an empty `pause` is a no-op",
+      "The rollout aborts because a `pause` without a duration is invalid"
+    ],
+    "optionNotes": [
+      "`pause: {}` with no `duration` is an indefinite pause; the Rollout status becomes Paused and it only continues when explicitly promoted, so this is correct.",
+      "A timed wait only happens for the second pause, which has `duration: 10m`; the first pause has no duration and therefore never expires on its own.",
+      "An empty pause is the opposite of a no-op; it is the standard way to insert a manual approval gate into a canary.",
+      "`pause: {}` is valid syntax documented for canary steps; no validation error occurs."
+    ],
+    "answer": 0,
+    "explanation": "Canary steps run in order. `setWeight` shifts the traffic percentage (via replica ratios or a traffic router), and `pause` halts progress: without `duration` it is a manual gate cleared by `kubectl argo rollouts promote`, with `duration` it resumes automatically after the wait. This lets you combine a human check at 20% with an automatic soak at 60%, optionally backed by an `AnalysisTemplate` that can abort the rollout.",
+    "example": "strategy:\n  canary:\n    steps:\n    - setWeight: 20\n    - pause: {}                 # manual gate: kubectl argo rollouts promote app\n    - setWeight: 60\n    - pause: {duration: 10m}    # automatic soak\n    analysis:\n      templates:\n      - templateName: success-rate   # AnalysisTemplate can abort on bad metrics",
+    "diagram": "flowchart LR\n    A[\"setWeight 20\"] --> B[\"pause indefinite\"]\n    B -->|\"promote\"| C[\"setWeight 60\"]\n    C --> D[\"pause 10m\"]\n    D -->|\"timer\"| E[\"setWeight 100 promoted\"]\n    AN[\"AnalysisTemplate success-rate\"] -->|\"failed metric aborts\"| R[\"rollback to stable\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/features/canary/",
+    "tags": [
+      "capa",
+      "argo-rollouts",
+      "canary"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-012",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In Argo Events, an `EventSource` publishes events onto the `EventBus`. Name the resource kind that subscribes to those events, declares dependencies, and fires triggers such as creating a `Workflow`.",
+    "answer": [
+      "Sensor",
+      "sensor"
+    ],
+    "pattern": "^sensors?$",
+    "explanation": "Argo Events has three main resources: the `EventBus` (transport, NATS or JetStream or Kafka), `EventSource` objects that ingest events from webhooks, queues, calendars, and so on, and `Sensor` objects that listen for one or more event dependencies and run triggers. Triggers commonly create Argo Workflows or arbitrary Kubernetes objects, or call HTTP endpoints.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Sensor\nmetadata:\n  name: on-push\nspec:\n  dependencies:\n  - name: gh\n    eventSourceName: github\n    eventName: push\n  triggers:\n  - template:\n      name: run-ci\n      argoWorkflow:\n        operation: submit\n        source:\n          resource: { apiVersion: argoproj.io/v1alpha1, kind: Workflow }",
+    "diagram": "flowchart LR\n    GH[\"GitHub webhook\"] --> ES[\"EventSource github\"]\n    ES -->|\"publish\"| EB[\"EventBus\"]\n    EB -->|\"subscribe\"| SN[\"Sensor on-push\"]\n    SN -->|\"trigger\"| WF[\"Workflow submitted\"]",
+    "reference": "https://argoproj.github.io/argo-events/concepts/sensor/",
+    "tags": [
+      "capa",
+      "argo-events",
+      "sensor"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-013",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which statements are among the four OpenGitOps principles (v1.0.0)? (Select all that apply.)",
+    "options": [
+      "The desired state of a system is expressed declaratively",
+      "Desired state is stored in a way that is versioned and immutable",
+      "Software agents automatically pull the desired state from the source",
+      "Software agents continuously observe actual state and attempt to apply the desired state",
+      "Changes are deployed by a CI pipeline pushing manifests with `kubectl apply`",
+      "Every change must be approved manually before it is reconciled"
+    ],
+    "optionNotes": [
+      "Principle 1, Declarative: the system's desired state is described as data, not as imperative steps.",
+      "Principle 2, Versioned and Immutable: desired state is kept in a store (typically Git) with a complete version history where versions are not mutated in place.",
+      "Principle 3, Pulled Automatically: agents fetch desired state from the store themselves rather than having it pushed to them.",
+      "Principle 4, Continuously Reconciled: agents keep comparing actual to desired state and correct differences, not just when a commit lands.",
+      "Push-based CI deployments contradict the pull principle; they are the traditional CI/CD model that GitOps replaces.",
+      "Manual approval is a process choice some teams add via pull requests, but it is not one of the principles and reconciliation itself is automatic."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "The OpenGitOps project defines exactly four principles: Declarative, Versioned and Immutable, Pulled Automatically, and Continuously Reconciled. Pipeline-driven pushes and mandatory manual gates are not principles; the first violates automatic pull and the second describes an optional workflow around Git, not the reconciliation model.",
+    "example": "# principles in practice with Flux\nflux create source git app --url=https://github.com/example/config --branch=main   # versioned, immutable store\nflux create kustomization app --source=GitRepository/app --path=./prod --interval=1m # pulled automatically, continuously reconciled\n# ./prod contains declarative YAML only",
+    "diagram": "flowchart TD\n    O[\"OpenGitOps principles\"] --> P1[\"1 Declarative\"]\n    O --> P2[\"2 Versioned and immutable\"]\n    O --> P3[\"3 Pulled automatically\"]\n    O --> P4[\"4 Continuously reconciled\"]\n    P2 --> G[\"Git as source of truth\"]\n    P3 --> A[\"agent in cluster fetches\"]\n    P4 --> A",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "cgoa",
+      "principles",
+      "opengitops"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-014",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the key difference between a pull-based GitOps deployment and a traditional push-based CI/CD deployment?",
+    "options": [
+      "In pull-based GitOps an agent inside the target environment fetches desired state from Git; in push-based CI/CD the pipeline connects to the cluster and applies changes",
+      "Pull-based GitOps requires Kubernetes, whereas push-based CI/CD works with any platform",
+      "Pull-based GitOps stores manifests in the cluster, whereas push-based CI/CD stores them in Git",
+      "Pull-based GitOps needs cluster credentials in the CI system, whereas push-based CI/CD does not"
+    ],
+    "optionNotes": [
+      "This is the defining distinction: the reconciler (Argo CD, Flux) runs next to the workload and pulls from the repo, so the CI system never needs write access to production.",
+      "GitOps is most common on Kubernetes but the principles apply to any platform with a declarative API; the pull/push distinction is about direction, not platform.",
+      "Both models keep the source of truth in Git; what differs is who applies it and from where.",
+      "This is backwards: push-based pipelines are the ones that need cluster credentials, and removing that need is a major security benefit of the pull model."
+    ],
+    "answer": 0,
+    "explanation": "In the push model a pipeline runner holds cluster credentials and runs `kubectl apply` or `helm upgrade` when a build finishes. In the pull model an in-cluster agent polls or watches the repository and applies changes itself, and keeps reconciling afterwards. This reduces the credential blast radius, works through firewalls, and enables continuous drift correction.",
+    "example": "# push: CI job with cluster credentials\n- run: kubectl --kubeconfig=$PROD_KUBECONFIG apply -k overlays/prod\n\n# pull: agent inside the cluster, CI only commits\nargocd app create api --repo https://github.com/example/config \\\n  --path overlays/prod --dest-server https://kubernetes.default.svc",
+    "diagram": "flowchart LR\n    subgraph Push\n        CI[\"CI pipeline holds kubeconfig\"] -->|\"kubectl apply\"| K1[\"Cluster\"]\n    end\n    subgraph Pull\n        G[\"Git repo\"] -->|\"fetch\"| AG[\"Agent in cluster\"]\n        AG -->|\"apply and reconcile\"| K2[\"Cluster\"]\n    end",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "cgoa",
+      "pull-vs-push"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-015",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Under the Continuously Reconciled principle, a GitOps agent only needs to act when a new commit arrives in the repository; between commits the cluster is assumed to match Git.",
+    "answer": false,
+    "explanation": "Continuous reconciliation means the agent keeps observing actual state and comparing it to desired state on an ongoing loop, regardless of whether Git changed. Drift can originate from the cluster side, such as a manual `kubectl edit`, a crashed controller, or a deleted resource, and the reconciler is expected to detect and correct it. Reacting only to commits is event-driven delivery, not reconciliation.",
+    "example": "# Flux reconciles every interval even with no new commit\nflux create kustomization app --source=GitRepository/app --path=./prod --interval=5m --prune\n# manual drift is reverted on the next loop\nkubectl scale deploy api --replicas=10   # reverted to Git value within 5m",
+    "diagram": "flowchart LR\n    D[\"Desired state in Git\"] --> C[\"Compare\"]\n    A[\"Actual state in cluster\"] --> C\n    C -->|\"equal\"| W[\"Wait interval\"]\n    C -->|\"drift\"| F[\"Apply desired state\"]\n    F --> W\n    W --> C",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "cgoa",
+      "reconciliation",
+      "principles"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-016",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An on-call engineer runs `kubectl set image deployment/api api=api:hotfix` in production. Ten minutes later the image is back to the version in Git. Which GitOps capability caused this, and what should the engineer have done instead?",
+    "options": [
+      "Drift detection with self-healing reverted the change; the hotfix should have been committed to the config repository",
+      "The image pull policy re-pulled the old tag; the engineer should have used `imagePullPolicy: Always`",
+      "Garbage collection pruned the Deployment; the engineer should have disabled pruning",
+      "The CI pipeline re-ran on a timer and pushed the old image; the engineer should have paused CI"
+    ],
+    "optionNotes": [
+      "The reconciler compared live state to Git, saw the image field differ, and re-applied the declared version; in GitOps the fix is to change Git, which then flows to the cluster and is recorded.",
+      "Pull policy affects whether the kubelet re-downloads an image with the same tag; it never rewrites the Deployment's image field to a different tag.",
+      "Pruning deletes resources that are absent from Git; the Deployment still exists in Git, so it was corrected, not deleted.",
+      "In a pull-based model CI does not apply to the cluster at all, so a pipeline run cannot explain the revert."
+    ],
+    "answer": 0,
+    "explanation": "Drift detection is the reconciler noticing that actual state diverges from desired state; self-healing (Argo CD `selfHeal`, Flux's default behaviour) is the automatic correction. Imperative changes made directly on the cluster are treated as drift and undone. The correct emergency path is a fast commit or a revert in Git so the change is versioned and auditable.",
+    "example": "# manual change is drift and gets reverted\nkubectl set image deployment/api api=registry.example.com/api:hotfix\n\n# GitOps way: change the source of truth\nsed -i 's|api:1.4.0|api:hotfix|' overlays/prod/deployment.yaml\ngit commit -am \"Hotfix api image in prod\" && git push",
+    "diagram": "flowchart LR\n    E[\"kubectl set image hotfix\"] --> L[\"Live Deployment\"]\n    G[\"Git image 1.4.0\"] --> R[\"Reconciler diff\"]\n    L --> R\n    R -->|\"drift detected selfHeal\"| L\n    E2[\"git commit hotfix\"] --> G",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/#automatic-self-healing",
+    "tags": [
+      "cgoa",
+      "drift",
+      "self-heal"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-017",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A team models `dev`, `staging`, and `prod` as long-lived Git branches of the same config repository and promotes by merging `staging` into `prod`. Why is a directory-per-environment layout on a single branch generally recommended instead?",
+    "options": [
+      "Environment branches drift apart over time because environment-specific commits (hotfixes, scaling tweaks) make merges conflict-prone and turn promotion into cherry-picking, whereas directories keep one history with explicit per-environment overlays",
+      "Git reconcilers such as Argo CD and Flux can only track the default branch of a repository",
+      "Directories let every environment share exactly the same manifests, so no per-environment differences are possible",
+      "Branch-based layouts prevent the use of Kustomize overlays or Helm values files"
+    ],
+    "optionNotes": [
+      "This is the core argument: branches are meant for converging work, but environments never converge, so their branches diverge permanently and promotions become error-prone merges; directories (with overlays) give one linear history and a diff-able promotion.",
+      "Both tools track any branch or tag (`targetRevision`, `spec.ref.branch`); the recommendation is about maintainability, not tool limitations.",
+      "The opposite is true: directories usually hold per-environment overlays or values files precisely to express differences; the base is shared, the overlay is not.",
+      "Overlays and values files work on any branch; the problem with branches is divergence and merge semantics, not tooling compatibility."
+    ],
+    "answer": 0,
+    "explanation": "Git branches are designed to be merged back together, but environments are meant to stay different, so environment branches accumulate permanent divergence and promotions degrade into cherry-picks and conflict resolution. A single branch with `base/` plus `overlays/dev`, `overlays/staging`, `overlays/prod` keeps a single linear history where a promotion is an ordinary commit that changes one directory. Reconcilers support any branch, so the argument is about operability, not capability.",
+    "example": "config-repo/\n  base/\n    deployment.yaml\n    kustomization.yaml\n  overlays/\n    dev/kustomization.yaml       # image tag, replicas for dev\n    staging/kustomization.yaml\n    prod/kustomization.yaml\n# promotion = one commit changing overlays/prod/kustomization.yaml",
+    "diagram": "flowchart LR\n    subgraph Branches\n        B1[\"dev branch\"] -->|\"merge conflicts\"| B2[\"staging branch\"]\n        B2 -->|\"cherry-pick\"| B3[\"prod branch\"]\n    end\n    subgraph Directories\n        M[\"main branch\"] --> D1[\"overlays/dev\"]\n        M --> D2[\"overlays/staging\"]\n        M --> D3[\"overlays/prod\"]\n    end",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/best_practices/",
+    "tags": [
+      "cgoa",
+      "repo-structure",
+      "environments"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-018",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which approaches let you safely commit secret material to a public-readable Git repository in encrypted form so that it can be decrypted inside the cluster? (Select all that apply.)",
+    "options": [
+      "Mozilla SOPS with a KMS or age key, decrypted by the reconciler (for example Flux `decryption.provider: sops`)",
+      "Bitnami Sealed Secrets, where `kubeseal` encrypts with the controller's public key and the controller creates the `Secret`",
+      "External Secrets Operator syncing values from a vault into `Secret` objects",
+      "Committing a standard `Secret` manifest, since `data` values are base64-encoded",
+      "Storing secrets in a `ConfigMap` with restricted RBAC"
+    ],
+    "optionNotes": [
+      "SOPS encrypts the values of YAML/JSON files with keys from KMS, GCP KMS, Azure Key Vault, PGP, or age; Flux and Argo CD plugins decrypt at reconcile time, so ciphertext is what lands in Git.",
+      "`kubeseal` produces a `SealedSecret` CR that only the in-cluster controller can decrypt with its private key; the CR is safe to commit and the controller materialises the real `Secret`.",
+      "External Secrets Operator does not put encrypted data in Git at all; the repo only contains an `ExternalSecret` reference and the value stays in the external store, so it is a valid pattern but not one that commits encrypted material.",
+      "Base64 is an encoding, not encryption; anyone who can read the repo can decode the value.",
+      "ConfigMaps are plaintext and not designed for secrets; RBAC on the cluster does nothing to protect data that is already in Git."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "SOPS and Sealed Secrets both encrypt secret values before commit and rely on in-cluster decryption, making Git a safe store for them. External Secrets Operator solves the problem differently by keeping the value out of Git entirely and pulling it from a secret manager at runtime. Base64 and ConfigMaps provide no confidentiality.",
+    "example": "# SOPS: encrypt only the data/stringData fields\nsops --encrypt --age $AGE_PUBLIC_KEY --encrypted-regex '^(data|stringData)$' secret.yaml > secret.enc.yaml\n\n# Sealed Secrets: encrypt with the controller public key\nkubeseal --format yaml < secret.yaml > sealed-secret.yaml\ngit add secret.enc.yaml sealed-secret.yaml",
+    "diagram": "flowchart LR\n    S[\"plain Secret on laptop\"] -->|\"sops or kubeseal\"| E[\"encrypted file\"]\n    E --> G[\"Git repo\"]\n    G --> R[\"reconciler or controller\"]\n    R -->|\"decrypt with private key\"| K[\"Secret in cluster\"]\n    V[\"Vault\"] -->|\"ESO fetches at runtime\"| K",
+    "reference": "https://fluxcd.io/flux/guides/mozilla-sops/",
+    "tags": [
+      "cgoa",
+      "secrets",
+      "sops"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-019",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "A deployment introduced by commit `f3a9c1` is causing errors. Which Git subcommand creates a new commit that undoes `f3a9c1` while preserving history, so the GitOps reconciler rolls the cluster back?",
+    "answer": [
+      "git revert",
+      "revert"
+    ],
+    "pattern": "^(git\\s+)?revert$",
+    "explanation": "`git revert <commit>` adds a new commit whose changes are the inverse of the target, keeping history immutable and auditable, which is exactly what the Versioned and Immutable principle asks for. The reconciler sees the new HEAD and reconciles the cluster back to the previous state. `git reset --hard` plus a force push would rewrite history, and `kubectl rollout undo` would change the cluster without changing Git, so the agent would re-apply the bad version.",
+    "example": "git revert f3a9c1            # new commit inverting the bad change\ngit push origin main         # reconciler picks up the new HEAD\nargocd app get api --refresh # or wait for the Flux interval\n# avoid: git reset --hard HEAD~1 && git push --force  (rewrites history)\n# avoid: kubectl rollout undo deployment/api          (drift, will be reverted)",
+    "diagram": "flowchart LR\n    C1[\"commit e1 good\"] --> C2[\"commit f3a9c1 bad\"]\n    C2 --> C3[\"commit revert f3a9c1\"]\n    C3 --> R[\"reconciler applies\"]\n    R --> K[\"cluster back to good state\"]\n    X[\"kubectl rollout undo\"] -.->|\"drift reverted\"| K",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "cgoa",
+      "rollback",
+      "git"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-020",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In Argo CD a single `Application` resource declares both where manifests come from and where they are deployed. Which pair of Flux resources together provides the equivalent for a Kustomize-based deployment from Git?",
+    "options": [
+      "A `GitRepository` (source-controller) plus a `Kustomization` (kustomize-controller)",
+      "A `HelmRepository` plus a `HelmRelease`",
+      "An `ImageRepository` plus an `ImagePolicy`",
+      "A `Bucket` plus a `Receiver`"
+    ],
+    "optionNotes": [
+      "Flux separates fetching from applying: the `GitRepository` source object pulls and verifies the repo, and the `Kustomization` object points at a path in that source and applies it with pruning and health checks, which together match an Argo CD Application.",
+      "`HelmRepository` plus `HelmRelease` is the equivalent pair for Helm charts, not for a Kustomize directory in Git.",
+      "`ImageRepository` and `ImagePolicy` belong to Flux's image automation stack; they scan registries and pick tags, they do not deploy manifests.",
+      "`Bucket` is an S3-style source and `Receiver` is a webhook endpoint from notification-controller; neither applies manifests."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD bundles source and destination into one `Application`, while Flux uses a composable model: source-controller manages `GitRepository`, `OCIRepository`, `HelmRepository`, and `Bucket` objects, and kustomize-controller or helm-controller consume them via `Kustomization` or `HelmRelease`. Knowing the mapping helps when comparing the two tools or migrating between them. The image and notification resources handle automation and events, not deployment.",
+    "example": "apiVersion: source.toolkit.fluxcd.io/v1\nkind: GitRepository\nmetadata: { name: app, namespace: flux-system }\nspec:\n  url: https://github.com/example/config\n  ref: { branch: main }\n  interval: 1m\n---\napiVersion: kustomize.toolkit.fluxcd.io/v1\nkind: Kustomization\nmetadata: { name: app, namespace: flux-system }\nspec:\n  sourceRef: { kind: GitRepository, name: app }\n  path: ./overlays/prod\n  prune: true\n  interval: 5m",
+    "diagram": "flowchart LR\n    subgraph ArgoCD\n        AP[\"Application source plus destination\"]\n    end\n    subgraph Flux\n        GR[\"GitRepository fetch repo\"] --> KS[\"Kustomization apply path\"]\n        KS --> C[\"Cluster\"]\n    end\n    AP -.->|\"equivalent to\"| GR",
+    "reference": "https://fluxcd.io/flux/components/kustomize/kustomizations/",
+    "tags": [
+      "cgoa",
+      "flux",
+      "argocd"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-021",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "GitOps requires that application source code and the Kubernetes deployment manifests for that application live in the same Git repository.",
+    "answer": false,
+    "explanation": "GitOps only requires that desired state be declarative and stored in a versioned, immutable source; it does not dictate repository layout. The common recommendation is actually the opposite: keep a separate config repository so that a CI build does not trigger a deployment loop, deployment history is not polluted by code commits, and access can be granted to operators without exposing application source. Monorepos are still a valid choice for small teams.",
+    "example": "# separate repos: CI updates config repo, reconciler watches only config repo\napp-repo/      src/, Dockerfile, .github/workflows/build.yml\nconfig-repo/   base/, overlays/prod/   <-- Argo CD or Flux points here\n\n# CI step in app-repo\nkustomize edit set image api=registry.example.com/api:$GIT_SHA   # run inside a clone of config-repo\ngit commit -am \"Deploy api $GIT_SHA\" && git push",
+    "diagram": "flowchart LR\n    A[\"app repo source code\"] -->|\"CI builds image\"| REG[\"registry\"]\n    A -->|\"CI commits new tag\"| C[\"config repo manifests\"]\n    C -->|\"pull\"| R[\"reconciler\"]\n    REG --> K[\"cluster\"]\n    R --> K",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/best_practices/",
+    "tags": [
+      "cgoa",
+      "repo-structure"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-022",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team wants each production release to reach 10% of users first, be judged automatically against error-rate and latency metrics from Prometheus, and roll back without human involvement if the metrics regress. Which practice is being described?",
+    "options": [
+      "Progressive delivery with automated analysis",
+      "Blue-green deployment with a manual switch",
+      "Recreate deployment strategy",
+      "Feature branching with environment promotion"
+    ],
+    "optionNotes": [
+      "Progressive delivery gradually exposes a new version to a growing share of traffic while automated analysis (Argo Rollouts `AnalysisTemplate`, Flagger metric checks) gates or reverts the rollout; this matches every element of the scenario.",
+      "Blue-green runs two full environments and flips all traffic at once; it can be automated but does not involve partial traffic percentages or gradual exposure.",
+      "Recreate stops the old version before starting the new one, with downtime and no traffic splitting.",
+      "Branching and promotion concern how changes move through Git and environments, not how traffic is shifted or measured in production."
+    ],
+    "answer": 0,
+    "explanation": "Progressive delivery extends continuous delivery with controlled rollout of a change, typically canary traffic shifting, plus automated metric analysis that promotes or aborts the release. In a GitOps setup the desired state in Git still says \"version 2\", but a controller such as Argo Rollouts or Flagger manages how quickly the cluster converges to it. Blue-green and recreate are all-at-once strategies.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: AnalysisTemplate\nmetadata: { name: success-rate }\nspec:\n  metrics:\n  - name: success-rate\n    interval: 1m\n    successCondition: result[0] >= 0.99\n    failureLimit: 2          # abort and roll back after 2 failures\n    provider:\n      prometheus:\n        address: http://prometheus.monitoring:9090\n        query: sum(rate(http_requests_total{app=\"api\",code!~\"5..\"}[5m])) / sum(rate(http_requests_total{app=\"api\"}[5m]))",
+    "diagram": "flowchart LR\n    G[\"Git version 2\"] --> RC[\"rollout controller\"]\n    RC -->|\"10 percent\"| CN[\"canary pods\"]\n    RC -->|\"90 percent\"| ST[\"stable pods\"]\n    PM[\"Prometheus metrics\"] --> AN[\"automated analysis\"]\n    AN -->|\"pass\"| PR[\"promote to 100 percent\"]\n    AN -->|\"fail\"| RB[\"automatic rollback\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/features/analysis/",
+    "tags": [
+      "cgoa",
+      "progressive-delivery",
+      "canary"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-023",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Flux image automation (`ImageRepository`, `ImagePolicy`, `ImageUpdateAutomation`) detects a new tag `api:1.5.0` in the registry. Why does it commit the new tag into the config repository rather than simply patching the Deployment in the cluster?",
+    "options": [
+      "Because Git must remain the single source of truth: patching the cluster directly would be drift that the reconciler reverts, and the change would be unversioned and unauditable",
+      "Because the Flux controllers do not have RBAC permission to modify Deployments",
+      "Because image tags can only be changed through a Kustomize `images` transformer, which is Git-only",
+      "Because the registry webhook can only deliver events to a Git provider"
+    ],
+    "optionNotes": [
+      "Writing the tag to Git keeps the Versioned and Immutable and Continuously Reconciled principles intact: the new version becomes a commit that the normal reconciliation loop applies, can be reviewed, and can be reverted with `git revert`.",
+      "Flux controllers run with cluster-admin-level permissions by default and kustomize-controller patches Deployments all the time; permissions are not the reason.",
+      "The automation uses `# {\"$imagepolicy\": ...}` markers and can update any YAML field, and Kustomize transformers are not the only way to set images.",
+      "Registry webhooks target Flux's notification-controller `Receiver` to speed up scans; they are unrelated to where the update is written."
+    ],
+    "answer": 0,
+    "explanation": "Image update automation is a write-back pattern: the controller scans the registry, selects a tag by policy (semver range, alphabetical, numerical), then edits the marked fields in Git and pushes a commit. The cluster changes only because Git changed, so history, review, and rollback all keep working. Argo CD Image Updater with its `git` write-back method follows the same reasoning.",
+    "example": "apiVersion: image.toolkit.fluxcd.io/v1beta2\nkind: ImagePolicy\nmetadata: { name: api }\nspec:\n  imageRepositoryRef: { name: api }\n  policy:\n    semver: { range: '>=1.0.0 <2.0.0' }\n---\n# deployment.yaml in the config repo\n        image: registry.example.com/api:1.4.0 # {\"$imagepolicy\": \"flux-system:api\"}\n# ImageUpdateAutomation rewrites this line and pushes a commit",
+    "diagram": "flowchart LR\n    REG[\"registry api 1.5.0\"] --> IR[\"ImageRepository scan\"]\n    IR --> IP[\"ImagePolicy pick semver\"]\n    IP --> IUA[\"ImageUpdateAutomation\"]\n    IUA -->|\"commit and push\"| G[\"config repo\"]\n    G -->|\"normal reconcile\"| K[\"cluster Deployment 1.5.0\"]",
+    "reference": "https://fluxcd.io/flux/guides/image-update/",
+    "tags": [
+      "cgoa",
+      "image-automation",
+      "flux"
+    ],
+    "domain": "gitops"
+  },
+  {
+    "id": "gitops-024",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which of these is a genuine limitation or challenge of adopting GitOps, rather than a benefit?",
+    "options": [
+      "Imperative or one-off operational tasks (database migrations, ad-hoc restarts, ordering across systems) do not map cleanly onto declarative, continuously reconciled state",
+      "Every change to the environment is recorded as a commit with an author and timestamp",
+      "Cluster credentials no longer need to be distributed to CI systems",
+      "Disaster recovery can be performed by pointing a new cluster at the same repository"
+    ],
+    "optionNotes": [
+      "GitOps excels at desired state, but jobs that must run exactly once, in a specific order, or that depend on external systems require workarounds such as sync hooks, waves, Jobs with generated names, or separate workflow engines; this is a well-known limitation.",
+      "A complete, attributable audit trail is one of the primary benefits of GitOps.",
+      "Removing cluster write credentials from CI is a security benefit of the pull model.",
+      "Repeatable rebuilds from the repository are a resilience benefit, not a limitation."
+    ],
+    "answer": 0,
+    "explanation": "GitOps brings auditability, reproducibility, and reduced credential sprawl, but it is a poor fit for imperative procedures and for state that lives outside the declarative model. Other common challenges include secret management, handling many environments and repositories at scale, and reconcilers overwriting changes made by other controllers. The three other options are textbook benefits.",
+    "example": "# workaround for a one-off task in Argo CD: a PreSync hook Job\nmetadata:\n  generateName: migrate-      # new Job each sync\n  annotations:\n    argocd.argoproj.io/hook: PreSync\n    argocd.argoproj.io/hook-delete-policy: HookSucceeded\n# still not ideal: ordering across clusters, external approvals, manual runbooks",
+    "diagram": "flowchart TD\n    G[\"GitOps\"] --> B1[\"benefit audit trail\"]\n    G --> B2[\"benefit no CI cluster creds\"]\n    G --> B3[\"benefit rebuild from repo\"]\n    G --> L1[\"limitation imperative one-off tasks\"]\n    G --> L2[\"limitation secrets in Git\"]\n    G --> L3[\"limitation controller conflicts\"]",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "cgoa",
+      "benefits",
+      "limitations"
+    ],
+    "domain": "gitops"
+  }
+]

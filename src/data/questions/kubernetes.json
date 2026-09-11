@@ -2384,5 +2384,728 @@
       "troubleshooting",
       "deletion"
     ]
+  },
+  {
+    "id": "kubernetes-089",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You are upgrading a kubeadm cluster from v1.32 to v1.33. What is the correct order of operations on the first control-plane node?",
+    "options": [
+      "Upgrade the `kubeadm` package, run `kubeadm upgrade apply v1.33.x`, then upgrade and restart `kubelet` and `kubectl`",
+      "Upgrade `kubelet` first so it can pull the new control-plane images, then run `kubeadm upgrade apply`",
+      "Run `kubeadm upgrade apply` first; it upgrades the kubeadm, kubelet and kubectl binaries automatically",
+      "Upgrade the worker nodes first, then run `kubeadm upgrade apply` on the control plane"
+    ],
+    "optionNotes": [
+      "This is the documented sequence: the kubeadm binary is upgraded first, `kubeadm upgrade plan`/`apply` upgrades the control-plane components, and only then are kubelet and kubectl upgraded and the kubelet restarted.",
+      "Upgrading kubelet before the control plane can leave the kubelet newer than the API server, which violates the version skew policy; kubelet is upgraded after `kubeadm upgrade apply`.",
+      "`kubeadm upgrade apply` upgrades control-plane static Pods and add-ons, but it does not install new kubeadm, kubelet or kubectl packages; those are managed by the OS package manager.",
+      "Control-plane nodes must always be upgraded before workers; the API server must never be older than the kubelets that talk to it."
+    ],
+    "answer": 0,
+    "explanation": "The kubeadm upgrade flow is: upgrade the `kubeadm` package, run `kubeadm upgrade plan` then `kubeadm upgrade apply <version>` on the first control-plane node (`kubeadm upgrade node` on additional ones), drain the node, upgrade `kubelet` and `kubectl`, restart kubelet and uncordon. Workers follow afterwards with `kubeadm upgrade node`. Upgrading kubelet first or workers first breaks the version skew policy.",
+    "example": "# on the first control-plane node\napt-mark unhold kubeadm && apt-get install -y kubeadm=1.33.0-1.1 && apt-mark hold kubeadm\nkubeadm upgrade plan\nsudo kubeadm upgrade apply v1.33.0\nkubectl drain cp-1 --ignore-daemonsets\napt-get install -y kubelet=1.33.0-1.1 kubectl=1.33.0-1.1\nsudo systemctl daemon-reload && sudo systemctl restart kubelet\nkubectl uncordon cp-1",
+    "diagram": "flowchart LR\n    A[\"Upgrade kubeadm package\"] --> B[\"kubeadm upgrade plan\"]\n    B --> C[\"kubeadm upgrade apply v1.33\"]\n    C --> D[\"drain node\"]\n    D --> E[\"Upgrade kubelet and kubectl\"]\n    E --> F[\"restart kubelet, uncordon\"]\n    F --> G[\"Repeat on other control planes then workers\"]",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/",
+    "tags": [
+      "cka",
+      "kubeadm",
+      "upgrade"
+    ]
+  },
+  {
+    "id": "kubernetes-090",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Complete the `etcdctl` command that writes a point-in-time backup of etcd to `/backup/etcd.db`: `ETCDCTL_API=3 etcdctl ___ /backup/etcd.db --endpoints=https://127.0.0.1:2379 --cacert=... --cert=... --key=...`. Give the two-word subcommand.",
+    "answer": [
+      "snapshot save",
+      "snapshot  save"
+    ],
+    "pattern": "^snapshot\\s+save$",
+    "explanation": "`etcdctl snapshot save <file>` takes a consistent snapshot of the etcd keyspace and writes it to a file. The command must be given the client endpoint and the TLS CA, cert and key so it can authenticate to etcd. Restoring later uses `etcdctl snapshot restore` (or `etcdutl`) into a fresh data directory.",
+    "example": "ETCDCTL_API=3 etcdctl snapshot save /backup/etcd.db \\\n  --endpoints=https://127.0.0.1:2379 \\\n  --cacert=/etc/kubernetes/pki/etcd/ca.crt \\\n  --cert=/etc/kubernetes/pki/etcd/server.crt \\\n  --key=/etc/kubernetes/pki/etcd/server.key\n# verify\netcdutl snapshot status /backup/etcd.db -w table",
+    "diagram": "flowchart LR\n    C[\"etcdctl snapshot save\"] -->|\"TLS client certs\"| E[\"etcd member 2379\"]\n    E -->|\"consistent snapshot\"| F[\"/backup/etcd.db\"]\n    F -->|\"later\"| R[\"etcdctl snapshot restore --data-dir\"]\n    R --> N[\"new data dir used by etcd static Pod\"]",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/",
+    "tags": [
+      "cka",
+      "etcd",
+      "backup"
+    ]
+  },
+  {
+    "id": "kubernetes-091",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "On a kubeadm cluster you run `etcdctl snapshot restore /backup/etcd.db --data-dir /var/lib/etcd-restored`. The command succeeds, but the cluster still shows the old state. What step is missing?",
+    "options": [
+      "Point the etcd static Pod manifest's `hostPath` volume at `/var/lib/etcd-restored` so the kubelet restarts etcd with the restored data",
+      "Run `kubectl apply -f /backup/etcd.db` so the API server loads the snapshot",
+      "Restart the kube-apiserver Pod; etcd automatically detects the new directory",
+      "Run `etcdctl snapshot restore` again with `--endpoints` so the live cluster is overwritten"
+    ],
+    "optionNotes": [
+      "`snapshot restore` only writes a new data directory on disk; nothing uses it until the etcd static Pod in `/etc/kubernetes/manifests/etcd.yaml` is edited to mount that directory (or the restored data is moved to the original path), after which the kubelet recreates etcd.",
+      "A snapshot is an etcd database file, not a Kubernetes manifest; `kubectl apply` cannot load it.",
+      "etcd reads only the `--data-dir` it was started with; restarting the API server does not change which directory etcd uses.",
+      "`snapshot restore` is an offline operation that never talks to a running member; `--endpoints` is irrelevant and re-running it just creates another directory."
+    ],
+    "answer": 0,
+    "explanation": "Restoring an etcd snapshot produces a new data directory; the running etcd member keeps serving from its existing `--data-dir` until it is reconfigured. On kubeadm clusters you edit the etcd static Pod manifest so the `etcd-data` hostPath (and `--data-dir` flag if changed) points at the restored directory; the kubelet then recreates the etcd Pod, and the API server sees the restored state.",
+    "example": "ETCDCTL_API=3 etcdctl snapshot restore /backup/etcd.db --data-dir /var/lib/etcd-restored\n# /etc/kubernetes/manifests/etcd.yaml\n  volumes:\n  - hostPath:\n      path: /var/lib/etcd-restored   # was /var/lib/etcd\n      type: DirectoryOrCreate\n    name: etcd-data\n# kubelet notices the manifest change and restarts etcd",
+    "diagram": "flowchart TD\n    S[\"snapshot restore --data-dir /var/lib/etcd-restored\"] --> D[\"new data directory on disk\"]\n    M[\"edit etcd.yaml static Pod hostPath\"] --> K[\"kubelet recreates etcd Pod\"]\n    D --> K\n    K --> E[\"etcd serves restored state\"]\n    E --> A[\"kube-apiserver sees old objects again\"]",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#restoring-an-etcd-cluster",
+    "tags": [
+      "cka",
+      "etcd",
+      "restore"
+    ]
+  },
+  {
+    "id": "kubernetes-092",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "On a kubeadm cluster, running `kubeadm upgrade apply` (or `kubeadm upgrade node`) automatically renews all control-plane certificates managed by kubeadm, regardless of how much validity they have left.",
+    "answer": true,
+    "explanation": "kubeadm renews every certificate it manages during an upgrade, so a cluster that is upgraded at least once a year never hits the default one-year expiry. Between upgrades you can inspect expiry with `kubeadm certs check-expiration` and renew manually with `kubeadm certs renew all`, then restart the control-plane static Pods. The kubelet client certificate is separate and is rotated by the kubelet itself.",
+    "example": "kubeadm certs check-expiration\n# manual renewal when no upgrade is planned\nkubeadm certs renew all\n# restart control-plane static pods so they load new certs\nmv /etc/kubernetes/manifests/*.yaml /tmp/ && sleep 20 && mv /tmp/*.yaml /etc/kubernetes/manifests/",
+    "diagram": "flowchart LR\n    U[\"kubeadm upgrade apply\"] -->|\"always\"| R[\"renew all managed certs\"]\n    M[\"kubeadm certs renew all\"] --> R\n    R --> P[\"/etc/kubernetes/pki and kubeconfigs\"]\n    P --> S[\"restart apiserver, controller-manager, scheduler, etcd\"]\n    C[\"kubeadm certs check-expiration\"] -->|\"inspect\"| P",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/",
+    "tags": [
+      "cka",
+      "kubeadm",
+      "certificates"
+    ]
+  },
+  {
+    "id": "kubernetes-093",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You run `kubectl delete pod kube-apiserver-cp1 -n kube-system` on a kubeadm cluster and the Pod immediately reappears. Why?",
+    "options": [
+      "It is a static Pod managed directly by the kubelet from `/etc/kubernetes/manifests`; the API object is only a mirror Pod, so it must be removed by deleting the manifest file",
+      "It is owned by a DaemonSet in `kube-system` that recreates it",
+      "The API server refuses to delete itself, so the delete request is silently ignored",
+      "kube-controller-manager recreates any Pod in `kube-system` that is deleted"
+    ],
+    "optionNotes": [
+      "Control-plane components on kubeadm clusters run as static Pods: the kubelet watches the manifest directory and keeps the Pod running, publishing a read-only mirror Pod to the API server. Deleting the mirror does nothing; remove or move the manifest file instead.",
+      "kubeadm does not deploy the API server as a DaemonSet; there is no controller owning the Pod, which is why `kubectl get pod ... -o yaml` shows no `ownerReferences`.",
+      "The delete succeeds against the mirror Pod object; the kubelet simply recreates the mirror because the manifest still exists.",
+      "No controller recreates arbitrary Pods; only Pods with an owning controller (ReplicaSet, DaemonSet, etc.) are recreated, and static Pods are handled by the kubelet, not by kube-controller-manager."
+    ],
+    "answer": 0,
+    "explanation": "Static Pods are defined by files in the kubelet's `staticPodPath` (default `/etc/kubernetes/manifests`) and are run by the kubelet without the scheduler or any controller. The kubelet creates a mirror Pod in the API server so the Pod is visible, but the mirror cannot be used to control it; deleting the mirror just causes the kubelet to recreate it. To stop a static Pod, remove its manifest from the directory.",
+    "example": "# static pod names are suffixed with the node name\nkubectl get pod kube-apiserver-cp1 -n kube-system -o jsonpath='{.metadata.ownerReferences}'\n# stop it for real\nsudo mv /etc/kubernetes/manifests/kube-apiserver.yaml /root/\n# kubelet config shows the path\ngrep staticPodPath /var/lib/kubelet/config.yaml",
+    "diagram": "flowchart LR\n    F[\"/etc/kubernetes/manifests/kube-apiserver.yaml\"] --> K[\"kubelet\"]\n    K -->|\"runs container\"| C[\"kube-apiserver container\"]\n    K -->|\"creates mirror Pod\"| A[\"API server object kube-apiserver-cp1\"]\n    D[\"kubectl delete pod\"] --> A\n    A -.->|\"recreated by kubelet\"| K",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/",
+    "tags": [
+      "cka",
+      "static-pods",
+      "kubelet"
+    ]
+  },
+  {
+    "id": "kubernetes-094",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A `ClusterRole` named `pod-reader` grants `get`, `list` and `watch` on `pods`. You create a `RoleBinding` in namespace `dev` that references this `ClusterRole` and binds it to user `alice`. What can `alice` do?",
+    "options": [
+      "Read Pods only in the `dev` namespace",
+      "Read Pods in every namespace, because the role is a ClusterRole",
+      "Nothing, because a ClusterRole can only be referenced by a ClusterRoleBinding",
+      "Read Pods in `dev` and list Pods across all namespaces with `--all-namespaces`"
+    ],
+    "optionNotes": [
+      "A RoleBinding scopes whatever role it references to its own namespace; referencing a ClusterRole from a RoleBinding is the standard way to reuse a common permission set per namespace.",
+      "Cluster-wide access would require a ClusterRoleBinding; the binding type, not the role type, decides the scope.",
+      "Referencing a ClusterRole from a RoleBinding is explicitly supported and common (for example the built-in `admin`, `edit`, `view` ClusterRoles are typically bound this way).",
+      "`kubectl get pods -A` requires `list` on pods at cluster scope, which a namespaced RoleBinding does not grant; the request is forbidden."
+    ],
+    "answer": 0,
+    "explanation": "RBAC scope is determined by the binding: a RoleBinding limits permissions to its namespace even when it references a ClusterRole, while a ClusterRoleBinding grants them cluster-wide. This lets you define a ClusterRole once and reuse it in many namespaces. `kubectl auth can-i list pods --as alice -n dev` returns yes, but `--all-namespaces` returns no.",
+    "example": "kubectl create clusterrole pod-reader --verb=get,list,watch --resource=pods\nkubectl create rolebinding alice-pods --clusterrole=pod-reader --user=alice -n dev\nkubectl auth can-i list pods --as alice -n dev      # yes\nkubectl auth can-i list pods --as alice -n prod     # no\nkubectl auth can-i list pods --as alice -A          # no",
+    "diagram": "flowchart LR\n    CR[\"ClusterRole pod-reader\"] --> RB[\"RoleBinding in dev\"]\n    CR --> CRB[\"ClusterRoleBinding\"]\n    RB -->|\"scope\"| NS[\"pods in dev only\"]\n    CRB -->|\"scope\"| ALL[\"pods in every namespace\"]\n    U[\"user alice\"] --> RB",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding",
+    "tags": [
+      "cka",
+      "rbac",
+      "rolebinding"
+    ]
+  },
+  {
+    "id": "kubernetes-095",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which resource kinds are part of the Kubernetes Gateway API (`gateway.networking.k8s.io`)? (Select all that apply.)",
+    "options": [
+      "GatewayClass",
+      "Gateway",
+      "HTTPRoute",
+      "IngressClass",
+      "VirtualService"
+    ],
+    "optionNotes": [
+      "`GatewayClass` is cluster-scoped and describes a class of Gateways managed by a particular controller, analogous to a StorageClass for storage.",
+      "`Gateway` requests a listener (an actual load balancer or proxy) with specific ports, protocols and hostnames, provisioned by the controller of its GatewayClass.",
+      "`HTTPRoute` (along with GRPCRoute, TCPRoute, TLSRoute and UDPRoute) attaches to a Gateway and defines matching and forwarding rules to backend Services.",
+      "`IngressClass` belongs to the older `networking.k8s.io` Ingress API, not to the Gateway API.",
+      "`VirtualService` is an Istio custom resource, not a Kubernetes Gateway API kind."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The Gateway API separates infrastructure and application concerns into role-oriented resources: `GatewayClass` (infra provider), `Gateway` (cluster operator) and route kinds such as `HTTPRoute` (application developer). `IngressClass` is part of the legacy Ingress API and `VirtualService` is Istio-specific.",
+    "example": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: web\nspec:\n  parentRefs:\n  - name: public-gw          # a Gateway\n  hostnames: [\"shop.example.com\"]\n  rules:\n  - matches: [{path: {type: PathPrefix, value: /api}}]\n    backendRefs: [{name: api, port: 80}]",
+    "diagram": "flowchart LR\n    GC[\"GatewayClass owned by infra provider\"] --> GW[\"Gateway owned by cluster operator\"]\n    GW --> HR[\"HTTPRoute owned by app team\"]\n    HR --> S1[\"Service api\"]\n    HR --> S2[\"Service web\"]\n    X[\"client\"] --> GW",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/gateway/",
+    "tags": [
+      "cka",
+      "gateway-api",
+      "networking"
+    ]
+  },
+  {
+    "id": "kubernetes-096",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A PersistentVolume has `persistentVolumeReclaimPolicy: Retain`. The bound PVC is deleted. What is the state of the PV afterwards, and can a new PVC bind to it?",
+    "options": [
+      "The PV moves to `Released`; it keeps its data and cannot be bound by a new PVC until an administrator deletes and recreates it (or clears `spec.claimRef`)",
+      "The PV moves to `Available` immediately and the next matching PVC binds to it with the old data intact",
+      "The PV and its backing storage are deleted along with the PVC",
+      "The PV stays `Bound` because the reclaim policy prevents the PVC from being deleted"
+    ],
+    "optionNotes": [
+      "With `Retain`, Kubernetes keeps the volume and its data but marks the PV `Released`; because `claimRef` still points at the old claim it is not considered for binding until manually reclaimed.",
+      "A `Released` PV is never automatically returned to `Available`; that would risk exposing a previous tenant's data to a new claim.",
+      "Deleting the backing storage is the behavior of the `Delete` reclaim policy (the default for dynamically provisioned volumes), not `Retain`.",
+      "The reclaim policy governs what happens to the PV after the claim is gone; it never blocks deletion of the PVC itself."
+    ],
+    "answer": 0,
+    "explanation": "`Retain` is the manual-reclamation policy: after the PVC is deleted the PV becomes `Released` and the data remains, but the PV must be cleaned up by an admin (delete the PV object, optionally scrub the storage, recreate the PV) before it can be reused. `Delete` removes both the PV object and the external storage asset. `Recycle` is deprecated.",
+    "example": "kubectl get pv\n# NAME   CAPACITY  RECLAIM POLICY  STATUS    CLAIM\n# pv-1   10Gi      Retain          Released  dev/data\n# make it bindable again (data kept)\nkubectl patch pv pv-1 -p '{\"spec\":{\"claimRef\":null}}'\nkubectl get pv pv-1   # STATUS Available",
+    "diagram": "flowchart LR\n    B[\"PV Bound to PVC\"] -->|\"PVC deleted\"| P{\"reclaimPolicy\"}\n    P -->|\"Retain\"| R[\"PV Released, data kept\"]\n    P -->|\"Delete\"| D[\"PV and storage removed\"]\n    R -->|\"admin clears claimRef or recreates PV\"| A[\"PV Available\"]",
+    "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaiming",
+    "tags": [
+      "cka",
+      "storage",
+      "reclaim-policy"
+    ]
+  },
+  {
+    "id": "kubernetes-097",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A worker node shows `NotReady` in `kubectl get nodes`. `kubectl describe node` reports `PLEG is not healthy` and `container runtime is down`. After SSHing to the node, what is the most useful first check?",
+    "options": [
+      "Check the container runtime and kubelet services with `systemctl status containerd kubelet` and read `journalctl -u kubelet` for errors",
+      "Run `kubectl logs` against the kubelet Pod in `kube-system`",
+      "Delete the node object with `kubectl delete node` so it re-registers",
+      "Restart kube-apiserver on the control plane, since the node cannot reach it"
+    ],
+    "optionNotes": [
+      "The condition message points at the runtime and the kubelet's Pod Lifecycle Event Generator, which are both node-local systemd services; their status and journal show why the runtime socket is unavailable (crashed containerd, disk full, misconfigured `--container-runtime-endpoint`).",
+      "The kubelet is not a Pod; it is a systemd service, so `kubectl logs` cannot show its output. Use `journalctl -u kubelet` on the node instead.",
+      "Deleting the node object does not fix a broken runtime and would orphan Pods; the node would only re-register once kubelet is healthy anyway.",
+      "The kubelet is reporting its status to the API server (that is how the condition text got there), so the control plane is reachable; the fault is on the node."
+    ],
+    "answer": 0,
+    "explanation": "`NotReady` with runtime or PLEG errors means the kubelet cannot talk to the container runtime over CRI. On the node, inspect `systemctl status containerd` and `kubelet`, read `journalctl -u kubelet -f`, verify the CRI socket with `crictl info`/`crictl ps`, and check disk and memory pressure. Fixing or restarting the runtime lets the kubelet recover and the node returns to `Ready`.",
+    "example": "kubectl describe node worker-2 | grep -A5 Conditions\nssh worker-2\nsudo systemctl status containerd kubelet\nsudo journalctl -u kubelet --since '10 min ago' | tail -50\nsudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps\nsudo systemctl restart containerd && sudo systemctl restart kubelet",
+    "diagram": "flowchart TD\n    N[\"node NotReady\"] --> D[\"kubectl describe node conditions\"]\n    D --> S[\"ssh node, systemctl status containerd kubelet\"]\n    S --> J[\"journalctl -u kubelet\"]\n    J --> C[\"crictl ps and crictl info\"]\n    C --> F[\"fix runtime, disk, config then restart kubelet\"]\n    F --> R[\"node Ready\"]",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-cluster/",
+    "tags": [
+      "cka",
+      "troubleshooting",
+      "kubelet"
+    ]
+  },
+  {
+    "id": "kubernetes-098",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the name of the file that Kustomize looks for in a directory when you run `kubectl apply -k ./overlays/prod`?",
+    "answer": [
+      "kustomization.yaml",
+      "kustomization.yml",
+      "kustomization",
+      "Kustomization"
+    ],
+    "pattern": "^kustomization(\\.ya?ml)?$",
+    "explanation": "Kustomize builds a directory by reading its `kustomization.yaml` (also accepted: `kustomization.yml` or `Kustomization`), which lists `resources`, `patches`, `namePrefix`, `commonLabels`, `configMapGenerator` and so on. `kubectl kustomize <dir>` renders the result and `kubectl apply -k <dir>` applies it, making Kustomize a template-free alternative to Helm for environment overlays.",
+    "example": "# overlays/prod/kustomization.yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- ../../base\nnamePrefix: prod-\npatches:\n- path: replicas.yaml\nkubectl kustomize overlays/prod | head\nkubectl apply -k overlays/prod",
+    "diagram": "flowchart LR\n    B[\"base kustomization.yaml\"] --> O[\"overlays/prod/kustomization.yaml\"]\n    P[\"patches and prefixes\"] --> O\n    O -->|\"kubectl kustomize\"| Y[\"rendered manifests\"]\n    Y -->|\"kubectl apply -k\"| C[\"cluster\"]",
+    "reference": "https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/",
+    "tags": [
+      "cka",
+      "kustomize"
+    ]
+  },
+  {
+    "id": "kubernetes-099",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You want a log-shipping container to start before the main application container, keep running for the Pod's whole lifetime, and be restarted if it crashes. Which is the recommended way to declare it in Kubernetes 1.29+?",
+    "options": [
+      "List it under `initContainers` with `restartPolicy: Always` (a native sidecar)",
+      "List it under `containers` before the app container; containers start in order",
+      "List it under `initContainers` without a restartPolicy; init containers always keep running",
+      "Set `restartPolicy: Always` on the Pod spec and add the container to `containers`"
+    ],
+    "optionNotes": [
+      "A native sidecar is an init container with `restartPolicy: Always`. It starts in init order, the Pod proceeds once its startup probe passes, it is restarted if it fails, and it stays running until the main containers finish (it is terminated after them).",
+      "Regular containers in `containers` are started concurrently with no ordering or readiness guarantee, so the app may emit logs before the shipper is up.",
+      "Ordinary init containers must run to completion before the app containers start; a long-running one would block the Pod forever.",
+      "The Pod-level `restartPolicy` applies to all containers and does not provide startup ordering; the sidecar semantics are opted into per init container."
+    ],
+    "answer": 0,
+    "explanation": "The sidecar containers feature (GA in 1.33, beta-on-by-default since 1.29) reuses `initContainers` with a per-container `restartPolicy: Always`. Such containers start in init order, the Pod waits for their startup probe, they are restarted on failure, they do not block Job completion, and they are shut down after the main containers. This solves the ordering and lifecycle problems of the old 'regular container as sidecar' pattern.",
+    "example": "spec:\n  initContainers:\n  - name: log-shipper\n    image: fluent/fluent-bit:3.1\n    restartPolicy: Always      # makes this a native sidecar\n    volumeMounts: [{name: logs, mountPath: /var/log/app}]\n  containers:\n  - name: app\n    image: myapp:1.4\n    volumeMounts: [{name: logs, mountPath: /var/log/app}]\n  volumes: [{name: logs, emptyDir: {}}]",
+    "diagram": "flowchart LR\n    I1[\"init container setup, runs to completion\"] --> SC[\"sidecar init container restartPolicy Always\"]\n    SC -->|\"startup probe ok\"| APP[\"main app container\"]\n    APP -->|\"exits\"| T[\"sidecar terminated after app\"]\n    SC -.->|\"crash\"| SC",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/",
+    "tags": [
+      "ckad",
+      "sidecar",
+      "init-containers"
+    ]
+  },
+  {
+    "id": "kubernetes-100",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Java application takes up to 3 minutes to initialize, and its liveness probe (10 s period, 3 failures) keeps killing it before it finishes starting. What is the cleanest fix?",
+    "options": [
+      "Add a `startupProbe` with a generous `failureThreshold * periodSeconds` budget; liveness and readiness probes are disabled until it succeeds",
+      "Set `initialDelaySeconds: 180` on the liveness probe",
+      "Remove the liveness probe entirely",
+      "Increase the liveness probe's `timeoutSeconds` to 180"
+    ],
+    "optionNotes": [
+      "A startup probe exists exactly for slow-starting containers: while it has not yet succeeded, the kubelet skips liveness and readiness checks; once it passes, the normal fast liveness probe takes over.",
+      "A large `initialDelaySeconds` works but delays failure detection on every restart and wastes time when startup is fast; it is a blunt workaround rather than the intended mechanism.",
+      "Dropping the liveness probe removes the deadlock protection you presumably wanted for the running application.",
+      "`timeoutSeconds` is how long a single probe attempt may take before it counts as failed; it does not delay when probing begins."
+    ],
+    "answer": 0,
+    "explanation": "Startup probes protect slow-starting containers: until the startup probe succeeds the other probes are not run, so a liveness probe cannot kill the container mid-initialization. Set `failureThreshold` and `periodSeconds` so that their product covers the worst-case startup time (for example 30 x 10 s = 300 s); after success the liveness probe continues with its own tight settings.",
+    "example": "containers:\n- name: app\n  image: myapp:2.0\n  startupProbe:\n    httpGet: {path: /healthz, port: 8080}\n    failureThreshold: 30   # 30 * 10s = up to 5 minutes to start\n    periodSeconds: 10\n  livenessProbe:\n    httpGet: {path: /healthz, port: 8080}\n    periodSeconds: 10\n    failureThreshold: 3",
+    "diagram": "flowchart LR\n    S[\"container starts\"] --> SP{\"startupProbe succeeded?\"}\n    SP -->|\"no, within budget\"| SP\n    SP -->|\"no, budget exhausted\"| K[\"container killed and restarted\"]\n    SP -->|\"yes\"| L[\"livenessProbe and readinessProbe begin\"]\n    L --> R[\"normal operation\"]",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-startup-probes",
+    "tags": [
+      "ckad",
+      "probes",
+      "startup-probe"
+    ]
+  },
+  {
+    "id": "kubernetes-101",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A `CronJob` runs every 5 minutes but some runs take 15 minutes. You must ensure a new run never starts while the previous one is still running, and the skipped run should simply be dropped. Which setting achieves this?",
+    "options": [
+      "`spec.concurrencyPolicy: Forbid`",
+      "`spec.concurrencyPolicy: Replace`",
+      "`spec.concurrencyPolicy: Allow` (the default)",
+      "`spec.jobTemplate.spec.parallelism: 1`"
+    ],
+    "optionNotes": [
+      "`Forbid` skips the new run if the previous Job is still active; the skipped schedule is counted as missed and is not queued.",
+      "`Replace` kills the currently running Job and starts the new one, which is the opposite of letting the old run finish.",
+      "`Allow` permits overlapping Jobs, which is what causes the problem in the scenario.",
+      "`parallelism` limits how many Pods a single Job runs at once; it has no effect across separate Jobs created by the CronJob."
+    ],
+    "answer": 0,
+    "explanation": "`concurrencyPolicy` controls overlapping executions of a CronJob: `Allow` (default) lets them overlap, `Forbid` skips a new run while one is still active, and `Replace` cancels the running Job in favor of the new one. Related knobs are `startingDeadlineSeconds` (how late a missed run may still start) and `successfulJobsHistoryLimit`/`failedJobsHistoryLimit`.",
+    "example": "apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: report\nspec:\n  schedule: \"*/5 * * * *\"\n  concurrencyPolicy: Forbid       # skip if previous still running\n  startingDeadlineSeconds: 120\n  successfulJobsHistoryLimit: 3\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          restartPolicy: OnFailure\n          containers: [{name: r, image: report:1.0}]",
+    "diagram": "flowchart LR\n    T[\"schedule tick\"] --> Q{\"previous Job still active?\"}\n    Q -->|\"no\"| N[\"create new Job\"]\n    Q -->|\"yes, Allow\"| O[\"create new Job, overlap\"]\n    Q -->|\"yes, Forbid\"| S[\"skip this run\"]\n    Q -->|\"yes, Replace\"| R[\"delete old Job, create new\"]",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#concurrency-policy",
+    "tags": [
+      "ckad",
+      "cronjob",
+      "concurrency"
+    ]
+  },
+  {
+    "id": "kubernetes-102",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which fields belong under a container's `securityContext` and harden the container? (Select all that apply.)",
+    "options": [
+      "`runAsNonRoot: true`",
+      "`readOnlyRootFilesystem: true`",
+      "`capabilities: {drop: [\"ALL\"]}`",
+      "`hostNetwork: false`",
+      "`imagePullPolicy: Always`"
+    ],
+    "optionNotes": [
+      "`runAsNonRoot` makes the kubelet refuse to start the container if its image would run as UID 0; usually paired with `runAsUser`.",
+      "`readOnlyRootFilesystem` mounts the container's root filesystem read-only, so an attacker cannot write binaries or tamper with files; writable paths must be explicit volumes.",
+      "`capabilities.drop: [\"ALL\"]` removes every Linux capability, adding back only what is needed (for example `NET_BIND_SERVICE`).",
+      "`hostNetwork` is a Pod-level field under `spec`, not part of `securityContext`, although setting it to false is a good practice.",
+      "`imagePullPolicy` is a container field controlling when the image is pulled; it lives beside `securityContext`, not inside it."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Container `securityContext` holds `runAsUser`/`runAsGroup`, `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation`, `privileged`, `capabilities`, `seccompProfile` and SELinux/AppArmor options. `hostNetwork` (Pod spec) and `imagePullPolicy` (container spec) are separate fields. The Pod Security Standards `restricted` profile expects most of these hardening settings.",
+    "example": "containers:\n- name: api\n  image: api:1.2\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 10001\n    readOnlyRootFilesystem: true\n    allowPrivilegeEscalation: false\n    capabilities:\n      drop: [\"ALL\"]\n  volumeMounts: [{name: tmp, mountPath: /tmp}]   # writable scratch",
+    "diagram": "flowchart TD\n    SC[\"container securityContext\"] --> A[\"runAsNonRoot and runAsUser\"]\n    SC --> B[\"readOnlyRootFilesystem\"]\n    SC --> C[\"capabilities drop ALL\"]\n    SC --> D[\"allowPrivilegeEscalation false\"]\n    P[\"Pod spec, not securityContext\"] --> H[\"hostNetwork\"]\n    CT[\"container spec, not securityContext\"] --> I[\"imagePullPolicy\"]",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+    "tags": [
+      "ckad",
+      "security-context"
+    ]
+  },
+  {
+    "id": "kubernetes-103",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `kubectl` flag makes `kubectl create deployment web --image=nginx -o yaml` print the manifest without sending anything to the API server, so you can redirect it to a file and edit it? Give the flag with its value.",
+    "answer": [
+      "--dry-run=client",
+      "dry-run=client",
+      "--dry-run client"
+    ],
+    "pattern": "^-{0,2}dry-run[= ]client$",
+    "explanation": "`--dry-run=client` renders the object locally and prints it (with `-o yaml`) without contacting the cluster, which is the fastest way to scaffold manifests during the exam. `--dry-run=server` sends the request to the API server for admission and validation but does not persist it, and `--dry-run=none` is the default (actually create).",
+    "example": "kubectl create deployment web --image=nginx:1.27 --replicas=3 \\\n  --dry-run=client -o yaml > web.yaml\nkubectl run tmp --image=busybox --restart=Never --dry-run=client -o yaml -- sleep 3600\nkubectl expose deployment web --port=80 --dry-run=client -o yaml",
+    "diagram": "flowchart LR\n    C[\"kubectl create ... --dry-run=client -o yaml\"] --> L[\"rendered locally\"]\n    L --> F[\"web.yaml\"]\n    F -->|\"edit\"| E[\"add probes, resources\"]\n    E -->|\"kubectl apply -f\"| API[\"API server\"]\n    S[\"--dry-run=server\"] -->|\"validated, not persisted\"| API",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/conventions/",
+    "tags": [
+      "ckad",
+      "kubectl",
+      "imperative"
+    ]
+  },
+  {
+    "id": "kubernetes-104",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A `Job` is created with `completions: 6` and `parallelism: 2`. How does it execute?",
+    "options": [
+      "Up to 2 Pods run at a time until 6 Pods have finished successfully",
+      "6 Pods run at once, and the Job succeeds when 2 of them finish",
+      "2 Pods run, each processing 6 work items",
+      "It runs 6 Pods sequentially, one after another, 2 times"
+    ],
+    "optionNotes": [
+      "`parallelism` caps concurrently running Pods and `completions` is the total number of successful Pod completions required; the Job controller keeps launching Pods (max 2 at a time) until 6 succeed.",
+      "This reverses the two fields; `parallelism` is the concurrency limit, not the total.",
+      "Kubernetes has no notion of work items inside a Pod; each successful Pod counts as one completion.",
+      "Sequential execution would be `parallelism: 1`; nothing runs the batch twice."
+    ],
+    "answer": 0,
+    "explanation": "For a non-indexed Job, `completions` sets how many successful Pod terminations are required and `parallelism` limits how many Pods may run simultaneously. Failed Pods are retried up to `backoffLimit` (default 6). With `completionMode: Indexed`, each completion index is assigned to a Pod via the `JOB_COMPLETION_INDEX` environment variable.",
+    "example": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: render\nspec:\n  completions: 6      # need 6 successful pods\n  parallelism: 2      # at most 2 running at once\n  backoffLimit: 4     # give up after 4 failed pods\n  template:\n    spec:\n      restartPolicy: Never\n      containers: [{name: r, image: renderer:1.0}]",
+    "diagram": "flowchart LR\n    J[\"Job completions 6 parallelism 2\"] --> P1[\"pod 1\"]\n    J --> P2[\"pod 2\"]\n    P1 -->|\"success\"| P3[\"pod 3\"]\n    P2 -->|\"success\"| P4[\"pod 4\"]\n    P3 --> P5[\"pod 5\"]\n    P4 --> P6[\"pod 6\"]\n    P6 --> DONE[\"6 succeeded, Job Complete\"]",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs",
+    "tags": [
+      "ckad",
+      "jobs",
+      "parallelism"
+    ]
+  },
+  {
+    "id": "kubernetes-105",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "When a ConfigMap is mounted into a Pod as a volume, edits to the ConfigMap are eventually reflected in the mounted files without restarting the Pod, whereas values injected as environment variables are fixed until the Pod is recreated.",
+    "answer": true,
+    "explanation": "The kubelet periodically syncs volume-projected ConfigMap (and Secret) contents, so files update after a delay of roughly the kubelet sync period plus cache TTL, unless the mount uses `subPath` or the ConfigMap is marked `immutable`. Environment variables are read once at container start and never change, so the Pod must be restarted to pick up new values.",
+    "example": "kubectl create configmap app-cfg --from-literal=LOG_LEVEL=info\n# mounted as a volume: file updates in place (not with subPath)\nvolumes: [{name: cfg, configMap: {name: app-cfg}}]\nkubectl patch configmap app-cfg -p '{\"data\":{\"LOG_LEVEL\":\"debug\"}}'\nkubectl exec web -- cat /etc/cfg/LOG_LEVEL   # debug after ~1 minute\n# as env var: unchanged until pod restart\nkubectl rollout restart deployment web",
+    "diagram": "flowchart LR\n    CM[\"ConfigMap edited\"] --> K[\"kubelet sync loop\"]\n    K -->|\"updates projected files\"| V[\"volume mount in pod\"]\n    CM -.->|\"no effect\"| E[\"env vars set at start\"]\n    E -->|\"needs\"| R[\"pod restart\"]\n    SP[\"subPath mount\"] -.->|\"not updated\"| V",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/#mounted-configmaps-are-updated-automatically",
+    "tags": [
+      "ckad",
+      "configmap",
+      "volumes"
+    ]
+  },
+  {
+    "id": "kubernetes-106",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A container image's Dockerfile ends with `ENTRYPOINT [\"python\"]` and `CMD [\"app.py\"]`. In the Pod spec you set only `args: [\"worker.py\"]`. What runs in the container?",
+    "options": [
+      "`python worker.py`",
+      "`worker.py`",
+      "`python app.py worker.py`",
+      "The container fails because `command` must be set whenever `args` is set"
+    ],
+    "optionNotes": [
+      "Pod `command` maps to the image ENTRYPOINT and Pod `args` maps to CMD; supplying only `args` keeps the ENTRYPOINT (`python`) and replaces CMD, giving `python worker.py`.",
+      "`args` alone does not override the ENTRYPOINT, so the executable is still `python`.",
+      "CMD is replaced, not appended to, when `args` is provided.",
+      "`args` may be set on its own; only when `command` is set without `args` is the image CMD ignored."
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes `command` overrides the image's ENTRYPOINT and `args` overrides its CMD. If neither is set, the image defaults are used; if only `args` is set, ENTRYPOINT is kept and CMD is replaced; if only `command` is set, both ENTRYPOINT and CMD are replaced and CMD is dropped. Remember the exec (JSON array) form does not run through a shell, so variables need `$(VAR)` syntax or an explicit `sh -c`.",
+    "example": "# Dockerfile\nENTRYPOINT [\"python\"]\nCMD [\"app.py\"]\n# pod spec\ncontainers:\n- name: worker\n  image: myapp:1.0\n  args: [\"worker.py\"]     # -> python worker.py\n# command: [\"sh\",\"-c\"]  + args: [\"echo $(MSG)\"] would replace both",
+    "diagram": "flowchart LR\n    E[\"image ENTRYPOINT python\"] --> R[\"resulting command\"]\n    C[\"image CMD app.py\"] -.->|\"replaced\"| R\n    A[\"pod args worker.py\"] --> R\n    R --> X[\"python worker.py\"]\n    PC[\"pod command\"] -.->|\"would replace ENTRYPOINT\"| E",
+    "reference": "https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/",
+    "tags": [
+      "ckad",
+      "containers",
+      "dockerfile"
+    ]
+  },
+  {
+    "id": "kubernetes-107",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Annotations, like labels, can be used in a Service's `selector` or in `kubectl get --selector` to pick out matching objects.",
+    "answer": false,
+    "explanation": "Only labels participate in selectors; annotations are non-identifying key/value metadata for tools and libraries (build info, change-cause, ingress controller hints) and cannot be used to select objects. Labels must be short and follow strict syntax, while annotations can hold larger, structured or unstructured values.",
+    "example": "kubectl label pod web tier=frontend\nkubectl annotate pod web kubernetes.io/change-cause=\"bump to 1.27\"\nkubectl get pods -l tier=frontend            # works: label selector\nkubectl get pods -l kubernetes.io/change-cause  # no match: annotations are not selectable\n# Service selector uses labels only\nspec:\n  selector:\n    tier: frontend",
+    "diagram": "flowchart LR\n    L[\"labels tier=frontend\"] -->|\"selectable\"| S[\"Service selector\"]\n    L -->|\"selectable\"| G[\"kubectl get -l\"]\n    A[\"annotations change-cause, build info\"] -->|\"read by tools\"| T[\"controllers, ingress, CI\"]\n    A -.->|\"not selectable\"| S",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/",
+    "tags": [
+      "ckad",
+      "labels",
+      "annotations"
+    ]
+  },
+  {
+    "id": "kubernetes-108",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "According to the Twelve-Factor App methodology, where should an application read deployment-specific configuration such as database URLs and credentials from?",
+    "options": [
+      "From environment variables injected at runtime, kept out of the code and the image",
+      "From a `config.properties` file baked into the container image",
+      "From constants hard-coded in the source, with one branch per environment",
+      "From a shared network filesystem mounted on every node"
+    ],
+    "optionNotes": [
+      "Factor III (Config) states that config that varies between deploys belongs in the environment, so the same immutable image can run in dev, staging and prod; in Kubernetes this maps naturally to ConfigMaps and Secrets exposed as env vars or files.",
+      "Baking config into the image couples the artifact to one environment and forces a rebuild for every change, which is exactly what the methodology avoids.",
+      "Per-environment branches diverge and leak secrets into version control.",
+      "A shared filesystem introduces a stateful dependency and is not the recommended mechanism; the factor is about strict separation of config from code."
+    ],
+    "answer": 0,
+    "explanation": "The Twelve-Factor App principles underpin cloud native application design: strict separation of config from code (env vars), stateless processes, disposability, backing services as attached resources, and dev/prod parity. Kubernetes ConfigMaps and Secrets implement the config factor, letting one image be promoted across environments unchanged.",
+    "example": "env:\n- name: DATABASE_URL\n  valueFrom:\n    secretKeyRef: {name: db, key: url}\n- name: LOG_LEVEL\n  valueFrom:\n    configMapKeyRef: {name: app-cfg, key: LOG_LEVEL}\n# same image, different env per namespace",
+    "diagram": "flowchart LR\n    I[\"one immutable image\"] --> D[\"dev pod\"]\n    I --> P[\"prod pod\"]\n    CD[\"ConfigMap and Secret dev\"] -->|\"env\"| D\n    CP[\"ConfigMap and Secret prod\"] -->|\"env\"| P",
+    "reference": "https://www.cncf.io/blog/2019/08/13/the-twelve-factor-app-and-kubernetes/",
+    "tags": [
+      "kcna",
+      "cloud-native",
+      "twelve-factor"
+    ]
+  },
+  {
+    "id": "kubernetes-109",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "How does the kubelet start and stop containers on a node?",
+    "options": [
+      "It calls a container runtime such as containerd or CRI-O through the Container Runtime Interface (CRI) gRPC API",
+      "It executes `docker run` directly for every container",
+      "It asks the kube-apiserver to launch the container on its behalf",
+      "It links the runtime's code into the kubelet binary"
+    ],
+    "optionNotes": [
+      "The CRI is a gRPC API (RuntimeService and ImageService) that lets any compliant runtime plug into the kubelet; containerd and CRI-O are the common implementations and they in turn use an OCI runtime such as runc.",
+      "The Docker shim was removed from the kubelet in Kubernetes 1.24; Docker Engine can only be used through the external `cri-dockerd` adapter.",
+      "The API server stores desired state; it never runs containers. The kubelet watches for Pods assigned to its node and acts locally.",
+      "Runtimes are separate processes on the node, discovered via a Unix socket, not compiled into the kubelet."
+    ],
+    "answer": 0,
+    "explanation": "The kubelet is the node agent that turns PodSpecs into running containers by talking to a container runtime over the CRI (`unix:///run/containerd/containerd.sock` by default). The runtime pulls OCI images and uses an OCI-compliant low-level runtime (runc, crun, gVisor) to create the containers. This pluggable design is why Kubernetes could drop Docker-specific code.",
+    "example": "# kubelet config\ncontainerRuntimeEndpoint: unix:///run/containerd/containerd.sock\n# inspect via the same socket\ncrictl ps\ncrictl images\nctr --namespace k8s.io containers list",
+    "diagram": "flowchart LR\n    API[\"kube-apiserver\"] -->|\"Pod assigned to node\"| K[\"kubelet\"]\n    K -->|\"CRI gRPC\"| C[\"containerd or CRI-O\"]\n    C -->|\"OCI runtime spec\"| R[\"runc\"]\n    R --> P[\"container process\"]\n    C -->|\"pull OCI image\"| REG[\"registry\"]",
+    "reference": "https://kubernetes.io/docs/concepts/architecture/cri/",
+    "tags": [
+      "kcna",
+      "cri",
+      "container-runtime"
+    ]
+  },
+  {
+    "id": "kubernetes-110",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which telemetry signals are the three commonly cited pillars of cloud native observability? (Select all that apply.)",
+    "options": [
+      "Metrics",
+      "Logs",
+      "Traces",
+      "Dashboards",
+      "Alerts"
+    ],
+    "optionNotes": [
+      "Metrics are numeric time series (request rate, latency, CPU) typically scraped by Prometheus and used for alerting and SLOs.",
+      "Logs are timestamped event records emitted by applications and components, collected by tools like Fluent Bit and stored in Loki or Elasticsearch.",
+      "Traces follow a single request across services as a tree of spans, propagated with context headers and collected by OpenTelemetry and Jaeger.",
+      "Dashboards (for example Grafana) are a way of visualizing signals, not a signal type.",
+      "Alerts are rules evaluated on top of metrics or logs; they consume signals rather than being one."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Observability is the ability to infer a system's internal state from its outputs; metrics, logs and traces are the three primary signal types, with OpenTelemetry providing a vendor-neutral way to produce all three. Dashboards and alerts are downstream uses of those signals.",
+    "example": "# Prometheus scrape config for metrics\nscrape_configs:\n- job_name: api\n  kubernetes_sd_configs: [{role: pod}]\n# OpenTelemetry collector receives traces on 4317\nreceivers:\n  otlp: {protocols: {grpc: {endpoint: 0.0.0.0:4317}}}\n# logs shipped with Fluent Bit to Loki",
+    "diagram": "flowchart LR\n    APP[\"application\"] --> M[\"metrics to Prometheus\"]\n    APP --> L[\"logs to Loki\"]\n    APP --> T[\"traces to Jaeger via OTel\"]\n    M --> G[\"Grafana dashboards and alerts\"]\n    L --> G\n    T --> G",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/",
+    "tags": [
+      "kcna",
+      "observability",
+      "telemetry"
+    ]
+  },
+  {
+    "id": "kubernetes-111",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement best describes the GitOps model for delivering applications to Kubernetes?",
+    "options": [
+      "Desired state is declared in a Git repository and an in-cluster agent continuously pulls it and reconciles the cluster to match",
+      "A CI pipeline runs `kubectl apply` against the cluster after every successful build",
+      "Operators manually apply Helm charts from their laptops after code review",
+      "The cluster pushes its live state into Git so that the repository always mirrors production"
+    ],
+    "optionNotes": [
+      "OpenGitOps defines four principles: declarative, versioned and immutable, pulled automatically, continuously reconciled. Tools such as Argo CD and Flux implement the pull-and-reconcile loop, so drift is corrected and Git remains the source of truth.",
+      "Push-based CI deployment requires cluster credentials in the pipeline and does not correct drift after the pipeline finishes; it is CI/CD but not GitOps.",
+      "Manual application lacks automation and auditability; Git history should be the audit log.",
+      "The direction is reversed: Git holds the desired state and the cluster is reconciled to it, not the other way round."
+    ],
+    "answer": 0,
+    "explanation": "GitOps treats Git as the single source of truth for declarative infrastructure and application definitions. A software agent (Argo CD, Flux) running in the cluster watches the repository, applies changes, and continuously reconciles live state back to the declared state, which yields auditability, easy rollback via `git revert`, and no need to hand cluster credentials to CI.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: shop, namespace: argocd}\nspec:\n  source:\n    repoURL: https://github.com/acme/shop-config\n    path: overlays/prod\n  destination: {server: https://kubernetes.default.svc, namespace: shop}\n  syncPolicy:\n    automated: {prune: true, selfHeal: true}   # reconcile drift",
+    "diagram": "flowchart LR\n    D[\"developer PR merged\"] --> G[\"Git repo desired state\"]\n    A[\"Argo CD or Flux agent in cluster\"] -->|\"pull\"| G\n    A -->|\"reconcile\"| C[\"cluster live state\"]\n    C -.->|\"drift detected\"| A",
+    "reference": "https://opengitops.dev/",
+    "tags": [
+      "kcna",
+      "gitops",
+      "application-delivery"
+    ]
+  },
+  {
+    "id": "kubernetes-112",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Prometheus collects metrics by having each application push its measurements to the Prometheus server at a fixed interval.",
+    "answer": false,
+    "explanation": "Prometheus uses a pull model: it discovers targets (for example via Kubernetes service discovery) and scrapes their HTTP `/metrics` endpoint on a schedule. Short-lived batch jobs that cannot be scraped can push to a Pushgateway, which Prometheus then scrapes, but that is an exception rather than the normal flow.",
+    "example": "# application exposes text-format metrics\ncurl http://api:8080/metrics\n# http_requests_total{method=\"GET\",code=\"200\"} 1027\n# Prometheus scrapes it\nscrape_configs:\n- job_name: kubernetes-pods\n  kubernetes_sd_configs: [{role: pod}]\n  scrape_interval: 15s",
+    "diagram": "flowchart LR\n    P[\"Prometheus server\"] -->|\"GET /metrics every 15s\"| A[\"app pod\"]\n    P -->|\"GET /metrics\"| N[\"node exporter\"]\n    SD[\"Kubernetes service discovery\"] --> P\n    J[\"short batch job\"] -->|\"push\"| PG[\"Pushgateway\"]\n    P -->|\"scrape\"| PG",
+    "reference": "https://prometheus.io/docs/introduction/overview/",
+    "tags": [
+      "kcna",
+      "prometheus",
+      "observability"
+    ]
+  },
+  {
+    "id": "kubernetes-113",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "The '4Cs of Cloud Native Security' model describes security as layered. Which are the four layers, from outermost to innermost?",
+    "options": [
+      "Cloud, Cluster, Container, Code",
+      "Cloud, Cluster, Container, CI/CD",
+      "Compliance, Cluster, Container, Code",
+      "Cloud, Control plane, Container, Configuration"
+    ],
+    "optionNotes": [
+      "Each layer builds on the one outside it: securing the cloud or datacenter, then the Kubernetes cluster (RBAC, network policy, Pod Security), then the container (image scanning, non-root, minimal base), then the application code (dependencies, TLS, static analysis).",
+      "CI/CD is a delivery concern that spans layers; it is not one of the 4Cs.",
+      "Compliance is an outcome of applying controls across all layers, not a layer itself.",
+      "The control plane is part of the Cluster layer and configuration is part of Code and Cluster, so these are not the named layers."
+    ],
+    "answer": 0,
+    "explanation": "The Kubernetes documentation frames cloud native security as four nested layers: Cloud, Cluster, Container and Code. Weakness in an outer layer undermines the inner ones, so you cannot compensate for an exposed cloud account with hardened code. The model is a common KCNA and KCSA exam topic.",
+    "example": "# examples per layer\n# Cloud:     private API endpoint, node IAM roles, encrypted disks\n# Cluster:   RBAC least privilege, NetworkPolicy, Pod Security Admission\n# Container: trivy image scan, distroless base, runAsNonRoot\n# Code:      dependency scanning, TLS, secrets not in source\nkubectl label ns prod pod-security.kubernetes.io/enforce=restricted",
+    "diagram": "flowchart TD\n    CL[\"Cloud or datacenter\"] --> K[\"Cluster\"]\n    K --> C[\"Container\"]\n    C --> CO[\"Code\"]\n    CL -.->|\"weak outer layer exposes all inner layers\"| CO",
+    "reference": "https://kubernetes.io/docs/concepts/security/overview/",
+    "tags": [
+      "kcna",
+      "security",
+      "4cs"
+    ]
+  },
+  {
+    "id": "kubernetes-114",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Knative has two main components. Which one runs request-driven, autoscaled (including scale-to-zero) serverless workloads on Kubernetes?",
+    "answer": [
+      "Serving",
+      "Knative Serving",
+      "knative-serving"
+    ],
+    "pattern": "^(knative[ -]?)?serving$",
+    "explanation": "Knative Serving deploys containers as `Service` resources (`serving.knative.dev`) with revisions, traffic splitting and a request-based autoscaler that can scale to zero and back. Knative Eventing, the other component, provides event sources, brokers and triggers for event-driven architectures. Together they are the CNCF's serverless platform for Kubernetes.",
+    "example": "apiVersion: serving.knative.dev/v1\nkind: Service\nmetadata:\n  name: hello\nspec:\n  template:\n    metadata:\n      annotations:\n        autoscaling.knative.dev/min-scale: \"0\"   # scale to zero\n    spec:\n      containers:\n      - image: ghcr.io/knative/helloworld-go:latest",
+    "diagram": "flowchart LR\n    R[\"HTTP request\"] --> A[\"Knative activator\"]\n    A -->|\"scale from 0\"| AS[\"autoscaler\"]\n    AS --> D[\"revision pods\"]\n    D -->|\"idle\"| Z[\"scaled to zero\"]\n    E[\"Knative Eventing broker\"] -->|\"CloudEvents\"| D",
+    "reference": "https://knative.dev/docs/serving/",
+    "tags": [
+      "kcna",
+      "serverless",
+      "knative"
+    ]
+  },
+  {
+    "id": "kubernetes-115",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a service mesh such as Istio or Linkerd, which component actually handles the traffic between services and enforces mTLS, retries and traffic splitting?",
+    "options": [
+      "The data plane: a proxy (for example Envoy) deployed alongside each workload that intercepts all inbound and outbound traffic",
+      "The control plane, which forwards every request between services",
+      "kube-proxy, which is reconfigured by the mesh",
+      "The Kubernetes API server, which applies mesh policies to each request"
+    ],
+    "optionNotes": [
+      "Mesh proxies (sidecars, or per-node proxies in ambient mode) sit in the request path and apply the policy pushed to them; they terminate mTLS, retry, time out, split traffic and emit telemetry without changes to application code.",
+      "The control plane (istiod, linkerd-destination) distributes configuration and certificates to the proxies but is not in the request path; if it goes down, existing traffic keeps flowing.",
+      "kube-proxy implements Service virtual IPs; the mesh proxy intercepts traffic before or after it, but kube-proxy itself does not perform mesh functions.",
+      "The API server stores mesh CRDs such as VirtualService, but it never sees application traffic."
+    ],
+    "answer": 0,
+    "explanation": "A service mesh is split into a control plane that computes and distributes config, and a data plane of proxies that transparently handle service-to-service traffic. Because the proxies are in the path, they can enforce mutual TLS, authorization policies, retries and canary splits, and produce uniform metrics and traces for every service regardless of language.",
+    "example": "kubectl label namespace shop istio-injection=enabled   # sidecar injection\nkubectl get pod -n shop cart-1 -o jsonpath='{.spec.containers[*].name}'\n# cart istio-proxy\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata: {name: default, namespace: shop}\nspec:\n  mtls: {mode: STRICT}   # enforced by the proxies",
+    "diagram": "flowchart LR\n    CP[\"control plane istiod\"] -->|\"config and certs\"| P1[\"envoy proxy\"]\n    CP -->|\"config and certs\"| P2[\"envoy proxy\"]\n    A[\"service A\"] --> P1\n    P1 -->|\"mTLS, retries, split\"| P2\n    P2 --> B[\"service B\"]",
+    "reference": "https://istio.io/latest/docs/ops/deployment/architecture/",
+    "tags": [
+      "kcna",
+      "service-mesh",
+      "istio"
+    ]
   }
 ]

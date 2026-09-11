@@ -1,0 +1,476 @@
+[
+  {
+    "id": "backstage-001",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Backstage is described as a framework for building Internal Developer Portals (IDPs). Which three core features ship with the open-source project out of the box?",
+    "options": [
+      "Software Catalog, Software Templates, and TechDocs",
+      "CI/CD pipelines, a container registry, and a secrets manager",
+      "A Kubernetes distribution, a service mesh, and an ingress controller",
+      "An issue tracker, a wiki, and a chat client"
+    ],
+    "optionNotes": [
+      "Correct. The Software Catalog (ownership and metadata), Software Templates via the Scaffolder (golden paths), and TechDocs (docs-like-code) are the three core features bundled with Backstage, extended by a plugin ecosystem.",
+      "Backstage integrates with CI/CD, registries, and secret stores through plugins, but it does not ship or run these systems itself.",
+      "Backstage is a Node.js/React web application, not a Kubernetes distribution or networking layer; the Kubernetes plugin only visualises workloads.",
+      "Backstage surfaces links to issue trackers and chat tools through entity annotations, but it does not replace them."
+    ],
+    "answer": 0,
+    "explanation": "Backstage is an open platform (a CNCF project originally built by Spotify) for building developer portals. Its three core features are the Software Catalog, Software Templates (Scaffolder), and TechDocs; everything else comes from the plugin ecosystem. It is not itself a CI system, cluster, or ticketing tool.",
+    "example": "# create a new Backstage app (interactive prompts for name)\nnpx @backstage/create-app@latest\ncd my-portal\nyarn start   # runs frontend + backend in dev mode\n# http://localhost:3000 -> Catalog, Create (templates), Docs (TechDocs)",
+    "diagram": "flowchart TD\n    IDP[\"Backstage developer portal\"]\n    IDP --> C[\"Software Catalog\"]\n    IDP --> T[\"Software Templates / Scaffolder\"]\n    IDP --> D[\"TechDocs\"]\n    IDP --> P[\"Plugin ecosystem\"]\n    P --> K[\"Kubernetes, CI, Search, etc\"]",
+    "reference": "https://backstage.io/docs/overview/what-is-backstage",
+    "tags": [
+      "cba",
+      "overview",
+      "idp"
+    ]
+  },
+  {
+    "id": "backstage-002",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a `catalog-info.yaml` describing a `kind: Component` entity, which two `spec` fields are required by the catalog's validation?",
+    "options": [
+      "`spec.type` and `spec.owner`",
+      "`spec.lifecycle` and `spec.system`",
+      "`spec.owner` and `spec.dependsOn`",
+      "`spec.type` and `spec.providesApis`"
+    ],
+    "optionNotes": [
+      "Correct. A Component must declare `spec.type` (for example `service`, `website`, `library`), `spec.owner` (an entity ref such as `group:default/team-a`), and `spec.lifecycle`; `type` and `owner` are the two listed here that are mandatory.",
+      "`spec.lifecycle` is indeed required, but `spec.system` is optional and only creates a `partOf` relation when present.",
+      "`spec.owner` is required, but `spec.dependsOn` is an optional list of entity refs.",
+      "`spec.type` is required, but `spec.providesApis` is optional and only relevant when the component exposes APIs."
+    ],
+    "answer": 0,
+    "explanation": "The Component kind requires `spec.type`, `spec.lifecycle`, and `spec.owner`; the catalog rejects entities missing them. Fields like `system`, `dependsOn`, `providesApis`, and `consumesApis` are optional and exist to generate relations to other entities.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments-api\n  annotations:\n    github.com/project-slug: acme/payments-api\nspec:\n  type: service       # required\n  lifecycle: production # required\n  owner: group:default/payments-team  # required\n  system: checkout    # optional -> partOf relation",
+    "diagram": "flowchart LR\n    F[\"catalog-info.yaml\"] --> K[\"kind: Component\"]\n    K --> T[\"spec.type required\"]\n    K --> L[\"spec.lifecycle required\"]\n    K --> O[\"spec.owner required\"]\n    K --> S[\"spec.system optional\"]\n    O -->|\"ownedBy\"| G[\"Group entity\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format",
+    "tags": [
+      "cba",
+      "catalog",
+      "descriptor-format"
+    ]
+  },
+  {
+    "id": "backstage-003",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of these are well-known relation types that the Backstage catalog generates between entities? (Select all that apply.)",
+    "options": [
+      "`ownedBy` / `ownerOf`",
+      "`dependsOn` / `dependencyOf`",
+      "`partOf` / `hasPart`",
+      "`deployedTo` / `hostOf`",
+      "`linkedWith` / `linkedBy`"
+    ],
+    "optionNotes": [
+      "Correct. `spec.owner` on a Component, API, Resource, System, or Domain produces an `ownedBy` relation, and the reverse `ownerOf` on the Group or User.",
+      "Correct. `spec.dependsOn` on Components and Resources yields `dependsOn`, with `dependencyOf` on the target.",
+      "Correct. `spec.system` on a Component/API/Resource, `spec.domain` on a System, and `spec.subcomponentOf` all produce `partOf`, with `hasPart` on the parent.",
+      "There is no built-in `deployedTo` relation; deployment targets are surfaced by plugins such as Kubernetes using annotations, not catalog relations.",
+      "`linkedWith` is not a catalog relation. Links to external URLs live in `metadata.links` and do not create relations."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The catalog derives relations from spec fields: `ownedBy`/`ownerOf` from `spec.owner`, `dependsOn`/`dependencyOf` from `spec.dependsOn`, `partOf`/`hasPart` from `spec.system`, `spec.domain`, and `spec.subcomponentOf`, plus `providesApi`/`apiProvidedBy`, `consumesApi`/`apiConsumedBy`, and `memberOf`/`hasMember`. `deployedTo` and `linkedWith` are not part of the well-known relation set.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: orders-service\nspec:\n  type: service\n  lifecycle: production\n  owner: team-orders           # -> ownedBy group:default/team-orders\n  system: checkout             # -> partOf system:default/checkout\n  dependsOn:\n    - resource:default/orders-db  # -> dependsOn\n  providesApis:\n    - orders-api                 # -> providesApi",
+    "diagram": "flowchart LR\n    C[\"Component orders-service\"] -->|\"ownedBy\"| G[\"Group team-orders\"]\n    C -->|\"partOf\"| S[\"System checkout\"]\n    C -->|\"dependsOn\"| R[\"Resource orders-db\"]\n    C -->|\"providesApi\"| A[\"API orders-api\"]\n    S -->|\"partOf\"| D[\"Domain commerce\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/well-known-relations",
+    "tags": [
+      "cba",
+      "catalog",
+      "relations"
+    ]
+  },
+  {
+    "id": "backstage-004",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In the Backstage catalog backend, what is the difference between an entity provider and a processor?",
+    "options": [
+      "Entity providers are the source of truth that emit entities into the catalog (for example from GitHub or LDAP); processors then validate, enrich, and emit relations for entities during ingestion",
+      "Entity providers render entity pages in the frontend; processors run in the backend",
+      "Processors are the only way to add entities, while entity providers are deprecated aliases",
+      "Entity providers store entities in the database; processors serve the REST API"
+    ],
+    "optionNotes": [
+      "Correct. Providers own the lifecycle of the entities they inject (full or delta mutations) and are the source of truth; processors run in a pipeline over every entity to validate, transform, emit relations, and emit child entities.",
+      "Both providers and processors are backend concepts registered on the catalog plugin; neither has anything to do with React entity pages.",
+      "Providers are the modern, preferred way to bulk-ingest entities. Processors can still emit entities (for example from a Location), but they are not the sole mechanism.",
+      "Persistence and the REST API are handled by the catalog engine itself, not by providers or processors."
+    ],
+    "answer": 0,
+    "explanation": "An `EntityProvider` connects to an external source and tells the catalog exactly which entities exist, using `applyMutation` with `full` or `delta` sets. A `CatalogProcessor` runs on each entity as it flows through the processing pipeline, validating it, emitting relations, or emitting additional entities. Static `catalog.locations` in `app-config.yaml` are fed in through the built-in config-based provider.",
+    "example": "// packages/backend/src/index.ts (new backend system)\nimport { createBackend } from '@backstage/backend-defaults';\nconst backend = createBackend();\nbackend.add(import('@backstage/plugin-catalog-backend'));\n// entity provider module: discovers catalog-info.yaml across an org\nbackend.add(import('@backstage/plugin-catalog-backend-module-github'));\n// processor module: adds scaffolder Template kind validation\nbackend.add(import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'));\nbackend.start();",
+    "diagram": "flowchart LR\n    GH[\"GitHub org\"] --> EP[\"EntityProvider\"]\n    CFG[\"app-config catalog.locations\"] --> EP2[\"Config EntityProvider\"]\n    EP -->|\"applyMutation\"| Q[\"Processing pipeline\"]\n    EP2 --> Q\n    Q --> P1[\"Processor validate\"]\n    P1 --> P2[\"Processor emit relations\"]\n    P2 --> DB[\"Catalog database\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/external-integrations",
+    "tags": [
+      "cba",
+      "catalog",
+      "entity-providers"
+    ]
+  },
+  {
+    "id": "backstage-005",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Once a `catalog-info.yaml` has been registered as a Location, the catalog only reads it once; later edits to the file in Git are not picked up unless the entity is deleted and re-registered.",
+    "answer": false,
+    "explanation": "The catalog continuously refreshes registered locations on a processing interval (by default roughly every 100-150 seconds with jitter, configurable via `catalog.processingInterval`), so changes committed to the file appear automatically. Users can also trigger an immediate refresh via the entity page's refresh button or the `/refresh` API. Deleting and re-registering is never required for ordinary edits.",
+    "example": "# app-config.yaml\ncatalog:\n  processingInterval: { minutes: 3 }   # how often locations are re-read\n  locations:\n    - type: url\n      target: https://github.com/acme/payments-api/blob/main/catalog-info.yaml\n\n# force an immediate refresh of one entity\ncurl -X POST http://localhost:7007/api/catalog/refresh \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"entityRef\":\"component:default/payments-api\"}'",
+    "diagram": "sequenceDiagram\n    participant Dev as \"Developer\"\n    participant Git as \"Git repo\"\n    participant Cat as \"Catalog backend\"\n    Dev->>Git: \"commit change to catalog-info.yaml\"\n    loop \"every processingInterval\"\n        Cat->>Git: \"fetch registered Location\"\n        Git-->>Cat: \"updated YAML\"\n        Cat->>Cat: \"reprocess and store entity\"\n    end",
+    "reference": "https://backstage.io/docs/features/software-catalog/life-of-an-entity",
+    "tags": [
+      "cba",
+      "catalog",
+      "refresh"
+    ]
+  },
+  {
+    "id": "backstage-006",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a Scaffolder `template.yaml`, what is the `action` id of the built-in step that creates a new GitHub repository and pushes the generated workspace contents to it?",
+    "answer": [
+      "publish:github",
+      "publish:github action"
+    ],
+    "pattern": "^publish:github$",
+    "explanation": "`publish:github` is the built-in publish action from the GitHub scaffolder module. It takes a `repoUrl` (usually `github.com?owner=...&repo=...`), initialises the repository, pushes the workspace, and outputs `remoteUrl` and `repoContentsUrl` that later steps (such as `catalog:register`) consume. Sibling actions exist for GitLab, Bitbucket, Azure, and Gerrit.",
+    "example": "steps:\n  - id: fetch\n    name: Fetch skeleton\n    action: fetch:template\n    input:\n      url: ./skeleton\n      values:\n        name: ${{ parameters.name }}\n  - id: publish\n    name: Publish to GitHub\n    action: publish:github\n    input:\n      repoUrl: ${{ parameters.repoUrl }}   # github.com?owner=acme&repo=my-svc\n      defaultBranch: main",
+    "diagram": "flowchart LR\n    P[\"parameters\"] --> F[\"fetch:template\"]\n    F -->|\"workspace files\"| PG[\"publish:github\"]\n    PG -->|\"remoteUrl, repoContentsUrl\"| CR[\"catalog:register\"]\n    CR --> CAT[\"Software Catalog\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/builtin-actions",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "actions"
+    ]
+  },
+  {
+    "id": "backstage-007",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A software template successfully creates a repository, but the new service never appears in the Software Catalog. Which step is most likely missing from the template?",
+    "options": [
+      "A `catalog:register` step that registers the published `catalog-info.yaml` as a Location",
+      "A `fetch:plain` step that downloads the catalog database",
+      "A `debug:log` step that prints the entity to the console",
+      "A `catalog:fetch` step that reads the new entity"
+    ],
+    "optionNotes": [
+      "Correct. `catalog:register` takes `repoContentsUrl` (from the publish step) plus `catalogInfoPath`, or a direct `catalogInfoUrl`, and registers that file as a catalog Location so the entity is ingested.",
+      "`fetch:plain` copies files into the workspace; it has nothing to do with catalog registration and the database is never downloaded.",
+      "`debug:log` is only a diagnostic action that writes messages to the task log.",
+      "`catalog:fetch` reads existing entities from the catalog into template context; it does not register new ones."
+    ],
+    "answer": 0,
+    "explanation": "Publishing a repository does not tell the catalog about it. The `catalog:register` action creates a Location entity pointing at the repository's `catalog-info.yaml`, after which the catalog processes and displays the Component. The typical template chain is `fetch:template` -> `publish:github` -> `catalog:register`, with an output link to the new entity.",
+    "example": "  - id: register\n    name: Register in catalog\n    action: catalog:register\n    input:\n      repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}\n      catalogInfoPath: /catalog-info.yaml\noutput:\n  links:\n    - title: Open in catalog\n      icon: catalog\n      entityRef: ${{ steps.register.output.entityRef }}",
+    "diagram": "flowchart LR\n    PUB[\"publish:github\"] -->|\"repoContentsUrl\"| REG[\"catalog:register\"]\n    REG -->|\"creates Location\"| LOC[\"Location entity\"]\n    LOC -->|\"processed\"| COMP[\"Component appears in catalog\"]\n    REG -->|\"entityRef\"| OUT[\"template output link\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-templates",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "catalog-register"
+    ]
+  },
+  {
+    "id": "backstage-008",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which `apiVersion` and `kind` should a current Scaffolder template file declare so that it is accepted by the catalog and the Scaffolder?",
+    "options": [
+      "`apiVersion: scaffolder.backstage.io/v1beta3` with `kind: Template`",
+      "`apiVersion: backstage.io/v1alpha1` with `kind: Template`",
+      "`apiVersion: scaffolder.backstage.io/v1` with `kind: Scaffold`",
+      "`apiVersion: backstage.io/v1alpha1` with `kind: Component` and `spec.type: template`"
+    ],
+    "optionNotes": [
+      "Correct. Templates use `scaffolder.backstage.io/v1beta3`; this version introduced the `${{ }}` templating syntax, `parameters` (JSON Schema forms), and `steps` that call actions.",
+      "`backstage.io/v1alpha1` is the apiVersion for ordinary catalog kinds like Component and System; the Scaffolder rejects Template entities that use it.",
+      "There is no `Scaffold` kind and no `v1` scaffolder apiVersion.",
+      "A Component with `type: template` is just a regular component; it would not appear on the Create page or be executable by the Scaffolder."
+    ],
+    "answer": 0,
+    "explanation": "Software templates are catalog entities of `kind: Template` with `apiVersion: scaffolder.backstage.io/v1beta3`. The `spec` holds `parameters` (one or more JSON Schema pages rendered as forms), `steps` (action invocations that can reference `${{ parameters.x }}` and `${{ steps.id.output.y }}`), and optional `output`. Earlier `v1beta2` templates used a different templating syntax and are no longer supported.",
+    "example": "apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\nmetadata:\n  name: node-service\n  title: Node.js service\nspec:\n  owner: group:default/platform\n  type: service\n  parameters:\n    - title: Basics\n      required: [name]\n      properties:\n        name: { type: string, ui:autofocus: true }\n  steps:\n    - id: fetch\n      action: fetch:template\n      input: { url: ./skeleton, values: { name: '${{ parameters.name }}' } }",
+    "diagram": "flowchart TD\n    T[\"kind: Template v1beta3\"] --> PA[\"spec.parameters JSON Schema forms\"]\n    T --> ST[\"spec.steps action calls\"]\n    T --> OU[\"spec.output links\"]\n    PA -->|\"parameters.name\"| ST\n    ST -->|\"steps.id.output\"| OU",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-templates",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "template-yaml"
+    ]
+  },
+  {
+    "id": "backstage-009",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `metadata.annotations` key must be added to an entity so that TechDocs knows where to find its `mkdocs.yml` and documentation source?",
+    "answer": [
+      "backstage.io/techdocs-ref",
+      "techdocs-ref"
+    ],
+    "pattern": "^(backstage\\.io/)?techdocs-ref$",
+    "explanation": "The `backstage.io/techdocs-ref` annotation points TechDocs at the docs source. `dir:.` means the `mkdocs.yml` sits next to `catalog-info.yaml` in the same repository, `dir:./docs-root` a subdirectory, and `url:https://...` a different location entirely. Without the annotation the Docs tab shows a missing-annotation message.",
+    "example": "# catalog-info.yaml\nmetadata:\n  name: payments-api\n  annotations:\n    backstage.io/techdocs-ref: dir:.   # mkdocs.yml is next to this file\n\n# mkdocs.yml\nsite_name: Payments API\nnav:\n  - Home: index.md\nplugins:\n  - techdocs-core",
+    "diagram": "flowchart LR\n    E[\"Entity catalog-info.yaml\"] -->|\"backstage.io/techdocs-ref dir:.\"| SRC[\"mkdocs.yml + docs/\"]\n    SRC --> B[\"TechDocs builder mkdocs\"]\n    B --> HTML[\"static site\"]\n    HTML --> UI[\"Docs tab on entity page\"]",
+    "reference": "https://backstage.io/docs/features/techdocs/creating-and-publishing",
+    "tags": [
+      "cba",
+      "techdocs",
+      "annotations"
+    ]
+  },
+  {
+    "id": "backstage-010",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In `app-config.yaml`, a team sets `techdocs.builder: 'external'` and `techdocs.publisher.type: 'awsS3'`. What does this configuration mean for how documentation is produced and served?",
+    "options": [
+      "Docs are built by an external pipeline (for example CI running `techdocs-cli generate` and `publish`) and Backstage only reads the finished sites from the S3 bucket",
+      "The Backstage backend runs MkDocs on demand for every request and caches the output in S3",
+      "Backstage delegates rendering to an external SaaS documentation service",
+      "TechDocs is disabled; the S3 setting is ignored"
+    ],
+    "optionNotes": [
+      "Correct. The recommended production setup: CI builds docs with `techdocs-cli` and uploads them to object storage; the Backstage backend acts as a read-only server for that storage.",
+      "That describes the `local` builder mode, where the backend generates docs itself on first view (and refreshes when the source changes). It is suited to demos and small installs, not production.",
+      "There is no SaaS renderer; `external` refers to a build pipeline you own.",
+      "TechDocs remains enabled; the publisher configuration is exactly what tells the backend where finished sites live."
+    ],
+    "answer": 0,
+    "explanation": "`techdocs.builder` has two values: `local` (the backend generates docs using MkDocs, either natively or via the `techdocs` Docker image) and `external` (some other system generates them). `techdocs.publisher` chooses where the generated sites are stored: `local` filesystem, `awsS3`, `googleGcs`, `azureBlobStorage`, or `openStackSwift`. The recommended production architecture is the external builder with cloud storage.",
+    "example": "# app-config.production.yaml\ntechdocs:\n  builder: 'external'   # CI generates the docs\n  publisher:\n    type: 'awsS3'\n    awsS3:\n      bucketName: 'acme-techdocs'\n      region: 'eu-west-1'\n\n# in CI\nnpx @techdocs/cli generate --no-docker\nnpx @techdocs/cli publish --publisher-type awsS3 \\\n  --storage-name acme-techdocs --entity default/component/payments-api",
+    "diagram": "flowchart LR\n    CI[\"CI pipeline\"] -->|\"techdocs-cli generate\"| SITE[\"HTML site\"]\n    SITE -->|\"techdocs-cli publish\"| S3[\"S3 bucket\"]\n    S3 -->|\"read only\"| BE[\"Backstage TechDocs backend\"]\n    BE --> FE[\"Docs tab\"]",
+    "reference": "https://backstage.io/docs/features/techdocs/architecture",
+    "tags": [
+      "cba",
+      "techdocs",
+      "builder-publisher"
+    ]
+  },
+  {
+    "id": "backstage-011",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Using the new Backstage backend system, a developer wants their plugin to obtain a logger and an HTTP router at startup. Which pattern is correct?",
+    "options": [
+      "Call `createBackendPlugin` with a `register(env)` function that calls `env.registerInit({ deps: { logger: coreServices.logger, httpRouter: coreServices.httpRouter }, async init({ logger, httpRouter }) { ... } })`",
+      "Export a `createRouter(env: PluginEnvironment)` function and wire it in `packages/backend/src/plugins/<name>.ts`",
+      "Instantiate `new Logger()` and `express.Router()` directly inside the plugin module's top-level code",
+      "Declare the services in `app-config.yaml` under `backend.services` and the framework injects them as globals"
+    ],
+    "optionNotes": [
+      "Correct. In the new backend system, plugins declare service dependencies on `coreServices` (logger, httpRouter, database, config, auth, httpAuth, scheduler, and so on) and the framework resolves and injects them into `init`; the plugin is then added with `backend.add(import('...'))`.",
+      "That is the legacy backend pattern with `PluginEnvironment` and per-plugin files, which has been removed in favour of `createBackendPlugin` and `backend.add()`.",
+      "Creating services manually bypasses dependency injection, configuration, and shared instrumentation; plugins should not construct core services themselves.",
+      "Service wiring is done in code through dependency declarations; there is no `backend.services` config block that injects globals."
+    ],
+    "answer": 0,
+    "explanation": "The new backend system centres on `createBackendPlugin` (and `createBackendModule` for extensions). Inside `register`, `registerInit` declares `deps` on service references such as `coreServices.logger` and `coreServices.httpRouter`; the framework instantiates them and calls `init`. The app's `packages/backend/src/index.ts` simply calls `backend.add(import('@internal/plugin-x-backend'))`, replacing the old `PluginEnvironment` plumbing.",
+    "example": "import { coreServices, createBackendPlugin } from '@backstage/backend-plugin-api';\nimport { createRouter } from './router';\n\nexport const todoPlugin = createBackendPlugin({\n  pluginId: 'todo',\n  register(env) {\n    env.registerInit({\n      deps: { logger: coreServices.logger, httpRouter: coreServices.httpRouter },\n      async init({ logger, httpRouter }) {\n        httpRouter.use(await createRouter({ logger }));  // served at /api/todo\n      },\n    });\n  },\n});",
+    "diagram": "flowchart LR\n    IDX[\"packages/backend index.ts backend.add\"] --> PL[\"createBackendPlugin pluginId todo\"]\n    PL --> RI[\"registerInit deps\"]\n    RI --> L[\"coreServices.logger\"]\n    RI --> H[\"coreServices.httpRouter\"]\n    L --> INIT[\"init receives instances\"]\n    H --> INIT\n    INIT --> API[\"/api/todo routes\"]",
+    "reference": "https://backstage.io/docs/backend-system/building-plugins-and-modules/index",
+    "tags": [
+      "cba",
+      "plugins",
+      "backend-system"
+    ]
+  },
+  {
+    "id": "backstage-012",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Backstage search gathers documents through collators that run in the backend on a schedule; the default catalog and TechDocs collators are backend modules, and the frontend only queries the resulting index.",
+    "answer": true,
+    "explanation": "The search backend runs collators (for example `catalog-collator` and `techdocs-collator`) on a scheduler, optionally passes documents through decorators, and writes them to a search engine (Lunr by default, or Postgres, Elasticsearch/OpenSearch). The frontend `SearchPage` and `SearchBar` just call the search API and render results; they do not index anything themselves.",
+    "example": "// packages/backend/src/index.ts\nbackend.add(import('@backstage/plugin-search-backend'));\nbackend.add(import('@backstage/plugin-search-backend-module-catalog'));   // catalog collator\nbackend.add(import('@backstage/plugin-search-backend-module-techdocs'));  // techdocs collator\nbackend.add(import('@backstage/plugin-search-backend-module-pg'));        // Postgres engine\n\n# app-config.yaml\nsearch:\n  pg: { highlightOptions: { useHighlight: true } }",
+    "diagram": "flowchart LR\n    SCH[\"Scheduler\"] --> CC[\"Catalog collator\"]\n    SCH --> TC[\"TechDocs collator\"]\n    CC --> DEC[\"Decorators optional\"]\n    TC --> DEC\n    DEC --> ENG[\"Search engine Lunr Postgres Elasticsearch\"]\n    UI[\"SearchPage frontend\"] -->|\"query\"| ENG",
+    "reference": "https://backstage.io/docs/features/search/architecture",
+    "tags": [
+      "cba",
+      "search",
+      "collators"
+    ]
+  },
+  {
+    "id": "backstage-013",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A company enables the GitHub auth provider. Users can log in, but the backend logs `Failed to sign-in, unable to resolve user identity` and the session never becomes valid. What is missing?",
+    "options": [
+      "A sign-in resolver configured for the provider (for example `resolvers: - resolver: usernameMatchingUserEntityName`) that maps the GitHub profile to a User entity and issues a Backstage identity token",
+      "The `auth.environment` key, which must always equal `production`",
+      "A `kind: Location` entity pointing at GitHub's OAuth endpoint",
+      "The guest provider, which must be enabled alongside every other provider"
+    ],
+    "optionNotes": [
+      "Correct. Authentication proves who the user is at the provider; the sign-in resolver decides which Backstage identity (`user:default/<name>` plus ownership refs) they get. With no resolver, sign-in cannot complete. Built-in resolvers include `usernameMatchingUserEntityName` and `emailMatchingUserEntityProfileEmail`, and you can write custom ones with `signIn.resolvers`.",
+      "`auth.environment` selects which block under the provider (`development`, `production`) is used; it does not need to be `production` and its absence does not produce this error.",
+      "OAuth endpoints are not catalog entities; User and Group entities are what resolvers look up, typically ingested by an org entity provider.",
+      "Guest auth is an independent provider for unauthenticated access and is not required by other providers."
+    ],
+    "answer": 0,
+    "explanation": "Backstage separates authentication (the provider verifying credentials) from sign-in (resolving a Backstage user identity and issuing a token). Each provider in `auth.providers` needs a `signIn.resolvers` list, either a built-in resolver or a custom one that returns `ctx.signInWithCatalogUser(...)` or `ctx.issueToken(...)`. If no resolver matches or none is configured, sign-in fails even though the OAuth flow succeeded.",
+    "example": "# app-config.yaml\nauth:\n  environment: development\n  providers:\n    github:\n      development:\n        clientId: ${AUTH_GITHUB_CLIENT_ID}\n        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}\n        signIn:\n          resolvers:\n            - resolver: usernameMatchingUserEntityName  # github login -> user:default/<login>\n\n# backend\nbackend.add(import('@backstage/plugin-auth-backend'));\nbackend.add(import('@backstage/plugin-auth-backend-module-github-provider'));",
+    "diagram": "sequenceDiagram\n    participant U as \"User\"\n    participant BE as \"auth backend\"\n    participant GH as \"GitHub OAuth\"\n    participant CAT as \"Catalog\"\n    U->>BE: \"start github login\"\n    BE->>GH: \"OAuth flow\"\n    GH-->>BE: \"profile login=alice\"\n    BE->>CAT: \"resolver looks up user:default/alice\"\n    CAT-->>BE: \"User entity + memberOf groups\"\n    BE-->>U: \"Backstage identity token\"",
+    "reference": "https://backstage.io/docs/auth/identity-resolver",
+    "tags": [
+      "cba",
+      "auth",
+      "sign-in-resolver"
+    ]
+  },
+  {
+    "id": "backstage-014",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "The `guest` auth provider is intended for local development; in production Backstage refuses to use it unless `dangerouslyAllowOutsideDevelopment: true` is explicitly set.",
+    "answer": true,
+    "explanation": "The guest provider (`@backstage/plugin-auth-backend-module-guest-provider`) signs everyone in as `user:development/guest` without credentials, which is convenient for `yarn start` but unsafe when the portal is reachable by others. Backstage therefore disables it outside `NODE_ENV=development` unless the operator sets `dangerouslyAllowOutsideDevelopment: true`, making the risk explicit.",
+    "example": "# app-config.yaml (development)\nauth:\n  providers:\n    guest: {}   # everyone is user:development/guest\n\n# app-config.production.yaml - normally omit guest entirely; if you must:\nauth:\n  providers:\n    guest:\n      dangerouslyAllowOutsideDevelopment: true\n      userEntityRef: user:default/guest",
+    "diagram": "flowchart TD\n    G[\"guest provider configured\"] --> ENV{\"NODE_ENV development?\"}\n    ENV -->|\"yes\"| OK[\"sign in as guest\"]\n    ENV -->|\"no\"| FLAG{\"dangerouslyAllowOutsideDevelopment true?\"}\n    FLAG -->|\"yes\"| OK\n    FLAG -->|\"no\"| BLOCK[\"provider disabled\"]",
+    "reference": "https://backstage.io/docs/auth/guest/provider",
+    "tags": [
+      "cba",
+      "auth",
+      "guest"
+    ]
+  },
+  {
+    "id": "backstage-015",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A permission policy should let users delete catalog entities only when they own them. Which policy implementation achieves this correctly with the Backstage permissions framework?",
+    "options": [
+      "For `catalog.entity.delete`, return `createCatalogConditionalDecision(request.permission, catalogConditions.isEntityOwner({ claims: user.info.ownershipEntityRefs }))`; the catalog then evaluates the rule per entity",
+      "Return `AuthorizeResult.ALLOW` and rely on the frontend to hide the delete button for non-owners",
+      "Add `permission.rules: [isEntityOwner]` to `app-config.yaml` and no code is required",
+      "Return `AuthorizeResult.DENY` for everyone and grant exceptions via the `catalog.rules` config"
+    ],
+    "optionNotes": [
+      "Correct. Resource permissions support conditional decisions: the policy returns a condition built from a permission rule (`isEntityOwner`) and the owning plugin applies it to the specific resource, so ownership is checked server-side per entity.",
+      "The framework is enforced in the backend; an unconditional ALLOW would let anyone delete via the API regardless of what the UI shows.",
+      "Policies are TypeScript classes implementing `PermissionPolicy`, registered through a backend module; there is no config-only rule binding.",
+      "`catalog.rules` controls which entity kinds may be ingested from locations, not who may delete them, and a blanket DENY would block owners too."
+    ],
+    "answer": 0,
+    "explanation": "A `PermissionPolicy.handle(request, user)` returns `ALLOW`, `DENY`, or a `CONDITIONAL` decision. For resource-scoped permissions like `catalog.entity.delete`, conditional decisions reference permission rules (`isEntityOwner`, `hasAnnotation`, `isEntityKind`, and so on) that the resource-owning plugin evaluates against the actual entity. This keeps authorization on the server while allowing fine-grained per-resource logic; the policy is wired with `policyExtensionPoint.setPolicy` in a `createBackendModule` for `permission`.",
+    "example": "class OwnerOnlyDelete implements PermissionPolicy {\n  async handle(request: PolicyQuery, user?: PolicyQueryUser): Promise<PolicyDecision> {\n    if (isPermission(request.permission, catalogEntityDeletePermission)) {\n      return createCatalogConditionalDecision(\n        request.permission,\n        catalogConditions.isEntityOwner({ claims: user?.info.ownershipEntityRefs ?? [] }),\n      );\n    }\n    return { result: AuthorizeResult.ALLOW };\n  }\n}\n# app-config.yaml\npermission:\n  enabled: true",
+    "diagram": "flowchart LR\n    FE[\"Delete button\"] -->|\"authorize catalog.entity.delete\"| PB[\"permission backend\"]\n    PB --> POL[\"PermissionPolicy.handle\"]\n    POL -->|\"CONDITIONAL isEntityOwner\"| PB\n    PB -->|\"condition\"| CAT[\"catalog backend\"]\n    CAT -->|\"evaluate rule on entity\"| RES[\"ALLOW or DENY\"]",
+    "reference": "https://backstage.io/docs/permissions/writing-a-policy",
+    "tags": [
+      "cba",
+      "permissions",
+      "policy"
+    ]
+  },
+  {
+    "id": "backstage-016",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which annotation key does the Backstage Kubernetes plugin use by default to find the workloads belonging to an entity (matched against the `backstage.io/kubernetes-id` label on the cluster resources)?",
+    "answer": [
+      "backstage.io/kubernetes-id",
+      "kubernetes-id"
+    ],
+    "pattern": "^(backstage\\.io/)?kubernetes-id$",
+    "explanation": "The Kubernetes plugin looks up `backstage.io/kubernetes-id` on the entity and searches the configured clusters for objects carrying a label with the same key and value. Alternatives include `backstage.io/kubernetes-label-selector` for arbitrary selectors and `backstage.io/kubernetes-namespace` to limit the namespace. Clusters are declared under `kubernetes.clusterLocatorMethods` in `app-config.yaml`.",
+    "example": "# catalog-info.yaml\nmetadata:\n  name: payments-api\n  annotations:\n    backstage.io/kubernetes-id: payments-api\n    backstage.io/kubernetes-namespace: payments\n\n# deployment.yaml on the cluster\nmetadata:\n  labels:\n    backstage.io/kubernetes-id: payments-api   # must match the annotation value",
+    "diagram": "flowchart LR\n    E[\"Entity annotation kubernetes-id payments-api\"] --> KB[\"Kubernetes backend plugin\"]\n    KB -->|\"clusterLocatorMethods\"| C1[\"Cluster prod\"]\n    KB --> C2[\"Cluster staging\"]\n    C1 -->|\"label kubernetes-id = payments-api\"| W[\"Deployments Pods Services\"]\n    W --> TAB[\"Kubernetes tab on entity\"]",
+    "reference": "https://backstage.io/docs/features/kubernetes/configuration",
+    "tags": [
+      "cba",
+      "kubernetes",
+      "annotations"
+    ]
+  },
+  {
+    "id": "backstage-017",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A team is moving their Backstage instance from a laptop to a production Docker deployment. Which statements about the production configuration are accurate? (Select all that apply.)",
+    "options": [
+      "Set `backend.database.client: pg` because the default `better-sqlite3` database is in-memory or file-based and unsuitable for production",
+      "Values like `${POSTGRES_PASSWORD}` in `app-config.yaml` are substituted from environment variables at startup",
+      "`app-config.production.yaml` is merged on top of `app-config.yaml` when the backend is started with `--config app-config.yaml --config app-config.production.yaml`",
+      "The Docker image must run `yarn start` for both frontend and backend as separate processes",
+      "`backend.baseUrl` and `app.baseUrl` can be left as `localhost` because the container's own hostname is used automatically"
+    ],
+    "optionNotes": [
+      "Correct. Production should use PostgreSQL (`client: pg` with `connection` host/port/user/password); SQLite loses data on restart unless a file path is set and does not scale.",
+      "Correct. The config loader replaces `${VAR}` with the environment variable value (and supports `$include` and `$file` for pulling in files and secrets).",
+      "Correct. Multiple `--config` flags are merged in order, later files overriding earlier keys, so the production file only needs the differences.",
+      "In the standard image (`packages/backend/Dockerfile`) the backend serves the built frontend bundle via the `app-backend` plugin, started with `node packages/backend --config ...`; `yarn start` is the dev workflow only.",
+      "Both `app.baseUrl` and `backend.baseUrl` must be set to the public URL users reach; CORS and OAuth callbacks depend on them, and nothing infers them automatically."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Production Backstage builds a single Docker image whose backend serves the frontend bundle and the APIs. You run it with `node packages/backend --config app-config.yaml --config app-config.production.yaml`, configuration files merge left to right, `${ENV_VAR}` placeholders are substituted at load time, PostgreSQL replaces SQLite, and `app.baseUrl`/`backend.baseUrl` must reflect the external hostname.",
+    "example": "# app-config.production.yaml\napp:\n  baseUrl: https://backstage.acme.com\nbackend:\n  baseUrl: https://backstage.acme.com\n  listen: ':7007'\n  database:\n    client: pg\n    connection:\n      host: ${POSTGRES_HOST}\n      port: ${POSTGRES_PORT}\n      user: ${POSTGRES_USER}\n      password: ${POSTGRES_PASSWORD}\n# Dockerfile CMD\n# node packages/backend --config app-config.yaml --config app-config.production.yaml",
+    "diagram": "flowchart LR\n    A[\"app-config.yaml\"] --> M[\"config merge\"]\n    B[\"app-config.production.yaml\"] --> M\n    ENV[\"env vars POSTGRES_PASSWORD\"] -->|\"substitute ${VAR}\"| M\n    M --> BE[\"backend container node packages/backend\"]\n    BE --> PG[\"PostgreSQL\"]\n    BE -->|\"serves bundle\"| FE[\"frontend at app.baseUrl\"]",
+    "reference": "https://backstage.io/docs/deployment/docker",
+    "tags": [
+      "cba",
+      "deployment",
+      "configuration"
+    ]
+  },
+  {
+    "id": "backstage-018",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a Backstage monorepo, which command launches the interactive generator that scaffolds a new frontend plugin, backend plugin, or backend module into the `plugins/` directory?",
+    "options": [
+      "`yarn new`",
+      "`yarn dev`",
+      "`yarn backstage-cli repo build`",
+      "`npx @backstage/create-app`"
+    ],
+    "optionNotes": [
+      "Correct. `yarn new` (an alias for `backstage-cli new`) prompts for a package type such as `plugin`, `backend-plugin`, `backend-module`, or `web-library` and generates the package with a default structure, README, and dev setup.",
+      "`yarn dev` (or `yarn start`) runs the app and backend in development mode with hot reload; it does not create packages.",
+      "`backstage-cli repo build` compiles all packages in the repository for production; it is a build command, not a generator.",
+      "`create-app` bootstraps an entirely new Backstage app repository; you run it once, not per plugin."
+    ],
+    "answer": 0,
+    "explanation": "The Backstage CLI (`@backstage/cli`) is exposed through package scripts: `yarn new` generates plugins and libraries, `yarn dev`/`yarn start` runs the app locally, `yarn tsc` type-checks, and `yarn build:backend` or `backstage-cli repo build` produces production bundles. Newly generated plugins land under `plugins/<id>` and are wired in with `backend.add(...)` or the frontend `App.tsx` routes.",
+    "example": "yarn new            # choose: plugin | backend-plugin | backend-module | ...\n# ? Enter the ID of the plugin: todo\n# creates plugins/todo (frontend) or plugins/todo-backend\nyarn dev            # run frontend + backend with hot reload\nyarn tsc && yarn build:backend   # type-check and build for production",
+    "diagram": "flowchart LR\n    CLI[\"backstage-cli\"] --> NEW[\"yarn new generate package\"]\n    CLI --> DEV[\"yarn dev run locally\"]\n    CLI --> BUILD[\"repo build production bundle\"]\n    NEW --> FP[\"plugins/todo frontend\"]\n    NEW --> BP[\"plugins/todo-backend\"]\n    BP -->|\"backend.add\"| APP[\"packages/backend\"]",
+    "reference": "https://backstage.io/docs/tooling/cli/overview",
+    "tags": [
+      "cba",
+      "cli",
+      "plugins"
+    ]
+  }
+]

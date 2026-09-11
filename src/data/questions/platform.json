@@ -1,0 +1,633 @@
+[
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team decides to treat its internal developer platform as a product. What does this primarily mean in practice?",
+    "options": [
+      "Treating application developers as customers: doing user research, maintaining a roadmap, and measuring adoption and satisfaction",
+      "Selling access to the platform to external companies to recover its cost",
+      "Building every capability developers might one day ask for before onboarding the first team",
+      "Mandating that all teams use the platform through an executive decree"
+    ],
+    "optionNotes": [
+      "Correct. Platform as a product means the platform team has internal customers, gathers their needs, prioritises a roadmap, ships iteratively, and tracks adoption and satisfaction just like a product team.",
+      "Platform as a product is about product thinking, not commercial resale; the platform serves internal teams.",
+      "Building everything up front is the opposite of product thinking, which favours a thin, iterative platform driven by real demand.",
+      "Mandated adoption is a common anti-pattern; a product-minded platform earns adoption by being the easiest path, not by decree."
+    ],
+    "answer": 0,
+    "explanation": "The CNCF Platforms white paper and Team Topologies both frame the platform as an internal product with developers as its customers. That implies user research, a prioritised roadmap, iterative delivery and measurement of adoption and satisfaction. Reselling, big-bang building or mandated use all miss the point.",
+    "example": "# a lightweight platform product backlog\n- [ ] interview 5 app teams on onboarding pain\n- [ ] ship golden path: 'new-service' template (v0.1)\n- [ ] measure: time-to-first-deploy, weekly active teams\n- [ ] quarterly NPS survey to platform users",
+    "diagram": "flowchart LR\n    U[\"App teams as customers\"] -->|\"needs and feedback\"| R[\"Platform roadmap\"]\n    R --> S[\"Ship increment\"]\n    S --> M[\"Measure adoption and satisfaction\"]\n    M -->|\"learn\"| U",
+    "reference": "https://tag-app-delivery.cncf.io/whitepapers/platforms/",
+    "tags": [
+      "cnpa",
+      "platform-as-product",
+      "fundamentals"
+    ],
+    "id": "platform-001",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In platform engineering, what is a golden path (also called a paved road)?",
+    "options": [
+      "An opinionated, supported, self-service route to build and run a common type of workload, which teams may still deviate from",
+      "A mandatory architecture that every team must follow without exception",
+      "The production network path with the lowest latency between two clusters",
+      "A checklist that security signs off before any release"
+    ],
+    "optionNotes": [
+      "Correct. A golden path is a well-supported, opinionated default (templates, pipelines, runtime config) that makes the recommended way the easiest way, while still allowing teams to leave the path when they have a real need.",
+      "Golden paths are opt-in and supported, not enforced mandates; that is what distinguishes them from a rigid standard.",
+      "This describes network routing, unrelated to the developer-experience concept.",
+      "A release checklist is a governance gate, not a self-service delivery path."
+    ],
+    "answer": 0,
+    "explanation": "Golden paths (Spotify's term) or paved roads (Netflix's term) are opinionated, self-service, supported defaults for common tasks such as creating a new microservice. They reduce cognitive load by making the right thing the easy thing, but they are not mandates: teams can go off-road and accept more responsibility.",
+    "example": "# Backstage software template exposing a golden path\napiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\nmetadata:\n  name: go-service\nspec:\n  steps:\n  - id: fetch\n    action: fetch:template   # repo skeleton with CI, Helm chart, SLOs\n  - id: publish\n    action: publish:github",
+    "diagram": "flowchart LR\n    DEV[\"Developer\"] -->|\"self-service\"| GP[\"Golden path template\"]\n    GP --> REPO[\"Repo with CI pipeline\"]\n    GP --> CHART[\"Helm chart and runtime defaults\"]\n    GP --> OBS[\"Dashboards and SLOs\"]\n    DEV -.->|\"may go off-road\"| CUSTOM[\"Custom setup, more ownership\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/",
+    "tags": [
+      "cnpa",
+      "golden-path",
+      "developer-experience"
+    ],
+    "id": "platform-002",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "According to Team Topologies, the primary purpose of a platform team is to reduce the cognitive load of stream-aligned (product) teams so they can deliver faster.",
+    "answer": true,
+    "explanation": "Team Topologies defines the platform team as one that provides internal services to reduce the cognitive load of stream-aligned teams, letting them focus on their business domain. The platform is consumed via an X-as-a-Service interaction mode rather than a ticket-driven hand-off.",
+    "example": "# Team Topologies interaction modes\nstream-aligned team  --X-as-a-Service-->  platform team\nstream-aligned team  --collaboration---->  enabling team (temporary)\n# goal: stream-aligned teams own build+run without carrying all infra knowledge",
+    "diagram": "flowchart TD\n    SA1[\"Stream-aligned team A\"] -->|\"consumes as a service\"| PT[\"Platform team\"]\n    SA2[\"Stream-aligned team B\"] -->|\"consumes as a service\"| PT\n    PT --> CL[\"Lower cognitive load for product teams\"]\n    EN[\"Enabling team\"] -.->|\"temporary collaboration\"| SA1",
+    "reference": "https://tag-app-delivery.cncf.io/whitepapers/platforms/",
+    "tags": [
+      "cnpa",
+      "team-topologies",
+      "cognitive-load"
+    ],
+    "id": "platform-003",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "The CNCF Platform Engineering Maturity Model defines four maturity levels: Provisional, Operational, Scalable and one more. Name the highest level.",
+    "answer": [
+      "Optimizing",
+      "optimising",
+      "level 4",
+      "optimizing (level 4)"
+    ],
+    "pattern": "^(level\\s*4|optimi[sz]ing.*)$",
+    "explanation": "The CNCF Platform Engineering Maturity Model describes progression across five aspects (Investment, Adoption, Interfaces, Operations, Measurement) through four levels: Provisional, Operational, Scalable and Optimizing. At the Optimizing level the platform is continuously improved based on quantitative feedback and is treated fully as a product.",
+    "example": "# Maturity model summary\nAspects: Investment | Adoption | Interfaces | Operations | Measurement\nLevels : 1 Provisional -> 2 Operational -> 3 Scalable -> 4 Optimizing",
+    "diagram": "flowchart LR\n    L1[\"1 Provisional\"] --> L2[\"2 Operational\"]\n    L2 --> L3[\"3 Scalable\"]\n    L3 --> L4[\"4 Optimizing\"]\n    A[\"Aspects: investment, adoption, interfaces, operations, measurement\"] -.-> L1",
+    "reference": "https://tag-app-delivery.cncf.io/whitepapers/platform-eng-maturity-model/",
+    "tags": [
+      "cnpa",
+      "maturity-model",
+      "cncf"
+    ],
+    "id": "platform-004",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What is the conventional file name, placed in a repository root, that Backstage reads to register a Component or other entity in its Software Catalog?",
+    "answer": [
+      "catalog-info.yaml",
+      "catalog-info.yml",
+      "catalog-info"
+    ],
+    "pattern": "^catalog-info(\\.ya?ml)?$",
+    "explanation": "Backstage discovers catalog entities from `catalog-info.yaml` descriptor files, typically at the root of a repository. The file uses the `backstage.io/v1alpha1` API and declares kinds such as Component, API, System or Resource together with ownership and relations.",
+    "example": "# catalog-info.yaml\napiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments-api\n  annotations:\n    github.com/project-slug: acme/payments-api\nspec:\n  type: service\n  lifecycle: production\n  owner: team-payments",
+    "diagram": "flowchart LR\n    REPO[\"Git repo with catalog-info.yaml\"] -->|\"discovery or manual register\"| CAT[\"Backstage catalog processor\"]\n    CAT --> ENT[\"Component entity\"]\n    ENT --> OWN[\"owner: team-payments\"]\n    ENT --> UI[\"Portal page with TechDocs, CI, K8s plugins\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format/",
+    "tags": [
+      "cnpa",
+      "backstage",
+      "developer-portal"
+    ],
+    "id": "platform-005",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A platform team wants to report the four DORA key metrics for teams using its golden paths. Which metrics belong to that set? (Select all that apply.)",
+    "options": [
+      "Deployment frequency",
+      "Lead time for changes",
+      "Change failure rate",
+      "Time to restore service",
+      "Code coverage percentage",
+      "Number of pull requests merged per developer"
+    ],
+    "optionNotes": [
+      "Deployment frequency (how often code reaches production) is one of the four DORA key metrics.",
+      "Lead time for changes (commit to running in production) is a DORA key metric.",
+      "Change failure rate (share of deployments causing an incident or rollback) is a DORA key metric.",
+      "Time to restore service (MTTR after a production failure) is a DORA key metric.",
+      "Code coverage is a testing-quality signal, not one of the DORA metrics.",
+      "PR counts per developer are an output/activity metric that DORA research explicitly avoids because it encourages gaming."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "The DORA research program identifies four key metrics: deployment frequency, lead time for changes, change failure rate and time to restore service (a fifth, reliability, was added later). They measure throughput and stability of delivery, which is why platform teams use them to show the platform's impact. Coverage and per-developer PR counts are not part of the set.",
+    "example": "# PromQL-style sketches feeding a DORA dashboard\nsum(increase(deployments_total{env=\"prod\"}[7d]))          # deployment frequency\nhistogram_quantile(0.5, commit_to_deploy_seconds_bucket)   # lead time\nsum(failed_deploys_total) / sum(deployments_total)         # change failure rate\navg(incident_restore_seconds)                              # time to restore",
+    "diagram": "flowchart LR\n    T[\"Throughput\"] --> DF[\"Deployment frequency\"]\n    T --> LT[\"Lead time for changes\"]\n    S[\"Stability\"] --> CFR[\"Change failure rate\"]\n    S --> TTR[\"Time to restore\"]\n    P[\"Platform golden path\"] -->|\"improves\"| T\n    P -->|\"improves\"| S",
+    "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
+    "tags": [
+      "cnpa",
+      "dora",
+      "measurement"
+    ],
+    "id": "platform-006",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team ships a base set of Kubernetes manifests and wants application teams to customise them per environment by applying patches, without introducing a templating language. Which tool fits this requirement best?",
+    "options": [
+      "Kustomize",
+      "Helm",
+      "Terraform",
+      "Crossplane"
+    ],
+    "optionNotes": [
+      "Correct. Kustomize is template-free: it layers overlays and strategic-merge or JSON patches on top of a base, which is exactly patch-based customisation.",
+      "Helm uses Go templating with values files; it is a packaging and templating tool rather than a patch-based one.",
+      "Terraform is a general infrastructure-as-code tool with its own HCL language; it is not designed for patching Kubernetes manifests.",
+      "Crossplane composes cloud infrastructure via Kubernetes APIs; it is not a manifest customisation tool."
+    ],
+    "answer": 0,
+    "explanation": "Kustomize (built into `kubectl -k`) customises raw YAML through bases and overlays using patches, so no templating is needed. Helm is the templating/packaging option; Terraform and Crossplane target infrastructure provisioning rather than manifest customisation.",
+    "example": "# overlays/prod/kustomization.yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- ../../base\npatches:\n- path: replicas.yaml   # bump replicas only in prod\nkubectl apply -k overlays/prod",
+    "diagram": "flowchart LR\n    B[\"base manifests\"] --> O1[\"overlay dev\"]\n    B --> O2[\"overlay prod\"]\n    O2 -->|\"patch replicas, image tag\"| R[\"rendered YAML\"]\n    R -->|\"kubectl apply -k\"| K[\"Cluster\"]",
+    "reference": "https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/",
+    "tags": [
+      "cnpa",
+      "kustomize",
+      "gitops"
+    ],
+    "id": "platform-007",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team introduces a Kyverno `ClusterPolicy` that requires every Pod to set resource limits. During rollout they want violations to be reported without blocking any deployments. Which setting achieves this?",
+    "options": [
+      "`validationFailureAction: Audit`",
+      "`validationFailureAction: Enforce`",
+      "`background: false`",
+      "`failurePolicy: Ignore`"
+    ],
+    "optionNotes": [
+      "Correct. With `Audit`, Kyverno records violations as PolicyReports (and events) but still admits the resource, which is the standard way to roll a policy out safely.",
+      "`Enforce` rejects non-compliant resources at admission time, which would block deployments.",
+      "`background` controls whether existing resources are scanned; it does not change admission behaviour.",
+      "`failurePolicy` governs what the API server does if the webhook itself is unavailable, not how policy violations are handled."
+    ],
+    "answer": 0,
+    "explanation": "Kyverno validation rules have `validationFailureAction` set to `Audit` or `Enforce`. Audit mode admits the resource and writes a PolicyReport so teams can see what would fail, while Enforce blocks it. `background` and `failurePolicy` control scanning of existing objects and webhook failure behaviour respectively.",
+    "example": "apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: require-limits\nspec:\n  validationFailureAction: Audit   # switch to Enforce after burn-in\n  rules:\n  - name: check-limits\n    match: {any: [{resources: {kinds: [Pod]}}]}\n    validate:\n      message: \"CPU and memory limits are required\"\n      pattern: {spec: {containers: [{resources: {limits: {cpu: \"?*\", memory: \"?*\"}}}]}}",
+    "diagram": "flowchart LR\n    P[\"Pod create request\"] --> W[\"Kyverno admission webhook\"]\n    W -->|\"Audit\"| A[\"Admit and write PolicyReport\"]\n    W -->|\"Enforce\"| E[\"Reject with message\"]\n    A --> D[\"Team reviews violations\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/validate/",
+    "tags": [
+      "cnpa",
+      "kyverno",
+      "policy"
+    ],
+    "id": "platform-008",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A vCluster (virtual cluster) requires its own dedicated worker nodes, separate from the host cluster, in order to run tenant workloads.",
+    "answer": false,
+    "explanation": "vCluster runs a virtual control plane (API server, controller manager, datastore) inside a namespace of the host cluster, and a syncer copies low-level resources such as Pods into that host namespace. Tenant Pods are therefore scheduled on the host cluster's existing nodes; no dedicated nodes are needed, which is what makes vCluster a cheap multi-tenancy option.",
+    "example": "vcluster create team-a --namespace team-a   # control plane runs as pods in ns team-a\nvcluster connect team-a\nkubectl get pods -A                          # tenant sees only its own virtual cluster\n# on the host: kubectl get pods -n team-a  shows synced tenant pods + vcluster control plane",
+    "diagram": "flowchart TD\n    subgraph Host[\"Host cluster\"]\n        NS[\"Namespace team-a\"]\n        NS --> CP[\"Virtual API server and datastore\"]\n        NS --> SY[\"Syncer\"]\n        SY -->|\"syncs pods into host ns\"| N[\"Shared host nodes\"]\n    end\n    T[\"Tenant kubectl\"] --> CP",
+    "reference": "https://www.vcluster.com/docs/vcluster/",
+    "tags": [
+      "cnpa",
+      "vcluster",
+      "multi-tenancy"
+    ],
+    "id": "platform-009",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a shared multi-tenant cluster, a platform team wants to cap the total CPU and memory that all Pods in the `team-a` namespace may request, so one team cannot starve others. Which Kubernetes object should they create?",
+    "options": [
+      "A `ResourceQuota` in the `team-a` namespace",
+      "A `LimitRange` in the `team-a` namespace",
+      "A `NetworkPolicy` in the `team-a` namespace",
+      "A `PriorityClass` assigned to team-a Pods"
+    ],
+    "optionNotes": [
+      "Correct. A ResourceQuota constrains aggregate resource consumption (requests, limits, object counts) across an entire namespace.",
+      "A LimitRange sets per-Pod or per-container defaults and min/max values; it does not cap the namespace total.",
+      "NetworkPolicy controls traffic flow, not compute resources.",
+      "PriorityClass influences scheduling and preemption order but does not limit consumption."
+    ],
+    "answer": 0,
+    "explanation": "ResourceQuota is the namespace-level aggregate cap: it tracks the sum of requests and limits and rejects new Pods that would exceed it. LimitRange complements it by setting per-container defaults and bounds (and is needed so every Pod declares requests when a quota is present).",
+    "example": "apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: team-a-quota\n  namespace: team-a\nspec:\n  hard:\n    requests.cpu: \"20\"\n    requests.memory: 64Gi\n    limits.cpu: \"40\"\n    pods: \"200\"\nkubectl describe quota -n team-a",
+    "diagram": "flowchart LR\n    P[\"New Pod in team-a\"] --> Q[\"ResourceQuota admission check\"]\n    Q -->|\"sum within hard limits\"| OK[\"Scheduled\"]\n    Q -->|\"would exceed\"| REJ[\"Rejected 403\"]\n    LR[\"LimitRange\"] -->|\"injects default requests\"| P",
+    "reference": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+    "tags": [
+      "cnpa",
+      "multi-tenancy",
+      "resourcequota"
+    ],
+    "id": "platform-010",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team publishes an SLO of 99.9% successful requests over 30 days for its internal build service. What does the resulting error budget represent?",
+    "options": [
+      "The 0.1% of requests that may fail in the window before the SLO is breached, used to decide how much risk (such as releases) to accept",
+      "The monetary compensation owed to users when the service fails",
+      "The number of on-call engineers needed to keep the service within target",
+      "The maximum CPU the service may consume before autoscaling triggers"
+    ],
+    "optionNotes": [
+      "Correct. The error budget is 100% minus the SLO target; while budget remains, teams can ship changes, and when it is exhausted they prioritise reliability work.",
+      "Financial penalties belong to SLAs (contracts), not SLOs or error budgets.",
+      "Staffing is not what an error budget measures.",
+      "Resource consumption is unrelated to the SLO's success-rate objective."
+    ],
+    "answer": 0,
+    "explanation": "An SLO of 99.9% leaves an error budget of 0.1% of requests (about 43 minutes of full outage per 30 days). Error budgets turn reliability into a shared, data-driven policy: spend budget on velocity while it lasts, freeze risky changes when it runs out. SLAs, staffing and resource limits are different concepts.",
+    "example": "# Sloth-style SLO definition\nslos:\n- name: build-api-availability\n  objective: 99.9\n  sli:\n    events:\n      error_query: sum(rate(http_requests_total{job=\"build-api\",code=~\"5..\"}[{{.window}}]))\n      total_query: sum(rate(http_requests_total{job=\"build-api\"}[{{.window}}]))\n# error budget = 0.1% of requests per 30d",
+    "diagram": "flowchart LR\n    SLI[\"SLI: success ratio\"] --> SLO[\"SLO: 99.9 percent over 30d\"]\n    SLO --> EB[\"Error budget: 0.1 percent\"]\n    EB -->|\"budget left\"| SHIP[\"Ship features\"]\n    EB -->|\"budget spent\"| FREEZE[\"Reliability work first\"]\n    BR[\"Burn-rate alert\"] -.-> EB",
+    "reference": "https://sre.google/workbook/implementing-slos/",
+    "tags": [
+      "cnpa",
+      "slo",
+      "observability"
+    ],
+    "id": "platform-011",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "The best indicator of an internal platform's success is the number of features the platform team has shipped in the last quarter.",
+    "answer": false,
+    "explanation": "Shipping features is an output, not an outcome. Platform success is measured by adoption (how many teams voluntarily use the golden paths), developer experience and satisfaction, time-to-first-deploy or onboarding time, and downstream delivery metrics such as DORA. A platform with many unused features has failed as a product.",
+    "example": "# outcome metrics on a platform dashboard\nplatform_active_teams / total_teams          # adoption\np50 time_to_first_prod_deploy                  # onboarding speed\nquarterly developer satisfaction score        # DX\nDORA metrics for teams on vs off the platform  # impact",
+    "diagram": "flowchart LR\n    F[\"Features shipped\"] -.->|\"output only\"| X[\"Weak signal\"]\n    A[\"Adoption rate\"] --> S[\"Platform success\"]\n    D[\"Developer satisfaction\"] --> S\n    T[\"Time to first deploy\"] --> S\n    DO[\"DORA metrics\"] --> S",
+    "reference": "https://tag-app-delivery.cncf.io/whitepapers/platform-eng-maturity-model/",
+    "tags": [
+      "cnpa",
+      "measurement",
+      "adoption"
+    ],
+    "id": "platform-012",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team builds a Crossplane API so application teams can request a PostgreSQL database from their own namespace with `kubectl apply`, without seeing cloud-provider details. Which Crossplane object should developers create?",
+    "options": [
+      "A namespaced Claim generated from the XRD's `claimNames`",
+      "The cluster-scoped Composite Resource (XR) directly",
+      "A `Composition` with the provider-specific managed resources",
+      "A `ProviderConfig` pointing at their cloud credentials"
+    ],
+    "optionNotes": [
+      "Correct. When an XRD declares `claimNames`, Crossplane generates a namespaced Claim kind; developers create it in their namespace and Crossplane binds it to a cluster-scoped XR that the Composition satisfies.",
+      "XRs are cluster-scoped and usually reserved for platform operators; exposing them directly to tenants breaks namespace isolation.",
+      "The Composition is the platform team's implementation detail mapping the XR to managed resources; developers should not author it.",
+      "ProviderConfig holds cloud credentials and is managed by the platform team, not per-request by developers."
+    ],
+    "answer": 0,
+    "explanation": "Crossplane's abstraction stack is XRD (schema) -> Composition (implementation) -> XR (cluster-scoped instance) -> Claim (namespaced, developer-facing proxy). Claims are the intended self-service interface because they are namespaced and hide the managed resources. Note that Crossplane v2 also allows namespaced XRs directly, but the Claim remains the classic developer-facing pattern.",
+    "example": "# XRD snippet exposing a claim\nspec:\n  group: platform.example.org\n  names: {kind: XPostgreSQL, plural: xpostgresqls}\n  claimNames: {kind: PostgreSQL, plural: postgresqls}\n---\n# developer request\napiVersion: platform.example.org/v1alpha1\nkind: PostgreSQL\nmetadata: {name: orders-db, namespace: team-orders}\nspec: {parameters: {size: small}}",
+    "diagram": "flowchart LR\n    DEV[\"Developer\"] -->|\"kubectl apply\"| C[\"Claim PostgreSQL in namespace\"]\n    C -->|\"binds\"| XR[\"XR XPostgreSQL cluster-scoped\"]\n    XRD[\"XRD schema\"] -.-> XR\n    XR -->|\"selects\"| COMP[\"Composition\"]\n    COMP --> MR[\"Managed resources e.g. RDS instance\"]",
+    "reference": "https://docs.crossplane.io/latest/concepts/claims/",
+    "tags": [
+      "cnpe",
+      "crossplane",
+      "platform-api"
+    ],
+    "id": "platform-013",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In Cluster API, which resource kind manages a set of worker `Machine` objects and performs rolling updates when its template changes, analogous to a Kubernetes Deployment?",
+    "answer": [
+      "MachineDeployment",
+      "machinedeployment",
+      "machinedeployments"
+    ],
+    "pattern": "^machinedeployments?$",
+    "explanation": "Cluster API models worker nodes with a Deployment-like hierarchy: a `MachineDeployment` owns `MachineSet`s, which own `Machine`s, and a change to the infrastructure or bootstrap template triggers a rolling replacement of Machines. Control plane nodes are instead managed by `KubeadmControlPlane` (or another control plane provider).",
+    "example": "apiVersion: cluster.x-k8s.io/v1beta1\nkind: MachineDeployment\nmetadata:\n  name: tenant-1-md-0\nspec:\n  clusterName: tenant-1\n  replicas: 3\n  template:\n    spec:\n      version: v1.31.4          # bump -> rolling node replacement\n      bootstrap: {configRef: {kind: KubeadmConfigTemplate, name: tenant-1-md-0}}\n      infrastructureRef: {kind: AWSMachineTemplate, name: tenant-1-md-0}",
+    "diagram": "flowchart TD\n    CL[\"Cluster\"] --> KCP[\"KubeadmControlPlane\"]\n    CL --> MD[\"MachineDeployment\"]\n    MD --> MS[\"MachineSet\"]\n    MS --> M1[\"Machine\"]\n    MS --> M2[\"Machine\"]\n    M1 --> INF[\"Infra provider VM\"]",
+    "reference": "https://cluster-api.sigs.k8s.io/user/concepts",
+    "tags": [
+      "cnpe",
+      "cluster-api",
+      "fleet"
+    ],
+    "id": "platform-014",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team adopts the Kubernetes Gateway API with its role-oriented design. Application developers should be able to publish their own HTTP paths and hostnames without touching shared load balancer infrastructure. Which resource should the platform delegate to application developers?",
+    "options": [
+      "`HTTPRoute`",
+      "`Gateway`",
+      "`GatewayClass`",
+      "`Ingress`"
+    ],
+    "optionNotes": [
+      "Correct. HTTPRoute is the namespaced, application-developer-facing resource that declares hostnames, matches and backends and attaches to a Gateway via `parentRefs`.",
+      "Gateway represents the shared listener/load balancer and is owned by the cluster operator (platform team).",
+      "GatewayClass is cluster-scoped and defined by the infrastructure provider or controller vendor.",
+      "Ingress is the older API that the Gateway API is designed to supersede; it is not part of the Gateway API role model."
+    ],
+    "answer": 0,
+    "explanation": "Gateway API separates personas: infrastructure provider (GatewayClass), cluster operator (Gateway) and application developer (HTTPRoute and other Route kinds). Routes attach to Gateways under the Gateway's `allowedRoutes` policy, so developers get self-service routing while the platform team keeps control of the shared entry point.",
+    "example": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata: {name: orders, namespace: team-orders}\nspec:\n  parentRefs:\n  - name: shared-gw\n    namespace: platform-ingress   # Gateway owned by platform team\n  hostnames: [\"orders.example.com\"]\n  rules:\n  - matches: [{path: {type: PathPrefix, value: /api}}]\n    backendRefs: [{name: orders-svc, port: 8080}]",
+    "diagram": "flowchart LR\n    IP[\"Infra provider\"] --> GC[\"GatewayClass\"]\n    OP[\"Platform team\"] --> GW[\"Gateway shared-gw\"]\n    GC --> GW\n    DEV[\"App developer\"] --> HR[\"HTTPRoute\"]\n    HR -->|\"parentRefs\"| GW\n    HR --> SVC[\"Service orders-svc\"]",
+    "reference": "https://gateway-api.sigs.k8s.io/concepts/roles-and-personas/",
+    "tags": [
+      "cnpe",
+      "gateway-api",
+      "networking"
+    ],
+    "id": "platform-015",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which custom resource kinds are installed by Argo Rollouts to implement progressive delivery? (Select all that apply.)",
+    "options": [
+      "`Rollout`",
+      "`AnalysisTemplate`",
+      "`Experiment`",
+      "`Canary`",
+      "`TrafficSplit`",
+      "`Deployment`"
+    ],
+    "optionNotes": [
+      "`Rollout` is the Argo Rollouts drop-in replacement for Deployment that adds canary and blue-green strategies.",
+      "`AnalysisTemplate` (and `ClusterAnalysisTemplate`) define metric queries and success conditions used to gate or roll back a rollout automatically.",
+      "`Experiment` runs one or more ephemeral ReplicaSets for a set duration to compare versions, optionally with analysis.",
+      "There is no `Canary` CRD; canary is a strategy configured under `Rollout.spec.strategy.canary`.",
+      "`TrafficSplit` is an SMI (Service Mesh Interface) resource that Argo Rollouts can drive as a traffic router, but it is not a CRD shipped by Argo Rollouts.",
+      "`Deployment` is a core Kubernetes workload API, not an Argo Rollouts CRD (though a Rollout can reference one via `workloadRef`)."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Argo Rollouts installs the `Rollout`, `AnalysisTemplate`, `ClusterAnalysisTemplate`, `AnalysisRun` and `Experiment` CRDs. Canary and blue-green are strategies inside a Rollout, not kinds. `TrafficSplit` belongs to SMI and `Deployment` to core Kubernetes.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Rollout\nspec:\n  strategy:\n    canary:\n      steps:\n      - setWeight: 10\n      - pause: {duration: 5m}\n      - analysis:\n          templates: [{templateName: success-rate}]   # AnalysisTemplate\n      - setWeight: 50\nkubectl argo rollouts get rollout web --watch",
+    "diagram": "flowchart LR\n    R[\"Rollout canary strategy\"] -->|\"10 percent\"| C[\"Canary ReplicaSet\"]\n    R --> S[\"Stable ReplicaSet\"]\n    R -->|\"step analysis\"| AR[\"AnalysisRun from AnalysisTemplate\"]\n    AR -->|\"metrics from Prometheus\"| P[\"Prometheus\"]\n    AR -->|\"pass\"| PROMOTE[\"Promote\"]\n    AR -->|\"fail\"| ABORT[\"Abort and rollback\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/concepts/",
+    "tags": [
+      "cnpe",
+      "argo-rollouts",
+      "progressive-delivery"
+    ],
+    "id": "platform-016",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team runs HashiCorp Vault and wants every namespace to be able to sync secrets from it using External Secrets Operator (ESO), while keeping the Vault connection configuration defined once by the platform team. Which ESO resource should they create?",
+    "options": [
+      "A `ClusterSecretStore`",
+      "A `SecretStore` in each namespace",
+      "A `ClusterExternalSecret`",
+      "A `PushSecret`"
+    ],
+    "optionNotes": [
+      "Correct. ClusterSecretStore is cluster-scoped and defines the backend (Vault address, auth) once; ExternalSecrets in any namespace can reference it with `secretStoreRef.kind: ClusterSecretStore`.",
+      "A namespaced SecretStore would require duplicating the Vault configuration in every namespace.",
+      "ClusterExternalSecret fans out one ExternalSecret definition to multiple namespaces; it does not define the backend connection.",
+      "PushSecret pushes a Kubernetes Secret out to the provider, the reverse direction of what is needed."
+    ],
+    "answer": 0,
+    "explanation": "ESO separates the store (where and how to reach the provider) from the ExternalSecret (which keys to fetch and what Secret to create). A cluster-scoped `ClusterSecretStore` lets the platform team define the Vault connection once and optionally restrict which namespaces may use it via `conditions`. `SecretStore` is namespaced, `ClusterExternalSecret` templates ExternalSecrets across namespaces, and `PushSecret` writes secrets upstream.",
+    "example": "apiVersion: external-secrets.io/v1\nkind: ClusterSecretStore\nmetadata: {name: vault}\nspec:\n  provider:\n    vault:\n      server: https://vault.platform.svc:8200\n      path: kv\n      version: v2\n      auth: {kubernetes: {mountPath: kubernetes, role: eso}}\n---\nkind: ExternalSecret\nspec:\n  secretStoreRef: {name: vault, kind: ClusterSecretStore}\n  data: [{secretKey: password, remoteRef: {key: orders/db, property: password}}]",
+    "diagram": "flowchart LR\n    CSS[\"ClusterSecretStore vault\"] -->|\"k8s auth\"| V[\"Vault KV\"]\n    ES[\"ExternalSecret in team-orders\"] -->|\"secretStoreRef\"| CSS\n    ESO[\"ESO controller\"] -->|\"reconciles\"| ES\n    ESO -->|\"creates\"| S[\"Secret orders-db\"]\n    POD[\"Pod\"] -->|\"mounts\"| S",
+    "reference": "https://external-secrets.io/latest/api/clustersecretstore/",
+    "tags": [
+      "cnpe",
+      "external-secrets",
+      "vault"
+    ],
+    "id": "platform-017",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team runs the OpenTelemetry Collector as a DaemonSet to receive OTLP traces from tenant workloads. They want every span automatically tagged with the Kubernetes namespace, pod name and deployment name before export, without changing application code. Which Collector component provides this?",
+    "options": [
+      "The `k8sattributes` processor",
+      "The `otlp` receiver",
+      "The `resourcedetection` exporter",
+      "The `kubeletstats` receiver"
+    ],
+    "optionNotes": [
+      "Correct. The `k8sattributes` processor looks up the Pod that emitted the telemetry (by IP or connection metadata) via the Kubernetes API and adds resource attributes such as `k8s.namespace.name`, `k8s.pod.name` and `k8s.deployment.name`.",
+      "The `otlp` receiver only accepts OTLP data over gRPC/HTTP; it does not enrich it.",
+      "`resourcedetection` is a processor (not an exporter) that detects host or cloud attributes; it does not resolve per-Pod Kubernetes metadata.",
+      "`kubeletstats` scrapes node and Pod metrics from the kubelet; it does not touch trace spans."
+    ],
+    "answer": 0,
+    "explanation": "Collector pipelines are receivers -> processors -> exporters. Enrichment is a processor job, and `k8sattributes` is the one that associates telemetry with its source Pod and attaches Kubernetes metadata, which is essential for a multi-tenant platform to attribute traces to teams. The Collector needs RBAC to list Pods and ReplicaSets for this to work.",
+    "example": "processors:\n  k8sattributes:\n    passthrough: false\n    extract:\n      metadata: [k8s.namespace.name, k8s.pod.name, k8s.deployment.name]\n    pod_association:\n    - sources: [{from: connection}]\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [k8sattributes, batch]\n      exporters: [otlp/tempo]",
+    "diagram": "flowchart LR\n    APP[\"Tenant app OTLP\"] --> R[\"otlp receiver\"]\n    R --> K8S[\"k8sattributes processor\"]\n    API[\"Kubernetes API pods and replicasets\"] -.->|\"metadata lookup\"| K8S\n    K8S --> B[\"batch processor\"]\n    B --> E[\"otlp exporter\"]\n    E --> T[\"Tracing backend\"]",
+    "reference": "https://opentelemetry.io/docs/platforms/kubernetes/collector/components/",
+    "tags": [
+      "cnpe",
+      "opentelemetry",
+      "observability"
+    ],
+    "id": "platform-018",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "OpenCost and Kubecost allocate the CPU and memory cost of a container using the larger of its resource request and its actual usage, so an over-requested but idle container is still charged for what it reserved.",
+    "answer": true,
+    "explanation": "OpenCost's allocation model charges `max(request, usage)` for CPU and RAM per container. This reflects that a request reserves capacity other workloads cannot use, and it is the mechanism that surfaces over-provisioning as a cost line item. Platform teams use this to show tenants the savings from right-sizing requests.",
+    "example": "# OpenCost allocation API, cost per namespace over 7 days\ncurl -s 'http://opencost.opencost:9090/allocation?window=7d&aggregate=namespace' | jq '.data[0][] | {name, cpuCost, ramCost, totalCost}'\n# reduce cost: lower requests toward observed usage, or use a VPA recommendation",
+    "diagram": "flowchart LR\n    REQ[\"request 2 CPU\"] --> MAX[\"max of request and usage\"]\n    USE[\"usage 0.3 CPU\"] --> MAX\n    MAX -->|\"2 CPU\"| PRICE[\"x node CPU hourly price\"]\n    PRICE --> COST[\"container cost\"]\n    COST -->|\"aggregate by namespace label\"| SHOW[\"Showback per team\"]",
+    "reference": "https://opencost.io/docs/specification",
+    "tags": [
+      "cnpe",
+      "opencost",
+      "cost-management"
+    ],
+    "id": "platform-019",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Give the Sigstore `cosign` subcommand that a CI pipeline runs to attach a signature to a container image in a registry (write the command and subcommand, without flags).",
+    "answer": [
+      "cosign sign",
+      "sign"
+    ],
+    "pattern": "^(cosign\\s+)?sign$",
+    "explanation": "`cosign sign` signs an image (ideally referenced by digest) and pushes the signature to the registry alongside the image as an OCI artifact. In keyless mode it uses an OIDC identity from the CI provider and records the signing event in the Rekor transparency log; admission controllers such as Kyverno `verifyImages` or the Sigstore policy-controller then verify with `cosign verify` semantics before Pods run.",
+    "example": "# keyless signing in CI (GitHub Actions OIDC)\ncosign sign --yes ghcr.io/acme/orders@sha256:3f1c...\n# attach an SBOM as an attestation\nsyft ghcr.io/acme/orders@sha256:3f1c... -o spdx-json > sbom.json\ncosign attest --yes --predicate sbom.json --type spdxjson ghcr.io/acme/orders@sha256:3f1c...\n# verify\ncosign verify --certificate-identity-regexp 'https://github.com/acme/.*' \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/acme/orders@sha256:3f1c...",
+    "diagram": "flowchart LR\n    CI[\"CI pipeline\"] -->|\"cosign sign\"| REG[\"Registry image plus .sig\"]\n    CI -->|\"OIDC identity\"| FUL[\"Fulcio cert\"]\n    CI --> REK[\"Rekor transparency log\"]\n    ADM[\"Kyverno verifyImages\"] -->|\"verify signature\"| REG\n    ADM -->|\"pass\"| POD[\"Pod admitted\"]",
+    "reference": "https://docs.sigstore.dev/cosign/signing/signing_with_containers/",
+    "tags": [
+      "cnpe",
+      "supply-chain",
+      "sigstore"
+    ],
+    "id": "platform-020",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team must autoscale a queue-consumer Deployment based on the number of messages in a RabbitMQ queue, and it must scale all the way down to zero replicas when the queue is empty. Which approach satisfies both requirements?",
+    "options": [
+      "A KEDA `ScaledObject` with a `rabbitmq` trigger",
+      "A `HorizontalPodAutoscaler` using a `Pods` metric with `minReplicas: 0`",
+      "A `VerticalPodAutoscaler` in `Auto` mode",
+      "A Cluster Autoscaler configured with a minimum node count of zero"
+    ],
+    "optionNotes": [
+      "Correct. KEDA provides event-source scalers (RabbitMQ, Kafka, SQS, Prometheus and more) and can scale a workload from 0 to 1 itself, then hands 1..N scaling to an HPA it manages.",
+      "A standard HPA cannot scale to zero by default (`minReplicas` must be at least 1 unless the alpha `HPAScaleToZero` feature gate is enabled), and it has no built-in RabbitMQ metric source.",
+      "VPA adjusts CPU/memory requests of Pods; it does not change replica counts.",
+      "Cluster Autoscaler scales nodes, not Deployments; it cannot react to queue depth."
+    ],
+    "answer": 0,
+    "explanation": "KEDA is the standard platform building block for event-driven autoscaling. A ScaledObject references the target Deployment and a trigger; KEDA activates the workload from zero when the queue has messages and creates an HPA that uses KEDA's external metrics for further scaling. HPA alone lacks scale-to-zero and queue-aware metrics; VPA and Cluster Autoscaler address different dimensions.",
+    "example": "apiVersion: keda.sh/v1alpha1\nkind: ScaledObject\nmetadata: {name: orders-consumer}\nspec:\n  scaleTargetRef: {name: orders-consumer}\n  minReplicaCount: 0\n  maxReplicaCount: 30\n  cooldownPeriod: 120\n  triggers:\n  - type: rabbitmq\n    metadata: {queueName: orders, mode: QueueLength, value: \"20\", hostFromEnv: RABBITMQ_URL}",
+    "diagram": "flowchart LR\n    Q[\"RabbitMQ queue length\"] --> K[\"KEDA operator\"]\n    K -->|\"0 to 1 activation\"| D[\"Deployment orders-consumer\"]\n    K -->|\"external metrics\"| H[\"HPA managed by KEDA\"]\n    H -->|\"1 to N\"| D\n    Q -->|\"empty\"| Z[\"scale to zero\"]",
+    "reference": "https://keda.sh/docs/latest/concepts/scaling-deployments/",
+    "tags": [
+      "cnpe",
+      "keda",
+      "autoscaling"
+    ],
+    "id": "platform-021",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A platform team asks tenants to define `PodDisruptionBudget`s so node upgrades do not take services down. Which statements about PDBs are correct? (Select all that apply.)",
+    "options": [
+      "A PDB only limits voluntary disruptions performed through the Eviction API, such as `kubectl drain`",
+      "`minAvailable` and `maxUnavailable` cannot both be set in the same PDB",
+      "A PDB prevents the kubelet from OOM-killing a container that exceeds its memory limit",
+      "`kubectl drain` blocks or retries evictions that would violate a matching PDB",
+      "A PDB stops a Deployment from being scaled down below `minAvailable` replicas"
+    ],
+    "optionNotes": [
+      "Correct. PDBs are consulted by the Eviction API, which drain, cluster autoscaler node scale-down and descheduler use; they do not cover involuntary disruptions like hardware failure.",
+      "Correct. The API rejects a PDB that specifies both fields; exactly one must be used (as an integer or percentage).",
+      "Incorrect. OOM kills, node crashes and kernel panics are involuntary disruptions that a PDB cannot prevent.",
+      "Correct. Drain uses the Eviction API, so evictions that would breach the budget return 429 and drain waits and retries until they are allowed.",
+      "Incorrect. Scaling a Deployment changes the desired replica count directly and is not an eviction, so the PDB is not consulted."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "PodDisruptionBudgets protect against voluntary disruptions via the Eviction API: drain, node autoscaler scale-down and similar tools honour them, and evictions that would exceed the budget are refused (HTTP 429) until safe. They do not defend against involuntary events such as OOM kills or node failures, and they do not interfere with a controller deliberately scaling replicas. `minAvailable` and `maxUnavailable` are mutually exclusive.",
+    "example": "apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata: {name: orders-pdb, namespace: team-orders}\nspec:\n  minAvailable: 2          # or maxUnavailable: 25%  (not both)\n  selector:\n    matchLabels: {app: orders}\nkubectl drain node-3 --ignore-daemonsets --delete-emptydir-data   # waits on PDB",
+    "diagram": "flowchart LR\n    DR[\"kubectl drain or autoscaler\"] -->|\"Eviction API\"| EV[\"Eviction check\"]\n    PDB[\"PDB minAvailable 2\"] --> EV\n    EV -->|\"budget ok\"| EVICT[\"Pod evicted\"]\n    EV -->|\"would breach\"| WAIT[\"429 retry later\"]\n    OOM[\"OOM kill or node crash\"] -.->|\"not covered\"| PDB",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/configure-pdb/",
+    "tags": [
+      "cnpe",
+      "pdb",
+      "reliability"
+    ],
+    "id": "platform-022",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team maintains ten Helm charts for different service archetypes and wants to share common named templates (labels, probes, security context) across all of them from one versioned source, without that shared package being installable on its own. Which Helm construct should they use?",
+    "options": [
+      "A library chart with `type: library` added as a dependency",
+      "A subchart with `type: application` and `condition: false`",
+      "A `values.yaml` file shared through a symlink",
+      "A Helm plugin that injects templates at render time"
+    ],
+    "optionNotes": [
+      "Correct. Library charts declare `type: library` in `Chart.yaml`, contain only named templates (`define`) and helpers, cannot be installed directly, and are consumed as a dependency by application charts.",
+      "An application subchart renders its own resources and can be installed on its own; disabling it with a condition does not make its templates reusable.",
+      "Values files carry configuration, not templates, and symlinks do not version or package anything.",
+      "Helm plugins extend the CLI; they are not the mechanism for sharing chart templates."
+    ],
+    "answer": 0,
+    "explanation": "Helm 3 introduced library charts precisely for platform teams: a `type: library` chart packages reusable named templates that other charts include with `{{ include \"lib.labels\" . }}` after listing it under `dependencies`. Helm refuses to install a library chart directly, which keeps the shared logic from being deployed by accident.",
+    "example": "# platform-lib/Chart.yaml\napiVersion: v2\nname: platform-lib\ntype: library\nversion: 1.4.0\n# app chart Chart.yaml\ndependencies:\n- name: platform-lib\n  version: 1.4.0\n  repository: oci://ghcr.io/acme/charts\n# app template: {{ include \"platform-lib.securityContext\" . }}",
+    "diagram": "flowchart LR\n    LIB[\"Library chart platform-lib type library\"] -->|\"dependency\"| A[\"Chart go-service\"]\n    LIB -->|\"dependency\"| B[\"Chart java-service\"]\n    A -->|\"include named templates\"| RA[\"Rendered manifests\"]\n    B -->|\"include named templates\"| RB[\"Rendered manifests\"]\n    LIB -.->|\"helm install refused\"| X[\"Not installable alone\"]",
+    "reference": "https://helm.sh/docs/topics/library_charts/",
+    "tags": [
+      "cnpe",
+      "helm",
+      "chart-design"
+    ],
+    "id": "platform-023",
+    "domain": "platform"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "In a hub-and-spoke Argo CD fleet topology, every spoke cluster must run its own Argo CD instance because a single Argo CD can only deploy to the cluster it is installed in.",
+    "answer": false,
+    "explanation": "A single Argo CD instance can manage many remote clusters: each target is registered as a cluster Secret (`argocd cluster add`) and Applications set `spec.destination.server` to it. Combined with an `ApplicationSet` using the cluster generator, one hub can roll platform add-ons out to every registered spoke. Per-cluster Argo CD instances are a valid alternative for isolation, but they are not a requirement.",
+    "example": "argocd cluster add spoke-eu-1 --name spoke-eu-1\napiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nspec:\n  generators:\n  - clusters: {selector: {matchLabels: {tier: spoke}}}   # every registered spoke\n  template:\n    spec:\n      source: {repoURL: https://git.example.com/platform/addons, path: kyverno}\n      destination: {server: '{{server}}', namespace: kyverno}",
+    "diagram": "flowchart TD\n    HUB[\"Hub cluster Argo CD\"] --> AS[\"ApplicationSet cluster generator\"]\n    AS -->|\"Application per cluster\"| S1[\"Spoke eu-1\"]\n    AS --> S2[\"Spoke us-1\"]\n    AS --> S3[\"Spoke ap-1\"]\n    SEC[\"Cluster secrets with credentials\"] -.-> HUB",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Cluster/",
+    "tags": [
+      "cnpe",
+      "argo-cd",
+      "multi-cluster"
+    ],
+    "id": "platform-024",
+    "domain": "platform"
+  }
+]

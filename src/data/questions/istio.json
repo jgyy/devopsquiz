@@ -1,0 +1,540 @@
+[
+  {
+    "id": "istio-001",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You want every new Pod created in the `payments` namespace to automatically receive an Istio sidecar proxy in sidecar mode. Which label must you set on the namespace?",
+    "options": [
+      "`istio-injection=enabled`",
+      "`sidecar.istio.io/inject=true`",
+      "`istio.io/dataplane-mode=ambient`",
+      "`istio.io/rev=enabled`"
+    ],
+    "optionNotes": [
+      "`istio-injection=enabled` on the namespace tells the istiod mutating webhook to inject the `istio-proxy` sidecar into every new Pod there, which is the correct answer.",
+      "`sidecar.istio.io/inject=\"true\"` is a Pod-level label/annotation that opts a single Pod in (or out with `false`); it is not the namespace-wide switch.",
+      "`istio.io/dataplane-mode=ambient` enrolls a namespace in ambient mode, which uses ztunnel instead of sidecars, so no sidecar is injected.",
+      "`istio.io/rev` selects a specific control plane revision, and its value must be a revision name such as `1-26`, not `enabled`."
+    ],
+    "answer": 0,
+    "explanation": "Sidecar injection is driven by istiod's mutating admission webhook, which fires for Pods in namespaces labelled `istio-injection=enabled` (or `istio.io/rev=<revision>` for revisioned installs). Existing Pods are not modified; they must be restarted to pick up the sidecar. The Pod label `sidecar.istio.io/inject` only overrides the decision for one Pod, and the ambient label deliberately avoids sidecars.",
+    "example": "kubectl label namespace payments istio-injection=enabled\nkubectl rollout restart deployment -n payments   # existing Pods need a restart\nkubectl get pod -n payments -o jsonpath='{.items[0].spec.containers[*].name}'\n# app istio-proxy",
+    "diagram": "flowchart LR\n    NS[\"Namespace payments\\nistio-injection=enabled\"] --> API[\"kube-apiserver\"]\n    API -->|\"Pod CREATE\"| WH[\"istiod mutating webhook\"]\n    WH -->|\"adds istio-init + istio-proxy\"| POD[\"Pod app + sidecar\"]\n    POD -->|\"xDS\"| ISTIOD[\"istiod\"]",
+    "reference": "https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/",
+    "tags": [
+      "ica",
+      "sidecar-injection",
+      "installation"
+    ]
+  },
+  {
+    "id": "istio-002",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A team runs `istioctl install` with no `--set profile` flag on a production cluster. Which built-in configuration profile is installed?",
+    "options": [
+      "`default`",
+      "`demo`",
+      "`minimal`",
+      "`ambient`"
+    ],
+    "optionNotes": [
+      "`default` is what `istioctl install` uses when no profile is given; it installs istiod and an ingress gateway with production-oriented resource settings, so it is correct.",
+      "`demo` enables high levels of tracing and access logging and lowers resource requests for learning environments; it must be selected explicitly.",
+      "`minimal` installs only the control plane (istiod) with no gateways and must be requested explicitly.",
+      "`ambient` installs istiod plus ztunnel and the CNI node agent for ambient mode; it is never chosen implicitly."
+    ],
+    "answer": 0,
+    "explanation": "`istioctl install` applies the `default` profile unless you override it with `--set profile=<name>` or an IstioOperator file. The `default` profile is recommended for production and includes istiod and the ingress gateway. `demo`, `minimal`, `ambient`, `empty`, `remote` and others exist but must be named explicitly.",
+    "example": "istioctl profile list\n# ambient default demo empty minimal preview remote stable\nistioctl install                       # == --set profile=default\nistioctl install --set profile=demo -y  # for a lab\nistioctl profile dump default | head",
+    "diagram": "flowchart TD\n    I[\"istioctl install\"] -->|\"no profile flag\"| D[\"default profile\"]\n    D --> C[\"istiod\"]\n    D --> G[\"istio-ingressgateway\"]\n    I -->|\"--set profile=minimal\"| M[\"istiod only\"]\n    I -->|\"--set profile=ambient\"| A[\"istiod + ztunnel + istio-cni\"]",
+    "reference": "https://istio.io/latest/docs/setup/additional-setup/config-profiles/",
+    "tags": [
+      "ica",
+      "installation",
+      "profiles"
+    ]
+  },
+  {
+    "id": "istio-003",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You have Istio 1.25 installed with revision `1-25` and install Istio 1.26 alongside it as revision `1-26` for a canary upgrade. How do you move the `orders` namespace to the new control plane?",
+    "options": [
+      "Replace the namespace label `istio.io/rev=1-25` with `istio.io/rev=1-26`, then restart the workloads",
+      "Run `istioctl upgrade --revision 1-26` which migrates all namespaces at once",
+      "Edit the sidecar `istio-proxy` container image tag in each Deployment to 1.26",
+      "Set `istio-injection=enabled` on the namespace so it automatically follows the newest revision"
+    ],
+    "optionNotes": [
+      "Changing the `istio.io/rev` label to the new revision and restarting Pods re-injects them with the 1-26 proxy connected to the new istiod, which is the canary upgrade workflow.",
+      "`istioctl upgrade` performs an in-place upgrade of an existing revision; it is not how you migrate a namespace between coexisting revisions.",
+      "The proxy image is injected by the webhook, so hand-editing it is overwritten and does not switch the control plane the proxy talks to.",
+      "`istio-injection=enabled` targets the default (unrevisioned) webhook, and it cannot be combined with `istio.io/rev`; it does not track the newest revision."
+    ],
+    "answer": 0,
+    "explanation": "With revision-based canary upgrades, multiple istiod control planes run side by side and each namespace selects one via the `istio.io/rev` label. To migrate, relabel the namespace to the new revision and restart the workloads so they are re-injected with proxies that connect to the new istiod. Once all namespaces are moved and verified, the old revision is uninstalled with `istioctl uninstall --revision 1-25`.",
+    "example": "istioctl install --set revision=1-26 -y\nkubectl get pods -n istio-system -l app=istiod   # istiod-1-25 and istiod-1-26\nkubectl label ns orders istio.io/rev=1-26 --overwrite\nkubectl rollout restart deploy -n orders\nistioctl proxy-status                              # proxies now report 1-26\nistioctl uninstall --revision 1-25 -y             # after all namespaces move",
+    "diagram": "flowchart LR\n    A[\"istiod 1-25\"] ---|\"xDS\"| P1[\"Pods in ns billing\\nistio.io/rev=1-25\"]\n    B[\"istiod 1-26\"] ---|\"xDS\"| P2[\"Pods in ns orders\\nistio.io/rev=1-26\"]\n    L[\"relabel + rollout restart\"] -->|\"moves ns orders\"| B",
+    "reference": "https://istio.io/latest/docs/setup/upgrade/canary/",
+    "tags": [
+      "ica",
+      "upgrade",
+      "revisions"
+    ]
+  },
+  {
+    "id": "istio-004",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A `VirtualService` routes 90% of traffic to subset `v1` and 10% to subset `v2` of the `reviews` service, but `istioctl analyze` reports an error and requests fail with 503. What is most likely missing?",
+    "options": [
+      "A `DestinationRule` for `reviews` that defines the `v1` and `v2` subsets with label selectors",
+      "A `Gateway` resource bound to the `VirtualService`",
+      "A `ServiceEntry` registering `reviews` in the mesh",
+      "A `PeerAuthentication` with mode `PERMISSIVE`"
+    ],
+    "optionNotes": [
+      "Subsets are declared in a `DestinationRule` that maps each subset name to Pod labels such as `version: v1`; without it Envoy has no cluster for `reviews|v1` and returns 503, so this is correct.",
+      "A `Gateway` is only needed for traffic entering from outside the mesh; in-mesh routing between services works with just a `VirtualService` and `DestinationRule`.",
+      "`reviews` is a regular Kubernetes Service and is already in the mesh registry; `ServiceEntry` is for hosts outside Kubernetes.",
+      "mTLS mode does not affect subset resolution; a missing subset produces a 503 regardless of authentication settings."
+    ],
+    "answer": 0,
+    "explanation": "`VirtualService` references subsets by name, but the subsets themselves (and their label selectors, load balancing and TLS settings) are defined in a `DestinationRule`. If the `DestinationRule` is missing, istiod cannot generate the `outbound|9080|v1|reviews...` cluster, `istioctl analyze` emits an IST0101 referenced-subset error, and Envoy returns 503 NR/NC. Gateways, ServiceEntries and PeerAuthentication address different concerns.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: DestinationRule\nmetadata:\n  name: reviews\nspec:\n  host: reviews\n  subsets:\n  - name: v1\n    labels: {version: v1}\n  - name: v2\n    labels: {version: v2}\n---\n# VirtualService: route: [{destination: {host: reviews, subset: v1}, weight: 90}, {destination: {host: reviews, subset: v2}, weight: 10}]",
+    "diagram": "flowchart LR\n    C[\"client sidecar\"] --> VS[\"VirtualService reviews\\n90/10 weights\"]\n    VS -->|\"subset v1\"| DR[\"DestinationRule reviews\"]\n    VS -->|\"subset v2\"| DR\n    DR -->|\"labels version=v1\"| P1[\"reviews-v1 Pods\"]\n    DR -->|\"labels version=v2\"| P2[\"reviews-v2 Pods\"]",
+    "reference": "https://istio.io/latest/docs/reference/config/networking/destination-rule/",
+    "tags": [
+      "ica",
+      "traffic-management",
+      "destinationrule"
+    ]
+  },
+  {
+    "id": "istio-005",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Name the `istioctl` subcommand that inspects your cluster's Istio configuration and reports potential problems such as a `VirtualService` referencing an undefined subset (single word after `istioctl`).",
+    "answer": [
+      "analyze",
+      "istioctl analyze"
+    ],
+    "pattern": "^(istioctl\\s+)?analyze$",
+    "explanation": "`istioctl analyze` runs a set of analyzers against the live cluster (or local YAML files with `--use-kubeconfig=false`) and prints messages like `Error [IST0101] Referenced host+subset not found`. It is the first tool to reach for when routing does not behave as expected. `istioctl proxy-status` and `proxy-config` inspect Envoy state instead of configuration validity.",
+    "example": "istioctl analyze -n bookinfo\n# Error [IST0101] (VirtualService bookinfo/reviews) Referenced host+subset in destinationrule not found: \"reviews+v3\"\nistioctl analyze --all-namespaces\nistioctl analyze --use-kubeconfig=false virtual-service.yaml   # offline lint",
+    "diagram": "flowchart LR\n    A[\"istioctl analyze\"] --> K[\"reads Istio CRs from cluster\"]\n    K --> AN[\"runs analyzers\"]\n    AN --> M1[\"IST0101 subset not found\"]\n    AN --> M2[\"IST0102 namespace not injected\"]\n    AN --> OK[\"No validation issues found\"]",
+    "reference": "https://istio.io/latest/docs/ops/diagnostic-tools/istioctl-analyze/",
+    "tags": [
+      "ica",
+      "istioctl",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "istio-006",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which values are valid for `spec.mtls.mode` in an Istio `PeerAuthentication` resource? (Select all that apply.)",
+    "options": [
+      "`STRICT`",
+      "`PERMISSIVE`",
+      "`DISABLE`",
+      "`MUTUAL`",
+      "`SIMPLE`",
+      "`ISTIO_MUTUAL`"
+    ],
+    "optionNotes": [
+      "`STRICT` is valid: the workload accepts only mutual TLS connections.",
+      "`PERMISSIVE` is valid and the default: both plaintext and mTLS are accepted.",
+      "`DISABLE` is valid: mTLS is turned off and only plaintext is accepted.",
+      "`MUTUAL` is a `DestinationRule` client-side TLS mode for presenting your own certificates, not a `PeerAuthentication` mode.",
+      "`SIMPLE` is a `DestinationRule` TLS mode for one-way TLS to an upstream, not a `PeerAuthentication` mode.",
+      "`ISTIO_MUTUAL` is a `DestinationRule` TLS mode that uses Istio-issued certs; it is not a valid `PeerAuthentication` mode."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`PeerAuthentication` controls what the receiving sidecar accepts and supports `UNSET`, `DISABLE`, `PERMISSIVE` and `STRICT`. `SIMPLE`, `MUTUAL` and `ISTIO_MUTUAL` (plus `DISABLE`) belong to `DestinationRule.spec.trafficPolicy.tls.mode`, which governs the client side of the connection. Mixing these two APIs up is a common exam trap.",
+    "example": "apiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata:\n  name: default\n  namespace: istio-system   # mesh-wide when placed in the root namespace\nspec:\n  mtls:\n    mode: STRICT            # STRICT | PERMISSIVE | DISABLE | UNSET",
+    "diagram": "flowchart LR\n    PA[\"PeerAuthentication\\nserver side\"] --> S[\"STRICT mTLS only\"]\n    PA --> P[\"PERMISSIVE mTLS or plaintext\"]\n    PA --> D[\"DISABLE plaintext only\"]\n    DR[\"DestinationRule tls.mode\\nclient side\"] --> IM[\"ISTIO_MUTUAL\"]\n    DR --> MU[\"MUTUAL\"]\n    DR --> SI[\"SIMPLE\"]",
+    "reference": "https://istio.io/latest/docs/reference/config/security/peer_authentication/",
+    "tags": [
+      "ica",
+      "security",
+      "mtls"
+    ]
+  },
+  {
+    "id": "istio-007",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "With a `PeerAuthentication` mode of `PERMISSIVE`, a sidecar accepts both mutual-TLS connections from mesh peers and plaintext connections from clients without a sidecar.",
+    "answer": true,
+    "explanation": "`PERMISSIVE` is Istio's default and exists precisely to ease migration: the server-side proxy accepts mTLS and plaintext at the same time, so legacy or not-yet-injected workloads keep working. Once every client is in the mesh you switch to `STRICT`, which rejects plaintext.",
+    "example": "apiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata:\n  name: default\n  namespace: legacy\nspec:\n  mtls:\n    mode: PERMISSIVE   # accept mTLS and plaintext during migration\n# verify: curl from a non-injected pod still succeeds",
+    "diagram": "flowchart LR\n    M[\"mesh client with sidecar\"] -->|\"mTLS\"| S[\"server sidecar\\nPERMISSIVE\"]\n    L[\"legacy client no sidecar\"] -->|\"plaintext\"| S\n    S --> APP[\"app container\"]\n    L2[\"legacy client\"] -.->|\"plaintext rejected\"| ST[\"server sidecar\\nSTRICT\"]",
+    "reference": "https://istio.io/latest/docs/concepts/security/#mutual-tls-authentication",
+    "tags": [
+      "ica",
+      "security",
+      "mtls"
+    ]
+  },
+  {
+    "id": "istio-008",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You apply a `RequestAuthentication` for the `api` workload that points at your identity provider's JWKS. Requests carrying no `Authorization` header still succeed. Why?",
+    "options": [
+      "`RequestAuthentication` only rejects requests with an invalid token; requests with no token are accepted unless an `AuthorizationPolicy` requires a principal",
+      "The JWKS URI is unreachable, so istiod silently disables validation",
+      "`RequestAuthentication` needs `mtls.mode: STRICT` before it takes effect",
+      "The resource must be created in `istio-system` to be enforced"
+    ],
+    "optionNotes": [
+      "This is correct: `RequestAuthentication` validates tokens that are present, and a request with no token passes with an empty principal; enforcing presence requires an `AuthorizationPolicy` with `requestPrincipals: [\"*\"]`.",
+      "An unreachable JWKS makes valid tokens fail, not missing tokens pass; and Istio does not silently disable validation.",
+      "JWT request authentication is independent of peer mTLS mode.",
+      "Placing the policy in the root namespace makes it mesh-wide, but a namespaced `RequestAuthentication` with a selector is enforced just fine."
+    ],
+    "answer": 0,
+    "explanation": "`RequestAuthentication` defines how to validate JWTs (issuer, JWKS), and rejects requests whose token is invalid, but it does not require that a token be present. To mandate authentication, add an `AuthorizationPolicy` whose `from.source.requestPrincipals` is `[\"*\"]`, which denies any request that has no validated principal. This two-resource pattern is the standard way to protect a workload with JWT.",
+    "example": "apiVersion: security.istio.io/v1\nkind: RequestAuthentication\nmetadata: {name: api-jwt, namespace: prod}\nspec:\n  selector: {matchLabels: {app: api}}\n  jwtRules:\n  - issuer: \"https://issuer.example.com\"\n    jwksUri: \"https://issuer.example.com/.well-known/jwks.json\"\n---\napiVersion: security.istio.io/v1\nkind: AuthorizationPolicy\nmetadata: {name: api-require-jwt, namespace: prod}\nspec:\n  selector: {matchLabels: {app: api}}\n  action: ALLOW\n  rules:\n  - from:\n    - source: {requestPrincipals: [\"*\"]}   # token must be present and valid",
+    "diagram": "flowchart TD\n    R[\"incoming request\"] --> RA[\"RequestAuthentication\"]\n    RA -->|\"invalid JWT\"| D1[\"401 rejected\"]\n    RA -->|\"valid JWT\"| AP[\"AuthorizationPolicy\\nrequestPrincipals *\"]\n    RA -->|\"no JWT, empty principal\"| AP\n    AP -->|\"principal present\"| OK[\"allowed\"]\n    AP -->|\"no principal\"| D2[\"403 denied\"]",
+    "reference": "https://istio.io/latest/docs/tasks/security/authentication/authn-policy/#end-user-authentication",
+    "tags": [
+      "ica",
+      "security",
+      "jwt"
+    ]
+  },
+  {
+    "id": "istio-009",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A workload has one `AuthorizationPolicy` with `action: ALLOW` permitting `GET` from the `frontend` service account, and a second with `action: DENY` blocking path `/admin`. A request from `frontend` sends `POST /orders`. What happens?",
+    "options": [
+      "Denied, because an ALLOW policy exists and none of its rules match the request",
+      "Allowed, because the request does not match the DENY policy",
+      "Allowed, because the ALLOW policy matches the source `frontend`",
+      "Denied, because DENY policies are evaluated last and reject anything not explicitly listed"
+    ],
+    "optionNotes": [
+      "Correct: Istio first evaluates CUSTOM, then DENY, then ALLOW; once at least one ALLOW policy targets a workload, any request that matches no ALLOW rule is rejected.",
+      "Not matching a DENY rule only means the request is not denied at that stage; it must still match an ALLOW rule when ALLOW policies exist.",
+      "The ALLOW rule requires both the `frontend` principal and the `GET` method; a `POST` does not satisfy the rule.",
+      "DENY policies are evaluated before ALLOW, and they never reject unlisted requests; only the presence of ALLOW policies produces implicit denial."
+    ],
+    "answer": 0,
+    "explanation": "Istio's authorization engine evaluates policies in the order CUSTOM, DENY, ALLOW. If a DENY rule matches, the request is rejected; otherwise, if any ALLOW policies apply to the workload, the request must match one of them or it is denied. Here `/orders` is not blocked by DENY, but the ALLOW rule only covers `GET`, so `POST /orders` matches no ALLOW rule and is rejected with 403 `RBAC: access denied`.",
+    "example": "apiVersion: security.istio.io/v1\nkind: AuthorizationPolicy\nmetadata: {name: allow-frontend-get, namespace: shop}\nspec:\n  selector: {matchLabels: {app: orders}}\n  action: ALLOW\n  rules:\n  - from: [{source: {principals: [\"cluster.local/ns/shop/sa/frontend\"]}}]\n    to:   [{operation: {methods: [\"GET\"]}}]\n# POST /orders from frontend -> 403 RBAC: access denied",
+    "diagram": "flowchart TD\n    R[\"request POST /orders\"] --> C[\"CUSTOM policies\"]\n    C --> D[\"DENY policies\\npath /admin\"]\n    D -->|\"no match\"| A[\"ALLOW policies exist?\"]\n    A -->|\"yes, rule GET only\"| M[\"any ALLOW rule match?\"]\n    M -->|\"no\"| X[\"403 denied\"]\n    M -->|\"yes\"| OK[\"allowed\"]\n    A -->|\"no ALLOW policies\"| OK",
+    "reference": "https://istio.io/latest/docs/concepts/security/#authorization-policy",
+    "tags": [
+      "ica",
+      "security",
+      "authorizationpolicy"
+    ]
+  },
+  {
+    "id": "istio-010",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Istio's SPIFFE identity for a workload has the form `spiffe://<trust-domain>/ns/<namespace>/sa/<name>`. Which Kubernetes resource kind supplies the `<name>` part of that identity?",
+    "answer": [
+      "ServiceAccount",
+      "service account",
+      "serviceaccount",
+      "sa"
+    ],
+    "pattern": "^(service\\s?account|sa)$",
+    "explanation": "On Kubernetes, Istio derives each workload's identity from the Pod's `ServiceAccount`; the certificate issued by istiod carries the SPIFFE URI `spiffe://cluster.local/ns/<namespace>/sa/<serviceaccount>` as a SAN. Deployment or Pod names are not part of the identity, which is why `AuthorizationPolicy.principals` are written in `ns/sa` form and why workloads should not share the `default` ServiceAccount.",
+    "example": "kubectl get pod frontend-7d9 -o jsonpath='{.spec.serviceAccountName}'\n# frontend\nistioctl proxy-config secret frontend-7d9 -o json | jq -r '.dynamicActiveSecrets[0].secret.tlsCertificate.certificateChain.inlineBytes' | base64 -d | openssl x509 -noout -text | grep spiffe\n# URI:spiffe://cluster.local/ns/shop/sa/frontend",
+    "diagram": "flowchart LR\n    SA[\"ServiceAccount frontend\\nns shop\"] --> POD[\"Pod frontend\"]\n    POD -->|\"CSR via SDS\"| ISTIOD[\"istiod CA\"]\n    ISTIOD -->|\"X.509 cert with SAN\"| ID[\"spiffe://cluster.local/ns/shop/sa/frontend\"]\n    ID --> AP[\"AuthorizationPolicy principals\"]",
+    "reference": "https://istio.io/latest/docs/concepts/security/#istio-identity",
+    "tags": [
+      "ica",
+      "security",
+      "spiffe"
+    ]
+  },
+  {
+    "id": "istio-011",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "To test how `checkout` copes with a slow dependency, you want 50% of requests to `inventory` to be delayed by 5 seconds before being forwarded. Where do you configure this?",
+    "options": [
+      "In a `VirtualService` for `inventory` using `fault.delay` with `percentage.value: 50` and `fixedDelay: 5s`",
+      "In a `DestinationRule` for `inventory` using `outlierDetection.baseEjectionTime: 5s`",
+      "In a `PeerAuthentication` using `mtls.mode: PERMISSIVE` with a `delay` field",
+      "In an `EnvoyFilter` that patches the `inventory` Deployment's readiness probe"
+    ],
+    "optionNotes": [
+      "Correct: HTTP fault injection lives under `VirtualService.spec.http[].fault`, where `delay` and `abort` faults can be applied to a percentage of matched requests.",
+      "`outlierDetection` is a circuit-breaker that ejects unhealthy endpoints; it does not delay requests.",
+      "`PeerAuthentication` only configures mTLS and has no `delay` field.",
+      "`EnvoyFilter` is a low-level escape hatch and readiness probes are Kubernetes constructs; neither is the Istio way to inject latency."
+    ],
+    "answer": 0,
+    "explanation": "Fault injection is a `VirtualService` feature: the `fault` block supports `delay` (add latency) and `abort` (return an HTTP or gRPC error) with a `percentage`. Because it is applied by the client-side Envoy, no application code or chaos tool is needed. `DestinationRule` handles resilience settings like outlier detection and connection pools, not faults.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: VirtualService\nmetadata: {name: inventory}\nspec:\n  hosts: [inventory]\n  http:\n  - fault:\n      delay:\n        percentage: {value: 50}\n        fixedDelay: 5s        # or abort: {httpStatus: 503, percentage: {value: 10}}\n    route:\n    - destination: {host: inventory}",
+    "diagram": "flowchart LR\n    C[\"checkout app\"] --> E[\"checkout sidecar\"]\n    E -->|\"50% of requests\"| D[\"delay 5s\"]\n    E -->|\"50% of requests\"| I[\"inventory\"]\n    D --> I\n    VS[\"VirtualService fault.delay\"] -.->|\"configures\"| E",
+    "reference": "https://istio.io/latest/docs/tasks/traffic-management/fault-injection/",
+    "tags": [
+      "ica",
+      "fault-injection",
+      "traffic-management"
+    ]
+  },
+  {
+    "id": "istio-012",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You configure a `VirtualService` route with `mirror: {host: reviews, subset: v2}` and `mirrorPercentage: {value: 100}`. Which statement about the mirrored traffic is correct?",
+    "options": [
+      "Every request is copied to `reviews` v2 asynchronously and its response is discarded; the client only sees the primary route's response",
+      "Requests are load-balanced 50/50 between the primary destination and the mirror",
+      "The client receives whichever response arrives first from the primary or the mirror",
+      "Mirroring requires `retries` to be configured so the mirror can be retried on failure"
+    ],
+    "optionNotes": [
+      "Correct: mirroring is fire-and-forget; Envoy sends a copy of the request to the mirror target, ignores its response, and the primary destination's response is returned to the caller.",
+      "Mirroring never affects the primary routing weights; use `weight` on multiple `route.destination` entries for traffic splitting.",
+      "There is no racing of responses; the mirror's response is always dropped.",
+      "Retries and mirroring are independent features; mirrored requests are not retried."
+    ],
+    "answer": 0,
+    "explanation": "Traffic mirroring (shadowing) lets you test a new version with real production traffic at zero risk. The sidecar copies each matched request to the mirror destination, with the `Host` header suffixed `-shadow`, and does not wait for or use its response. `mirrorPercentage` (default 100) controls how many requests are copied. Because the mirror response is discarded, mirror failures never affect users.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: VirtualService\nmetadata: {name: reviews}\nspec:\n  hosts: [reviews]\n  http:\n  - route:\n    - destination: {host: reviews, subset: v1}\n      weight: 100\n    mirror: {host: reviews, subset: v2}\n    mirrorPercentage: {value: 100}   # copy all requests to v2, ignore replies",
+    "diagram": "flowchart LR\n    C[\"client\"] --> S[\"client sidecar\"]\n    S -->|\"primary request\"| V1[\"reviews v1\"]\n    V1 -->|\"response returned\"| S\n    S -->|\"mirrored copy, Host reviews-shadow\"| V2[\"reviews v2\"]\n    V2 -.->|\"response discarded\"| X[\"dropped\"]",
+    "reference": "https://istio.io/latest/docs/tasks/traffic-management/mirroring/",
+    "tags": [
+      "ica",
+      "traffic-management",
+      "mirroring"
+    ]
+  },
+  {
+    "id": "istio-013",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Your mesh has `outboundTrafficPolicy.mode: REGISTRY_ONLY`. Sidecars now block calls to `api.stripe.com`. Which resource lets workloads reach that external host while keeping the policy in place?",
+    "options": [
+      "A `ServiceEntry` for `api.stripe.com` with `location: MESH_EXTERNAL` and `resolution: DNS`",
+      "A `VirtualService` with `hosts: [api.stripe.com]` and a passthrough route",
+      "A `Gateway` resource selecting the ingress gateway on port 443",
+      "An `AuthorizationPolicy` with `action: ALLOW` for host `api.stripe.com`"
+    ],
+    "optionNotes": [
+      "Correct: `ServiceEntry` adds external hosts to Istio's service registry so `REGISTRY_ONLY` allows them, and `resolution: DNS` tells Envoy to resolve the hostname.",
+      "A `VirtualService` can only route to hosts already in the registry; without a `ServiceEntry` the host is unknown and still blocked.",
+      "`Gateway` handles traffic entering or leaving through a gateway proxy and does not register an external service.",
+      "`AuthorizationPolicy` governs inbound access to workloads; it does not control the outbound registry check."
+    ],
+    "answer": 0,
+    "explanation": "`REGISTRY_ONLY` makes sidecars reject traffic to any destination not in the Istio service registry (the default `ALLOW_ANY` passes unknown hosts through). `ServiceEntry` is how you add external hosts, IP ranges or VMs to that registry; once added you can also attach `VirtualService` timeouts and retries, `DestinationRule` TLS origination, and telemetry to the external call.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: ServiceEntry\nmetadata: {name: stripe}\nspec:\n  hosts: [api.stripe.com]\n  location: MESH_EXTERNAL\n  resolution: DNS\n  ports:\n  - {number: 443, name: https, protocol: TLS}\n# istioctl install --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY",
+    "diagram": "flowchart LR\n    APP[\"app\"] --> SC[\"sidecar\\nREGISTRY_ONLY\"]\n    SC -->|\"host in registry?\"| REG[\"Istio service registry\"]\n    SE[\"ServiceEntry api.stripe.com\"] --> REG\n    REG -->|\"yes\"| EXT[\"api.stripe.com\"]\n    REG -->|\"no\"| BH[\"BlackHoleCluster 502\"]",
+    "reference": "https://istio.io/latest/docs/tasks/traffic-management/egress/egress-control/",
+    "tags": [
+      "ica",
+      "serviceentry",
+      "egress"
+    ]
+  },
+  {
+    "id": "istio-014",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements accurately describe Istio's ambient mode data plane? (Select all that apply.)",
+    "options": [
+      "`ztunnel` runs as a per-node DaemonSet and provides L4 mTLS and TCP authorization without sidecars",
+      "Waypoint proxies are Envoy Deployments that are only needed when L7 features such as HTTP routing or `AuthorizationPolicy` on HTTP attributes are required",
+      "Each Pod still receives an injected `istio-proxy` container, but it is configured for L4 only",
+      "A namespace is added to ambient mode with the label `istio.io/dataplane-mode=ambient` and Pods do not need to be restarted",
+      "Ambient mode requires the Kubernetes cluster to run with `hostNetwork` enabled on all workloads"
+    ],
+    "optionNotes": [
+      "Correct: ztunnel is a Rust-based node-level proxy that handles mTLS (HBONE), L4 authorization and TCP telemetry for all Pods on the node.",
+      "Correct: waypoints are optional, per-namespace or per-service Envoy proxies that add the L7 layer only where you opt in.",
+      "Incorrect: ambient mode has no sidecar container at all; that is its main difference from sidecar mode.",
+      "Correct: enrolling is a namespace label change handled by the CNI node agent, and running Pods are captured without restart.",
+      "Incorrect: ambient uses the `istio-cni` node agent to redirect Pod traffic to ztunnel; workloads keep their normal Pod networking."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "Ambient mode splits Istio's data plane into two layers: ztunnel (a per-node secure overlay handling identity, mTLS and L4 policy) and optional waypoint proxies (Envoy) for L7 features. Because there are no sidecars, Pods are enrolled by labelling the namespace and need no restart or resource changes. Sidecar-specific ideas like an injected `istio-proxy` container do not apply.",
+    "example": "istioctl install --set profile=ambient -y\nkubectl label namespace shop istio.io/dataplane-mode=ambient   # no pod restart\nkubectl get pods -n istio-system -l app=ztunnel               # one per node\nistioctl waypoint apply -n shop --enroll-namespace              # add L7 only if needed",
+    "diagram": "flowchart LR\n    A[\"Pod a\"] -->|\"redirected by istio-cni\"| Z1[\"ztunnel node 1\\nL4 mTLS\"]\n    Z1 -->|\"HBONE\"| W[\"waypoint proxy\\nL7 optional\"]\n    W --> Z2[\"ztunnel node 2\"]\n    Z1 -->|\"HBONE, no L7 needed\"| Z2\n    Z2 --> B[\"Pod b\"]",
+    "reference": "https://istio.io/latest/docs/ambient/overview/",
+    "tags": [
+      "ica",
+      "ambient",
+      "ztunnel"
+    ]
+  },
+  {
+    "id": "istio-015",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An ambient-mode namespace `shop` already has a waypoint named `waypoint` deployed. HTTP `AuthorizationPolicy` rules for the `orders` service are still not enforced. What is the most likely cause?",
+    "options": [
+      "The namespace or service has not been labelled `istio.io/use-waypoint=waypoint`, so traffic bypasses the waypoint",
+      "Waypoints only support TCP; HTTP policies require sidecar mode",
+      "The `AuthorizationPolicy` must be in `istio-system` to reach a waypoint",
+      "ztunnel must be restarted after a waypoint is created"
+    ],
+    "optionNotes": [
+      "Correct: deploying a waypoint does nothing until workloads are enrolled by setting `istio.io/use-waypoint` on the namespace (or on individual Services or Pods); without it ztunnel sends traffic directly to the destination.",
+      "Waypoints are full Envoy L7 proxies; supporting HTTP routing and policy is their entire purpose.",
+      "Policies are namespaced and target workloads in the same namespace; the root namespace is only for mesh-wide defaults.",
+      "ztunnel reads waypoint bindings dynamically from istiod; no restart is involved."
+    ],
+    "answer": 0,
+    "explanation": "In ambient mode, creating a waypoint (`istioctl waypoint apply` or a Gateway with `gatewayClassName: istio-waypoint`) only provisions the proxy. Traffic is routed through it only for namespaces, Services or Pods carrying the `istio.io/use-waypoint: <name>` label, which `--enroll-namespace` sets for you. Until then, L7 features such as HTTP `AuthorizationPolicy`, `VirtualService` header routing and HTTP telemetry are not applied, while ztunnel still enforces L4 policy and mTLS.",
+    "example": "istioctl waypoint apply -n shop --enroll-namespace\n# equivalent manual step:\nkubectl label ns shop istio.io/use-waypoint=waypoint\nkubectl get gateway -n shop\n# NAME       CLASS            PROGRAMMED\n# waypoint   istio-waypoint   True\nistioctl ztunnel-config workload -n shop   # WAYPOINT column now shows shop/waypoint",
+    "diagram": "flowchart LR\n    C[\"client Pod\"] --> Z[\"ztunnel\"]\n    Z -->|\"ns labelled use-waypoint\"| W[\"waypoint Envoy\\nHTTP AuthorizationPolicy\"]\n    W --> O[\"orders Pod\"]\n    Z -.->|\"no label, L4 only\"| O\n    L[\"istio.io/use-waypoint=waypoint\"] -.-> Z",
+    "reference": "https://istio.io/latest/docs/ambient/usage/waypoint/",
+    "tags": [
+      "ica",
+      "ambient",
+      "waypoint"
+    ]
+  },
+  {
+    "id": "istio-016",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "To add existing running Pods to an Istio ambient-mode mesh, you must restart them after labelling their namespace, just as you would for sidecar injection.",
+    "answer": false,
+    "explanation": "This is a sidecar-mode habit that does not carry over. In ambient mode the `istio-cni` node agent reprograms traffic redirection for Pods in a namespace as soon as it is labelled `istio.io/dataplane-mode=ambient`, so running Pods are captured by ztunnel immediately with no restart and no change to the Pod spec. Only sidecar mode needs a restart, because the sidecar container is injected at Pod creation time.",
+    "example": "kubectl label ns shop istio.io/dataplane-mode=ambient\nistioctl ztunnel-config workload -n shop\n# NAMESPACE  POD NAME        PROTOCOL  WAYPOINT\n# shop       orders-6f9c...  HBONE     None      <- captured without restart",
+    "diagram": "flowchart LR\n    L[\"label ns istio.io/dataplane-mode=ambient\"] --> CNI[\"istio-cni node agent\"]\n    CNI -->|\"adds redirection rules\"| POD[\"running Pod, no restart\"]\n    POD --> Z[\"ztunnel on same node\"]\n    S[\"sidecar mode\"] -->|\"needs Pod restart\"| INJ[\"webhook injects istio-proxy\"]",
+    "reference": "https://istio.io/latest/docs/ambient/usage/add-workloads/",
+    "tags": [
+      "ica",
+      "ambient",
+      "onboarding"
+    ]
+  },
+  {
+    "id": "istio-017",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `istioctl` command lists every proxy in the mesh together with its xDS sync state (for example `SYNCED` or `STALE`) against istiod? Give the full command.",
+    "answer": [
+      "istioctl proxy-status",
+      "proxy-status",
+      "istioctl ps",
+      "istioctl x proxy-status"
+    ],
+    "pattern": "^(istioctl\\s+(x\\s+)?)?(proxy-status|ps)$",
+    "explanation": "`istioctl proxy-status` (alias `istioctl ps`) queries istiod for the CDS, LDS, EDS and RDS sync status of every connected Envoy, so you can spot proxies that are `STALE` (istiod pushed config the proxy has not acknowledged) or `NOT SENT`. Passing a Pod name additionally diffs the proxy's live config against istiod's view. `istioctl proxy-config` shows the contents of that config rather than its sync state.",
+    "example": "istioctl proxy-status\n# NAME                          CLUSTER   CDS      LDS      EDS      RDS      ISTIOD                     VERSION\n# orders-6f9c.shop              Kubernetes SYNCED  SYNCED   SYNCED   SYNCED   istiod-1-26-7d8f...        1.26.1\nistioctl proxy-status orders-6f9c.shop   # diff istiod vs Envoy for one pod",
+    "diagram": "flowchart LR\n    CLI[\"istioctl proxy-status\"] --> ISTIOD[\"istiod debug endpoint\"]\n    ISTIOD --> P1[\"orders sidecar SYNCED\"]\n    ISTIOD --> P2[\"cart sidecar STALE\"]\n    ISTIOD --> GW[\"ingress gateway SYNCED\"]",
+    "reference": "https://istio.io/latest/docs/ops/diagnostic-tools/proxy-cmd/",
+    "tags": [
+      "ica",
+      "istioctl",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "istio-018",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You want Envoy access logs turned on only for workloads in the `checkout` namespace, without changing the mesh-wide `meshConfig.accessLogFile`. Which resource achieves this?",
+    "options": [
+      "A `Telemetry` resource in `checkout` with `accessLogging: [{providers: [{name: envoy}]}]`",
+      "A `Sidecar` resource in `checkout` with `egress.accessLog: true`",
+      "An annotation `sidecar.istio.io/accessLog: /dev/stdout` on the namespace",
+      "A `DestinationRule` in `checkout` with `trafficPolicy.logging: enabled`"
+    ],
+    "optionNotes": [
+      "Correct: the Telemetry API scopes access logging, metrics and tracing per mesh, namespace or workload, and the built-in `envoy` provider writes to stdout.",
+      "The `Sidecar` resource limits which hosts a proxy knows about and its listeners; it has no access-log field.",
+      "There is no such namespace annotation; `sidecar.istio.io/*` annotations are Pod-level and none toggles access logs.",
+      "`DestinationRule` has no logging settings; it deals with load balancing, TLS and outlier detection."
+    ],
+    "answer": 0,
+    "explanation": "The Telemetry API (`telemetry.istio.io/v1`) replaced the older `meshConfig`-only and `EnvoyFilter` approaches for observability configuration. A `Telemetry` resource in `istio-system` sets mesh defaults, one in a namespace overrides for that namespace, and a `selector` narrows it to specific workloads. Access logging providers (such as `envoy` or an OpenTelemetry collector) are declared in `meshConfig.extensionProviders` and then referenced by name.",
+    "example": "apiVersion: telemetry.istio.io/v1\nkind: Telemetry\nmetadata:\n  name: checkout-logs\n  namespace: checkout       # applies to all workloads in this namespace\nspec:\n  accessLogging:\n  - providers:\n    - name: envoy           # built-in stdout JSON/text logger\n# kubectl logs deploy/checkout -c istio-proxy | tail",
+    "diagram": "flowchart TD\n    T1[\"Telemetry in istio-system\\nmesh defaults\"] --> T2[\"Telemetry in ns checkout\"]\n    T2 --> T3[\"Telemetry with selector\\nsingle workload\"]\n    T3 --> E[\"Envoy proxy config\"]\n    E --> AL[\"access logs to stdout\"]\n    E --> MET[\"metrics to Prometheus\"]\n    E --> TR[\"traces to OTel collector\"]",
+    "reference": "https://istio.io/latest/docs/tasks/observability/logs/access-log/",
+    "tags": [
+      "ica",
+      "observability",
+      "telemetry-api"
+    ]
+  },
+  {
+    "id": "istio-019",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Calls to `ratings` occasionally fail with transient 503s. You add `retries: {attempts: 3, perTryTimeout: 2s, retryOn: \"5xx,reset\"}` to the `VirtualService` and also set `timeout: 5s` on the route. What is the maximum time a single client request can take before Envoy gives up?",
+    "options": [
+      "About 5 seconds, because the route `timeout` caps the total including all retries",
+      "About 6 seconds, because three retries at 2 seconds each are allowed",
+      "About 8 seconds, because the original attempt plus three retries each get 2 seconds",
+      "Unlimited, because retries reset the route timeout each time"
+    ],
+    "optionNotes": [
+      "Correct: the route-level `timeout` is the overall budget for the request; `perTryTimeout` bounds each individual attempt, and retries stop once the overall timeout is hit.",
+      "Multiplying attempts by `perTryTimeout` ignores the overall `timeout`, which is shorter here.",
+      "Adding the original attempt to the retries still exceeds the overall 5s timeout, which wins.",
+      "The route timeout is not reset by retries; it is a hard ceiling for the whole request."
+    ],
+    "answer": 0,
+    "explanation": "In a `VirtualService`, `timeout` applies to the entire request including retries, while `retries.perTryTimeout` limits each attempt and must be less than or equal to the overall timeout. `retryOn` selects the conditions (Envoy retry policies such as `5xx`, `reset`, `connect-failure`, `retriable-status-codes`). Istio's default is 2 retries on `connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes` with no default overall timeout.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: VirtualService\nmetadata: {name: ratings}\nspec:\n  hosts: [ratings]\n  http:\n  - route:\n    - destination: {host: ratings, subset: v1}\n    timeout: 5s               # overall budget\n    retries:\n      attempts: 3\n      perTryTimeout: 2s       # per attempt, must be <= timeout\n      retryOn: 5xx,reset",
+    "diagram": "flowchart LR\n    R[\"request\"] --> T1[\"try 1 up to 2s\"]\n    T1 -->|\"503\"| T2[\"try 2 up to 2s\"]\n    T2 -->|\"503\"| T3[\"try 3 cut short\"]\n    T3 --> X[\"overall timeout 5s reached\\n504 returned\"]\n    T1 -->|\"200\"| OK[\"success\"]",
+    "reference": "https://istio.io/latest/docs/concepts/traffic-management/#retries",
+    "tags": [
+      "ica",
+      "resilience",
+      "retries"
+    ]
+  },
+  {
+    "id": "istio-020",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "When you use the Kubernetes Gateway API with Istio, you must manually deploy an Envoy gateway Deployment and Service before creating a `Gateway` resource with `gatewayClassName: istio`.",
+    "answer": false,
+    "explanation": "Istio implements automated deployment for the Gateway API: when a `Gateway` with `gatewayClassName: istio` is created, istiod provisions a matching Envoy Deployment and Service named after the Gateway (for example `bookinfo-gateway-istio`) and sets the status to `Programmed`. `HTTPRoute` resources then attach to it via `parentRefs`. Manual gateway deployments are only needed if you opt out of automated deployment, whereas the classic Istio `Gateway` (`networking.istio.io`) API does require a pre-installed ingress gateway.",
+    "example": "kubectl get crd gateways.gateway.networking.k8s.io || kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml\napiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata: {name: shop-gateway, namespace: shop}\nspec:\n  gatewayClassName: istio\n  listeners:\n  - {name: http, port: 80, protocol: HTTP}\n# kubectl get deploy -n shop -> shop-gateway-istio created automatically",
+    "diagram": "flowchart LR\n    G[\"Gateway shop-gateway\\ngatewayClassName istio\"] --> ISTIOD[\"istiod\"]\n    ISTIOD -->|\"auto-creates\"| D[\"Deployment shop-gateway-istio\"]\n    ISTIOD -->|\"auto-creates\"| S[\"Service type LoadBalancer\"]\n    HR[\"HTTPRoute parentRefs shop-gateway\"] -->|\"attaches\"| G\n    S --> D --> APP[\"backend Service\"]",
+    "reference": "https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/",
+    "tags": [
+      "ica",
+      "gateway-api",
+      "ingress"
+    ]
+  }
+]

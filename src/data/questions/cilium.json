@@ -1,0 +1,542 @@
+[
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Cilium replaces traditional iptables-based packet processing. Which kernel technology does the Cilium datapath use to implement networking, load balancing and policy enforcement?",
+    "options": [
+      "eBPF programs attached to kernel hooks such as tc and XDP",
+      "Netfilter chains generated per Service by cilium-agent",
+      "A user-space Envoy proxy that handles every packet",
+      "Open vSwitch flow tables managed by the operator"
+    ],
+    "optionNotes": [
+      "Correct. cilium-agent compiles and loads eBPF programs into the kernel at hook points like tc ingress/egress and XDP, so forwarding, service load balancing and policy decisions happen in-kernel without iptables rules.",
+      "Cilium's goal is to avoid the O(n) iptables/netfilter chains of kube-proxy; it does not generate netfilter chains per Service.",
+      "Envoy is only used for L7 policy and ingress traffic that is explicitly redirected; ordinary L3/L4 traffic never leaves the kernel.",
+      "Cilium does not use Open vSwitch; flow state lives in eBPF maps."
+    ],
+    "answer": 0,
+    "explanation": "Cilium is built on eBPF: the agent generates eBPF bytecode and attaches it to kernel hooks (tc, XDP, socket hooks) on each node, and the programs consult eBPF maps for identities, policies and service backends. This avoids the linear iptables chains kube-proxy relies on; Envoy is only involved for L7-aware features.",
+    "example": "# inspect loaded eBPF programs and maps on a node\nkubectl -n kube-system exec ds/cilium -- cilium-dbg bpf lb list\nkubectl -n kube-system exec ds/cilium -- cilium-dbg bpf policy get --all",
+    "diagram": "flowchart LR\n    A[\"cilium-agent\"] -->|\"compiles + loads\"| P[\"eBPF programs\"]\n    P -->|\"attached at\"| H[\"tc / XDP / socket hooks\"]\n    P -->|\"lookups\"| M[\"eBPF maps: identities, policy, services\"]\n    Pod[\"Pod traffic\"] --> H\n    H -->|\"in-kernel decision\"| Out[\"forward / drop / redirect to Envoy\"]",
+    "reference": "https://docs.cilium.io/en/stable/overview/component-overview/",
+    "tags": [
+      "cca",
+      "architecture",
+      "ebpf"
+    ],
+    "id": "cilium-001",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a Cilium installation using the default `cluster-pool` IPAM mode, which component is responsible for allocating a PodCIDR to each node?",
+    "options": [
+      "cilium-operator",
+      "cilium-agent on that node",
+      "The Hubble Relay deployment",
+      "kube-proxy"
+    ],
+    "optionNotes": [
+      "Correct. The operator is a cluster-wide Deployment that handles tasks that only need to happen once per cluster, including carving per-node PodCIDRs out of the cluster pool and writing them into the `CiliumNode` resource.",
+      "The agent (a DaemonSet) consumes the PodCIDR assigned to its node and hands out individual pod IPs, but it does not allocate node ranges in cluster-pool mode.",
+      "Hubble Relay only aggregates observability flows from all agents; it has nothing to do with IPAM.",
+      "kube-proxy is the component Cilium typically replaces; it never manages pod addressing."
+    ],
+    "answer": 0,
+    "explanation": "cilium-operator is responsible for cluster-scoped duties: cluster-pool IPAM allocation of PodCIDRs to nodes, garbage collection of stale `CiliumIdentity` and `CiliumEndpoint` objects, and synchronising Kubernetes Services to the kvstore when one is used. cilium-agent runs on every node, loads the eBPF datapath, enforces policy and allocates pod IPs from the node's assigned range.",
+    "example": "kubectl get ciliumnodes -o custom-columns=NAME:.metadata.name,PODCIDR:.spec.ipam.podCIDRs\n# NAME     PODCIDR\n# node-a   [10.0.0.0/24]\n# node-b   [10.0.1.0/24]   # ranges carved out by cilium-operator",
+    "diagram": "flowchart TD\n    OP[\"cilium-operator Deployment\"] -->|\"allocates PodCIDR per node\"| CN[\"CiliumNode CR\"]\n    OP -->|\"GC identities + endpoints\"| ID[\"CiliumIdentity / CiliumEndpoint\"]\n    CN --> AG[\"cilium-agent DaemonSet\"]\n    AG -->|\"assigns pod IPs\"| POD[\"Pods on node\"]\n    AG -->|\"loads eBPF, enforces policy\"| K[\"Kernel datapath\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/concepts/ipam/cluster-pool/",
+    "tags": [
+      "cca",
+      "architecture",
+      "operator"
+    ],
+    "id": "cilium-002",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "When Cilium is installed with `kubeProxyReplacement=true`, the eBPF datapath implements ClusterIP, NodePort and LoadBalancer Service handling, so the `kube-proxy` DaemonSet can be removed from the cluster entirely.",
+    "answer": true,
+    "explanation": "Cilium's kube-proxy replacement uses eBPF (socket-level load balancing for ClusterIP and tc/XDP programs for NodePort/LoadBalancer) to implement Kubernetes Services, which makes kube-proxy redundant. Clusters are commonly bootstrapped with `--skip-phases=addon/kube-proxy` (kubeadm) and the API server address passed via `k8sServiceHost`/`k8sServicePort` because the agent can no longer rely on kube-proxy to reach the `kubernetes` Service.",
+    "example": "cilium install --version 1.17.0 \\\n  --set kubeProxyReplacement=true \\\n  --set k8sServiceHost=10.0.0.10 \\\n  --set k8sServicePort=6443\nkubectl -n kube-system exec ds/cilium -- cilium-dbg status | grep KubeProxyReplacement\n# KubeProxyReplacement:    True   [eth0 ...]",
+    "diagram": "flowchart LR\n    S[\"Kubernetes Service\"] --> A[\"cilium-agent watches Services\"]\n    A --> M[\"eBPF LB maps\"]\n    C[\"Client Pod connect\"] -->|\"socket hook\"| M\n    M -->|\"picks backend\"| B[\"Backend Pod\"]\n    KP[\"kube-proxy iptables\"] -.->|\"no longer needed\"| S",
+    "reference": "https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/",
+    "tags": [
+      "cca",
+      "kube-proxy-replacement",
+      "services"
+    ],
+    "id": "cilium-003",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Two Pods carry the same label `app=web`, but one runs in namespace `dev` and the other in `prod`. Which statement about their Cilium security identities is correct?",
+    "options": [
+      "They get different identities because the namespace is part of the security-relevant labels",
+      "They share one identity because only user-defined labels are considered",
+      "They get different identities because identities are derived from Pod IP addresses",
+      "They share one identity because both are managed by the same cilium-operator"
+    ],
+    "optionNotes": [
+      "Correct. Cilium adds `k8s:io.kubernetes.pod.namespace=<ns>` (and other `k8s:` labels) to every endpoint, so the label sets differ and a distinct numeric identity is allocated for each.",
+      "The namespace is always included in the identity-relevant label set precisely so that identically-labelled workloads in different namespaces cannot impersonate each other.",
+      "Identities are label-based, not IP-based; that is what allows policy to survive pod churn and IP reuse.",
+      "The operator only garbage-collects identities; it does not decide which endpoints share one."
+    ],
+    "answer": 0,
+    "explanation": "A Cilium identity is a numeric ID derived from an endpoint's set of security-relevant labels, which always includes the Kubernetes namespace label. Endpoints with an identical label set share the identity, and policy is enforced by comparing identities carried in packets rather than IP addresses.",
+    "example": "kubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint list\n# ENDPOINT  POLICY (ingress) IDENTITY  LABELS (source:key[=value])\n# 1234      Enabled          28417     k8s:app=web k8s:io.kubernetes.pod.namespace=dev\n# 2345      Enabled          31905     k8s:app=web k8s:io.kubernetes.pod.namespace=prod\nkubectl get ciliumidentities",
+    "diagram": "flowchart LR\n    P1[\"Pod app=web ns=dev\"] --> L1[\"labels + k8s namespace\"]\n    P2[\"Pod app=web ns=prod\"] --> L2[\"labels + k8s namespace\"]\n    L1 -->|\"hash of label set\"| I1[\"Identity 28417\"]\n    L2 -->|\"hash of label set\"| I2[\"Identity 31905\"]\n    I1 --> CI[\"CiliumIdentity CRs\"]\n    I2 --> CI",
+    "reference": "https://docs.cilium.io/en/stable/security/network/identity/",
+    "tags": [
+      "cca",
+      "identity",
+      "endpoints"
+    ],
+    "id": "cilium-004",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "After installing Cilium with the `cilium` CLI, which single CLI subcommand prints a summary of the agent, operator and Hubble health, including the number of managed endpoints and any errors or warnings? Give the full command (two words).",
+    "answer": [
+      "cilium status",
+      "cilium status --wait"
+    ],
+    "pattern": "^cilium\\s+status(\\s+--wait)?$",
+    "explanation": "`cilium status` queries the DaemonSet, operator and Hubble deployments and prints an overview with per-component OK/Error lines, image versions and warnings. `--wait` blocks until everything is ready, which is convenient right after `cilium install`. `cilium-dbg status` inside an agent pod gives the per-node view.",
+    "example": "cilium status --wait\n#     /¯¯\\\n#  /¯¯\\__/¯¯\\    Cilium:             OK\n#  \\__/¯¯\\__/    Operator:           OK\n#  /¯¯\\__/¯¯\\    Hubble Relay:       OK\n#  \\__/¯¯\\__/    ClusterMesh:        disabled\n# DaemonSet  cilium  Desired: 3, Ready: 3/3",
+    "diagram": "flowchart LR\n    C[\"cilium status\"] --> A[\"cilium DaemonSet ready?\"]\n    C --> O[\"cilium-operator ready?\"]\n    C --> H[\"hubble-relay / hubble-ui ready?\"]\n    C --> E[\"errors and warnings per pod\"]\n    A --> R[\"summary table\"]\n    O --> R\n    H --> R",
+    "reference": "https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/",
+    "tags": [
+      "cca",
+      "installation",
+      "cli"
+    ],
+    "id": "cilium-005",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Right after installing Cilium you want an end-to-end check that pod-to-pod, pod-to-service, and pod-to-external traffic work, including policy enforcement, by deploying temporary test workloads. Which command does this?",
+    "options": [
+      "`cilium connectivity test`",
+      "`cilium status --wait`",
+      "`cilium sysdump`",
+      "`hubble observe --follow`"
+    ],
+    "optionNotes": [
+      "Correct. `cilium connectivity test` creates a `cilium-test` namespace with client and echo deployments and runs dozens of scenarios (pod-to-pod, to service, to world, with and without network policies), then reports pass/fail.",
+      "`cilium status` only checks whether the components are running; it sends no traffic.",
+      "`cilium sysdump` collects logs and state into an archive for troubleshooting or bug reports; it does not test connectivity.",
+      "`hubble observe` shows flows that already exist; it does not generate test traffic."
+    ],
+    "answer": 0,
+    "explanation": "`cilium connectivity test` is the canonical smoke test after installation: it deploys test workloads and runs a suite of scenarios that exercise the datapath, DNS, network policy and optionally Cluster Mesh, then deletes them. `cilium status` and `cilium sysdump` are health and diagnostic tools and do not generate traffic.",
+    "example": "cilium connectivity test\n# ℹ️  Deploying echo-same-node service...\n# [=] Test [no-policies]\n# [=] Test [client-egress-l7]\n# ✅ All 46 tests (326 actions) successful, 12 tests skipped\ncilium connectivity test --test 'to-fqdns'   # run a subset",
+    "diagram": "flowchart TD\n    T[\"cilium connectivity test\"] --> NS[\"creates cilium-test namespace\"]\n    NS --> W[\"client + echo deployments\"]\n    W --> S1[\"pod-to-pod\"]\n    W --> S2[\"pod-to-service\"]\n    W --> S3[\"pod-to-world\"]\n    W --> S4[\"policy scenarios\"]\n    S1 --> R[\"pass / fail report\"]\n    S4 --> R",
+    "reference": "https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/#validate-the-installation",
+    "tags": [
+      "cca",
+      "installation",
+      "connectivity"
+    ],
+    "id": "cilium-006",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A team must allow only `GET /healthz` and `GET /api/*` from the frontend to the backend while denying every other HTTP request. Which policy resource is required to express this?",
+    "options": [
+      "A `CiliumNetworkPolicy` with an L7 `http` rule",
+      "A standard Kubernetes `NetworkPolicy` with a port rule",
+      "An `Ingress` object with path-based routing",
+      "A `CiliumNode` annotation"
+    ],
+    "optionNotes": [
+      "Correct. Only Cilium's own policy CRDs (`CiliumNetworkPolicy` and `CiliumClusterwideNetworkPolicy`) support L7 rules such as HTTP method and path, DNS names, or Kafka topics; matching traffic is redirected to the embedded Envoy proxy.",
+      "Kubernetes `NetworkPolicy` is limited to L3/L4 (pod/namespace selectors, IP blocks and ports); it cannot see HTTP methods or paths.",
+      "An Ingress routes north-south traffic into the cluster; it does not restrict pod-to-pod HTTP calls.",
+      "`CiliumNode` describes node state (addresses, PodCIDRs); it is not a policy resource."
+    ],
+    "answer": 0,
+    "explanation": "Cilium fully enforces standard `NetworkPolicy` at L3/L4, but `CiliumNetworkPolicy` extends it with identity/entity-based rules, `toFQDNs`, and L7 rules for HTTP, DNS and Kafka. When an L7 rule is present, matching flows are transparently proxied through Envoy where the method and path are evaluated.",
+    "example": "apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata:\n  name: backend-l7\nspec:\n  endpointSelector: {matchLabels: {app: backend}}\n  ingress:\n  - fromEndpoints:\n    - matchLabels: {app: frontend}\n    toPorts:\n    - ports: [{port: \"8080\", protocol: TCP}]\n      rules:\n        http:\n        - {method: GET, path: \"/healthz\"}\n        - {method: GET, path: \"/api/.*\"}",
+    "diagram": "flowchart LR\n    F[\"frontend Pod\"] --> E[\"eBPF: L3/L4 allow, L7 rule present\"]\n    E -->|\"redirect\"| P[\"Envoy proxy in agent\"]\n    P -->|\"GET /api/x allowed\"| B[\"backend Pod\"]\n    P -->|\"POST /admin 403\"| D[\"denied\"]\n    K[\"K8s NetworkPolicy\"] -.->|\"L3/L4 only\"| E",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/#layer-7-examples",
+    "tags": [
+      "cca",
+      "network-policy",
+      "l7"
+    ],
+    "id": "cilium-007",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A `CiliumNetworkPolicy` has an egress rule `toFQDNs: [{matchName: api.github.com}]` on port 443, yet the selected pod still cannot reach the API and `hubble observe` shows DNS lookups being dropped. What is missing from the policy?",
+    "options": [
+      "An egress rule allowing UDP/TCP 53 to kube-dns with an L7 `dns` rule so the Cilium DNS proxy can observe the lookups",
+      "A `toCIDR` rule for the current IP of `api.github.com`",
+      "The `enable-l7-proxy` flag must be turned off because FQDN policies bypass Envoy",
+      "A `toEntities: [world]` rule, because FQDN rules only work together with the world entity"
+    ],
+    "optionNotes": [
+      "Correct. `toFQDNs` works by having the agent's DNS proxy intercept DNS responses and populate the allowed IP set; once the policy makes the endpoint default-deny for egress, DNS itself must be explicitly allowed and routed through the proxy via a `rules: dns` block.",
+      "Hardcoding IPs defeats the purpose of FQDN policy and would break as soon as the address rotates; it is not the intended fix.",
+      "The DNS proxy is part of the agent and is required for FQDN policy; disabling L7 proxying would break it further.",
+      "Adding the `world` entity would allow all external traffic, which is far broader than intended and is not a prerequisite of `toFQDNs`."
+    ],
+    "answer": 0,
+    "explanation": "When any egress rule selects an endpoint, all other egress is denied, including DNS. The canonical pattern is a second egress rule that allows port 53 to the kube-dns pods with `rules: dns: [{matchPattern: \"*\"}]`, which redirects DNS through Cilium's DNS proxy; the proxy records the resolved IPs and programs them into the `toFQDNs` allow set.",
+    "example": "egress:\n- toEndpoints:\n  - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}\n  toPorts:\n  - ports: [{port: \"53\", protocol: ANY}]\n    rules:\n      dns:\n      - matchPattern: \"*\"      # lets the DNS proxy learn resolved IPs\n- toFQDNs:\n  - matchName: api.github.com\n  toPorts:\n  - ports: [{port: \"443\", protocol: TCP}]",
+    "diagram": "sequenceDiagram\n    participant P as Pod\n    participant D as Cilium DNS proxy\n    participant K as kube-dns\n    participant E as eBPF policy map\n    P->>D: DNS query api.github.com\n    D->>K: forward query\n    K-->>D: A 140.82.x.x\n    D->>E: add IP to toFQDNs allow set\n    D-->>P: response\n    P->>E: TCP 443 to 140.82.x.x allowed",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/#dns-based",
+    "tags": [
+      "cca",
+      "network-policy",
+      "fqdn"
+    ],
+    "id": "cilium-008",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of these are valid built-in entity names usable in a `CiliumNetworkPolicy` `toEntities` or `fromEntities` list? (Select all that apply.)",
+    "options": [
+      "`world`",
+      "`host`",
+      "`kube-apiserver`",
+      "`internet`",
+      "`namespace`"
+    ],
+    "optionNotes": [
+      "`world` matches all endpoints outside the cluster, i.e. any destination not managed by Cilium; it is the standard way to allow egress to the internet.",
+      "`host` matches the local node itself (including host-networked pods on that node).",
+      "`kube-apiserver` matches the Kubernetes API server, letting you allow control-plane access without knowing its IP.",
+      "`internet` is not a Cilium entity; the equivalent concept is `world`.",
+      "`namespace` is not an entity; namespace scoping is done with `matchLabels` on `k8s:io.kubernetes.pod.namespace` or by the policy's own namespace."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Cilium entities are predefined identity groups: `all`, `world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `health`, `init`, and `unmanaged`. `internet` and `namespace` do not exist; use `world` for external traffic and label selectors for namespaces.",
+    "example": "apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata:\n  name: allow-apiserver-and-world\nspec:\n  endpointSelector: {matchLabels: {app: controller}}\n  egress:\n  - toEntities: [kube-apiserver]\n  - toEntities: [world]\n    toPorts: [{ports: [{port: \"443\", protocol: TCP}]}]",
+    "diagram": "flowchart TD\n    E[\"Cilium entities\"] --> W[\"world: outside the cluster\"]\n    E --> C[\"cluster: all cluster endpoints\"]\n    E --> H[\"host: local node\"]\n    E --> R[\"remote-node: other nodes\"]\n    E --> K[\"kube-apiserver\"]\n    E --> A[\"all\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/#entities-based",
+    "tags": [
+      "cca",
+      "network-policy",
+      "entities"
+    ],
+    "id": "cilium-009",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Cilium resource `kind` lets you write a network policy that is not bound to a namespace and can select endpoints across the whole cluster, including node (host) endpoints via `nodeSelector`?",
+    "answer": [
+      "CiliumClusterwideNetworkPolicy",
+      "ccnp",
+      "ciliumclusterwidenetworkpolicy"
+    ],
+    "pattern": "^(ciliumclusterwidenetworkpolicy|ccnp)$",
+    "explanation": "`CiliumClusterwideNetworkPolicy` (short name `ccnp`) is the cluster-scoped counterpart of `CiliumNetworkPolicy`. Because it has no namespace it can select endpoints everywhere, and it is the only policy type that can use `nodeSelector` to apply host firewall rules to nodes. Its rules are evaluated together with namespaced policies.",
+    "example": "apiVersion: cilium.io/v2\nkind: CiliumClusterwideNetworkPolicy\nmetadata:\n  name: allow-dns-everywhere   # no namespace field\nspec:\n  endpointSelector: {}\n  egress:\n  - toEndpoints:\n    - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}\n    toPorts: [{ports: [{port: \"53\", protocol: ANY}]}]\nkubectl get ccnp",
+    "diagram": "flowchart LR\n    CNP[\"CiliumNetworkPolicy\"] -->|\"namespaced\"| NS[\"endpoints in one namespace\"]\n    CCNP[\"CiliumClusterwideNetworkPolicy\"] -->|\"cluster scoped\"| ALL[\"endpoints in every namespace\"]\n    CCNP -->|\"nodeSelector\"| NODE[\"host endpoints / host firewall\"]\n    NS --> V[\"combined policy verdict\"]\n    ALL --> V",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/#ciliumclusterwidenetworkpolicy",
+    "tags": [
+      "cca",
+      "network-policy",
+      "clusterwide"
+    ],
+    "id": "cilium-010",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Cilium runs with the default policy enforcement mode. A `CiliumNetworkPolicy` that contains only an `ingress` section is applied to pods labelled `app=db`. What happens to egress traffic from those pods?",
+    "options": [
+      "Egress stays fully allowed; only ingress becomes default-deny because enforcement is applied per direction",
+      "Egress becomes default-deny because any policy selecting an endpoint denies both directions",
+      "Egress is denied only to endpoints outside the namespace",
+      "Egress is audited but not dropped"
+    ],
+    "optionNotes": [
+      "Correct. In `default` mode an endpoint switches to default-deny independently for ingress and egress, and only for the direction that at least one selecting policy defines rules for.",
+      "This describes what would happen in `always` mode, where every endpoint is default-deny in both directions regardless of policies.",
+      "There is no namespace-boundary special case; either the direction is enforced or it is not.",
+      "Audit behaviour only applies when the endpoint's policy audit mode is enabled; it is not the default."
+    ],
+    "answer": 0,
+    "explanation": "Cilium supports three enforcement modes: `default` (enforce only on endpoints selected by a policy, per direction), `always` (all endpoints default-deny in both directions), and `never` (no enforcement). With `default`, an ingress-only policy makes ingress default-deny for the selected pods while their egress remains unrestricted, which is a common source of surprise when a later egress rule suddenly blocks DNS.",
+    "example": "# check the mode\nkubectl -n kube-system exec ds/cilium -- cilium-dbg config | grep PolicyEnforcement\n# PolicyEnforcement   default\nkubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint list\n# ENDPOINT  POLICY (ingress)  POLICY (egress)  IDENTITY  LABELS\n# 512       Enabled           Disabled         13251     k8s:app=db",
+    "diagram": "flowchart TD\n    M[\"policy enforcement mode\"] --> D[\"default\"]\n    M --> A[\"always\"]\n    M --> N[\"never\"]\n    D --> I[\"ingress rule exists -> ingress default-deny\"]\n    D --> E[\"no egress rule -> egress allowed\"]\n    A --> B[\"both directions default-deny\"]\n    N --> O[\"nothing enforced\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/intro/#policy-enforcement-modes",
+    "tags": [
+      "cca",
+      "network-policy",
+      "enforcement-modes"
+    ],
+    "id": "cilium-011",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You install Cilium with `--set gatewayAPI.enabled=true --set kubeProxyReplacement=true`, but every `Gateway` you create stays without an address and the `GatewayClass` named `cilium` never appears. What is the most likely cause?",
+    "options": [
+      "The Gateway API CRDs were not installed before Cilium, so the operator could not register the GatewayClass",
+      "Cilium Ingress (`ingressController.enabled`) must also be enabled for Gateway API to work",
+      "An Istio control plane is required because Cilium delegates Gateway API to Istio",
+      "Hubble must be enabled because the Gateway controller publishes addresses through Hubble Relay"
+    ],
+    "optionNotes": [
+      "Correct. Cilium does not ship the Gateway API CRDs; they must be applied from the gateway-api release (standard channel plus, for TLSRoute, the experimental CRDs) before installation, otherwise the controller is not started.",
+      "Cilium Ingress and Gateway API are independent features; both use the same embedded Envoy but neither requires the other.",
+      "Cilium implements Gateway API natively through its own Envoy-based controller and does not depend on Istio.",
+      "Hubble is observability only and has no role in Gateway address assignment."
+    ],
+    "answer": 0,
+    "explanation": "Cilium's Gateway API support requires the Gateway API CRDs to be pre-installed and kube-proxy replacement (or at least NodePort/socket LB) to be enabled; when the CRDs are missing the operator skips the Gateway controller and no `cilium` GatewayClass is created. Cilium Ingress, which uses `ingressClassName: cilium`, is a separate feature built on the same embedded Envoy.",
+    "example": "kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml\ncilium install --set kubeProxyReplacement=true --set gatewayAPI.enabled=true\nkubectl get gatewayclass\n# NAME     CONTROLLER                     ACCEPTED\n# cilium   io.cilium/gateway-controller   True",
+    "diagram": "flowchart LR\n    CRD[\"Gateway API CRDs installed\"] --> OP[\"cilium-operator starts Gateway controller\"]\n    OP --> GC[\"GatewayClass cilium\"]\n    GW[\"Gateway + HTTPRoute\"] --> OP\n    OP -->|\"creates\"| SVC[\"LoadBalancer Service\"]\n    OP -->|\"programs\"| ENV[\"embedded Envoy\"]\n    ENV --> BE[\"backend Pods\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/",
+    "tags": [
+      "cca",
+      "service-mesh",
+      "gateway-api"
+    ],
+    "id": "cilium-012",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Cilium's mutual authentication feature requires injecting an Envoy sidecar into every participating Pod so that each connection is terminated with mTLS inside the Pod.",
+    "answer": false,
+    "explanation": "Cilium mutual authentication is sidecar-free. Identities are issued as SPIFFE SVIDs by a SPIRE server, and when a policy sets `authentication.mode: required` the cilium-agents on the two nodes perform a one-time mTLS handshake with each other on behalf of the endpoints; the result is cached in an eBPF auth map and subsequent packets are checked in-kernel. No per-pod proxy is injected and the application traffic itself is not terminated by a sidecar.",
+    "example": "cilium install --set authentication.mutual.spire.enabled=true \\\n  --set authentication.mutual.spire.install.enabled=true\n---\napiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata: {name: require-mtls}\nspec:\n  endpointSelector: {matchLabels: {app: backend}}\n  ingress:\n  - fromEndpoints: [{matchLabels: {app: frontend}}]\n    authentication:\n      mode: required",
+    "diagram": "sequenceDiagram\n    participant A as cilium-agent node A\n    participant S as SPIRE server\n    participant B as cilium-agent node B\n    A->>S: fetch SVID for identity frontend\n    B->>S: fetch SVID for identity backend\n    A->>B: mTLS handshake agent to agent\n    B-->>A: verified\n    A->>A: write entry to eBPF auth map\n    Note over A,B: pod packets checked in kernel, no sidecar",
+    "reference": "https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/mutual-authentication/",
+    "tags": [
+      "cca",
+      "service-mesh",
+      "mutual-auth"
+    ],
+    "id": "cilium-013",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You want to see only the flows in namespace `shop` that Cilium dropped, for example because of network policy. Which command does this?",
+    "options": [
+      "`hubble observe --namespace shop --verdict DROPPED`",
+      "`hubble observe --namespace shop --drop`",
+      "`cilium monitor --verdict DROPPED --namespace shop`",
+      "`hubble status --namespace shop --dropped`"
+    ],
+    "optionNotes": [
+      "Correct. `hubble observe` accepts `--verdict` with values such as `FORWARDED`, `DROPPED`, `AUDIT`, `REDIRECTED` and `ERROR`, combined with namespace/pod/label filters.",
+      "There is no `--drop` flag on `hubble observe`; verdict filtering uses `--verdict`.",
+      "`cilium monitor` (run inside an agent pod) is a low-level per-node datapath trace with `--type drop`; it has no `--verdict` or `--namespace` flags.",
+      "`hubble status` only reports flow counters and node coverage; it does not list flows."
+    ],
+    "answer": 0,
+    "explanation": "Hubble assigns a verdict to each flow: `FORWARDED`, `DROPPED`, `AUDIT` (would have been dropped but audit mode is on), `REDIRECTED` (sent to a proxy), `TRACED`, `TRANSLATED` and `ERROR`. Filtering with `--verdict DROPPED` plus `--namespace` is the standard way to debug policy denials; the output also shows the drop reason such as `Policy denied`.",
+    "example": "cilium hubble port-forward &\nhubble observe --namespace shop --verdict DROPPED --follow\n# Jan 10 09:12:01.123: shop/cart-7d9 (ID:4211) <> shop/db-5c1 (ID:1877) Policy denied DROPPED (TCP Flags: SYN)\nhubble observe --pod shop/cart-7d9 --type l7   # L7 (HTTP/DNS) flows",
+    "diagram": "flowchart LR\n    F[\"flow event from eBPF\"] --> V{\"verdict\"}\n    V --> FW[\"FORWARDED\"]\n    V --> DR[\"DROPPED with reason\"]\n    V --> AU[\"AUDIT\"]\n    V --> RE[\"REDIRECTED to proxy\"]\n    DR --> H[\"hubble observe --verdict DROPPED\"]",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/",
+    "tags": [
+      "cca",
+      "hubble",
+      "observability"
+    ],
+    "id": "cilium-014",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which statements about Hubble's architecture are correct? (Select all that apply.)",
+    "options": [
+      "The Hubble server runs embedded inside each cilium-agent and exposes that node's flows",
+      "Hubble Relay aggregates flows from all nodes so `hubble observe` can show cluster-wide traffic",
+      "Hubble UI renders a service map built from Hubble Relay's flow data",
+      "Hubble persists all flows in an embedded database for long-term retention",
+      "Hubble requires Prometheus to be installed before it can be enabled"
+    ],
+    "optionNotes": [
+      "Correct: every agent runs a Hubble server backed by an in-memory ring buffer of recent flows, reachable via a local unix socket or a gRPC port.",
+      "Correct: `hubble-relay` connects to every agent's Hubble server and exposes one gRPC endpoint that the CLI and UI use for a cluster-wide view.",
+      "Correct: `hubble-ui` is a web front end that queries Relay to draw the service dependency graph and flow table.",
+      "Flows are kept in a per-node ring buffer only; for retention you export them with the Hubble exporter to files or ship metrics to Prometheus.",
+      "Prometheus is optional; Hubble can export metrics to it but does not depend on it."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Hubble is built into cilium-agent: each node holds recent flows in a ring buffer and serves them over gRPC. Hubble Relay fans out to every node for a cluster-wide API, and Hubble UI visualises the resulting service map. Nothing is persisted by default, and Prometheus integration is optional.",
+    "example": "cilium hubble enable --ui\ncilium status | grep -i hubble\n# Hubble Relay:       OK\ncilium hubble port-forward &\nhubble status\n# Healthcheck (via localhost:4245): Ok\n# Current/Max Flows: 12,285/12,285 (100.00%)\n# Flows/s: 41.52\ncilium hubble ui",
+    "diagram": "flowchart LR\n    A1[\"cilium-agent node 1 with Hubble server\"] --> R[\"hubble-relay\"]\n    A2[\"cilium-agent node 2 with Hubble server\"] --> R\n    R --> CLI[\"hubble CLI\"]\n    R --> UI[\"hubble-ui service map\"]\n    A1 -.->|\"optional metrics\"| P[\"Prometheus\"]",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/",
+    "tags": [
+      "cca",
+      "hubble",
+      "architecture"
+    ],
+    "id": "cilium-015",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Two Kubernetes clusters are joined with Cilium Cluster Mesh. A Service named `api` exists in both clusters, but clients in cluster 1 are only ever load-balanced to local backends. What must be added for backends in cluster 2 to be included?",
+    "options": [
+      "Annotate the Service with `service.cilium.io/global: \"true\"` in both clusters",
+      "Set `spec.type: ExternalName` pointing to the other cluster's Service",
+      "Create a `CiliumClusterwideNetworkPolicy` allowing `remote-node`",
+      "Run `cilium clustermesh connect` again with `--enable-global-services`"
+    ],
+    "optionNotes": [
+      "Correct. Global services are opt-in: the Service must exist with the same name and namespace in each cluster and carry the `service.cilium.io/global: \"true\"` annotation so the agents merge backends from the shared clustermesh-apiserver state.",
+      "`ExternalName` returns a CNAME and would bypass Cilium's cross-cluster load balancing entirely.",
+      "Network policy controls whether traffic is allowed, not which backends a Service has; `remote-node` refers to other nodes, not other clusters.",
+      "There is no such flag; global service behaviour is controlled per Service by annotation."
+    ],
+    "answer": 0,
+    "explanation": "Cluster Mesh connects clusters through each cluster's `clustermesh-apiserver`, giving every agent a view of remote identities, nodes and services. Prerequisites include unique cluster names/IDs, non-overlapping PodCIDRs and node reachability. Services are merged only when annotated as global; `service.cilium.io/affinity: local` can then prefer local backends while still failing over remotely.",
+    "example": "cilium clustermesh enable --context c1 --service-type LoadBalancer\ncilium clustermesh enable --context c2 --service-type LoadBalancer\ncilium clustermesh connect --context c1 --destination-context c2\ncilium clustermesh status --context c1 --wait\nkubectl annotate svc api service.cilium.io/global=\"true\" --context c1\nkubectl annotate svc api service.cilium.io/global=\"true\" --context c2",
+    "diagram": "flowchart LR\n    subgraph C1[\"cluster 1\"]\n        A1[\"cilium-agent\"] --> S1[\"Service api global=true\"]\n        M1[\"clustermesh-apiserver\"]\n    end\n    subgraph C2[\"cluster 2\"]\n        A2[\"cilium-agent\"] --> S2[\"Service api global=true\"]\n        M2[\"clustermesh-apiserver\"]\n    end\n    A1 -->|\"reads remote state\"| M2\n    A2 -->|\"reads remote state\"| M1\n    S1 -->|\"backends from both clusters\"| B[\"merged endpoint list\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/clustermesh/services/",
+    "tags": [
+      "cca",
+      "cluster-mesh",
+      "global-services"
+    ],
+    "id": "cilium-016",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about transparent encryption in Cilium are correct? (Select all that apply.)",
+    "options": [
+      "With WireGuard, each agent generates its node key pair automatically and publishes the public key through its `CiliumNode` resource",
+      "IPsec mode requires a pre-shared key stored in a Kubernetes Secret named `cilium-ipsec-keys` in the Cilium namespace",
+      "Pod-to-pod encryption is enabled by default in a standard Helm installation",
+      "When WireGuard is active, `cilium status` reports `Encryption: Wireguard` and the node has a `cilium_wg0` interface",
+      "WireGuard encryption requires Envoy because the handshake is performed at L7"
+    ],
+    "optionNotes": [
+      "Correct: WireGuard needs no key management by the operator; the agent creates keys and peers discover each other via `CiliumNode` annotations.",
+      "Correct: for IPsec you create the `cilium-ipsec-keys` Secret with an SPI, algorithm and key before enabling `encryption.type=ipsec`, and rotate it by bumping the SPI.",
+      "Encryption is off by default; it must be enabled with `encryption.enabled=true` and a type.",
+      "Correct: the agent creates the `cilium_wg0` device and `cilium status`/`cilium-dbg status` show the encryption mode and peer count.",
+      "WireGuard operates at L3 in the kernel; it has nothing to do with Envoy or L7."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "Cilium offers two transparent encryption backends. WireGuard is the simplest: keys are auto-generated per node and exchanged through `CiliumNode`, and traffic between pods on different nodes goes through `cilium_wg0`. IPsec uses kernel XFRM with a user-supplied pre-shared key in the `cilium-ipsec-keys` Secret and supports key rotation. Both are opt-in and operate entirely below L7.",
+    "example": "cilium install --set encryption.enabled=true --set encryption.type=wireguard\ncilium status | grep Encryption\n# Encryption: Wireguard   [NodeEncryption: Disabled, cilium_wg0 (Pubkey: ..., Port: 51871, Peers: 2)]\n\n# IPsec alternative\nkubectl -n kube-system create secret generic cilium-ipsec-keys \\\n  --from-literal=keys=\"3+ rfc4106(gcm(aes)) $(xxd -p -l 20 /dev/urandom) 128\"",
+    "diagram": "flowchart LR\n    P1[\"Pod on node A\"] --> E1[\"eBPF datapath\"]\n    E1 -->|\"cilium_wg0 or XFRM\"| ENC[\"encrypted tunnel\"]\n    ENC --> E2[\"eBPF datapath node B\"]\n    E2 --> P2[\"Pod on node B\"]\n    K[\"WireGuard: auto keys via CiliumNode\"] --> ENC\n    S[\"IPsec: cilium-ipsec-keys Secret\"] --> ENC",
+    "reference": "https://docs.cilium.io/en/stable/security/network/encryption/",
+    "tags": [
+      "cca",
+      "encryption",
+      "wireguard"
+    ],
+    "id": "cilium-017",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Cilium's BGP Control Plane can only advertise PodCIDRs and LoadBalancer IPs if MetalLB is installed alongside it to speak BGP to the top-of-rack routers.",
+    "answer": false,
+    "explanation": "Cilium ships its own BGP implementation (based on GoBGP) inside cilium-agent, enabled with `bgpControlPlane.enabled=true`. Peers and advertisements are declared with `CiliumBGPClusterConfig`, `CiliumBGPPeerConfig` and `CiliumBGPAdvertisement` resources, and LoadBalancer IPs come from Cilium's own LB IPAM (`CiliumLoadBalancerIPPool`). MetalLB is not required and would conflict with Cilium speaking BGP for the same prefixes.",
+    "example": "apiVersion: cilium.io/v2alpha1\nkind: CiliumBGPClusterConfig\nmetadata: {name: rack1}\nspec:\n  nodeSelector: {matchLabels: {rack: \"1\"}}\n  bgpInstances:\n  - name: instance-65001\n    localASN: 65001\n    peers:\n    - name: tor\n      peerASN: 65000\n      peerAddress: 192.168.1.1\n      peerConfigRef: {name: tor-peer}\nkubectl -n kube-system exec ds/cilium -- cilium-dbg bgp peers",
+    "diagram": "flowchart LR\n    CC[\"CiliumBGPClusterConfig\"] --> AG[\"cilium-agent GoBGP speaker\"]\n    AD[\"CiliumBGPAdvertisement PodCIDR + LB IPs\"] --> AG\n    POOL[\"CiliumLoadBalancerIPPool\"] --> AD\n    AG -->|\"BGP session\"| TOR[\"top-of-rack router\"]\n    TOR --> NET[\"rest of the network\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/bgp-control-plane/",
+    "tags": [
+      "cca",
+      "bgp",
+      "networking"
+    ],
+    "id": "cilium-018",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A payments Pod must reach an external bank API whose firewall allows a single fixed source IP. Which Cilium feature makes all egress from the selected Pods leave the cluster from one designated node with a specific source address?",
+    "options": [
+      "Egress Gateway with a `CiliumEgressGatewayPolicy` selecting the pods, a destination CIDR and the gateway node's `egressIP`",
+      "A `CiliumNetworkPolicy` with `toCIDR` for the bank's address range",
+      "Cluster Mesh with the bank API registered as a global service",
+      "Enabling BGP so the Pod IP is advertised to the bank"
+    ],
+    "optionNotes": [
+      "Correct. The Egress Gateway feature SNATs matching traffic on a chosen gateway node to a stable IP; it needs kube-proxy replacement and BPF masquerading, and works with both tunnel and native routing.",
+      "`toCIDR` only allows or denies traffic; it does not change where packets exit or what source IP they carry.",
+      "Cluster Mesh joins Kubernetes clusters; it cannot import an external SaaS endpoint as a service.",
+      "Advertising PodCIDRs would expose ephemeral pod IPs, which cannot be allow-listed as a single fixed address."
+    ],
+    "answer": 0,
+    "explanation": "Egress Gateway redirects egress traffic from selected pods to a gateway node, where it is masqueraded to a predictable `egressIP` before leaving the cluster; the policy chooses pods with `selectors.podSelector`, destinations with `destinationCIDRs` and the node with `egressGateway.nodeSelector`. Because it relies on the eBPF datapath, it requires `kubeProxyReplacement=true` and `bpf.masquerade=true`.",
+    "example": "cilium install --set egressGateway.enabled=true --set bpf.masquerade=true --set kubeProxyReplacement=true\n---\napiVersion: cilium.io/v2\nkind: CiliumEgressGatewayPolicy\nmetadata: {name: bank-egress}\nspec:\n  selectors:\n  - podSelector: {matchLabels: {app: payments}}\n  destinationCIDRs: [\"203.0.113.0/24\"]\n  egressGateway:\n    nodeSelector: {matchLabels: {egress-gw: \"true\"}}\n    egressIP: 198.51.100.10",
+    "diagram": "flowchart LR\n    P[\"payments Pod on node A\"] -->|\"dst 203.0.113.0/24\"| E[\"eBPF: egress policy match\"]\n    E -->|\"tunnel to gateway\"| G[\"gateway node with egress-gw label\"]\n    G -->|\"SNAT to 198.51.100.10\"| B[\"bank API firewall allow-list\"]\n    O[\"other traffic\"] -->|\"normal masquerade\"| W[\"world\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/egress-gateway/egress-gateway/",
+    "tags": [
+      "cca",
+      "egress-gateway",
+      "networking"
+    ],
+    "id": "cilium-019",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which IPAM mode does Cilium use by default when installed with the `cilium` CLI or Helm on a generic (non-cloud-managed) cluster, where cilium-operator hands each node a PodCIDR from a Cilium-managed pool (`ipam.mode` value)?",
+    "answer": [
+      "cluster-pool",
+      "clusterpool",
+      "cluster pool"
+    ],
+    "pattern": "^cluster[\\s-]?pool$",
+    "explanation": "`cluster-pool` is the default `ipam.mode`: the operator carves per-node PodCIDRs from `ipam.operator.clusterPoolIPv4PodCIDRList` and records them in `CiliumNode`. Other modes are `kubernetes` (use the PodCIDR assigned by the Kubernetes controller-manager), `multi-pool` (per-namespace/pod pools via `CiliumPodIPPool`), `crd` (externally managed), and cloud-specific `eni`, `azure` and `alibabacloud` modes that allocate VPC-native addresses.",
+    "example": "cilium install --set ipam.mode=cluster-pool \\\n  --set ipam.operator.clusterPoolIPv4PodCIDRList=10.42.0.0/16 \\\n  --set ipam.operator.clusterPoolIPv4MaskSize=24\nkubectl -n kube-system exec ds/cilium -- cilium-dbg status | grep -A2 IPAM\n# IPAM:   IPv4: 5/254 allocated from 10.42.3.0/24",
+    "diagram": "flowchart TD\n    M[\"ipam.mode\"] --> CP[\"cluster-pool default: operator carves node CIDRs\"]\n    M --> K8[\"kubernetes: use node.spec.podCIDR\"]\n    M --> MP[\"multi-pool: CiliumPodIPPool per workload\"]\n    M --> CL[\"eni / azure / alibabacloud: VPC-native IPs\"]\n    CP --> CN[\"CiliumNode.spec.ipam.podCIDRs\"]\n    CN --> AG[\"agent allocates pod IPs\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/concepts/ipam/",
+    "tags": [
+      "cca",
+      "ipam",
+      "installation"
+    ],
+    "id": "cilium-020",
+    "domain": "cilium"
+  }
+]

@@ -2059,5 +2059,570 @@
       "on-call",
       "philosophy"
     ]
+  },
+  {
+    "id": "monitoring-078",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a Prometheus `scrape_config`, what is the difference between `relabel_configs` and `metric_relabel_configs`?",
+    "options": [
+      "`relabel_configs` runs on discovered targets before the scrape; `metric_relabel_configs` runs on the scraped samples before ingestion",
+      "`relabel_configs` runs on scraped samples; `metric_relabel_configs` runs on targets from service discovery",
+      "They are aliases; either key can be used for both targets and samples",
+      "`relabel_configs` is only valid with `static_configs` and `metric_relabel_configs` only with service discovery"
+    ],
+    "optionNotes": [
+      "Correct. Target relabeling shapes the target list (drop targets, rewrite `__address__`, map SD meta labels), while metric relabeling filters or rewrites individual series after the scrape but before they hit the TSDB.",
+      "Backwards: samples are handled by `metric_relabel_configs`, targets by `relabel_configs`.",
+      "They are distinct stages with different inputs; `__meta_*` labels are only available in target relabeling and `__name__` is only meaningful in metric relabeling.",
+      "Both stages work with any discovery mechanism, including `static_configs`."
+    ],
+    "answer": 0,
+    "explanation": "Prometheus has two relabeling stages. `relabel_configs` is applied to each discovered target (labels such as `__address__` and `__meta_kubernetes_*`) to decide whether and how to scrape it. `metric_relabel_configs` is applied to every scraped sample, so it can drop expensive series (e.g. by `__name__`) before ingestion, but it cannot reduce the cost of the scrape itself.",
+    "example": "scrape_configs:\n- job_name: kubernetes-pods\n  kubernetes_sd_configs: [{role: pod}]\n  relabel_configs:            # targets, before scrape\n  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]\n    action: keep\n    regex: \"true\"\n  metric_relabel_configs:     # samples, after scrape\n  - source_labels: [__name__]\n    regex: go_gc_.*\n    action: drop",
+    "diagram": "flowchart LR\n    SD[\"Service discovery\"] --> RL[\"relabel_configs on targets\"]\n    RL -->|\"keep or drop target\"| SC[\"Scrape /metrics\"]\n    SC --> MRL[\"metric_relabel_configs on samples\"]\n    MRL -->|\"keep or drop series\"| TSDB[\"TSDB storage\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config",
+    "tags": [
+      "pca",
+      "relabeling",
+      "scrape-config"
+    ]
+  },
+  {
+    "id": "monitoring-079",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a Prometheus alerting rule, which field name specifies how long the expression must keep returning results before the alert transitions from `pending` to `firing`?",
+    "answer": [
+      "for"
+    ],
+    "pattern": "^for$",
+    "explanation": "The `for` clause makes Prometheus wait for the condition to hold continuously for the given duration before the alert fires; during that time the alert is in the `pending` state. Omitting `for` (or `for: 0s`) fires immediately on the first evaluation that returns results, which makes transient spikes page people.",
+    "example": "groups:\n- name: api\n  rules:\n  - alert: HighErrorRate\n    expr: job:http_errors:ratio5m > 0.05\n    for: 10m          # pending for 10m, then firing\n    labels:\n      severity: page\n    annotations:\n      summary: \"Error ratio above 5% for 10m\"",
+    "diagram": "flowchart LR\n    E[\"expr returns series\"] --> P[\"pending\"]\n    P -->|\"held for the for duration\"| F[\"firing\"]\n    P -->|\"expr empty again\"| I[\"inactive\"]\n    F -->|\"sent to\"| AM[\"Alertmanager\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/",
+    "tags": [
+      "pca",
+      "alerting-rules"
+    ]
+  },
+  {
+    "id": "monitoring-080",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You precompute a 5-minute request rate aggregated to the `job` label with a Prometheus recording rule. Which rule name follows the documented `level:metric:operations` naming convention?",
+    "options": [
+      "`job:http_requests_total:rate5m`",
+      "`http_requests_total_rate5m_by_job`",
+      "`rate5m:http_requests_total:job`",
+      "`http_requests:rate5m`"
+    ],
+    "optionNotes": [
+      "Correct: the level (`job`, the labels kept after aggregation) comes first, then the original metric name, then the operations applied (`rate5m`).",
+      "Underscore-suffixed names are indistinguishable from raw metric names and hide that the series is derived; the convention uses colons to mark recorded series.",
+      "The segment order is wrong; operations belong at the end and the aggregation level at the start.",
+      "It drops the aggregation level and mangles the metric name, so readers cannot tell what labels remain."
+    ],
+    "answer": 0,
+    "explanation": "The Prometheus recording-rule convention is `level:metric:operations`, where `level` lists the labels the result is aggregated by, `metric` is the source metric name and `operations` lists the functions applied, newest last. Colons are reserved for recorded series so that raw metrics (which must not contain colons) are easy to distinguish from precomputed ones.",
+    "example": "groups:\n- name: http\n  rules:\n  - record: job:http_requests_total:rate5m\n    expr: sum by (job) (rate(http_requests_total[5m]))\n  - record: job:http_requests_total:rate5m:avg_over_time_1h\n    expr: avg_over_time(job:http_requests_total:rate5m[1h])",
+    "diagram": "flowchart LR\n    N[\"job:http_requests_total:rate5m\"] --> L[\"level = job\"]\n    N --> M[\"metric = http_requests_total\"]\n    N --> O[\"operations = rate5m\"]\n    RAW[\"raw http_requests_total\"] -->|\"sum by job of rate 5m\"| N",
+    "reference": "https://prometheus.io/docs/practices/rules/",
+    "tags": [
+      "pca",
+      "recording-rules",
+      "naming"
+    ]
+  },
+  {
+    "id": "monitoring-081",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Consider the PromQL expression `rate(errors_total[5m]) / ignoring(code) group_left sum without(code) (rate(requests_total[5m]))`. Which statements about vector matching here are true? (Select all that apply.)",
+    "options": [
+      "`ignoring(code)` matches series on all labels except `code`",
+      "`group_left` allows many left-side series to match one right-side series",
+      "`group_left` is required whenever both sides have identical label sets",
+      "Without a group modifier this many-to-one match would return an error",
+      "`on(code)` would be equivalent to `ignoring(code)` in this expression"
+    ],
+    "optionNotes": [
+      "True: `ignoring` removes the listed labels from the matching key, so series match on every remaining label.",
+      "True: `group_left` declares a many-to-one match where the left side has higher cardinality (one series per `code`).",
+      "False: identical label sets are a one-to-one match and need no group modifier at all.",
+      "True: binary operators default to one-to-one matching, and multiple left series matching one right series produces a 'multiple matches for labels' error.",
+      "False: `on(code)` would match only on `code`, which the right side no longer has after `sum without(code)`, so it would not match at all."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "PromQL binary operators match series one-to-one by default on their full label sets. `ignoring(code)` excludes `code` from the match key, and because the left side keeps one series per `code` while the right side has aggregated it away, `group_left` is needed to declare a many-to-one match (the 'many' side is on the left). Without it Prometheus returns an error rather than silently expanding.",
+    "example": "# error ratio per status code, relative to total traffic of the same job/instance\nrate(errors_total[5m])\n  / ignoring(code) group_left\nsum without(code) (rate(requests_total[5m]))\n\n# equivalent using on()\nrate(errors_total[5m]) / on(job, instance) group_left sum by (job, instance) (rate(requests_total[5m]))",
+    "diagram": "flowchart LR\n    L1[\"errors code=500 job=api\"] --> M[\"match on job only, ignoring code\"]\n    L2[\"errors code=503 job=api\"] --> M\n    R[\"requests job=api\"] --> M\n    M -->|\"group_left many-to-one\"| O1[\"ratio code=500\"]\n    M --> O2[\"ratio code=503\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching",
+    "tags": [
+      "pca",
+      "promql",
+      "vector-matching"
+    ]
+  },
+  {
+    "id": "monitoring-082",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A PromQL range vector selector such as `http_requests_total[5m]` can be graphed directly in the Prometheus expression browser, because it returns one value per timestamp.",
+    "answer": false,
+    "explanation": "A range vector returns, for each series, a set of samples over the window, so it cannot be plotted as a single line; only instant vectors and scalars can be graphed. Range vectors are inputs to functions such as `rate()`, `increase()` or `*_over_time()`, which reduce each window to one value and return an instant vector.",
+    "example": "# instant vector: one sample per series at query time\nhttp_requests_total\n\n# range vector: many samples per series over 5m - not graphable on its own\nhttp_requests_total[5m]\n\n# function reduces range vector back to instant vector\nrate(http_requests_total[5m])",
+    "diagram": "flowchart LR\n    IV[\"instant vector - one sample per series\"] -->|\"graphable\"| G[\"Graph or alert\"]\n    RV[\"range vector - samples over window\"] -->|\"not directly graphable\"| F[\"rate, increase, avg_over_time\"]\n    F --> IV",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/basics/#range-vector-selectors",
+    "tags": [
+      "pca",
+      "promql",
+      "range-vector"
+    ]
+  },
+  {
+    "id": "monitoring-083",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You want the maximum 5-minute request rate observed at any point during the past hour, evaluated every minute. Which PromQL expression uses a subquery correctly?",
+    "options": [
+      "`max_over_time(rate(http_requests_total[5m])[1h:1m])`",
+      "`max_over_time(rate(http_requests_total[5m])[1h])`",
+      "`max(rate(http_requests_total[5m:1m])[1h])`",
+      "`max_over_time(rate(http_requests_total[1h])[5m:1m])`"
+    ],
+    "optionNotes": [
+      "Correct: the subquery `[1h:1m]` evaluates the inner instant expression every 1m over the last hour and yields a range vector that `max_over_time` reduces.",
+      "Invalid: you cannot apply a plain range `[1h]` to a function result; only a subquery with the `[range:resolution]` syntax turns an instant vector expression into a range vector.",
+      "Invalid: `[5m:1m]` cannot be applied to a raw metric selector inside `rate`, and `max` is an aggregation over series, not over time.",
+      "This computes a 1-hour rate sampled every minute over 5 minutes, which is the opposite of what was asked."
+    ],
+    "answer": 0,
+    "explanation": "A subquery `<instant_query>[<range>:<resolution>]` re-evaluates an instant-vector expression at each resolution step across the range, producing a range vector from a computed expression. That is what lets `max_over_time` see the 5-minute rate at every minute of the last hour. The resolution is optional and defaults to the global evaluation interval.",
+    "example": "# peak 5m rate during the last hour, sampled each minute\nmax_over_time(rate(http_requests_total[5m])[1h:1m])\n\n# subquery with default resolution and 10m offset\nmin_over_time(rate(http_requests_total[5m])[1h:] offset 10m)",
+    "diagram": "flowchart LR\n    A[\"rate x 5m\"] -->|\"evaluate every 1m\"| B[\"subquery 1h:1m\"]\n    B --> C[\"range vector of 60 rate values\"]\n    C --> D[\"max_over_time\"]\n    D --> E[\"instant vector - peak rate\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/basics/#subquery",
+    "tags": [
+      "pca",
+      "promql",
+      "subquery"
+    ]
+  },
+  {
+    "id": "monitoring-084",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which PromQL aggregation modifier keeps every label except the ones listed, e.g. `sum ______(instance) (rate(http_requests_total[5m]))` to aggregate across instances while preserving all other labels?",
+    "answer": [
+      "without"
+    ],
+    "pattern": "^without$",
+    "explanation": "`without` drops the listed labels from the result and aggregates over them, keeping all other labels intact. `by` does the opposite: it keeps only the listed labels. `without` is generally safer in dashboards and rules because new labels added later are preserved automatically.",
+    "example": "# drop instance, keep job, method, code, ...\nsum without(instance) (rate(http_requests_total[5m]))\n\n# keep only job and code, drop everything else\nsum by (job, code) (rate(http_requests_total[5m]))",
+    "diagram": "flowchart LR\n    S[\"series with job, instance, code\"] --> W[\"sum without instance\"]\n    S --> B[\"sum by job\"]\n    W --> WO[\"result keeps job and code\"]\n    B --> BO[\"result keeps job only\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/operators/#aggregation-operators",
+    "tags": [
+      "pca",
+      "promql",
+      "aggregation"
+    ]
+  },
+  {
+    "id": "monitoring-085",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A target stops being scraped but was not removed from service discovery cleanly. How does Prometheus 2.x/3.x decide when an instant query stops returning that target's last sample value?",
+    "options": [
+      "An instant query looks back up to the lookback delta (default 5 minutes) for the most recent sample; after that, or once a staleness marker is written, the series disappears from results",
+      "The last value is returned indefinitely until the series is deleted from the TSDB",
+      "The series disappears immediately after the first failed scrape",
+      "Prometheus returns `NaN` for the series forever after the last successful scrape"
+    ],
+    "optionNotes": [
+      "Correct. Instant selectors return the latest sample within the lookback delta (`--query.lookback-delta`, default 5m). When Prometheus knows a series went away (target gone, or series missing from a scrape) it writes an explicit staleness marker so the series vanishes at once instead of lingering 5 minutes.",
+      "Prometheus never returns arbitrarily old samples for instant queries; the lookback window bounds it.",
+      "A failed scrape marks all of that target's series stale, but a target that is simply no longer scraped (and no marker was written) lingers until the lookback delta expires.",
+      "`NaN` staleness markers are internal; queries do not return them as `NaN` values."
+    ],
+    "answer": 0,
+    "explanation": "Staleness handling means an instant query only considers samples within the lookback delta (5 minutes by default). Prometheus also writes staleness markers when a series is absent from a scrape or when a target disappears, so those series drop out of query results immediately rather than lingering for the full window.",
+    "example": "# lookback window used for instant selectors\nprometheus --query.lookback-delta=5m\n\n# a series absent from the latest scrape returns nothing, not its old value\nup{job=\"api\"}          # empty once the target is gone\nabsent(up{job=\"api\"})  # 1 - useful for alerting on missing targets",
+    "diagram": "flowchart LR\n    S[\"last sample at t0\"] --> Q1[\"query at t0 + 2m returns value\"]\n    S --> Q2[\"query at t0 + 6m returns nothing\"]\n    M[\"staleness marker written\"] --> Q3[\"query right after marker returns nothing\"]\n    LD[\"lookback delta 5m\"] --> Q1\n    LD --> Q2",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/basics/#staleness",
+    "tags": [
+      "pca",
+      "staleness",
+      "tsdb"
+    ]
+  },
+  {
+    "id": "monitoring-086",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You configure Prometheus to probe several websites through a single `blackbox_exporter`. In `relabel_configs`, why is `__address__` copied into the `__param_target` label and then overwritten with the exporter's address?",
+    "options": [
+      "So the URL to probe is passed as the `target` query parameter while Prometheus actually scrapes the exporter, not the website",
+      "So the website is scraped directly and the exporter is used only for TLS termination",
+      "Because `__address__` must always be the last label processed in a relabeling chain",
+      "So the exporter receives the target as a POST body instead of a query parameter"
+    ],
+    "optionNotes": [
+      "Correct. Labels prefixed `__param_<name>` become URL query parameters on the scrape; the exporter probes the `target` and exposes the result, so `__address__` must point at the exporter.",
+      "Websites do not expose Prometheus metrics; the blackbox_exporter performs the probe on Prometheus's behalf.",
+      "There is no such ordering rule; the pattern is about redirecting the scrape.",
+      "Scrape requests are HTTP GETs; parameters are passed in the query string."
+    ],
+    "answer": 0,
+    "explanation": "The blackbox_exporter is a multi-target exporter: Prometheus scrapes `/probe?module=http_2xx&target=https://example.com` on the exporter, which performs the probe and returns metrics such as `probe_success`. The relabeling copies each listed target into `__param_target` (which becomes the `target` query parameter), saves it as the `instance` label for readability, and finally points `__address__` at the exporter so the scrape goes there.",
+    "example": "scrape_configs:\n- job_name: blackbox\n  metrics_path: /probe\n  params: {module: [http_2xx]}\n  static_configs:\n  - targets: [https://example.com, https://api.example.com]\n  relabel_configs:\n  - source_labels: [__address__]\n    target_label: __param_target     # ?target=https://example.com\n  - source_labels: [__param_target]\n    target_label: instance\n  - target_label: __address__\n    replacement: blackbox:9115        # scrape the exporter",
+    "diagram": "flowchart LR\n    P[\"Prometheus\"] -->|\"GET /probe?target=example.com\"| BB[\"blackbox_exporter :9115\"]\n    BB -->|\"HTTP probe\"| W[\"https://example.com\"]\n    BB -->|\"probe_success, probe_duration_seconds\"| P\n    RL[\"relabel: __address__ to __param_target then exporter address\"] --> P",
+    "reference": "https://prometheus.io/docs/guides/multi-target-exporter/",
+    "tags": [
+      "pca",
+      "blackbox-exporter",
+      "relabeling"
+    ]
+  },
+  {
+    "id": "monitoring-087",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "In Alertmanager, a silence is the mechanism that automatically suppresses lower-severity alerts while a matching higher-severity alert is firing.",
+    "answer": false,
+    "explanation": "That behaviour is inhibition: an `inhibit_rules` entry mutes target alerts while a source alert with matching `equal` labels is firing (for example, mute `warning` when `critical` for the same cluster fires). A silence is a time-bounded, manually created matcher (via the UI, API or `amtool`) that mutes alerts regardless of what else is firing.",
+    "example": "inhibit_rules:\n- source_matchers: [severity=\"critical\"]\n  target_matchers: [severity=\"warning\"]\n  equal: [alertname, cluster]   # same cluster + alertname\n\n# a silence, by contrast, is created ad hoc:\namtool silence add alertname=DiskFull instance=db-1 --duration=2h --comment=\"maintenance\"",
+    "diagram": "flowchart LR\n    C[\"critical alert firing\"] -->|\"inhibit_rules with equal labels\"| W[\"warning alert muted\"]\n    U[\"operator creates silence\"] -->|\"matchers + expiry\"| S[\"matching alerts muted for duration\"]\n    G[\"grouping\"] -->|\"one notification per group\"| R[\"receiver\"]",
+    "reference": "https://prometheus.io/docs/alerting/latest/alertmanager/#inhibition",
+    "tags": [
+      "pca",
+      "alertmanager",
+      "inhibition"
+    ]
+  },
+  {
+    "id": "monitoring-088",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A global Prometheus needs a small set of pre-aggregated `job:*` recording-rule series from twenty per-datacenter Prometheus servers, but not their raw series. Which approach matches this requirement best?",
+    "options": [
+      "Configure the global server to scrape each datacenter server's `/federate` endpoint with `match[]` selectors for the `job:*` series",
+      "Enable `remote_write` on every datacenter server to push all series to the global server",
+      "Point Grafana at all twenty servers and let dashboards merge the data",
+      "Run the global server with `--storage.tsdb.path` on shared storage mounted from every datacenter"
+    ],
+    "optionNotes": [
+      "Correct. Hierarchical federation lets a higher-level Prometheus pull selected series from lower-level ones; `match[]` restricts the pull to the recorded aggregates, and `honor_labels: true` preserves their original labels.",
+      "Remote write is a push of (by default) every series to a remote-write compatible endpoint; it is suited to long-term storage systems and would ship far more than the aggregates wanted.",
+      "This avoids any central Prometheus, so no global alerting or cross-DC PromQL is possible.",
+      "Prometheus TSDB directories cannot be shared between running servers; this is not a supported topology."
+    ],
+    "answer": 0,
+    "explanation": "Federation exposes a Prometheus server's series through `/federate`, filtered by `match[]` selectors, so another Prometheus can scrape a curated subset (typically recording-rule outputs). Remote write instead streams samples to a remote storage system as they are ingested and is the tool for long-term or centralized storage rather than for selectively aggregating across servers.",
+    "example": "scrape_configs:\n- job_name: federate\n  scrape_interval: 15s\n  honor_labels: true             # keep job/instance from the source\n  metrics_path: /federate\n  params:\n    'match[]':\n    - '{__name__=~\"job:.*\"}'     # only recorded aggregates\n  static_configs:\n  - targets: [prom-dc1:9090, prom-dc2:9090]",
+    "diagram": "flowchart LR\n    D1[\"Prometheus dc1\"] -->|\"/federate match job:*\"| G[\"Global Prometheus\"]\n    D2[\"Prometheus dc2\"] -->|\"/federate match job:*\"| G\n    G --> A[\"cross-DC alerts and dashboards\"]\n    D1 -.->|\"remote_write all series\"| LTS[\"long-term storage\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/federation/",
+    "tags": [
+      "pca",
+      "federation",
+      "remote-write"
+    ]
+  },
+  {
+    "id": "monitoring-089",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "An application is configured with `OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318`. Which transport does the OpenTelemetry Collector's OTLP receiver expect on that port by default?",
+    "options": [
+      "OTLP over HTTP (protobuf or JSON), e.g. `POST /v1/traces`",
+      "OTLP over gRPC",
+      "Zipkin JSON over HTTP",
+      "Prometheus remote write"
+    ],
+    "optionNotes": [
+      "Correct: the OTLP receiver's HTTP endpoint defaults to port 4318 and serves `/v1/traces`, `/v1/metrics` and `/v1/logs`.",
+      "gRPC is the other OTLP transport and defaults to port 4317.",
+      "The Zipkin receiver is a separate component, usually on port 9411.",
+      "Prometheus remote write is unrelated to OTLP and uses its own receiver."
+    ],
+    "answer": 0,
+    "explanation": "OTLP has two transports: gRPC on 4317 and HTTP on 4318. SDKs that use the HTTP exporter append the signal path (`/v1/traces` etc.) to `OTEL_EXPORTER_OTLP_ENDPOINT`, whereas the gRPC exporter uses the endpoint as-is. Mixing them up (e.g. sending gRPC to 4318) is one of the most common reasons no telemetry arrives.",
+    "example": "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\n      http:\n        endpoint: 0.0.0.0:4318\n\n# app side\nexport OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf\nexport OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318",
+    "diagram": "flowchart LR\n    A[\"App SDK\"] -->|\"gRPC :4317\"| R[\"otlp receiver\"]\n    A -->|\"HTTP :4318 /v1/traces\"| R\n    R --> P[\"processors\"]\n    P --> E[\"exporters\"]",
+    "reference": "https://opentelemetry.io/docs/specs/otlp/",
+    "tags": [
+      "otca",
+      "otlp",
+      "collector"
+    ]
+  },
+  {
+    "id": "monitoring-090",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You maintain a shared HTTP client library and want to add tracing without forcing an exporter or sampler on the applications that use it. Which OpenTelemetry packages should the library depend on?",
+    "options": [
+      "Only the OpenTelemetry API; the application installs and configures the SDK",
+      "The API and the SDK, configured with a no-op exporter by default",
+      "The SDK only, since the API is included transitively",
+      "The Collector client library, so spans go straight to the Collector"
+    ],
+    "optionNotes": [
+      "Correct. The API is a lightweight, stable set of interfaces whose default implementation is a no-op; the application (or auto-instrumentation) wires in the SDK with real providers, samplers and exporters.",
+      "Depending on the SDK from a library forces implementation and version choices on every consumer and breaks the API/SDK separation.",
+      "The SDK depends on the API, not the reverse; libraries should not pull in the SDK.",
+      "There is no such thing; export configuration belongs to the SDK set up by the application."
+    ],
+    "answer": 0,
+    "explanation": "OpenTelemetry deliberately splits the API (interfaces such as `Tracer`, `Meter`, `Logger` and their providers) from the SDK (the implementation with samplers, processors and exporters). Library and framework authors instrument against the API only, so their code is a no-op unless the host application registers an SDK. This is what makes instrumentation libraries safe to ship in any dependency.",
+    "example": "# library code: API only\nfrom opentelemetry import trace\ntracer = trace.get_tracer(\"my.http.client\", \"1.4.0\")\nwith tracer.start_as_current_span(\"GET /users\") as span:\n    span.set_attribute(\"http.request.method\", \"GET\")\n\n# application code: installs the SDK\nfrom opentelemetry.sdk.trace import TracerProvider\ntrace.set_tracer_provider(TracerProvider())",
+    "diagram": "flowchart LR\n    LIB[\"Library instrumented with API\"] --> API[\"OTel API - no-op by default\"]\n    APP[\"Application\"] -->|\"registers\"| SDK[\"OTel SDK - TracerProvider\"]\n    SDK -->|\"implements\"| API\n    SDK --> SP[\"sampler + span processor\"]\n    SP --> EXP[\"exporter\"]",
+    "reference": "https://opentelemetry.io/docs/concepts/instrumentation/libraries/",
+    "tags": [
+      "otca",
+      "api-vs-sdk",
+      "instrumentation"
+    ]
+  },
+  {
+    "id": "monitoring-091",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of these are valid OpenTelemetry `SpanKind` values? (Select all that apply.)",
+    "options": [
+      "`SERVER`",
+      "`PRODUCER`",
+      "`INTERNAL`",
+      "`GATEWAY`",
+      "`ASYNC`"
+    ],
+    "optionNotes": [
+      "Valid: `SERVER` marks the span that handles an incoming synchronous request.",
+      "Valid: `PRODUCER` marks the span that initiates an asynchronous message, paired with a `CONSUMER` span on the receiving side.",
+      "Valid: `INTERNAL` is the default kind for operations that do not cross a process boundary.",
+      "Not a span kind; gateway is a Collector deployment pattern.",
+      "Not a span kind; asynchronous messaging is modelled with `PRODUCER` and `CONSUMER`."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The five span kinds are `INTERNAL`, `SERVER`, `CLIENT`, `PRODUCER` and `CONSUMER`. `CLIENT`/`SERVER` describe the two ends of a synchronous remote call, `PRODUCER`/`CONSUMER` the two ends of an asynchronous message exchange, and `INTERNAL` (the default) everything else. Backends use the kind to build service maps and to compute RED metrics per service edge.",
+    "example": "from opentelemetry.trace import SpanKind\n\nwith tracer.start_as_current_span(\"publish order\", kind=SpanKind.PRODUCER):\n    queue.send(msg)\n\n# consumer side, with context extracted from message headers\nwith tracer.start_as_current_span(\"process order\", kind=SpanKind.CONSUMER, context=ctx):\n    handle(msg)",
+    "diagram": "flowchart LR\n    C[\"CLIENT span\"] -->|\"sync request\"| S[\"SERVER span\"]\n    S --> I[\"INTERNAL span\"]\n    P[\"PRODUCER span\"] -->|\"message via broker\"| CO[\"CONSUMER span\"]",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/traces/#span-kind",
+    "tags": [
+      "otca",
+      "spans",
+      "span-kind"
+    ]
+  },
+  {
+    "id": "monitoring-092",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which environment variable sets the `service.name` resource attribute for an OpenTelemetry SDK without touching code?",
+    "answer": [
+      "OTEL_SERVICE_NAME"
+    ],
+    "pattern": "^OTEL_SERVICE_NAME$",
+    "explanation": "`OTEL_SERVICE_NAME` is the dedicated variable for the `service.name` resource attribute and takes precedence over a `service.name` entry in `OTEL_RESOURCE_ATTRIBUTES`. If neither is set the SDK falls back to `unknown_service` (often suffixed with the process name), which makes traces hard to find in a backend.",
+    "example": "export OTEL_SERVICE_NAME=checkout\nexport OTEL_RESOURCE_ATTRIBUTES=\"service.version=1.8.2,deployment.environment.name=prod\"\nexport OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317\nopentelemetry-instrument python app.py",
+    "diagram": "flowchart LR\n    ENV[\"OTEL_SERVICE_NAME=checkout\"] --> RES[\"Resource service.name=checkout\"]\n    RA[\"OTEL_RESOURCE_ATTRIBUTES\"] --> RES\n    RES --> TP[\"TracerProvider\"]\n    TP --> SP[\"every span carries the resource\"]",
+    "reference": "https://opentelemetry.io/docs/languages/sdk-configuration/general/",
+    "tags": [
+      "otca",
+      "environment-variables",
+      "resource"
+    ]
+  },
+  {
+    "id": "monitoring-093",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In an OpenTelemetry Collector traces pipeline that uses both `memory_limiter` and `batch`, what is the recommended ordering of processors and why?",
+    "options": [
+      "`memory_limiter` first, `batch` last, so memory pressure is detected and backpressure applied before data is accumulated into batches",
+      "`batch` first, `memory_limiter` last, so batches are formed before memory is checked",
+      "Order does not matter because processors run in parallel",
+      "`memory_limiter` should be an extension rather than a processor, so it cannot be ordered"
+    ],
+    "optionNotes": [
+      "Correct. `memory_limiter` should be the first processor so it can refuse data (returning an error the receiver propagates as backpressure) before any other processor holds it, and `batch` should be last so it batches the final shape of the data right before export.",
+      "Batching before limiting means the batch processor would keep growing buffers under memory pressure, defeating the limiter.",
+      "Processors run sequentially in the order listed in the pipeline; data flows through them one after another.",
+      "`memory_limiter` is a processor; extensions like `health_check` or `zpages` do not touch telemetry data."
+    ],
+    "answer": 0,
+    "explanation": "Processors execute in the order listed under `service.pipelines.<pipeline>.processors`. The Collector docs recommend placing `memory_limiter` first so it can check soft/hard limits and push back on receivers before other processors buffer data, and `batch` last so exporters receive well-sized batches. Both processors are recommended in every production pipeline.",
+    "example": "processors:\n  memory_limiter:\n    check_interval: 1s\n    limit_percentage: 80\n    spike_limit_percentage: 20\n  batch:\n    send_batch_size: 8192\n    timeout: 5s\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [memory_limiter, batch]   # limiter first, batch last\n      exporters: [otlp]",
+    "diagram": "flowchart LR\n    R[\"otlp receiver\"] --> ML[\"memory_limiter - first\"]\n    ML -->|\"refuses when over limit\"| R\n    ML --> O[\"other processors\"]\n    O --> B[\"batch - last\"]\n    B --> E[\"otlp exporter\"]",
+    "reference": "https://opentelemetry.io/docs/collector/configuration/#processors",
+    "tags": [
+      "otca",
+      "collector",
+      "processors"
+    ]
+  },
+  {
+    "id": "monitoring-094",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "OpenTelemetry baggage entries are automatically copied onto every span as attributes, so any value placed in baggage will appear in the tracing backend.",
+    "answer": false,
+    "explanation": "Baggage is a separate signal: key/value pairs propagated across process boundaries (via the W3C `baggage` header) alongside trace context. It is not automatically attached to spans, metrics or logs; you must read it and set attributes yourself, or use a processor such as the Collector's or SDK's baggage span processor to copy selected keys. Because baggage travels in headers, it is also visible to every downstream service and should not carry sensitive data.",
+    "example": "from opentelemetry import baggage, context, trace\n\nctx = baggage.set_baggage(\"tenant.id\", \"acme\")\ntoken = context.attach(ctx)\n\n# baggage is propagated, but to see it on a span you must copy it\nspan = trace.get_current_span()\nspan.set_attribute(\"tenant.id\", baggage.get_baggage(\"tenant.id\"))",
+    "diagram": "flowchart LR\n    A[\"Service A sets baggage tenant.id\"] -->|\"baggage header\"| B[\"Service B\"]\n    B -->|\"baggage header\"| C[\"Service C\"]\n    B -.->|\"only if code copies it\"| S[\"span attribute tenant.id\"]\n    A -->|\"traceparent header\"| B",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/baggage/",
+    "tags": [
+      "otca",
+      "baggage",
+      "context-propagation"
+    ]
+  },
+  {
+    "id": "monitoring-095",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You enable the `tail_sampling` processor on a horizontally scaled pool of OpenTelemetry Collectors behind a round-robin load balancer, and sampled traces start arriving with missing spans. What is the cause and the standard fix?",
+    "options": [
+      "Spans of one trace land on different Collectors, so each makes an independent decision; add a first tier that uses the `loadbalancing` exporter keyed by trace ID so all spans of a trace reach the same tail-sampling Collector",
+      "The `batch` processor splits traces across batches; remove `batch` from the pipeline",
+      "Tail sampling only works with the gRPC transport; switch all SDKs from HTTP to gRPC",
+      "The `decision_wait` value is too high; set it to `0s` so decisions are immediate"
+    ],
+    "optionNotes": [
+      "Correct. Tail sampling needs every span of a trace in one process. The documented pattern is a two-tier gateway: the first layer routes by `traceID` with the `loadbalancing` exporter, the second layer runs `tail_sampling`.",
+      "Batching does not affect which Collector receives a span, and batch is still recommended after tail sampling.",
+      "Both OTLP transports carry identical data; the transport is irrelevant to the problem.",
+      "`decision_wait` is how long to buffer a trace before deciding; setting it to zero would make incomplete traces worse, not better."
+    ],
+    "answer": 0,
+    "explanation": "Tail-based sampling decides after seeing a whole trace, so all spans that share a trace ID must arrive at the same Collector instance. When multiple Collectors sit behind a naive load balancer, each sees a fragment and decisions diverge. The `loadbalancing` exporter in a front tier hashes on trace ID (`routing_key: traceID`) so that a consistent backend Collector performs tail sampling.",
+    "example": "# tier 1: route by trace ID\nexporters:\n  loadbalancing:\n    routing_key: traceID\n    protocol: {otlp: {tls: {insecure: true}}}\n    resolver:\n      dns: {hostname: otel-sampler-headless.observability.svc}\n\n# tier 2: tail sampling\nprocessors:\n  tail_sampling:\n    decision_wait: 10s\n    policies:\n    - {name: errors, type: status_code, status_code: {status_codes: [ERROR]}}\n    - {name: slow, type: latency, latency: {threshold_ms: 2000}}",
+    "diagram": "flowchart LR\n    S[\"SDKs\"] --> T1[\"Tier 1 collectors - loadbalancing exporter\"]\n    T1 -->|\"hash traceID\"| A[\"Sampler collector A\"]\n    T1 -->|\"hash traceID\"| B[\"Sampler collector B\"]\n    A -->|\"tail_sampling decision\"| BE[\"backend\"]\n    B -->|\"tail_sampling decision\"| BE",
+    "reference": "https://opentelemetry.io/docs/concepts/sampling/#tail-sampling",
+    "tags": [
+      "otca",
+      "tail-sampling",
+      "collector"
+    ]
+  },
+  {
+    "id": "monitoring-096",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "With the OpenTelemetry Operator installed and an `Instrumentation` custom resource created in a namespace, how do you make the Operator auto-instrument an existing Java Deployment without changing its image?",
+    "options": [
+      "Add the pod annotation `instrumentation.opentelemetry.io/inject-java: \"true\"` so the Operator's webhook injects an init container and the agent's environment variables",
+      "Set the `OTEL_AUTO_INSTRUMENT=true` environment variable on the container",
+      "Add the label `otel.io/agent: java` to the Deployment metadata",
+      "Rebuild the image with the Java agent JAR bundled and set `-javaagent` manually"
+    ],
+    "optionNotes": [
+      "Correct. The Operator's mutating admission webhook watches for `instrumentation.opentelemetry.io/inject-<language>` annotations on pods and injects the agent via an init container plus `JAVA_TOOL_OPTIONS` and `OTEL_*` variables from the `Instrumentation` CR.",
+      "No such variable exists; injection is triggered by the pod annotation.",
+      "The Operator keys off annotations on the pod template, not labels on the Deployment.",
+      "That is manual instrumentation and requires an image change, which the question excludes."
+    ],
+    "answer": 0,
+    "explanation": "The OpenTelemetry Operator manages Collectors (`OpenTelemetryCollector` CR) and auto-instrumentation (`Instrumentation` CR). Once an `Instrumentation` resource defines the exporter endpoint, propagators and sampler, annotating the pod template with `instrumentation.opentelemetry.io/inject-java` (or `-python`, `-nodejs`, `-dotnet`, `-go`) makes the webhook inject the agent at pod creation. The annotation value can be `\"true\"`, an `Instrumentation` name, or `namespace/name`.",
+    "example": "apiVersion: opentelemetry.io/v1alpha1\nkind: Instrumentation\nmetadata: {name: default, namespace: shop}\nspec:\n  exporter: {endpoint: http://otel-collector:4317}\n  propagators: [tracecontext, baggage]\n  sampler: {type: parentbased_traceidratio, argument: \"0.25\"}\n---\n# in the Deployment pod template\nmetadata:\n  annotations:\n    instrumentation.opentelemetry.io/inject-java: \"true\"",
+    "diagram": "flowchart LR\n    D[\"Deployment with inject-java annotation\"] --> W[\"Operator mutating webhook\"]\n    I[\"Instrumentation CR\"] --> W\n    W --> P[\"Pod with init container + JAVA_TOOL_OPTIONS\"]\n    P -->|\"OTLP\"| C[\"OpenTelemetryCollector\"]",
+    "reference": "https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/",
+    "tags": [
+      "otca",
+      "operator",
+      "auto-instrumentation"
+    ]
+  },
+  {
+    "id": "monitoring-097",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Give the value of `OTEL_TRACES_SAMPLER` that samples a configurable fraction of new traces by trace ID while always honouring the sampling decision of an incoming parent span.",
+    "answer": [
+      "parentbased_traceidratio"
+    ],
+    "pattern": "^parentbased_traceidratio$",
+    "explanation": "`parentbased_traceidratio` wraps the `traceidratio` sampler in a parent-based sampler: if a parent span exists, its sampled flag is respected; if not, the trace ID is hashed against the ratio given in `OTEL_TRACES_SAMPLER_ARG`. Plain `traceidratio` would re-decide on every service and break traces, while `always_on`/`always_off` ignore the ratio entirely.",
+    "example": "export OTEL_TRACES_SAMPLER=parentbased_traceidratio\nexport OTEL_TRACES_SAMPLER_ARG=0.1     # keep 10% of root traces\n\n# other valid values: always_on, always_off, traceidratio,\n# parentbased_always_on, parentbased_always_off",
+    "diagram": "flowchart TD\n    S[\"new span\"] --> Q{\"has parent context?\"}\n    Q -->|\"yes\"| P[\"follow parent sampled flag\"]\n    Q -->|\"no\"| R[\"hash traceID against ratio 0.1\"]\n    R --> K[\"sampled or dropped\"]\n    P --> K",
+    "reference": "https://opentelemetry.io/docs/languages/sdk-configuration/general/#otel_traces_sampler",
+    "tags": [
+      "otca",
+      "sampling",
+      "environment-variables"
+    ]
+  },
+  {
+    "id": "monitoring-098",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In an OpenTelemetry Collector configuration, the `spanmetrics` component appears under `exporters` of the `traces` pipeline and under `receivers` of the `metrics` pipeline. What kind of component is it?",
+    "options": [
+      "A connector, which joins two pipelines by consuming data as an exporter in one and emitting data as a receiver in another",
+      "A processor that has been misconfigured, since processors cannot appear in two pipelines",
+      "An extension, because extensions can be referenced from any pipeline",
+      "A receiver that scrapes the traces pipeline's internal metrics"
+    ],
+    "optionNotes": [
+      "Correct. Connectors are defined under a top-level `connectors:` key and are the only component type that can be listed as an exporter in one pipeline and a receiver in another, possibly converting between signals (traces to metrics here).",
+      "Processors sit in the middle of a single pipeline and cannot bridge pipelines.",
+      "Extensions (`health_check`, `zpages`, `pprof`) never appear in pipelines; they provide capabilities outside the data path.",
+      "Receivers ingest data from outside the Collector, not from other pipelines."
+    ],
+    "answer": 0,
+    "explanation": "Connectors are the fourth pipeline component type after receivers, processors and exporters. The `spanmetrics` connector aggregates RED metrics (request count, duration histograms) from spans and emits them into a metrics pipeline; `forward` and `routing` connectors move data between pipelines of the same signal. They let one Collector derive one signal from another without an external round trip.",
+    "example": "connectors:\n  spanmetrics:\n    histogram:\n      explicit: {buckets: [100ms, 500ms, 2s]}\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [batch]\n      exporters: [otlp, spanmetrics]     # connector as exporter\n    metrics:\n      receivers: [spanmetrics]           # same connector as receiver\n      exporters: [prometheusremotewrite]",
+    "diagram": "flowchart LR\n    O[\"otlp receiver\"] --> TP[\"traces pipeline\"]\n    TP --> TE[\"otlp exporter\"]\n    TP -->|\"as exporter\"| SM[\"spanmetrics connector\"]\n    SM -->|\"as receiver\"| MP[\"metrics pipeline\"]\n    MP --> PRW[\"prometheusremotewrite exporter\"]",
+    "reference": "https://opentelemetry.io/docs/collector/configuration/#connectors",
+    "tags": [
+      "otca",
+      "collector",
+      "connectors"
+    ]
+  },
+  {
+    "id": "monitoring-099",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Enabling the `zpages` extension in an OpenTelemetry Collector exposes in-process debugging pages such as `/debug/tracez` and `/debug/pipelinez`, served on port 55679 by default.",
+    "answer": true,
+    "explanation": "`zpages` is an extension (configured under `extensions:` and enabled in `service.extensions`) that serves live diagnostic HTML pages from the Collector itself: `/debug/pipelinez` shows configured pipelines and components, `/debug/tracez` shows recent and latency-bucketed spans, and `/debug/servicez` shows build info. Together with the `health_check` extension (`:13133/`) and the `debug` exporter, it is the first stop when telemetry is not flowing.",
+    "example": "extensions:\n  zpages:\n    endpoint: 0.0.0.0:55679\n  health_check:\n    endpoint: 0.0.0.0:13133\nexporters:\n  debug:\n    verbosity: detailed   # print received data to stdout\nservice:\n  extensions: [zpages, health_check]\n  pipelines:\n    traces: {receivers: [otlp], exporters: [debug]}",
+    "diagram": "flowchart LR\n    C[\"Collector\"] --> Z[\"zpages :55679 /debug/tracez\"]\n    C --> H[\"health_check :13133\"]\n    C --> D[\"debug exporter to stdout\"]\n    OP[\"operator debugging\"] --> Z\n    K[\"kubelet probes\"] --> H",
+    "reference": "https://opentelemetry.io/docs/collector/troubleshooting/",
+    "tags": [
+      "otca",
+      "collector",
+      "debugging"
+    ]
   }
 ]
