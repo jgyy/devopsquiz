@@ -1122,5 +1122,659 @@
       "helm",
       "tiller"
     ]
+  },
+  {
+    "id": "kubernetes-059",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the difference between a Custom Resource (CR) and a Custom Resource Definition (CRD)?",
+    "options": [
+      "A CRD defines a new API type (group, version, kind, schema); a CR is an instance of that type stored in the cluster",
+      "A CR defines the schema; a CRD is one object created from it",
+      "They are two names for the same object",
+      "A CRD is only used by Helm, a CR is only used by operators"
+    ],
+    "answer": 0,
+    "explanation": "The CRD registers a new resource type with the API server, including its OpenAPI schema and versions. Once the CRD exists, users create CRs of that kind just like built-in objects such as Deployments.",
+    "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/",
+    "tags": [
+      "crd",
+      "operators"
+    ]
+  },
+  {
+    "id": "kubernetes-060",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "When a Custom Resource is submitted through the Kubernetes API and accepted, which datastore does the API server persist it in?",
+    "answer": [
+      "etcd"
+    ],
+    "explanation": "All cluster state, including custom resources, is persisted by the kube-apiserver into etcd. Controllers never write to etcd directly; they always go through the API server.",
+    "reference": "https://kubernetes.io/docs/concepts/architecture/#etcd",
+    "tags": [
+      "crd",
+      "etcd",
+      "architecture"
+    ],
+    "pattern": "^etcd$"
+  },
+  {
+    "id": "kubernetes-061",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "After a Custom Resource is stored in etcd, what happens next?",
+    "options": [
+      "etcd executes the resource's logic directly",
+      "The API server notifies clients watching that resource type; a controller or operator watching it receives the event and reconciles the desired state",
+      "The kubelet on every node creates the resource locally",
+      "Nothing happens until a user runs `kubectl rollout`"
+    ],
+    "answer": 1,
+    "explanation": "Storing a CR by itself does nothing. The API server's watch mechanism delivers an ADDED/MODIFIED event to any client watching that kind. An operator's informer receives it, enqueues the object key, and the reconcile loop turns the desired state into real resources.",
+    "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/operator/",
+    "tags": [
+      "crd",
+      "operators",
+      "watch"
+    ]
+  },
+  {
+    "id": "kubernetes-062",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following happen internally after you run `kubectl apply -f deploy.yaml`? (Select all that apply.)",
+    "options": [
+      "kubectl computes a patch by comparing the file, the live object, and the last-applied-configuration (or uses server-side apply with field managers)",
+      "The API server authenticates and authorizes the request, then runs mutating and validating admission webhooks",
+      "The API server validates the object against its schema and persists it in etcd",
+      "The API server itself creates the Pods on the nodes",
+      "Controllers (Deployment, ReplicaSet) watching the API react to the change and create or update child objects"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "The request flow is client-side diff or server-side apply, then authn/authz, admission, validation, and persistence in etcd. Pods are not created by the API server; the Deployment controller creates a ReplicaSet, the ReplicaSet controller creates Pods, the scheduler binds them to nodes, and the kubelet runs them.",
+    "reference": "https://kubernetes.io/docs/reference/using-api/server-side-apply/",
+    "tags": [
+      "kubectl",
+      "apiserver",
+      "architecture"
+    ]
+  },
+  {
+    "id": "kubernetes-063",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "How does a Kubernetes controller or operator work at the most basic level?",
+    "options": [
+      "It runs a cron job that polls etcd every minute",
+      "It watches objects via the API server, compares desired state (spec) with actual state, and takes actions to converge them",
+      "It executes shell scripts embedded in the resource manifest",
+      "It only reacts to `kubectl` commands, not to changes made by other clients"
+    ],
+    "answer": 1,
+    "explanation": "A controller is a control loop: watch resources, observe the current state, compute the difference from the desired state, and act (create, update, delete) to close the gap. An operator is a controller that encodes operational knowledge for a specific application, usually driven by CRDs.",
+    "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
+    "tags": [
+      "controllers",
+      "operators"
+    ]
+  },
+  {
+    "id": "kubernetes-064",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is a Kubernetes reconciliation loop?",
+    "options": [
+      "A loop that retries a failed `kubectl apply` until it succeeds",
+      "A repeated process where a controller reads an object's desired state, observes the actual state, and performs actions to make them match, then re-runs on any change",
+      "The API server's mechanism for compacting etcd history",
+      "The kubelet's loop for restarting crashed containers"
+    ],
+    "answer": 1,
+    "explanation": "Reconciliation is level-triggered rather than edge-triggered: the reconciler is given only an object key and must re-read current state and drive toward the spec regardless of which event woke it. This is why it tolerates missed or duplicated events.",
+    "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
+    "tags": [
+      "controllers",
+      "reconcile"
+    ]
+  },
+  {
+    "id": "kubernetes-065",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the difference between `spec` and `status` in a Kubernetes object?",
+    "options": [
+      "`spec` is the desired state written by the user or client; `status` is the observed state written by the controller",
+      "`spec` is read-only; `status` is what users edit to request changes",
+      "`spec` is stored in etcd; `status` is only kept in memory",
+      "They are interchangeable and both are written by the user"
+    ],
+    "answer": 0,
+    "explanation": "The user declares intent in `spec`. Controllers report what they observed or achieved in `status`, typically via the `/status` subresource so that spec and status updates have separate RBAC and do not clobber each other.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/#object-spec-and-status",
+    "tags": [
+      "spec",
+      "status",
+      "api"
+    ]
+  },
+  {
+    "id": "kubernetes-066",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does an operator typically detect that a Custom Resource has been created or updated?",
+    "options": [
+      "It polls `kubectl get` output on a fixed timer",
+      "It receives a webhook call from etcd",
+      "It uses an informer that opens a watch on the resource via the API server, keeps a local cache, and enqueues the object key into a work queue on events",
+      "It tails the API server's audit log"
+    ],
+    "answer": 2,
+    "explanation": "client-go informers do an initial list followed by a long-running watch. Events update a local indexed cache and trigger handlers that enqueue keys; worker goroutines pop keys and call reconcile. controller-runtime wraps this pattern.",
+    "reference": "https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes",
+    "tags": [
+      "operators",
+      "informers",
+      "watch"
+    ]
+  },
+  {
+    "id": "kubernetes-067",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why must a Kubernetes controller's reconcile function be idempotent?",
+    "options": [
+      "Because reconcile may be invoked many times for the same object (resyncs, duplicate events, retries after errors, restarts), and running it again must not create duplicate resources or cause side effects",
+      "Because the API server rejects any request that is sent twice",
+      "Because Go does not support retries",
+      "Because etcd only stores each object once"
+    ],
+    "answer": 0,
+    "explanation": "Reconcile is triggered by many sources and events can be coalesced or replayed. An idempotent reconcile checks current state and only acts on the difference, so repeated runs converge to the same result instead of, for example, creating a second Deployment.",
+    "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
+    "tags": [
+      "controllers",
+      "idempotency"
+    ]
+  },
+  {
+    "id": "kubernetes-068",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is a Kubernetes finalizer?",
+    "options": [
+      "A hook that runs after a Pod finishes so the kubelet can collect logs",
+      "A key in `metadata.finalizers` that blocks actual deletion of an object until a controller performs cleanup and removes the key",
+      "The last container in a Pod to be started",
+      "A validating webhook that runs at the end of the admission chain"
+    ],
+    "answer": 1,
+    "explanation": "When an object with finalizers is deleted, the API server sets `metadata.deletionTimestamp` instead of removing it. The controller sees this, cleans up external resources (cloud disks, DNS records), then removes its finalizer; once the list is empty the object is garbage collected.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
+    "tags": [
+      "finalizers",
+      "deletion"
+    ]
+  },
+  {
+    "id": "kubernetes-069",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the difference between an `ownerReference` and a finalizer?",
+    "options": [
+      "An ownerReference lets the garbage collector delete dependent objects when their owner is deleted; a finalizer delays deletion of an object until a controller has done cleanup",
+      "They are the same mechanism under different names",
+      "A finalizer cascades deletion to children; an ownerReference blocks deletion",
+      "ownerReferences apply only to Pods; finalizers apply only to CRs"
+    ],
+    "answer": 0,
+    "explanation": "ownerReferences describe the parent/child graph used for cascading (background or foreground) deletion of in-cluster objects. Finalizers are for cleanup the garbage collector cannot do itself, such as deleting resources outside the cluster. Operators often use both: children carry an ownerReference to the CR, and the CR carries a finalizer for external cleanup.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/",
+    "tags": [
+      "finalizers",
+      "ownerreferences",
+      "garbage-collection"
+    ]
+  },
+  {
+    "id": "kubernetes-070",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "You are building a Kubernetes operator in Go. Which of the following are standard parts of that approach? (Select all that apply.)",
+    "options": [
+      "Scaffold the project with Kubebuilder or Operator SDK, which generate the CRD Go types and a controller-runtime manager",
+      "Define the CR's `Spec` and `Status` structs with kubebuilder markers and run `controller-gen` to produce the CRD YAML and deepcopy functions",
+      "Implement a `Reconcile(ctx, req)` method that fetches the object by name, creates or updates owned resources, updates status, and returns a `ctrl.Result`",
+      "Write directly to etcd for performance",
+      "Register the controller with `Owns()`/`Watches()` so changes to child resources also trigger reconcile"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "Kubebuilder and Operator SDK sit on controller-runtime, which provides the manager, cached client, informers, work queue and leader election. Reconcile receives only a namespaced name and must re-read state. Writing to etcd directly bypasses validation, admission and RBAC and is never done.",
+    "reference": "https://book.kubebuilder.io/",
+    "tags": [
+      "operators",
+      "golang",
+      "kubebuilder",
+      "controller-runtime"
+    ]
+  },
+  {
+    "id": "kubernetes-071",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which RBAC permissions does a typical Kubernetes operator require? (Select all that apply.)",
+    "options": [
+      "get, list, watch on its own custom resource so it can cache and reconcile it",
+      "update or patch on the custom resource's `/status` subresource to report observed state",
+      "create, update, delete on the child resource kinds it manages, such as Deployments and Services",
+      "cluster-admin, because operators always need full access",
+      "create and patch on `events` so it can emit Kubernetes Events for troubleshooting",
+      "update on the custom resource itself if it adds or removes finalizers"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4,
+      5
+    ],
+    "explanation": "Follow least privilege: only the verbs and kinds the controller actually touches. Kubebuilder generates the ClusterRole from `+kubebuilder:rbac` markers. If leader election is enabled it also needs access to `leases` in coordination.k8s.io. cluster-admin is a common but poor shortcut.",
+    "reference": "https://book.kubebuilder.io/reference/markers/rbac",
+    "tags": [
+      "operators",
+      "rbac"
+    ]
+  },
+  {
+    "id": "kubernetes-072",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In a controller-runtime operator, how should you handle a transient failure (for example an external API timeout) inside `Reconcile` so it is retried?",
+    "options": [
+      "Return the error; controller-runtime re-enqueues the request with rate-limited exponential backoff",
+      "Call `os.Exit(1)` so the Pod restarts and reconcile runs again",
+      "Sleep inside Reconcile until the external API recovers",
+      "Ignore the error, since the next resync will fix it"
+    ],
+    "answer": 0,
+    "explanation": "Returning an error triggers the work queue's rate limiter (exponential backoff, capped). For expected waits such as polling a slow resource, return `ctrl.Result{RequeueAfter: d}` with nil error. Blocking inside Reconcile starves other keys, and the default resync period is too coarse to rely on.",
+    "reference": "https://book.kubebuilder.io/reference/reconcile",
+    "tags": [
+      "operators",
+      "retries",
+      "requeue"
+    ]
+  },
+  {
+    "id": "kubernetes-073",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "How would you manage different versions of a CRD (for example `v1alpha1` and `v1`) at the same time?",
+    "options": [
+      "Create two separate CRDs with different kinds",
+      "List multiple versions in the CRD with exactly one marked as the storage version, and use a conversion webhook (or `None` strategy) so clients can read and write any served version",
+      "Delete all CRs, change the version string, and recreate them",
+      "Versions cannot coexist; only one version may ever be defined"
+    ],
+    "answer": 1,
+    "explanation": "A CRD can serve several versions concurrently. Objects are persisted in the storage version; the API server converts on read/write using the conversion strategy. When the schemas differ, a conversion webhook implements the mapping. After migrating stored objects you can drop the old version from `served` and `storedVersions`.",
+    "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/",
+    "tags": [
+      "crd",
+      "versioning",
+      "conversion-webhook"
+    ]
+  },
+  {
+    "id": "kubernetes-074",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A pod has been stuck in `Pending` for ten minutes. Which are legitimate steps or common causes to check? (Select all that apply.)",
+    "options": [
+      "Run `kubectl describe pod` and read the Events section for scheduler messages such as `Insufficient cpu` or `didn't match node affinity`",
+      "Check whether the referenced PersistentVolumeClaim is bound, since a pod waiting on storage stays Pending",
+      "Check node taints versus the pod's tolerations and any nodeSelector or affinity rules",
+      "Check whether a ResourceQuota or LimitRange in the namespace is blocking the pod",
+      "Restart the kubelet on every node, since Pending is always a kubelet problem"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Pending means the scheduler has not bound the pod to a node (or the image pull has not started). The Events in `describe` almost always name the reason: insufficient resources, taints, affinity, unbound PVC, or quota. If the cluster is simply full, the Cluster Autoscaler or Karpenter logs show whether a node is being added. Restarting kubelets does not help a scheduling problem.",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/",
+    "tags": [
+      "troubleshooting",
+      "scheduling",
+      "pending"
+    ]
+  },
+  {
+    "id": "kubernetes-075",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A pod is `Running` but clients cannot reach it through its Service. Which checks are appropriate? (Select all that apply.)",
+    "options": [
+      "Run `kubectl get endpoints <svc>` (or EndpointSlices) to confirm the pod IP is listed; if empty, the Service selector does not match the pod labels or the readiness probe is failing",
+      "Verify the Service `port` and `targetPort` match the port the container actually listens on",
+      "Exec into another pod and `curl` the pod IP directly to separate an app problem from a Service or DNS problem",
+      "Check NetworkPolicies that may be denying ingress to the pod",
+      "Delete the Service and recreate it with a NodePort, since ClusterIP Services are unreliable"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Work from the inside out: is the app listening on the expected port, does the pod pass readiness so it is in the Endpoints, does the Service map the right ports, does DNS resolve the Service name, and is a NetworkPolicy blocking traffic. Changing Service type does not address any of these.",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/",
+    "tags": [
+      "troubleshooting",
+      "service",
+      "networking"
+    ]
+  },
+  {
+    "id": "kubernetes-076",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Before performing maintenance on a worker node you run `kubectl cordon <node>` and then which `kubectl` subcommand to evict the pods gracefully, respecting PodDisruptionBudgets?",
+    "answer": [
+      "drain",
+      "kubectl drain"
+    ],
+    "explanation": "`kubectl drain` marks the node unschedulable and evicts pods using the Eviction API, which honours PodDisruptionBudgets. You typically add `--ignore-daemonsets` and `--delete-emptydir-data`. After maintenance, `kubectl uncordon` makes the node schedulable again.",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
+    "tags": [
+      "nodes",
+      "maintenance",
+      "drain"
+    ],
+    "pattern": "^(kubectl\\s+)?drain$"
+  },
+  {
+    "id": "kubernetes-077",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which sequence safely performs maintenance on a Kubernetes worker node with minimal disruption?",
+    "options": [
+      "Power off the node, wait for pods to be rescheduled, power it back on",
+      "Ensure PodDisruptionBudgets exist for critical workloads, `kubectl cordon` the node, `kubectl drain --ignore-daemonsets` it, do the maintenance, then `kubectl uncordon`",
+      "Delete all pods on the node with `--force --grace-period=0`, then reboot",
+      "Scale every Deployment to zero, reboot, then scale back up"
+    ],
+    "answer": 1,
+    "explanation": "Cordon stops new pods landing on the node, drain evicts existing ones gracefully while PDBs prevent taking too many replicas of a service down at once, and uncordon returns the node to service. Force-deleting pods or powering off bypasses graceful termination and PDBs.",
+    "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
+    "tags": [
+      "nodes",
+      "maintenance",
+      "pdb"
+    ]
+  },
+  {
+    "id": "kubernetes-078",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does persistent storage work in Kubernetes?",
+    "options": [
+      "Containers write to their own filesystem, which is automatically preserved across restarts",
+      "A pod references a PersistentVolumeClaim; a StorageClass and CSI driver dynamically provision a PersistentVolume that is bound to the claim and mounted into the pod",
+      "The kubelet copies data between nodes whenever a pod is rescheduled",
+      "Only StatefulSets can use storage; Deployments are always stateless"
+    ],
+    "answer": 1,
+    "explanation": "PVCs are the pod's request for storage; PVs are the actual volumes. With dynamic provisioning the StorageClass names a CSI driver (for example EBS on EKS) that creates the backing disk. Access modes (RWO, RWX) and the volume binding mode (for example `WaitForFirstConsumer`) determine which nodes can mount it.",
+    "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
+    "tags": [
+      "storage",
+      "pv",
+      "pvc",
+      "csi"
+    ]
+  },
+  {
+    "id": "kubernetes-079",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "How is access to an Amazon EKS cluster typically managed for human users and CI pipelines?",
+    "options": [
+      "Every user shares the cluster creator's kubeconfig",
+      "IAM principals are mapped to Kubernetes users/groups (via EKS access entries or the legacy `aws-auth` ConfigMap), and Kubernetes RBAC Roles/ClusterRoles bound to those groups control what they can do",
+      "EKS ignores RBAC; permissions come only from IAM policies",
+      "Users log in with a username and password stored in a Secret"
+    ],
+    "answer": 1,
+    "explanation": "Authentication is IAM: `aws eks get-token` produces a token the API server verifies. Authorization is two layers: the IAM-to-Kubernetes identity mapping (access entries with access policies, or aws-auth), then normal RBAC inside the cluster. Workloads use IRSA or Pod Identity to get IAM permissions.",
+    "reference": "https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html",
+    "tags": [
+      "eks",
+      "rbac",
+      "iam"
+    ]
+  },
+  {
+    "id": "kubernetes-080",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which practices help upgrade a Kubernetes cluster without disrupting critical services? (Select all that apply.)",
+    "options": [
+      "Upgrade the control plane first, then node groups, staying within the supported version skew for kubelet and kubectl",
+      "Check for removed or deprecated APIs in the target version (for example with `kubectl-convert` or Pluto) and update manifests, Helm charts and operators beforehand",
+      "Define PodDisruptionBudgets and run at least two replicas spread across nodes so draining does not take a service fully down",
+      "Use rolling or surge node-group upgrades that add new nodes before draining old ones, and upgrade cluster add-ons (CNI, CoreDNS, kube-proxy) to compatible versions",
+      "Upgrade several minor versions in one jump to reduce the number of maintenance windows"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Kubernetes only supports upgrading one minor version at a time, and the API server must be newer than or equal to kubelets. Test in a non-production cluster first, watch for API removals, and rely on PDBs and surge capacity so drains are graceful. Skipping minor versions is unsupported.",
+    "reference": "https://kubernetes.io/releases/version-skew-policy/",
+    "tags": [
+      "upgrades",
+      "version-skew",
+      "pdb"
+    ]
+  },
+  {
+    "id": "kubernetes-081",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "You want a CRD, its operator and its Helm chart to be portable across different Kubernetes clusters (different cloud providers, versions and namespaces). Which practices help? (Select all that apply.)",
+    "options": [
+      "Avoid hard-coding cluster-specific values (StorageClass names, ingress classes, domains, IAM roles) and expose them as Helm values",
+      "Ship the CRDs with the chart (`crds/` directory or a separate chart) and pin the operator to stable served API versions of built-in resources",
+      "Make the operator namespace-agnostic by reading its namespace from the Downward API and using `WATCH_NAMESPACE` or cluster scope as configured",
+      "Compile the operator binary for a single architecture only, since all clusters run amd64",
+      "Set an explicit `kubeVersion` constraint in `Chart.yaml` and test the chart against each supported version"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "Portability means parameterising anything that differs by cluster, avoiding dependence on provider-specific defaults, building multi-arch images (arm64 nodes are common), and declaring which Kubernetes versions the chart and operator support. Helm's `crds/` directory installs CRDs before templates are rendered but does not upgrade them, so document or automate CRD upgrades.",
+    "reference": "https://helm.sh/docs/chart_best_practices/custom_resource_definitions/",
+    "tags": [
+      "helm",
+      "crd",
+      "operators",
+      "portability"
+    ]
+  },
+  {
+    "id": "kubernetes-082",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Deleting a CustomResourceDefinition also deletes every Custom Resource of that kind in the cluster.",
+    "answer": true,
+    "explanation": "Removing a CRD removes the API type, and the API server garbage-collects all objects of that kind. If those CRs carry finalizers whose controller is already gone, the CRD deletion hangs until the finalizers are removed manually.",
+    "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#delete-a-customresourcedefinition",
+    "tags": [
+      "crd",
+      "deletion"
+    ]
+  },
+  {
+    "id": "kubernetes-083",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "When the `status` subresource is enabled on a CRD, an update to the main resource endpoint ignores changes to `.status`, and an update to `/status` ignores changes to `.spec`.",
+    "answer": true,
+    "explanation": "Enabling `subresources.status` splits the object: PUT/PATCH on the resource only persists spec and metadata, while PUT/PATCH on `/status` only persists status. This prevents controllers and users from overwriting each other and allows separate RBAC rules for each.",
+    "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource",
+    "tags": [
+      "crd",
+      "status",
+      "subresources"
+    ]
+  },
+  {
+    "id": "kubernetes-084",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the purpose of `status.observedGeneration` in a controller-managed resource?",
+    "options": [
+      "It counts how many times the object has been reconciled",
+      "It records the `metadata.generation` the controller last acted on, so clients can tell whether the reported status corresponds to the current spec",
+      "It is the etcd revision number of the object",
+      "It is the number of child objects the controller owns"
+    ],
+    "answer": 1,
+    "explanation": "`metadata.generation` increments on every spec change. A controller copies it into `status.observedGeneration` after reconciling. If they differ, the status is stale and the controller has not yet processed the latest spec, which is how tools like `kubectl rollout status` decide whether to keep waiting.",
+    "reference": "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/#DeploymentStatus",
+    "tags": [
+      "status",
+      "generation",
+      "controllers"
+    ]
+  },
+  {
+    "id": "kubernetes-085",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Several pods on one EKS node are repeatedly evicted and the node reports the `DiskPressure` condition. Which is the most likely root cause and fix?",
+    "options": [
+      "The node's root volume is full of unused container images or overflowing container logs; prune images, enforce log rotation and set ephemeral-storage requests/limits, and consider a larger root volume",
+      "The API server has run out of etcd space; compact and defragment etcd",
+      "The pods are missing a livenessProbe; add one",
+      "The Cluster Autoscaler has scaled down too aggressively; disable it"
+    ],
+    "answer": 0,
+    "explanation": "DiskPressure means the kubelet's eviction thresholds for `nodefs` or `imagefs` were crossed. Typical culprits are image bloat, application logs written to the node, or emptyDir volumes. `kubectl describe node` and `df` on the node confirm it; ephemeral-storage limits let the kubelet evict the offending pod rather than random ones.",
+    "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/",
+    "tags": [
+      "troubleshooting",
+      "eviction",
+      "nodes",
+      "incident"
+    ]
+  },
+  {
+    "id": "kubernetes-086",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Deployment's pods keep restarting with `OOMKilled`. Which action addresses the cause rather than the symptom?",
+    "options": [
+      "Remove the livenessProbe so Kubernetes stops restarting the container",
+      "Inspect memory usage (`kubectl top pod`, APM heap metrics) and either fix the leak or raise the container's memory limit to fit its real working set",
+      "Increase the number of replicas so each pod gets less traffic",
+      "Set `restartPolicy: Never`"
+    ],
+    "answer": 1,
+    "explanation": "OOMKilled means the container exceeded its cgroup memory limit and the kernel killed it. The fix is right-sizing the limit or fixing the application's memory growth. Removing probes or changing restart policy just hides the failure; more replicas only helps if memory scales with traffic.",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/",
+    "tags": [
+      "troubleshooting",
+      "oom",
+      "resources"
+    ]
+  },
+  {
+    "id": "kubernetes-087",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which statement correctly distinguishes the Horizontal Pod Autoscaler (HPA) from the Cluster Autoscaler or Karpenter?",
+    "options": [
+      "HPA changes the number of pod replicas based on metrics such as CPU or custom metrics; the Cluster Autoscaler/Karpenter adds or removes nodes when pods cannot be scheduled or nodes are underutilised",
+      "HPA adds nodes; the Cluster Autoscaler adds pods",
+      "They are the same component configured differently",
+      "HPA only works with StatefulSets"
+    ],
+    "answer": 0,
+    "explanation": "Autoscaling in Kubernetes has two layers. HPA (and KEDA for event-driven sources like SQS queue depth) scales workloads. When new pods go Pending for lack of capacity, the node autoscaler provisions nodes; when nodes are mostly empty it consolidates them. VPA is a third option that adjusts requests instead of replica count.",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+    "tags": [
+      "autoscaling",
+      "hpa",
+      "cluster-autoscaler"
+    ]
+  },
+  {
+    "id": "kubernetes-088",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You run `kubectl delete` on a custom resource and it stays in `Terminating` indefinitely. What is the most likely reason?",
+    "options": [
+      "The API server is waiting for etcd compaction",
+      "The object has a finalizer and the controller responsible for removing it is not running or is failing",
+      "The pod's grace period is set too high",
+      "The CRD has multiple versions defined"
+    ],
+    "answer": 1,
+    "explanation": "An object with `deletionTimestamp` set and a non-empty `metadata.finalizers` list is not removed until each finalizer is cleared. If the operator that owns the finalizer is down, the object hangs. Restore the operator, or as a last resort patch the finalizers away after doing the cleanup manually.",
+    "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
+    "tags": [
+      "finalizers",
+      "troubleshooting",
+      "deletion"
+    ]
   }
 ]

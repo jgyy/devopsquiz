@@ -130,7 +130,7 @@
     "difficulty": "hard",
     "type": "single",
     "options": [
-      "It doesn't \u2014 counter resets always silently produce wrong, uncorrected negative rates",
+      "It doesn't — counter resets always silently produce wrong, uncorrected negative rates",
       "`rate()` automatically detects apparent decreases and adjusts its calculation to account for the reset, avoiding a large negative spike in the computed rate",
       "Counter resets are impossible in Prometheus by design, so this never needs handling",
       "`rate()` only operates on gauges, not counters, so resets are irrelevant to it"
@@ -306,7 +306,7 @@
     ],
     "answer": 1,
     "prompt": "How does a Service Level Agreement (SLA) typically differ from a Service Level Objective (SLO)?",
-    "explanation": "An SLA is usually a customer-facing, often contractual agreement that carries consequences (like service credits) if missed, while an SLO is an internal target \u2014 frequently stricter than the SLA \u2014 used to catch problems before the SLA itself is at risk.",
+    "explanation": "An SLA is usually a customer-facing, often contractual agreement that carries consequences (like service credits) if missed, while an SLO is an internal target — frequently stricter than the SLA — used to catch problems before the SLA itself is at risk.",
     "reference": "https://sre.google/sre-book/service-level-objectives/",
     "tags": [
       "sre",
@@ -374,7 +374,7 @@
       3
     ],
     "prompt": "According to Google's SRE book, which of the following are among the four 'golden signals' recommended for monitoring a user-facing system? (select all that apply)",
-    "explanation": "The four golden signals are latency, traffic, errors, and saturation \u2014 a compact set intended to cover most user-facing service health without needing to monitor every low-level metric.",
+    "explanation": "The four golden signals are latency, traffic, errors, and saturation — a compact set intended to cover most user-facing service health without needing to monitor every low-level metric.",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "sre",
@@ -388,7 +388,7 @@
     "type": "single",
     "options": [
       "Redundancy, Efficiency, Downtime",
-      "Rate, Errors, Duration \u2014 requests per second, failed requests, and request latency",
+      "Rate, Errors, Duration — requests per second, failed requests, and request latency",
       "Replication, Encryption, Deployment",
       "Recovery time, Escalation, Downtime"
     ],
@@ -598,7 +598,7 @@
     ],
     "answer": 1,
     "prompt": "What is OpenTelemetry (OTel)?",
-    "explanation": "OpenTelemetry is a vendor-neutral, CNCF observability framework offering APIs, SDKs, and tools to generate, collect, and export telemetry data \u2014 traces, metrics, and logs.",
+    "explanation": "OpenTelemetry is a vendor-neutral, CNCF observability framework offering APIs, SDKs, and tools to generate, collect, and export telemetry data — traces, metrics, and logs.",
     "reference": "https://opentelemetry.io/docs/what-is-opentelemetry/",
     "tags": [
       "opentelemetry"
@@ -641,7 +641,7 @@
     ],
     "answer": 1,
     "prompt": "What is 'context propagation' in distributed tracing?",
-    "explanation": "Context propagation passes trace identifiers, such as the trace ID and current span ID, between services \u2014 typically via HTTP headers \u2014 so spans created by downstream services can be linked into the same overall trace.",
+    "explanation": "Context propagation passes trace identifiers, such as the trace ID and current span ID, between services — typically via HTTP headers — so spans created by downstream services can be linked into the same overall trace.",
     "reference": "https://opentelemetry.io/docs/concepts/context-propagation/",
     "tags": [
       "tracing",
@@ -860,7 +860,7 @@
       "Alert on symptoms that directly affect users, such as elevated error rate or latency, rather than every low-level internal signal",
       "Every page-worthy alert should link to a runbook describing how to investigate and respond",
       "Configure as many alerting rules as possible so that no anomaly, however minor, ever goes unnoticed",
-      "An alert should be actionable \u2014 if nobody needs to do anything when it fires, it probably shouldn't page anyone",
+      "An alert should be actionable — if nobody needs to do anything when it fires, it probably shouldn't page anyone",
       "Route all alerts, regardless of severity, to immediately page the on-call engineer"
     ],
     "answer": [
@@ -1143,5 +1143,386 @@
       "promql"
     ],
     "pattern": "^increase(\\(\\))?$"
+  },
+  {
+    "id": "monitoring-060",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What role does Fluentd play in a logging pipeline?",
+    "options": [
+      "It is a time-series database for storing metrics",
+      "It is a log collector and router: it ingests logs from sources, parses and enriches them with filters, buffers them, and forwards them to outputs such as Elasticsearch, S3 or CloudWatch",
+      "It is a dashboarding tool similar to Grafana",
+      "It is a tracing backend that stores spans"
+    ],
+    "answer": 1,
+    "explanation": "Fluentd's config is a pipeline of `<source>`, `<filter>` and `<match>` blocks. Records are tagged and routed by tag pattern, which lets one agent send application logs, audit logs and system logs to different destinations.",
+    "reference": "https://docs.fluentd.org/quickstart/life-of-a-fluentd-event",
+    "tags": [
+      "fluentd",
+      "logging"
+    ]
+  },
+  {
+    "id": "monitoring-061",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How is Fluentd (or Fluent Bit) usually deployed to collect container logs on Kubernetes?",
+    "options": [
+      "As a sidecar in every application pod",
+      "As a DaemonSet that runs one pod per node, tails `/var/log/containers/*.log` from the host, and uses the kubernetes metadata filter to add namespace, pod and label fields",
+      "As a single Deployment that scrapes the API server for logs",
+      "It is built into the kubelet"
+    ],
+    "answer": 1,
+    "explanation": "The container runtime writes each container's stdout/stderr to files on the node. A DaemonSet agent mounts `/var/log` and `/var/lib/docker/containers` (or the containerd equivalent), tails those files with a position file so restarts do not re-ship logs, and enriches records via the Kubernetes API.",
+    "reference": "https://docs.fluentd.org/container-deployment/kubernetes",
+    "tags": [
+      "fluentd",
+      "kubernetes",
+      "daemonset",
+      "logging"
+    ]
+  },
+  {
+    "id": "monitoring-062",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the difference between Fluentd and Fluent Bit?",
+    "options": [
+      "Fluent Bit is the older, deprecated version of Fluentd",
+      "Fluentd is Ruby-based with a large plugin ecosystem and higher memory use; Fluent Bit is a lightweight C implementation designed for edge and per-node collection, often forwarding to Fluentd or directly to a backend",
+      "Fluent Bit only handles metrics, Fluentd only handles logs",
+      "They are unrelated projects from different vendors"
+    ],
+    "answer": 1,
+    "explanation": "Both are CNCF projects. A common pattern is Fluent Bit as the node agent (tens of MB of memory) and Fluentd as an aggregator for heavy parsing and routing. Fluent Bit now covers most use cases on its own, so many clusters run only it.",
+    "reference": "https://docs.fluentbit.io/manual/about/fluentd-and-fluent-bit",
+    "tags": [
+      "fluentd",
+      "fluent-bit",
+      "logging"
+    ]
+  },
+  {
+    "id": "monitoring-063",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "The log backend behind Fluentd goes down for an hour. What determines whether logs are lost?",
+    "options": [
+      "Nothing; Fluentd always drops logs if the output is unreachable",
+      "The output's `<buffer>` configuration: file-backed buffers with enough `total_limit_size`, plus `retry_max_times`/`retry_timeout` and `overflow_action`, decide how long chunks are retained and retried before being discarded or back-pressuring the input",
+      "Only the Kubernetes log rotation settings",
+      "The size of the node's memory"
+    ],
+    "answer": 1,
+    "explanation": "Fluentd stages records in chunks and retries failed flushes with exponential backoff. A `file` buffer survives agent restarts; a memory buffer does not. If the buffer fills, `overflow_action` decides whether to block, throw an exception, or drop the oldest chunk. Alert on buffer queue length and retry counts.",
+    "reference": "https://docs.fluentd.org/configuration/buffer-section",
+    "tags": [
+      "fluentd",
+      "buffering",
+      "reliability"
+    ]
+  },
+  {
+    "id": "monitoring-064",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A service reports a p99 latency of 800 ms. What does that mean?",
+    "options": [
+      "The average request takes 800 ms",
+      "99% of requests completed in 800 ms or less; the slowest 1% took longer",
+      "The service was up 99% of the time",
+      "99 requests per second are served in 800 ms"
+    ],
+    "answer": 1,
+    "explanation": "A percentile describes the distribution, not the mean. p99 is the value below which 99% of observations fall. Tail percentiles matter because a user page that fans out to many backend calls will hit the slow tail of at least one of them very often.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "latency",
+      "percentiles",
+      "slo"
+    ]
+  },
+  {
+    "id": "monitoring-065",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why are SLOs and alerts usually written on p95/p99 latency rather than on average latency?",
+    "options": [
+      "Averages are harder to compute in Prometheus",
+      "Averages hide the tail: a few very slow requests barely move the mean, yet those are the requests users notice, and with request fan-out a large share of users hit the tail on every page load",
+      "Percentiles are always lower than averages",
+      "Cloud providers only expose percentile metrics"
+    ],
+    "answer": 1,
+    "explanation": "Latency distributions are long-tailed. A mean of 100 ms can coexist with a p99 of 3 s. Expressing the requirement as 'p99 under 500 ms' makes the promise concrete, and histogram-based metrics let you compute the percentile server-side with `histogram_quantile`.",
+    "reference": "https://sre.google/workbook/implementing-slos/",
+    "tags": [
+      "latency",
+      "percentiles",
+      "slo"
+    ]
+  },
+  {
+    "id": "monitoring-066",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "If each of ten application replicas reports its own p99 latency, you can obtain the fleet-wide p99 by averaging the ten values.",
+    "answer": false,
+    "explanation": "Percentiles are not additive or averageable. The correct approach is to aggregate the underlying histogram buckets (for example `histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))`) and compute the quantile from the merged distribution. Averaging per-instance percentiles gives a misleading number.",
+    "reference": "https://prometheus.io/docs/practices/histograms/",
+    "tags": [
+      "latency",
+      "percentiles",
+      "prometheus",
+      "histograms"
+    ]
+  },
+  {
+    "id": "monitoring-067",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of the following are Application Performance Monitoring (APM) tools or platforms? (Select all that apply.)",
+    "options": [
+      "Datadog APM",
+      "New Relic",
+      "Elastic APM",
+      "Terraform",
+      "AWS X-Ray",
+      "Dynatrace"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4,
+      5
+    ],
+    "explanation": "APM tools instrument application code (via agents or OpenTelemetry SDKs) to capture distributed traces, per-endpoint latency and error rates, database query timings and often profiling. Terraform is infrastructure as code, not observability.",
+    "reference": "https://opentelemetry.io/docs/concepts/observability-primer/",
+    "tags": [
+      "apm",
+      "tooling"
+    ]
+  },
+  {
+    "id": "monitoring-068",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does an APM tool connect a slow user request across several microservices into one trace?",
+    "options": [
+      "It matches log lines by timestamp",
+      "It propagates a trace id and parent span id in request headers (for example W3C `traceparent`) through every hop, and each service reports spans carrying those ids to the collector",
+      "It requires all services to run in the same pod",
+      "It inspects TCP packets at the network layer"
+    ],
+    "answer": 1,
+    "explanation": "Context propagation is what makes distributed tracing work. Instrumentation libraries inject the ids into outgoing HTTP/gRPC calls and message headers (SQS message attributes, Pub/Sub attributes) and extract them on the receiving side. The backend stitches spans with the same trace id into a waterfall view.",
+    "reference": "https://opentelemetry.io/docs/concepts/context-propagation/",
+    "tags": [
+      "apm",
+      "tracing",
+      "opentelemetry"
+    ]
+  },
+  {
+    "id": "monitoring-069",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which practice most directly measures whether the service is reachable and working for users, rather than whether individual components look healthy?",
+    "options": [
+      "Alerting when CPU exceeds 80% on any node",
+      "Synthetic or black-box probes (for example Prometheus blackbox exporter, Route 53 health checks, Datadog Synthetics) that hit the public endpoint from outside and check status code, latency and response content",
+      "Counting the number of running pods",
+      "Checking that the CI pipeline is green"
+    ],
+    "answer": 1,
+    "explanation": "Black-box monitoring answers 'is it down for users?' regardless of cause: DNS, certificate expiry, load balancer, or application. White-box metrics then explain why. A service can have healthy pods and still be down because of a broken ingress or an expired certificate.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/#black-box-versus-white-box",
+    "tags": [
+      "blackbox",
+      "synthetics",
+      "availability"
+    ]
+  },
+  {
+    "id": "monitoring-070",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A paging alert fires: 'Service X is down'. Which first step identifies the failing layer fastest?",
+    "options": [
+      "Restart every pod in the namespace",
+      "Walk the request path top-down: confirm with the synthetic check and error-rate dashboard that users are affected, then check the load balancer target health, ingress, pod readiness/endpoints and recent deployments or config changes",
+      "Read all application logs from the last 24 hours",
+      "Open a ticket and wait for the developer on call"
+    ],
+    "answer": 1,
+    "explanation": "Fast diagnosis is about narrowing scope: is it everyone or one region, one endpoint or all, since when, and what changed. Most outages correlate with a change (deploy, config, certificate, upstream). Restarting things blindly destroys evidence and may not fix it.",
+    "reference": "https://sre.google/sre-book/effective-troubleshooting/",
+    "tags": [
+      "troubleshooting",
+      "incident",
+      "on-call"
+    ]
+  },
+  {
+    "id": "monitoring-071",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the difference between an incident response plan and an incident report (postmortem)?",
+    "options": [
+      "They are the same document written at different times",
+      "The response plan is written in advance and defines how to detect, triage, communicate and resolve incidents (roles, severity levels, escalation, runbooks); the incident report is written afterwards to record timeline, impact, root cause and action items",
+      "The incident report is written before the incident to predict it",
+      "The response plan is only for security incidents"
+    ],
+    "answer": 1,
+    "explanation": "The response plan is the playbook the on-call follows under pressure. The postmortem is the blameless retrospective that feeds improvements back into the plan, alerts and runbooks.",
+    "reference": "https://sre.google/sre-book/managing-incidents/",
+    "tags": [
+      "incident-response",
+      "postmortem"
+    ]
+  },
+  {
+    "id": "monitoring-072",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which elements belong in a written incident response plan? (Select all that apply.)",
+    "options": [
+      "Severity definitions (for example SEV1 = customer-facing outage) with target response and update times for each",
+      "Roles such as incident commander, communications lead and subject-matter responders, and how they are paged",
+      "Escalation paths and communication channels (war room, status page, stakeholder updates)",
+      "The full source code of every service",
+      "Links to runbooks, dashboards and rollback procedures, plus criteria for declaring the incident resolved and triggering a postmortem"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "A good plan is short enough to follow at 3 am: who is in charge, how bad is it, who needs to know, where the tools are, and what 'done' means. Rehearse it with game days so the first real use is not the first use.",
+    "reference": "https://response.pagerduty.com/",
+    "tags": [
+      "incident-response",
+      "on-call",
+      "process"
+    ]
+  },
+  {
+    "id": "monitoring-073",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "During a major incident, what is the incident commander's primary responsibility?",
+    "options": [
+      "Personally fixing the bug in the code",
+      "Coordinating the response: assigning tasks, tracking the state of the incident, making decisions such as rollback versus fix-forward, and ensuring communication happens, without doing the hands-on debugging",
+      "Writing the postmortem while the incident is ongoing",
+      "Approving all pull requests"
+    ],
+    "answer": 1,
+    "explanation": "Separating coordination from investigation keeps one person with a complete picture. The commander delegates technical work to responders and communications to a comms lead, and keeps the timeline so the postmortem has accurate data.",
+    "reference": "https://sre.google/sre-book/managing-incidents/",
+    "tags": [
+      "incident-response",
+      "roles"
+    ]
+  },
+  {
+    "id": "monitoring-074",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the common name for a step-by-step operational document that tells an on-call engineer how to diagnose and remediate a specific alert?",
+    "answer": [
+      "runbook",
+      "playbook"
+    ],
+    "explanation": "Every paging alert should link to a runbook that explains what the alert means, how to confirm impact, likely causes, and the exact commands or buttons to remediate. Runbooks are living documents updated after each incident.",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "runbook",
+      "on-call"
+    ],
+    "pattern": "^(runbook|playbook)$"
+  },
+  {
+    "id": "monitoring-075",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Why do SRE teams prefer alerting on error-budget burn rate rather than on a fixed error-rate threshold?",
+    "options": [
+      "Burn rate alerts are simpler to configure",
+      "Burn rate ties alert urgency to the SLO: a fast burn (for example consuming a month's budget in an hour) pages immediately, while a slow burn only creates a ticket, which reduces noise and catches both sudden outages and gradual degradation",
+      "Fixed thresholds are not supported by Prometheus",
+      "Burn rate alerts never need a runbook"
+    ],
+    "answer": 1,
+    "explanation": "Multi-window, multi-burn-rate alerts combine a long window (to be sure it is real) with a short window (to reset quickly). A 1% error rate might be fine for a 99% SLO and catastrophic for a 99.99% one; burn rate expresses this relative to the promise.",
+    "reference": "https://sre.google/workbook/alerting-on-slos/",
+    "tags": [
+      "slo",
+      "error-budget",
+      "alerting"
+    ]
+  },
+  {
+    "id": "monitoring-076",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What do MTTD and MTTR measure?",
+    "options": [
+      "Mean time to deploy and mean time to rollback",
+      "Mean time to detect an incident (from failure start to alert or awareness) and mean time to recover or restore service",
+      "Maximum tolerated downtime and maximum tolerated risk",
+      "Memory and thread usage over time"
+    ],
+    "answer": 1,
+    "explanation": "MTTD is improved with better monitoring and synthetic checks; MTTR with runbooks, fast rollback and good incident coordination. Both feed the postmortem: how long were we blind, and how long did recovery take once we knew.",
+    "reference": "https://sre.google/sre-book/postmortem-culture/",
+    "tags": [
+      "incident-response",
+      "metrics",
+      "mttr"
+    ]
+  },
+  {
+    "id": "monitoring-077",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which principle keeps an on-call rotation from drowning in alerts?",
+    "options": [
+      "Page on every metric that deviates from its weekly average",
+      "Page on user-facing symptoms (SLO violations such as error rate or latency) and route cause-based signals (high CPU, one replica down) to dashboards or tickets",
+      "Send all alerts to email so nobody is woken up",
+      "Silence alerts during deployments permanently"
+    ],
+    "answer": 1,
+    "explanation": "Symptom-based paging means every page is something users feel and requires human action now. Cause-based alerts are useful context but a single symptom can have dozens of causes; paging on each produces duplicate, noisy pages and alert fatigue.",
+    "reference": "https://docs.google.com/document/d/199PqyG3UsyXlwieHaqbGiWVa8eMWi8zzAn0YfcApr8Q/",
+    "tags": [
+      "alerting",
+      "on-call",
+      "philosophy"
+    ]
   }
 ]

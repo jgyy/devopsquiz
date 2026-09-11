@@ -445,7 +445,7 @@
       2,
       3
     ],
-    "explanation": "NACLs operate at the subnet level, are stateless, evaluate rules in numeric order until a match is found, and support both allow and deny rules \u2014 unlike security groups, which only support allow rules and operate at the instance/ENI level.",
+    "explanation": "NACLs operate at the subnet level, are stateless, evaluate rules in numeric order until a match is found, and support both allow and deny rules — unlike security groups, which only support allow rules and operate at the instance/ENI level.",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
     "tags": [
       "vpc",
@@ -757,7 +757,7 @@
       "It removes the need for a task definition"
     ],
     "answer": 2,
-    "explanation": "With Fargate, AWS manages the underlying compute infrastructure automatically, so you don't need to provision, patch, or scale EC2 instances yourself \u2014 you just define your task's CPU/memory needs.",
+    "explanation": "With Fargate, AWS manages the underlying compute infrastructure automatically, so you don't need to provision, patch, or scale EC2 instances yourself — you just define your task's CPU/memory needs.",
     "reference": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html",
     "tags": [
       "ecs",
@@ -966,7 +966,7 @@
       "Geolocation routing"
     ],
     "answer": 1,
-    "explanation": "Weighted routing lets you assign relative weights to records associated with the same domain name, controlling what proportion of traffic goes to each resource \u2014 useful for gradual rollouts and A/B testing.",
+    "explanation": "Weighted routing lets you assign relative weights to records associated with the same domain name, controlling what proportion of traffic goes to each resource — useful for gradual rollouts and A/B testing.",
     "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html",
     "tags": [
       "route53"
@@ -1162,6 +1162,274 @@
       "ec2",
       "cost",
       "spot"
+    ]
+  },
+  {
+    "id": "aws-061",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In Amazon SQS, what does the visibility timeout control?",
+    "options": [
+      "How long a message is retained in the queue before it is deleted",
+      "How long a message is hidden from other consumers after one consumer receives it, giving that consumer time to process and delete it",
+      "How long a consumer waits for messages on `ReceiveMessage`",
+      "How long the queue is visible in the console"
+    ],
+    "answer": 1,
+    "explanation": "After a `ReceiveMessage`, the message stays in the queue but is invisible for the visibility timeout. If the consumer fails to delete it in time, it reappears and another consumer may process it, which is why SQS consumers must be idempotent.",
+    "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
+    "tags": [
+      "sqs",
+      "messaging"
+    ]
+  },
+  {
+    "id": "aws-062",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does an SQS dead-letter queue (DLQ) decide when to receive a message?",
+    "options": [
+      "When a message is older than the retention period",
+      "When a message has been received more times than the redrive policy's `maxReceiveCount` without being deleted",
+      "When the producer explicitly sends it to the DLQ",
+      "When the consumer returns an HTTP 500"
+    ],
+    "answer": 1,
+    "explanation": "The redrive policy on the source queue names a DLQ and a `maxReceiveCount`. Each receive increments the receive count; once it exceeds the threshold SQS moves the message to the DLQ so poison messages stop blocking consumers. Alert on DLQ depth and use redrive to move messages back after a fix.",
+    "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html",
+    "tags": [
+      "sqs",
+      "dlq",
+      "messaging"
+    ]
+  },
+  {
+    "id": "aws-063",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main difference between an SQS standard queue and a FIFO queue?",
+    "options": [
+      "Standard queues offer at-least-once delivery with best-effort ordering and nearly unlimited throughput; FIFO queues guarantee exactly-once processing and strict ordering per message group at lower throughput",
+      "FIFO queues are cheaper but can lose messages",
+      "Standard queues guarantee ordering; FIFO queues do not",
+      "FIFO queues can only be consumed by Lambda"
+    ],
+    "answer": 0,
+    "explanation": "Standard queues may deliver duplicates and out of order, so consumers must be idempotent. FIFO queues deduplicate within a 5-minute window (via deduplication id) and preserve order within a `MessageGroupId`, at a throughput cap unless high-throughput mode is enabled.",
+    "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-queue-types.html",
+    "tags": [
+      "sqs",
+      "fifo",
+      "messaging"
+    ]
+  },
+  {
+    "id": "aws-064",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Enabling SQS long polling (a `WaitTimeSeconds` greater than zero) reduces empty responses and cost compared with short polling.",
+    "answer": true,
+    "explanation": "With long polling, `ReceiveMessage` waits up to 20 seconds for a message to arrive instead of returning immediately, cutting the number of empty API calls and the chance of missing messages that are only on some SQS servers.",
+    "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html",
+    "tags": [
+      "sqs",
+      "polling"
+    ]
+  },
+  {
+    "id": "aws-065",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You need one event to be delivered to several independent consumers (for example billing, analytics and email). Which pattern fits best on AWS, and what is the Google Cloud equivalent?",
+    "options": [
+      "A single SQS queue read by all consumers; Cloud Tasks on GCP",
+      "SNS topic fan-out to one SQS queue per consumer (or EventBridge rules); Google Cloud Pub/Sub topic with one subscription per consumer",
+      "Kinesis Data Streams only; Cloud SQL on GCP",
+      "Direct HTTP calls from the producer to each consumer"
+    ],
+    "answer": 1,
+    "explanation": "A queue delivers each message to one consumer, so multiple services reading one SQS queue would compete. Fan-out uses a topic: SNS pushes a copy into each subscribed queue, which buffers and retries independently. Pub/Sub combines topic and subscription in one service, with each subscription getting its own copy and ack deadline (the Pub/Sub equivalent of the SQS visibility timeout).",
+    "reference": "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html",
+    "tags": [
+      "sns",
+      "sqs",
+      "pubsub",
+      "fanout",
+      "architecture"
+    ]
+  },
+  {
+    "id": "aws-066",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which are common, appropriate uses of Redis (for example Amazon ElastiCache for Redis) in a backend architecture? (Select all that apply.)",
+    "options": [
+      "Caching database query results or rendered responses with a TTL to cut latency and database load",
+      "Storing web session data shared across many stateless application replicas",
+      "Rate limiting and counters using atomic `INCR` with expiry",
+      "Acting as the system of record for financial transactions without any persistence",
+      "Lightweight pub/sub or streams for real-time notifications, and distributed locks with `SET NX PX`"
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "Redis is an in-memory data structure store: excellent as a cache, session store, rate limiter, leaderboard, lock or lightweight message bus. It is not a durable source of truth by default; even with AOF/RDB persistence you would still keep authoritative data in a database.",
+    "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html",
+    "tags": [
+      "redis",
+      "elasticache",
+      "caching",
+      "architecture"
+    ]
+  },
+  {
+    "id": "aws-067",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which Redis `maxmemory-policy` is the usual choice for a pure cache where any key may be dropped when memory is full?",
+    "options": [
+      "`noeviction`",
+      "`allkeys-lru`",
+      "`volatile-ttl`",
+      "`volatile-lfu`"
+    ],
+    "answer": 1,
+    "explanation": "`allkeys-lru` evicts the least recently used key across the whole keyspace, which is what a cache wants. `volatile-*` policies only evict keys that have a TTL, and `noeviction` returns errors on writes when memory is full, which is safer for a datastore but wrong for a cache.",
+    "reference": "https://redis.io/docs/latest/develop/reference/eviction/",
+    "tags": [
+      "redis",
+      "eviction",
+      "caching"
+    ]
+  },
+  {
+    "id": "aws-068",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does the cache-aside (lazy loading) pattern with Redis look like?",
+    "options": [
+      "The database pushes every row change into Redis synchronously",
+      "The application reads from Redis first; on a miss it reads the database, writes the result into Redis with a TTL, and returns it",
+      "Redis is placed in front of the database and proxies all SQL queries",
+      "Writes go to Redis only and are flushed to the database nightly"
+    ],
+    "answer": 1,
+    "explanation": "Cache-aside keeps the application in control: only requested data is cached, and a TTL or explicit invalidation on write bounds staleness. Watch for cache stampedes on hot keys (use jittered TTLs or request coalescing) and for a cold cache after a Redis failover.",
+    "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html",
+    "tags": [
+      "redis",
+      "caching",
+      "patterns"
+    ]
+  },
+  {
+    "id": "aws-069",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In ElastiCache for Redis, what does enabling cluster mode change?",
+    "options": [
+      "It adds a read replica to a single shard",
+      "It partitions the keyspace across multiple shards (each with a primary and optional replicas), so the dataset and write throughput scale horizontally, and multi-key operations must stay within one hash slot",
+      "It turns on persistence to S3",
+      "It is required for any Multi-AZ failover"
+    ],
+    "answer": 1,
+    "explanation": "Without cluster mode a replication group is one shard: one primary for writes plus read replicas, limited by the memory of a single node. Cluster mode enabled spreads 16384 hash slots over shards; clients must be cluster-aware and use hash tags `{...}` for keys that need to live together.",
+    "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Replication.Redis-RedisCluster.html",
+    "tags": [
+      "redis",
+      "elasticache",
+      "cluster-mode"
+    ]
+  },
+  {
+    "id": "aws-070",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "How does an EC2 Auto Scaling group with a target tracking policy on average CPU at 50% behave?",
+    "options": [
+      "It adds exactly one instance whenever any single instance exceeds 50% CPU",
+      "It continuously adjusts the desired capacity so the group's average CPU stays near 50%, scaling out when above and (more conservatively) in when below, using CloudWatch alarms it manages itself",
+      "It replaces instances whose CPU exceeds 50%",
+      "It only scales at the top of each hour"
+    ],
+    "answer": 1,
+    "explanation": "Target tracking works like a thermostat: you choose the metric and target, and Auto Scaling creates and manages the scale-out and scale-in alarms. Scale-in is deliberately slower to avoid flapping. Step scaling and scheduled scaling are the alternatives when you need explicit thresholds or known daily patterns.",
+    "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html",
+    "tags": [
+      "autoscaling",
+      "ec2",
+      "target-tracking"
+    ]
+  },
+  {
+    "id": "aws-071",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Why do Auto Scaling groups have a health check grace period and a default instance warmup?",
+    "options": [
+      "To give a new instance time to boot and pass health checks before its metrics count toward scaling decisions and before it can be replaced as unhealthy, preventing scaling on incomplete data or replacing instances that are still starting",
+      "To delay billing for new instances",
+      "To allow time for the AMI to be copied to the region",
+      "To throttle CloudWatch API calls"
+    ],
+    "answer": 0,
+    "explanation": "A fresh instance runs hot on CPU while starting and fails load balancer health checks until the app is up. The warmup excludes it from aggregate metrics, and the grace period stops ASG from terminating it as unhealthy too early. Without them a group can oscillate: scale out, see high CPU from booting nodes, scale out again.",
+    "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html",
+    "tags": [
+      "autoscaling",
+      "warmup",
+      "health-checks"
+    ]
+  },
+  {
+    "id": "aws-072",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You run worker instances that consume an SQS queue. Which is the recommended way to autoscale them on queue load?",
+    "options": [
+      "Scale on the raw `ApproximateNumberOfMessagesVisible` metric with a fixed threshold",
+      "Publish a custom backlog-per-instance metric (visible messages divided by running instances) and use target tracking against the acceptable backlog derived from your latency target",
+      "Scale on CPU, since queue consumers are always CPU bound",
+      "Use scheduled scaling only"
+    ],
+    "answer": 1,
+    "explanation": "Queue depth alone does not account for how many workers are already draining it. Backlog per instance normalises the metric so target tracking can compute how many instances are needed: acceptable backlog = (acceptable latency) x (messages one instance processes per second). On Kubernetes, KEDA does the same for pods.",
+    "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-using-sqs-queue.html",
+    "tags": [
+      "autoscaling",
+      "sqs",
+      "custom-metrics"
+    ]
+  },
+  {
+    "id": "aws-073",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "With an Application Load Balancer in front of an Auto Scaling group, enabling the ELB health check type lets the group replace instances that the load balancer reports as unhealthy, not just instances whose EC2 status checks fail.",
+    "answer": true,
+    "explanation": "EC2 health checks only detect hardware or OS failure. With `HealthCheckType: ELB` the ASG also treats an instance that fails the target group's HTTP health check as unhealthy and terminates and replaces it, which catches hung application processes.",
+    "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html",
+    "tags": [
+      "autoscaling",
+      "alb",
+      "health-checks"
     ]
   }
 ]
