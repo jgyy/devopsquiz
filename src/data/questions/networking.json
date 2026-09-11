@@ -7,6 +7,7 @@
     "prompt": "How many layers does the OSI reference model define?",
     "explanation": "The OSI model defines 7 layers: Physical, Data Link, Network, Transport, Session, Presentation, and Application.",
     "example": "# OSI layers, top to bottom\n7 Application  (HTTP, DNS)\n6 Presentation (TLS, encoding)\n5 Session\n4 Transport    (TCP, UDP)\n3 Network      (IP, ICMP)\n2 Data Link    (Ethernet, MAC)\n1 Physical     (cables, radio)",
+    "diagram": "flowchart TD\n    L7[\"7 Application (HTTP, DNS)\"] --> L6[\"6 Presentation (TLS, encoding)\"]\n    L6 --> L5[\"5 Session\"]\n    L5 --> L4[\"4 Transport (TCP, UDP)\"]\n    L4 --> L3[\"3 Network (IP, ICMP)\"]\n    L3 --> L2[\"2 Data Link (Ethernet, MAC)\"]\n    L2 --> L1[\"1 Physical (cables, radio)\"]",
     "options": [
       "5",
       "7",
@@ -34,6 +35,7 @@
     "prompt": "Which of the following devices operate primarily at Layer 2 (Data Link) of the OSI model, forwarding traffic based on MAC addresses?",
     "explanation": "Switches and bridges forward frames using MAC addresses at Layer 2. Routers forward based on IP addresses at Layer 3, and hubs are simple Layer 1 devices that repeat signals to every port with no address awareness.",
     "example": "# View the MAC address table a switch has learned\nshow mac address-table\n# Linux bridge equivalent: see learned MACs on br0\nbridge fdb show br br0",
+    "diagram": "flowchart LR\n    F[\"Incoming frame (dst MAC)\"] --> SW[\"Switch / Bridge (Layer 2)\"]\n    SW -->|\"lookup MAC table\"| P[\"Forward to one port\"]\n    F2[\"Incoming packet (dst IP)\"] --> R[\"Router (Layer 3)\"]\n    R -->|\"lookup routing table\"| N[\"Next-hop network\"]\n    F3[\"Any signal\"] --> H[\"Hub (Layer 1)\"]\n    H -->|\"no address awareness\"| ALL[\"Repeat to every port\"]",
     "options": [
       "Switch",
       "Bridge",
@@ -64,6 +66,7 @@
     "prompt": "In a standard IPv4 `/24` subnet, how many usable host addresses are available after excluding the network and broadcast addresses?",
     "explanation": "A /24 subnet has 2^8 = 256 total addresses; subtracting the network address and the broadcast address leaves 254 usable host addresses.",
     "example": "ipcalc 192.168.1.0/24\n# Netmask: 255.255.255.0\n# HostMin: 192.168.1.1  HostMax: 192.168.1.254\n# Hosts/Net: 254",
+    "diagram": "flowchart LR\n    A[\"/24 = 8 host bits\"] --> B[\"2^8 = 256 total addresses\"]\n    B --> C[\"minus network address (.0)\"]\n    C --> E[\"minus broadcast address (.255)\"]\n    E --> F[\"254 usable hosts (.1 - .254)\"]",
     "answer": [
       "254"
     ],
@@ -81,6 +84,7 @@
     "prompt": "Which CIDR prefix length corresponds to the subnet mask `255.255.255.192`?",
     "explanation": "255.255.255.192 in binary is 11111111.11111111.11111111.11000000, which has 26 leading 1-bits, corresponding to a /26 prefix (64 addresses per subnet).",
     "example": "ipcalc 10.0.0.0/26\n# Netmask: 255.255.255.192 = 26\n# 64 addresses, 62 usable hosts",
+    "diagram": "flowchart LR\n    M[\"Mask 255.255.255.192\"] --> B[\"Binary: 11111111.11111111.11111111.11000000\"]\n    B --> C[\"Count leading 1-bits: 8+8+8+2 = 26\"]\n    C --> P[\"Prefix /26\"]\n    P --> H[\"6 host bits = 64 addresses (62 usable)\"]",
     "options": [
       "/25",
       "/26",
@@ -108,6 +112,7 @@
     "prompt": "What is the broadcast address for the network `192.168.10.0/28`?",
     "explanation": "A /28 subnet has a block size of 16 addresses. The block starting at 192.168.10.0 runs from .0 through .15, so .15 is the broadcast address.",
     "example": "ipcalc 192.168.10.0/28\n# 16 addresses: 192.168.10.0 - 192.168.10.15\n# Broadcast: 192.168.10.15",
+    "diagram": "flowchart LR\n    A[\"192.168.10.0/28\"] --> B[\"4 host bits = block size 16\"]\n    B --> N[\"Network: 192.168.10.0\"]\n    B --> H[\"Hosts: .1 - .14\"]\n    B --> BC[\"Broadcast: 192.168.10.15 (last in block)\"]\n    BC --> NX[\"Next block starts at .16\"]",
     "answer": [
       "192.168.10.15"
     ],
@@ -125,6 +130,7 @@
     "prompt": "You need a single subnet that provides at least 500 usable host addresses. What is the smallest (most efficient) CIDR block that satisfies this requirement?",
     "explanation": "A /23 provides 512 total addresses (510 usable), which is the smallest block that covers 500 hosts; a /24 only provides 254 usable addresses, which is too few, and /22 provides far more addresses than necessary.",
     "example": "ipcalc 10.20.0.0/23\n# 512 addresses, 510 usable hosts (>= 500)\n# a /24 would only give 254 usable",
+    "diagram": "flowchart TD\n    R[\"Need >= 500 usable hosts\"] --> Q24[\"/24: 254 usable\"]\n    R --> Q23[\"/23: 510 usable\"]\n    R --> Q22[\"/22: 1022 usable\"]\n    Q24 -->|\"too few\"| X[\"Rejected\"]\n    Q23 -->|\"smallest that fits\"| OK[\"Choose /23\"]\n    Q22 -->|\"wasteful\"| X",
     "options": [
       "/22",
       "/23",
@@ -152,6 +158,7 @@
     "prompt": "Which of the following IPv4 address ranges are reserved for private use by RFC 1918?",
     "explanation": "RFC 1918 reserves 10.0.0.0/8, 172.16.0.0/12, and 192.168.0.0/16 for private networks. 169.254.0.0/16 is the link-local (APIPA) range from RFC 3927, and 100.64.0.0/10 is the carrier-grade NAT shared address space from RFC 6598 - neither is RFC 1918 space.",
     "example": "# Typical RFC 1918 usage in a VPC definition\nresource \"aws_vpc\" \"main\" {\n  cidr_block = \"10.0.0.0/16\"   # inside 10.0.0.0/8\n}\n# home router LAN: 192.168.0.0/24\n# corporate: 172.16.0.0 - 172.31.255.255",
+    "diagram": "flowchart TD\n    RFC[\"RFC 1918 private space\"] --> A[\"10.0.0.0/8\"]\n    RFC --> B[\"172.16.0.0/12 (172.16 - 172.31)\"]\n    RFC --> C[\"192.168.0.0/16\"]\n    N[\"Not RFC 1918\"] --> D[\"169.254.0.0/16 link-local (RFC 3927)\"]\n    N --> E[\"100.64.0.0/10 CGNAT (RFC 6598)\"]",
     "options": [
       "10.0.0.0/8",
       "172.16.0.0/12",
@@ -185,6 +192,7 @@
     "prompt": "Which RFC 1918 private address range contains the largest number of total addresses?",
     "explanation": "10.0.0.0/8 contains 2^24 (about 16.7 million) addresses, far more than 172.16.0.0/12 (about 1 million) or 192.168.0.0/16 (65,536).",
     "example": "ipcalc 10.0.0.0/8\n# Hosts/Net: 16777214  (2^24 - 2)\n# 172.16.0.0/12 -> 2^20 addresses\n# 192.168.0.0/16 -> 2^16 addresses",
+    "diagram": "flowchart LR\n    A[\"10.0.0.0/8\"] -->|\"24 host bits\"| A2[\"2^24 = 16.7M addresses (largest)\"]\n    B[\"172.16.0.0/12\"] -->|\"20 host bits\"| B2[\"2^20 = 1M addresses\"]\n    C[\"192.168.0.0/16\"] -->|\"16 host bits\"| C2[\"2^16 = 65,536 addresses\"]",
     "options": [
       "10.0.0.0/8",
       "172.16.0.0/12",
@@ -212,6 +220,7 @@
     "prompt": "What is the primary purpose of Network Address Translation (NAT)?",
     "explanation": "NAT rewrites the source (or destination) IP address of packets, most commonly to let many privately-addressed hosts share one or a few public IP addresses when reaching the internet.",
     "example": "# Linux: masquerade traffic from a private LAN out of eth0\niptables -t nat -A POSTROUTING -s 192.168.1.0/24 -o eth0 -j MASQUERADE\n# 192.168.1.10 -> internet appears as eth0's public IP",
+    "diagram": "flowchart LR\n    H1[\"Host 192.168.1.10\"] --> NAT[\"NAT router (eth0 public 203.0.113.5)\"]\n    H2[\"Host 192.168.1.11\"] --> NAT\n    NAT -->|\"rewrite src IP to 203.0.113.5\"| I[\"Internet server\"]\n    I -->|\"reply to 203.0.113.5\"| NAT\n    NAT -->|\"translate back to private IP\"| H1",
     "options": [
       "To encrypt traffic between two hosts",
       "To translate private IP addresses to a public IP address so internal hosts can reach the internet",
@@ -238,6 +247,7 @@
     "prompt": "Which NAT variant maps many private IP addresses to a single public IP address by distinguishing sessions using source port numbers?",
     "explanation": "PAT, also called NAT overload, lets many internal hosts share one public IP address by using unique source ports to multiplex the translation table. Static NAT is a fixed one-to-one mapping, and dynamic NAT maps from a pool without port translation.",
     "example": "# Cisco IOS PAT (overload) config\nip nat inside source list 1 interface GigabitEthernet0/0 overload\n# many LAN hosts share one public IP; sessions distinguished by source port",
+    "diagram": "flowchart LR\n    A[\"10.0.0.5:40001\"] --> PAT[\"PAT / NAT overload\"]\n    B[\"10.0.0.6:40002\"] --> PAT\n    C[\"10.0.0.7:40001\"] --> PAT\n    PAT -->|\"203.0.113.5:50001\"| NET[\"Internet\"]\n    PAT -->|\"203.0.113.5:50002\"| NET\n    PAT -->|\"203.0.113.5:50003\"| NET\n    T[\"One public IP, sessions keyed by source port\"] --- PAT",
     "options": [
       "Static NAT",
       "Dynamic NAT",
@@ -265,6 +275,7 @@
     "prompt": "Which DNS record types map a hostname directly to an IP address?",
     "explanation": "An A record maps a hostname to an IPv4 address and an AAAA record maps it to an IPv6 address. A CNAME points to another hostname (an alias) and an MX record specifies a mail server, neither of which is a direct IP mapping.",
     "example": "dig +short example.com A        # 93.184.216.34\ndig +short example.com AAAA     # 2606:2800:220:1:248:1893:25c8:1946\ndig +short www.example.com CNAME  # alias to another name, not an IP",
+    "diagram": "flowchart LR\n    H[\"example.com\"] -->|\"A record\"| V4[\"93.184.216.34 (IPv4)\"]\n    H -->|\"AAAA record\"| V6[\"2606:2800:220:1:... (IPv6)\"]\n    W[\"www.example.com\"] -->|\"CNAME (alias, not an IP)\"| H\n    H -->|\"MX (mail server name, not an IP)\"| MX[\"mail1.example.com\"]",
     "options": [
       "A",
       "AAAA",
@@ -295,6 +306,7 @@
     "prompt": "Which DNS record type specifies the mail servers responsible for accepting email on behalf of a domain?",
     "explanation": "MX (Mail Exchange) records list the mail servers for a domain, along with a priority value used to determine delivery order.",
     "example": "dig +short example.com MX\n# 10 mail1.example.com.\n# 20 mail2.example.com.  (lower preference value wins)",
+    "diagram": "sequenceDiagram\n    participant S as \"Sending MTA\"\n    participant DNS as \"DNS\"\n    participant M1 as \"mail1.example.com (pref 10)\"\n    participant M2 as \"mail2.example.com (pref 20)\"\n    S->>DNS: MX query for example.com\n    DNS-->>S: 10 mail1, 20 mail2\n    S->>M1: deliver (lowest preference first)\n    M1--xS: unavailable\n    S->>M2: fallback delivery",
     "options": [
       "MX",
       "TXT",
@@ -322,6 +334,7 @@
     "prompt": "In the context of a DNS record, what does the TTL (Time To Live) value control?",
     "explanation": "TTL, expressed in seconds, tells resolvers and caching name servers how long they may reuse a cached copy of the record before querying the authoritative server again.",
     "example": "# Zone file entry: resolvers may cache this for 300 seconds\napi.example.com.  300  IN  A  203.0.113.10\n# dig shows the remaining TTL in the answer section\ndig api.example.com A | grep -A1 'ANSWER SECTION'",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant R as \"Recursive resolver (cache)\"\n    participant A as \"Authoritative server\"\n    C->>R: api.example.com A?\n    R->>A: query (cache empty)\n    A-->>R: 203.0.113.10, TTL 300s\n    R-->>C: answer, cached for 300s\n    C->>R: same query within 300s\n    R-->>C: served from cache (no upstream query)\n    C->>R: query after TTL expires\n    R->>A: must re-query authoritative",
     "options": [
       "How many network hops a DNS query may traverse before being dropped",
       "How long a resolver is allowed to cache the record before it must re-query the authoritative server",
@@ -349,6 +362,7 @@
     "prompt": "A recursive DNS resolver has an empty cache and needs to resolve `www.example.com`. Which server does it query first?",
     "explanation": "With nothing cached, a recursive resolver starts at a root name server, which refers it to the `.com` TLD server, which in turn refers it to the authoritative name server for example.com.",
     "example": "dig +trace www.example.com\n# 1. queries a root server (.) for the com. NS records\n# 2. queries a .com TLD server for example.com NS\n# 3. queries the example.com authoritative server for www",
+    "diagram": "sequenceDiagram\n    participant R as \"Recursive resolver (empty cache)\"\n    participant Root as \"Root server (.)\"\n    participant TLD as \".com TLD server\"\n    participant Auth as \"example.com authoritative\"\n    R->>Root: www.example.com?\n    Root-->>R: referral: ask .com NS\n    R->>TLD: www.example.com?\n    TLD-->>R: referral: ask example.com NS\n    R->>Auth: www.example.com?\n    Auth-->>R: A 93.184.216.34",
     "options": [
       "The authoritative name server for example.com",
       "A root name server",
@@ -376,6 +390,7 @@
     "prompt": "Which four-step message exchange does a client use to obtain an IP address lease from a DHCP server?",
     "explanation": "DHCP uses the DORA sequence: the client broadcasts a Discover, a server responds with an Offer, the client broadcasts a Request accepting an offer, and the server confirms with an Acknowledge.",
     "example": "# Watch the DORA exchange on a Linux host\nsudo tcpdump -ni eth0 port 67 or port 68\n# then release/renew the lease\nsudo dhclient -r eth0 && sudo dhclient eth0",
+    "diagram": "sequenceDiagram\n    participant C as \"DHCP client (UDP 68)\"\n    participant S as \"DHCP server (UDP 67)\"\n    C->>S: 1. DISCOVER (broadcast)\n    S-->>C: 2. OFFER (proposed IP lease)\n    C->>S: 3. REQUEST (accept offer, broadcast)\n    S-->>C: 4. ACKNOWLEDGE (lease confirmed)",
     "options": [
       "SYN, SYN-ACK, ACK, FIN",
       "Discover, Offer, Request, Acknowledge",
@@ -402,6 +417,7 @@
     "prompt": "Which UDP port does a DHCP server listen on to receive client requests?",
     "explanation": "DHCP servers listen on UDP port 67; clients send and receive on UDP port 68.",
     "example": "# DHCP server listens on UDP 67, clients on UDP 68\nsudo ss -ulnp | grep ':67 '\n# ufw rule allowing DHCP server traffic\nufw allow 67/udp",
+    "diagram": "flowchart LR\n    C[\"DHCP client listens on UDP 68\"] -->|\"DISCOVER / REQUEST to dst port 67\"| S[\"DHCP server listens on UDP 67\"]\n    S -->|\"OFFER / ACK to dst port 68\"| C\n    FW[\"Firewall rule: ufw allow 67/udp\"] --> S",
     "answer": [
       "67"
     ],
@@ -419,6 +435,7 @@
     "prompt": "TCP provides reliable, ordered, connection-oriented delivery of data, whereas UDP does not guarantee delivery, ordering, or error recovery.",
     "explanation": "TCP establishes a connection, acknowledges received segments, and retransmits lost ones, guaranteeing ordered and reliable delivery. UDP is a connectionless, best-effort protocol with none of these guarantees.",
     "example": "# TCP for a database connection, UDP for DNS\npsql -h db.internal -p 5432          # TCP: ordered, reliable\ndig @10.0.0.2 app.internal +notcp     # UDP: single fire-and-forget query",
+    "diagram": "flowchart LR\n    TCP[\"TCP\"] --> T1[\"Connection setup (handshake)\"]\n    TCP --> T2[\"ACKs and retransmission\"]\n    TCP --> T3[\"Ordered, reliable delivery\"]\n    UDP[\"UDP\"] --> U1[\"Connectionless\"]\n    UDP --> U2[\"No ACK, no retransmit\"]\n    UDP --> U3[\"Best effort, may reorder or drop\"]",
     "answer": true,
     "reference": "https://datatracker.ietf.org/doc/html/rfc793",
     "tags": [
@@ -434,6 +451,7 @@
     "prompt": "Which transport protocol is typically preferred for latency-sensitive use cases such as DNS queries, VoIP, and live video, due to its low overhead?",
     "explanation": "UDP skips connection setup and retransmission logic, giving it lower latency overhead than TCP, which makes it well suited to real-time and simple request/response traffic.",
     "example": "# DNS defaults to UDP port 53\ndig example.com\n# force TCP for comparison\ndig +tcp example.com\n# VoIP (RTP) also rides on UDP, e.g. ports 10000-20000",
+    "diagram": "flowchart LR\n    APP[\"DNS query / VoIP / live video\"] --> Q{\"Need lowest latency?\"}\n    Q -->|\"yes\"| UDP[\"UDP: no handshake, no retransmit wait\"]\n    Q -->|\"need reliability\"| TCP[\"TCP: handshake + ACKs add delay\"]\n    UDP --> R[\"Send immediately, tolerate loss\"]",
     "options": [
       "TCP",
       "UDP",
@@ -461,6 +479,7 @@
     "prompt": "Which of the following are accurate characteristics of UDP?",
     "explanation": "UDP is connectionless, has minimal header overhead compared to TCP, and does not retransmit lost datagrams itself. It does not guarantee ordering and has no built-in congestion control; the application must handle these if needed.",
     "example": "# Send a single UDP datagram with netcat; no handshake, no ack\necho 'ping' | nc -u -w1 10.0.0.5 9999\n# UDP header is only 8 bytes vs 20+ for TCP",
+    "diagram": "flowchart TD\n    UDP[\"UDP datagram\"] --> A[\"Connectionless: no handshake\"]\n    UDP --> B[\"8-byte header (TCP 20+)\"]\n    UDP --> C[\"No built-in retransmission\"]\n    UDP --> D[\"No ordering guarantee\"]\n    UDP --> E[\"No congestion control\"]\n    C --> APP[\"Application handles loss if needed\"]",
     "options": [
       "Connectionless",
       "Guarantees in-order delivery of datagrams",
@@ -493,6 +512,7 @@
     "prompt": "What is the correct sequence of segments exchanged during a TCP three-way handshake?",
     "explanation": "The client sends a SYN, the server replies with a combined SYN-ACK, and the client completes the handshake with an ACK, after which the connection is established.",
     "example": "# Observe a handshake with tcpdump\nsudo tcpdump -ni eth0 'tcp port 80' -c 3\n# Flags [S]   client -> server  SYN\n# Flags [S.]  server -> client  SYN-ACK\n# Flags [.]   client -> server  ACK",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"Server\"\n    C->>S: 1. SYN (seq=x)\n    S-->>C: 2. SYN-ACK (seq=y, ack=x+1)\n    C->>S: 3. ACK (ack=y+1)\n    Note over C,S: Connection ESTABLISHED",
     "options": [
       "SYN, ACK, FIN",
       "SYN, SYN-ACK, ACK",
@@ -520,6 +540,7 @@
     "prompt": "Which TCP mechanism is used to gracefully close a connection, allowing both sides to finish sending pending data via a coordinated exchange of segments?",
     "explanation": "A graceful close is initiated with a FIN segment and typically involves a four-step exchange (FIN, ACK, FIN, ACK) so both sides can finish transmitting. An RST abruptly terminates the connection without this coordination.",
     "example": "# Connections in FIN_WAIT or TIME_WAIT are mid graceful close\nss -tan state fin-wait-1 state fin-wait-2 state time-wait\n# tcpdump shows Flags [F.] then [.] from each side",
+    "diagram": "sequenceDiagram\n    participant A as \"Side A\"\n    participant B as \"Side B\"\n    A->>B: FIN (done sending)\n    B-->>A: ACK\n    Note over B: may still send pending data\n    B->>A: FIN (done sending)\n    A-->>B: ACK\n    Note over A,B: Graceful close complete (RST would abort instantly)",
     "options": [
       "An RST segment",
       "A SYN segment",
@@ -547,6 +568,7 @@
     "prompt": "What is the default TCP port for HTTPS traffic?",
     "explanation": "HTTPS (HTTP over TLS) uses TCP port 443 by default, while plain HTTP uses port 80.",
     "example": "curl -v https://example.com 2>&1 | grep 'Connected to'\n# Connected to example.com (93.184.216.34) port 443",
+    "diagram": "flowchart LR\n    C[\"curl https://example.com\"] -->|\"TCP 443 (HTTP over TLS)\"| S[\"Web server\"]\n    C2[\"curl http://example.com\"] -->|\"TCP 80 (plain HTTP)\"| S\n    S --> TLS[\"Port 443 = encrypted\"]\n    S --> PL[\"Port 80 = cleartext\"]",
     "answer": [
       "443"
     ],
@@ -564,6 +586,7 @@
     "prompt": "What is the default TCP port used by SSH?",
     "explanation": "SSH (Secure Shell) listens on TCP port 22 by default.",
     "example": "ssh user@host          # connects to TCP port 22 by default\nssh -p 2222 user@host  # override when the server listens elsewhere",
+    "diagram": "flowchart LR\n    C[\"ssh user@host\"] -->|\"TCP 22 (default)\"| S[\"sshd\"]\n    C2[\"ssh -p 2222 user@host\"] -->|\"TCP 2222 (override)\"| S2[\"sshd on custom port\"]\n    FW[\"Firewall: allow 22/tcp\"] --> S",
     "answer": [
       "22"
     ],
@@ -581,6 +604,7 @@
     "prompt": "Which of the following port assignments are correct?",
     "explanation": "FTP control (21), Telnet (23), RDP (3389), and SNMP (UDP 161) are all correct well-known port assignments. HTTP's well-known port is 80, not 8443 (8443 is a common alternate port sometimes used for HTTPS).",
     "example": "# Quick port checks with netcat\nnc -zv host 21     # FTP control\nnc -zv host 23     # Telnet\nnc -zv host 3389   # RDP\nnc -zvu host 161   # SNMP (UDP)\n# HTTP is 80; 8443 is just a common alternate HTTPS port",
+    "diagram": "flowchart LR\n    FTP[\"FTP control\"] --> P21[\"TCP 21\"]\n    TEL[\"Telnet\"] --> P23[\"TCP 23\"]\n    RDP[\"RDP\"] --> P3389[\"TCP 3389\"]\n    SNMP[\"SNMP\"] --> P161[\"UDP 161\"]\n    HTTP[\"HTTP\"] --> P80[\"TCP 80 (not 8443)\"]\n    ALT[\"8443\"] --> A[\"Alternate HTTPS port only\"]",
     "options": [
       "FTP control uses TCP port 21",
       "Telnet uses TCP port 23",
@@ -614,6 +638,7 @@
     "prompt": "Which HTTP method is idempotent and is used to completely replace the current representation of a resource at a given URI?",
     "explanation": "PUT replaces the entire resource at the target URI with the request payload, and sending the same PUT request multiple times produces the same result (idempotent). POST is not idempotent, and PATCH applies a partial modification rather than a full replacement.",
     "example": "# Replace the whole user representation; safe to retry\ncurl -X PUT https://api.example.com/users/42 \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"name\":\"Ada\",\"email\":\"ada@example.com\"}'",
+    "diagram": "flowchart LR\n    R[\"PUT /users/42 with full JSON body\"] --> S[\"Server\"]\n    S --> RES[\"Resource fully replaced\"]\n    R2[\"Same PUT sent again\"] --> S\n    S --> RES2[\"Same state (idempotent)\"]\n    P[\"POST /users\"] -->|\"repeat creates duplicates\"| NI[\"Not idempotent\"]\n    PA[\"PATCH /users/42\"] -->|\"partial change only\"| PART[\"Partial update\"]",
     "options": [
       "POST",
       "PATCH",
@@ -641,6 +666,7 @@
     "prompt": "Which HTTP status code indicates that a request has succeeded and resulted in a new resource being created?",
     "explanation": "201 Created indicates the request succeeded and a new resource was created, typically returned by a successful POST or PUT. 200 is a generic success, 204 means success with no content, and 202 means the request was accepted for processing but not yet completed.",
     "example": "curl -i -X POST https://api.example.com/orders -d '{...}'\n# HTTP/1.1 201 Created\n# Location: /orders/1001",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"API server\"\n    C->>S: POST /orders (new order)\n    S-->>C: 201 Created + Location: /orders/1001\n    Note over C,S: 200 = generic OK, 204 = no content, 202 = accepted, not done",
     "options": [
       "200",
       "201",
@@ -668,6 +694,7 @@
     "prompt": "A client sends a request without valid authentication credentials to a protected endpoint. Which HTTP status code should the server return?",
     "explanation": "401 Unauthorized means the request lacks valid authentication credentials (despite the name, it is really about authentication). 403 Forbidden is used when the client is authenticated but not permitted to access the resource.",
     "example": "curl -i https://api.example.com/admin\n# HTTP/1.1 401 Unauthorized\n# WWW-Authenticate: Bearer realm=\"api\"",
+    "diagram": "flowchart TD\n    REQ[\"Request to protected endpoint\"] --> Q1{\"Valid credentials present?\"}\n    Q1 -->|\"no\"| U[\"401 Unauthorized + WWW-Authenticate\"]\n    Q1 -->|\"yes\"| Q2{\"Allowed to access resource?\"}\n    Q2 -->|\"no\"| F[\"403 Forbidden\"]\n    Q2 -->|\"yes\"| OK[\"200 OK\"]",
     "options": [
       "400 Bad Request",
       "401 Unauthorized",
@@ -695,6 +722,7 @@
     "prompt": "Which of the following HTTP methods are defined as idempotent (making the same request multiple times produces the same result as making it once)?",
     "explanation": "GET, PUT, and DELETE are defined as idempotent. POST is not idempotent because repeating it can create multiple resources, and PATCH is not guaranteed to be idempotent since a partial update can depend on the resource's current state.",
     "example": "# Safe to retry on timeout: GET, PUT, DELETE\ncurl -X DELETE https://api.example.com/items/7   # 204 then 404, but state is the same\n# Not safe to blindly retry: POST\ncurl -X POST https://api.example.com/items -d '{...}'",
+    "diagram": "flowchart TD\n    Q{\"Repeat request N times: same end state?\"}\n    Q -->|\"yes\"| GET[\"GET (read only)\"]\n    Q -->|\"yes\"| PUT[\"PUT (full replace)\"]\n    Q -->|\"yes\"| DEL[\"DELETE (gone stays gone)\"]\n    Q -->|\"no\"| POST[\"POST (may create N resources)\"]\n    Q -->|\"not guaranteed\"| PATCH[\"PATCH (depends on current state)\"]\n    GET --> R[\"Safe to retry on timeout\"]",
     "options": [
       "GET",
       "POST",
@@ -728,6 +756,7 @@
     "prompt": "What transport protocol does HTTP/3 run over?",
     "explanation": "HTTP/3 is built on QUIC, which itself runs over UDP, avoiding the head-of-line blocking that can occur at the TCP layer in HTTP/1.1 and HTTP/2.",
     "example": "curl --http3 -I https://cloudflare-quic.com\n# HTTP/3 200\n# alt-svc: h3=\":443\"   <- server advertises QUIC on UDP 443",
+    "diagram": "flowchart TD\n    H1[\"HTTP/1.1\"] --> TCP[\"TCP\"]\n    H2[\"HTTP/2\"] --> TCP\n    H3[\"HTTP/3\"] --> QUIC[\"QUIC (encryption, streams)\"]\n    QUIC --> UDP[\"UDP port 443\"]\n    TCP --> HOL[\"Transport-level head-of-line blocking\"]\n    QUIC --> NOHOL[\"Independent streams, no TCP HOL blocking\"]",
     "options": [
       "TCP",
       "UDP, via QUIC",
@@ -755,6 +784,7 @@
     "prompt": "What key performance feature did HTTP/2 introduce compared to HTTP/1.1?",
     "explanation": "HTTP/2 introduced multiplexing, allowing many requests and responses to be interleaved over a single TCP connection, along with header compression (HPACK), reducing the head-of-line blocking and connection overhead seen in HTTP/1.1.",
     "example": "curl --http2 -v https://example.com -o /dev/null 2>&1 | grep -i 'using HTTP/2'\n# many streams share one TCP connection instead of 6 parallel connections",
+    "diagram": "flowchart LR\n    B1[\"HTTP/1.1 client\"] -->|\"conn 1: req A\"| S1[\"Server\"]\n    B1 -->|\"conn 2: req B\"| S1\n    B1 -->|\"conn 3: req C\"| S1\n    B2[\"HTTP/2 client\"] -->|\"one TCP connection: streams A, B, C interleaved + HPACK\"| S2[\"Server\"]",
     "options": [
       "Plaintext-only headers with no compression",
       "Multiplexing multiple request/response streams over a single TCP connection",
@@ -781,6 +811,7 @@
     "prompt": "HTTP/1.1 supports persistent connections by default, allowing multiple requests to be sent sequentially over a single TCP connection without reconnecting for each one.",
     "explanation": "Unlike HTTP/1.0, HTTP/1.1 keeps connections open by default, letting clients reuse the same TCP connection for multiple sequential requests.",
     "example": "curl -v https://example.com/a https://example.com/b 2>&1 | grep -i 're-using'\n# Re-using existing connection with host example.com\n# HTTP/1.1 keeps the connection open unless Connection: close is sent",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"Server\"\n    C->>S: TCP handshake (once)\n    C->>S: GET /a\n    S-->>C: 200 OK (connection kept open)\n    C->>S: GET /b (re-using connection)\n    S-->>C: 200 OK\n    Note over C,S: HTTP/1.1 default keep-alive, closes only on Connection: close",
     "answer": true,
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP",
     "tags": [
@@ -795,6 +826,7 @@
     "prompt": "During a TLS handshake, what is the primary purpose of the server's certificate?",
     "explanation": "The server's certificate binds its identity to a public key and is signed by a certificate authority, allowing the client to verify it is talking to the legitimate server before establishing session keys.",
     "example": "openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\\n  | openssl x509 -noout -subject -issuer\n# subject=CN=example.com\n# issuer=C=US, O=DigiCert Inc, ...",
+    "diagram": "flowchart LR\n    S[\"Server certificate\"] --> ID[\"Subject: CN=example.com (identity)\"]\n    S --> PK[\"Server public key\"]\n    S --> SIG[\"Signature by CA\"]\n    SIG --> INT[\"Intermediate CA\"]\n    INT --> ROOT[\"Root CA in client trust store\"]\n    ROOT --> OK[\"Client trusts identity, derives session keys\"]",
     "options": [
       "To encrypt the symmetric session key used for the connection",
       "To prove the server's identity and provide its public key, verified through a chain of trust to a certificate authority",
@@ -822,6 +854,7 @@
     "prompt": "A Certificate Authority (CA) is the entity that digitally signs and issues TLS certificates, vouching for the identity of the certificate holder.",
     "explanation": "CAs verify the identity of a certificate requester and sign the certificate with their own private key; clients trust the certificate because they trust the CA's root certificate.",
     "example": "# Inspect who signed a certificate\nopenssl x509 -in server.crt -noout -issuer\n# Let's Encrypt (a CA) issuing a cert via ACME\ncertbot certonly --standalone -d example.com",
+    "diagram": "flowchart LR\n    REQ[\"Server requests cert (CSR)\"] --> CA[\"Certificate Authority\"]\n    CA -->|\"verifies domain ownership (e.g. ACME)\"| V[\"Identity validated\"]\n    V --> SIGN[\"CA signs cert with its private key\"]\n    SIGN --> CERT[\"Issued certificate\"]\n    CERT --> CL[\"Client\"]\n    ROOT[\"CA root cert in trust store\"] --> CL\n    CL --> T[\"Trusts cert because it trusts the CA\"]",
     "answer": true,
     "reference": "https://www.cloudflare.com/learning/ssl/what-is-an-ssl-certificate/",
     "tags": [
@@ -837,6 +870,7 @@
     "prompt": "In a full (non-resumed) TLS 1.3 handshake, how many round trips are typically required before the client can send encrypted application data, compared to TLS 1.2?",
     "explanation": "TLS 1.3 reduced the full handshake to a single round trip (1-RTT), down from the two round trips typically required in TLS 1.2, and it also supports 0-RTT data on resumed connections.",
     "example": "# TLS 1.3 completes the handshake in one round trip\nopenssl s_client -connect example.com:443 -tls1_3 </dev/null 2>/dev/null | grep 'Protocol'\n# Protocol: TLSv1.3\n# TLS 1.2 needed two round trips before application data",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"Server\"\n    Note over C,S: TLS 1.3 full handshake\n    C->>S: ClientHello + key share\n    S-->>C: ServerHello, key share, cert, Finished\n    C->>S: Finished + encrypted app data (1-RTT)\n    Note over C,S: TLS 1.2 needed 2 round trips, TLS 1.3 resumption allows 0-RTT",
     "options": [
       "Zero round trips",
       "One round trip (1-RTT)",
@@ -864,6 +898,7 @@
     "prompt": "A Layer 4 load balancer makes its routing decisions primarily based on which information?",
     "explanation": "Layer 4 load balancers operate at the transport layer, distributing connections based on IP addresses and port numbers without inspecting application-layer content.",
     "example": "# HAProxy TCP-mode (Layer 4) frontend\nfrontend db_in\n  mode tcp\n  bind *:5432\n  default_backend pg_servers\n# balances on IP/port only; never inspects the payload",
+    "diagram": "flowchart LR\n    P[\"Packet: src 10.0.0.9:51000 to 203.0.113.1:5432\"] --> LB[\"Layer 4 load balancer (mode tcp)\"]\n    LB -->|\"decision on IP + port only\"| H{\"hash / round robin\"}\n    H --> B1[\"pg1:5432\"]\n    H --> B2[\"pg2:5432\"]\n    LB -.->|\"never inspects\"| PAY[\"Payload / HTTP content\"]",
     "options": [
       "HTTP headers and URL paths",
       "Source/destination IP addresses and TCP/UDP port numbers",
@@ -890,6 +925,7 @@
     "prompt": "Which of the following is a capability of a Layer 7 (application-layer) load balancer that a Layer 4 load balancer does not have?",
     "explanation": "Layer 7 load balancers inspect application-layer data such as HTTP headers, cookies, and URL paths to make routing decisions (for example, path-based routing), which a Layer 4 load balancer cannot do since it only sees IP/port information.",
     "example": "# NGINX (Layer 7) routing by path\nlocation /api/ { proxy_pass http://api_pool; }\nlocation /static/ { proxy_pass http://cdn_pool; }\n# an L4 balancer cannot see the URL to make this choice",
+    "diagram": "flowchart LR\n    R[\"HTTP request\"] --> L7[\"Layer 7 load balancer\"]\n    L7 -->|\"path /api/\"| API[\"api_pool\"]\n    L7 -->|\"path /static/\"| CDN[\"cdn_pool\"]\n    L7 -->|\"cookie or header match\"| V2[\"canary pool\"]\n    L4[\"Layer 4 balancer sees only IP + port\"] -.->|\"cannot read URL\"| R",
     "options": [
       "Routing decisions based on HTTP headers, cookies, or URL paths",
       "Distributing TCP connections across backend servers",
@@ -916,6 +952,7 @@
     "prompt": "A forward proxy acts on behalf of clients, typically hiding the client's identity from the servers it contacts, while a reverse proxy acts on behalf of servers, typically hiding backend server details from the client.",
     "explanation": "A forward proxy sits between clients and the wider internet, making requests appear to come from the proxy on the client's behalf. A reverse proxy sits in front of one or more backend servers and presents a single interface to clients, hiding the backend topology.",
     "example": "# Forward proxy: clients send outbound traffic through it\nexport HTTPS_PROXY=http://proxy.corp:3128\ncurl https://example.com\n# Reverse proxy: NGINX fronting backends\nlocation / { proxy_pass http://backend_pool; }",
+    "diagram": "flowchart LR\n    C[\"Client\"] -->|\"outbound request\"| FP[\"Forward proxy (proxy.corp:3128)\"]\n    FP -->|\"appears to come from proxy\"| NET[\"Internet server\"]\n    U[\"User\"] -->|\"request to one address\"| RP[\"Reverse proxy (NGINX)\"]\n    RP --> B1[\"backend 1\"]\n    RP --> B2[\"backend 2\"]\n    FP --- N1[\"hides client identity\"]\n    RP --- N2[\"hides backend topology\"]",
     "answer": true,
     "reference": "https://www.cloudflare.com/learning/cdn/glossary/reverse-proxy/",
     "tags": [
@@ -931,6 +968,7 @@
     "prompt": "What is the primary function of a network firewall?",
     "explanation": "A firewall inspects incoming and outgoing traffic and allows or blocks it according to configured rules, based on criteria such as IP address, port, or protocol.",
     "example": "# Allow SSH from one subnet, drop everything else inbound\nufw default deny incoming\nufw allow from 10.0.0.0/24 to any port 22 proto tcp\nufw enable",
+    "diagram": "flowchart TD\n    PKT[\"Inbound packet\"] --> FW[\"Firewall rule set\"]\n    FW --> R1{\"from 10.0.0.0/24 to port 22/tcp?\"}\n    R1 -->|\"match\"| ALLOW[\"ALLOW\"]\n    R1 -->|\"no match\"| DEF[\"Default policy\"]\n    DEF -->|\"deny incoming\"| DROP[\"DROP\"]\n    C[\"Criteria: IP, port, protocol\"] --- FW",
     "options": [
       "Translate domain names into IP addresses",
       "Filter network traffic based on a defined set of security rules",
@@ -957,6 +995,7 @@
     "prompt": "A stateful firewall tracks the state of active connections and can automatically permit return traffic belonging to an already-established outbound connection, without needing an explicit inbound allow rule for that traffic.",
     "explanation": "Stateful firewalls maintain a connection table so that, once an outbound connection is permitted, the corresponding return traffic is automatically recognized and allowed, unlike stateless firewalls which evaluate every packet independently.",
     "example": "# iptables stateful rule: allow replies to established sessions\niptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\niptables -A INPUT -p tcp --dport 22 -j ACCEPT\niptables -P INPUT DROP",
+    "diagram": "flowchart LR\n    H[\"Internal host\"] -->|\"outbound SYN to web:443\"| FW[\"Stateful firewall\"]\n    FW -->|\"allowed, entry added\"| CT[\"Connection table: 10.0.0.5:51000 to web:443 ESTABLISHED\"]\n    FW --> WEB[\"Web server\"]\n    WEB -->|\"return packets\"| FW\n    CT -->|\"matches ESTABLISHED,RELATED\"| OK[\"Auto-permitted, no inbound rule needed\"]\n    N[\"New unsolicited inbound\"] --> FW\n    FW -->|\"no state entry\"| DROP[\"DROP\"]",
     "answer": true,
     "reference": "https://www.cloudflare.com/learning/security/what-is-a-firewall/",
     "tags": [
@@ -972,6 +1011,7 @@
     "prompt": "Which of the following are commonly used protocols or technologies for building VPNs?",
     "explanation": "IPsec, WireGuard, and OpenVPN are all widely used to build encrypted VPN tunnels. BGP is a routing protocol used to exchange routes between autonomous systems on the internet, not a VPN technology.",
     "example": "# WireGuard peer config\n[Interface]\nPrivateKey = <key>\nAddress = 10.8.0.2/24\n[Peer]\nPublicKey = <server-key>\nEndpoint = vpn.example.com:51820\nAllowedIPs = 10.0.0.0/16",
+    "diagram": "flowchart LR\n    VPN[\"Encrypted VPN tunnel technologies\"] --> A[\"IPsec\"]\n    VPN --> B[\"WireGuard (UDP 51820)\"]\n    VPN --> C[\"OpenVPN\"]\n    A --> T[\"Tunnel: 10.8.0.2 to 10.0.0.0/16 over internet\"]\n    B --> T\n    C --> T\n    BGP[\"BGP\"] -->|\"routing protocol between ASes, not a VPN\"| X[\"Not a VPN\"]",
     "options": [
       "IPsec",
       "WireGuard",
@@ -1002,6 +1042,7 @@
     "prompt": "When a host needs to send traffic to an IP address outside its local subnet, where does it send that traffic first?",
     "explanation": "Traffic destined for a network outside the host's own subnet is forwarded to the default gateway (typically a router), which then routes it toward its destination.",
     "example": "ip route\n# default via 192.168.1.1 dev eth0    <- default gateway\n# 192.168.1.0/24 dev eth0 proto kernel scope link\n# a packet to 8.8.8.8 is framed to the gateway's MAC",
+    "diagram": "flowchart TD\n    H[\"Host 192.168.1.50 sends to 8.8.8.8\"] --> Q{\"Destination in local subnet 192.168.1.0/24?\"}\n    Q -->|\"yes\"| L[\"ARP for host, send directly\"]\n    Q -->|\"no\"| GW[\"Default gateway 192.168.1.1\"]\n    GW -->|\"frame addressed to gateway MAC\"| R[\"Router forwards toward 8.8.8.8\"]",
     "options": [
       "The DNS server",
       "The default gateway",
@@ -1029,6 +1070,7 @@
     "prompt": "What information does a router primarily use from its routing table to decide where to forward an incoming packet?",
     "explanation": "Routers match a packet's destination IP address against destination network prefixes in the routing table and forward the packet out the next-hop interface or address associated with the most specific matching entry.",
     "example": "ip route get 203.0.113.9\n# 203.0.113.9 via 10.0.0.1 dev eth0 src 10.0.0.25\n# longest matching prefix wins:\n#   10.0.0.0/8 via 10.0.0.1\n#   10.1.0.0/16 via 10.0.0.2  <- chosen for 10.1.5.5",
+    "diagram": "flowchart TD\n    P[\"Packet dst 10.1.5.5\"] --> RT[\"Routing table lookup\"]\n    RT --> E1[\"10.0.0.0/8 via 10.0.0.1 (matches)\"]\n    RT --> E2[\"10.1.0.0/16 via 10.0.0.2 (matches, longer)\"]\n    RT --> E3[\"0.0.0.0/0 default via 10.0.0.254\"]\n    E2 -->|\"longest prefix wins\"| NH[\"Forward to next hop 10.0.0.2 via eth0\"]",
     "options": [
       "Only the packet's source IP address",
       "A matching destination network prefix and its associated next-hop interface or address",
@@ -1055,6 +1097,7 @@
     "prompt": "What is the purpose of ARP (Address Resolution Protocol)?",
     "explanation": "ARP maps a known IPv4 address to the MAC address of the host that owns it on the local network segment, allowing frames to be addressed correctly at Layer 2.",
     "example": "# Show the ARP/neighbor cache\nip neigh show\n# 192.168.1.1 dev eth0 lladdr 3c:22:fb:12:34:56 REACHABLE\n# capture ARP requests\nsudo tcpdump -ni eth0 arp",
+    "diagram": "sequenceDiagram\n    participant H as \"Host 192.168.1.50\"\n    participant B as \"Broadcast ff:ff:ff:ff:ff:ff\"\n    participant G as \"192.168.1.1\"\n    H->>B: ARP request: who has 192.168.1.1?\n    B->>G: (all hosts on segment hear it)\n    G-->>H: ARP reply: 192.168.1.1 is at 3c:22:fb:12:34:56\n    Note over H: cache entry, frame the packet to that MAC",
     "options": [
       "To resolve a domain name into an IP address",
       "To resolve an IPv4 address into the corresponding MAC address on the local network segment",
@@ -1081,6 +1124,7 @@
     "prompt": "ARP operates only within a single local network segment (broadcast domain); it is not used to resolve addresses of hosts on the far side of a router.",
     "explanation": "ARP requests are broadcast and only reach hosts on the same local network segment. To reach a host on a different network, traffic is instead forwarded to the default gateway, whose MAC address is resolved via ARP locally.",
     "example": "# ARP for a remote address never happens; the host ARPs for the gateway instead\nip route get 8.8.8.8      # via 192.168.1.1 dev eth0\nip neigh show 192.168.1.1  # gateway MAC is what gets resolved",
+    "diagram": "flowchart LR\n    H[\"Host 192.168.1.50\"] -->|\"ARP broadcast\"| SEG[\"Local segment 192.168.1.0/24\"]\n    SEG --> GW[\"Gateway 192.168.1.1 replies with its MAC\"]\n    GW -->|\"router does not forward broadcasts\"| X[\"Broadcast stops here\"]\n    H -->|\"packet to 8.8.8.8 framed to gateway MAC\"| GW\n    GW -->|\"routed at Layer 3\"| R[\"8.8.8.8 (remote, never ARPed)\"]",
     "answer": true,
     "reference": "https://man7.org/linux/man-pages/man8/arp.8.html",
     "tags": [
@@ -1095,6 +1139,7 @@
     "prompt": "The `ping` utility primarily uses ICMP Echo Request and Echo Reply messages to test whether a remote host is reachable.",
     "explanation": "`ping` sends ICMP Echo Request packets and measures whether, and how quickly, the target host responds with ICMP Echo Reply packets.",
     "example": "ping -c 3 8.8.8.8\n# 64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n# tcpdump shows: ICMP echo request / ICMP echo reply",
+    "diagram": "sequenceDiagram\n    participant P as \"ping 8.8.8.8\"\n    participant T as \"8.8.8.8\"\n    P->>T: ICMP Echo Request (seq=1)\n    T-->>P: ICMP Echo Reply (ttl=117)\n    Note over P: time=12.3 ms measured\n    P->>T: ICMP Echo Request (seq=2)\n    T-->>P: ICMP Echo Reply",
     "answer": true,
     "reference": "https://man7.org/linux/man-pages/man8/ping.8.html",
     "tags": [
@@ -1111,6 +1156,7 @@
     "prompt": "`traceroute` discovers the path to a destination by sending packets with incrementing TTL values. Which ICMP message type does an intermediate router typically send back when a packet's TTL reaches zero?",
     "explanation": "When a router decrements a packet's TTL to zero, it discards the packet and returns an ICMP Time Exceeded message to the sender, revealing that hop's address; traceroute uses this behavior at increasing TTLs to map the path.",
     "example": "traceroute 1.1.1.1\n# 1  192.168.1.1  0.5 ms   <- TTL=1 expired here: ICMP Time Exceeded\n# 2  10.20.0.1    3.1 ms   <- TTL=2\n# ... until the destination replies",
+    "diagram": "sequenceDiagram\n    participant S as \"traceroute\"\n    participant R1 as \"Router 1\"\n    participant R2 as \"Router 2\"\n    participant D as \"1.1.1.1\"\n    S->>R1: probe TTL=1\n    R1-->>S: ICMP Time Exceeded (hop 1 revealed)\n    S->>R2: probe TTL=2 (R1 decrements to 1)\n    R2-->>S: ICMP Time Exceeded (hop 2 revealed)\n    S->>D: probe TTL=3\n    D-->>S: destination reply (done)",
     "options": [
       "Echo Reply",
       "Time Exceeded",
@@ -1139,6 +1185,7 @@
     "prompt": "What is the standard default MTU, in bytes, for a typical Ethernet network carrying IPv4 traffic?",
     "explanation": "The default Ethernet MTU is 1500 bytes, meaning an IP packet larger than this must be fragmented (or dropped, for IPv6) unless jumbo frames are configured.",
     "example": "ip link show eth0\n# 2: eth0: <BROADCAST,MULTICAST,UP> mtu 1500 ...\n# test path MTU with do-not-fragment pings\nping -M do -s 1472 8.8.8.8   # 1472 + 28 header bytes = 1500",
+    "diagram": "flowchart LR\n    F[\"Ethernet frame\"] --> MTU[\"MTU 1500 bytes\"]\n    MTU --> IP[\"IP header 20\"]\n    MTU --> ICMP[\"ICMP header 8\"]\n    MTU --> DATA[\"payload 1472 (ping -s 1472)\"]\n    BIG[\"Packet larger than 1500\"] --> Q{\"DF bit set?\"}\n    Q -->|\"no\"| FRAG[\"Fragment\"]\n    Q -->|\"yes\"| DROP[\"Drop + ICMP needs fragmentation\"]",
     "answer": [
       "1500",
       "1500 bytes"
@@ -1156,6 +1203,7 @@
     "prompt": "Which networking term describes the time it takes a single packet to travel from source to destination, as opposed to the maximum amount of data that can be transferred per second?",
     "explanation": "Latency measures delay (time for data to travel), while bandwidth describes the maximum theoretical data-carrying capacity of a link; a connection can have high bandwidth but still suffer from high latency.",
     "example": "ping -c 5 api.example.com     # 'time=12.3 ms' is latency (RTT)\niperf3 -c 10.0.0.5            # reports throughput in Mbits/sec\n# same link: low bandwidth is fine for a chat app, high latency is not",
+    "diagram": "flowchart LR\n    SRC[\"Source\"] -->|\"one packet travel time = latency (ping 12.3 ms)\"| DST[\"Destination\"]\n    SRC -->|\"max bits per second = bandwidth (iperf3 Mbits/sec)\"| DST\n    L[\"Chat app: needs low latency\"] --- SRC\n    B[\"Bulk download: needs high bandwidth\"] --- SRC",
     "options": [
       "Latency",
       "Bandwidth",
@@ -1183,6 +1231,7 @@
     "prompt": "Which command-line tool would you use to query a specific DNS server directly, for example with `dig @8.8.8.8 example.com A`?",
     "explanation": "`dig` is a flexible DNS lookup tool that lets you target a specific name server with the `@server` syntax and request a specific record type, making it a common choice for troubleshooting DNS.",
     "example": "dig @8.8.8.8 example.com A +short\n# 93.184.216.34\ndig @1.1.1.1 example.com MX     # ask Cloudflare for mail records",
+    "diagram": "sequenceDiagram\n    participant U as \"dig @8.8.8.8 example.com A\"\n    participant G as \"8.8.8.8 (chosen server)\"\n    participant L as \"System resolver\"\n    U->>G: A query for example.com (bypasses local resolver)\n    G-->>U: 93.184.216.34\n    Note over U,L: @server picks the target, record type is explicit",
     "options": [
       "dig",
       "ping",
@@ -1209,6 +1258,7 @@
     "prompt": "Which legacy DNS lookup tool, available on both Windows and Unix-like systems, is commonly used for basic DNS queries but is generally considered less flexible than `dig`?",
     "explanation": "`nslookup` performs basic DNS lookups and is available cross-platform, but it is older and less flexible than `dig`, which offers more detailed output and query control.",
     "example": "nslookup example.com 8.8.8.8\n# Server:  8.8.8.8\n# Name:    example.com\n# Address: 93.184.216.34\n# works on Windows cmd and Linux alike",
+    "diagram": "flowchart LR\n    T[\"DNS lookup tools\"] --> NS[\"nslookup (legacy, Windows + Unix)\"]\n    T --> DIG[\"dig (flexible, detailed output)\"]\n    NS --> B[\"Basic queries: nslookup example.com 8.8.8.8\"]\n    DIG --> A[\"+trace, +short, record types, full sections\"]",
     "options": [
       "nslookup",
       "curl",
@@ -1235,6 +1285,7 @@
     "prompt": "Which command-line tool captures and displays live network packets on an interface for protocol-level analysis?",
     "explanation": "`tcpdump` captures packets from a network interface and can decode and print their headers, or write them to a file for later analysis (for example, in Wireshark).",
     "example": "sudo tcpdump -ni eth0 'tcp port 443' -c 10\n# write a capture for later analysis in Wireshark\nsudo tcpdump -ni eth0 -w capture.pcap host 10.0.0.5",
+    "diagram": "flowchart LR\n    NIC[\"eth0 interface\"] --> TD[\"tcpdump -ni eth0 'tcp port 443'\"]\n    TD --> BPF[\"BPF filter selects packets\"]\n    BPF --> OUT[\"Decoded headers on stdout\"]\n    BPF -->|\"-w capture.pcap\"| PCAP[\"pcap file\"]\n    PCAP --> WS[\"Wireshark analysis\"]",
     "options": [
       "tcpdump",
       "curl",
@@ -1262,6 +1313,7 @@
     "prompt": "Which modern Linux utility is commonly used in place of the older `netstat` to inspect socket statistics such as listening ports and established connections?",
     "explanation": "`ss` is the modern replacement for `netstat` on Linux, querying kernel socket information directly and generally running faster, especially on hosts with many connections.",
     "example": "ss -tulnp            # listening TCP/UDP sockets with owning process\nss -tan state established\n# older equivalent: netstat -tulnp",
+    "diagram": "flowchart LR\n    K[\"Kernel socket tables\"] --> SS[\"ss (modern, netlink, fast)\"]\n    K --> NS[\"netstat (legacy, slower)\"]\n    SS --> L[\"ss -tulnp: listening ports + process\"]\n    SS --> E[\"ss -tan state established\"]",
     "options": [
       "ss",
       "ip route",
@@ -1290,6 +1342,7 @@
     "prompt": "Which of the following statements about `curl` and `nc` (netcat) are correct?",
     "explanation": "`curl` is an HTTP(S) client for sending requests from the command line and can follow redirects with the `-L` flag, while `nc` is a general-purpose tool for opening raw TCP/UDP connections, useful for port testing and simple data transfer. Capturing and decoding raw packets is the job of tools like `tcpdump`, not `curl`.",
     "example": "curl -X POST -H 'Content-Type: application/json' -d '{\"ok\":true}' -L https://api.example.com/v1/ping\nnc -zv db.internal 5432      # test whether TCP 5432 is open\n# pipe a file between hosts\nnc -l 9000 > out.bin   # receiver\nnc host 9000 < in.bin  # sender",
+    "diagram": "flowchart LR\n    CURL[\"curl\"] --> C1[\"HTTP/HTTPS requests: -X, -H, -d, -L\"]\n    NC[\"nc (netcat)\"] --> N1[\"Port test: nc -zv host 5432\"]\n    NC --> N2[\"Raw TCP/UDP pipe between hosts\"]\n    TCPD[\"tcpdump\"] --> T1[\"Capture and decode packets\"]\n    CURL -.->|\"cannot\"| T1",
     "options": [
       "`curl` can send HTTP/HTTPS requests with custom methods, headers, and request bodies from the command line",
       "`nc` can be used to manually test whether a specific TCP port is open by attempting a raw connection",
@@ -1323,6 +1376,7 @@
     "prompt": "What does the CORS (Cross-Origin Resource Sharing) mechanism primarily govern?",
     "explanation": "CORS is a browser-enforced mechanism that controls whether client-side script on one origin (scheme + host + port) is allowed to read responses from a server on a different origin, using response headers like `Access-Control-Allow-Origin`.",
     "example": "# Server allows a specific origin to read the response\nAccess-Control-Allow-Origin: https://app.example.com\nAccess-Control-Allow-Methods: GET, POST\n# without this header the browser blocks the cross-origin fetch()",
+    "diagram": "sequenceDiagram\n    participant P as \"Page on https://app.example.com\"\n    participant B as \"Browser\"\n    participant S as \"https://api.example.com\"\n    P->>B: fetch to different origin\n    B->>S: request with Origin: https://app.example.com\n    S-->>B: response + Access-Control-Allow-Origin: https://app.example.com\n    B-->>P: response readable (origin allowed)\n    Note over B: missing header: browser blocks script from reading response",
     "options": [
       "Encryption of data in transit between a browser and a server",
       "Whether a web browser permits a script running on one origin to make requests to a different origin",
@@ -1349,6 +1403,7 @@
     "prompt": "For certain cross-origin requests, browsers automatically send a CORS preflight request using the HTTP `OPTIONS` method to ask the server which methods and headers are allowed before sending the actual request.",
     "explanation": "Requests that are not 'simple' (for example, those using methods like PUT/DELETE or custom headers) trigger a preflight `OPTIONS` request; the server's response headers tell the browser whether the real request is permitted.",
     "example": "# Preflight sent automatically before a PUT with a JSON body\nOPTIONS /api/items HTTP/1.1\nOrigin: https://app.example.com\nAccess-Control-Request-Method: PUT\nAccess-Control-Request-Headers: content-type",
+    "diagram": "sequenceDiagram\n    participant B as \"Browser\"\n    participant S as \"API server\"\n    Note over B: script wants PUT with JSON body (not simple)\n    B->>S: OPTIONS /api/items + Access-Control-Request-Method: PUT\n    S-->>B: Access-Control-Allow-Methods: PUT, Allow-Headers: content-type\n    B->>S: actual PUT /api/items\n    S-->>B: 200 OK",
     "answer": true,
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
     "tags": [
@@ -1364,6 +1419,7 @@
     "prompt": "Which HTTP request header does a client use to ask that a connection be upgraded from HTTP to a WebSocket connection?",
     "explanation": "A WebSocket handshake begins as a normal HTTP request that includes `Upgrade: websocket` (along with `Connection: Upgrade`); if the server agrees, it responds with a 101 Switching Protocols status and the connection becomes a persistent, full-duplex WebSocket connection.",
     "example": "GET /chat HTTP/1.1\nHost: example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Version: 13\n# server replies 101 Switching Protocols",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"Server\"\n    C->>S: GET /chat + Upgrade: websocket + Connection: Upgrade\n    S-->>C: 101 Switching Protocols\n    Note over C,S: connection now full-duplex WebSocket\n    C->>S: frame\n    S->>C: frame",
     "options": [
       "Connection: keep-alive",
       "Upgrade: websocket",
@@ -1390,6 +1446,7 @@
     "prompt": "In a microservices architecture running on Kubernetes, what is a primary function of a service mesh such as Istio or Linkerd?",
     "explanation": "A service mesh typically injects a sidecar proxy alongside each service instance to transparently handle service-to-service communication concerns such as mutual TLS, retries, load balancing, and telemetry, without requiring changes to application code.",
     "example": "# Istio: require mTLS for all workloads in a namespace\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata:\n  name: default\n  namespace: prod\nspec:\n  mtls:\n    mode: STRICT",
+    "diagram": "flowchart LR\n    A[\"Service A container\"] --> PA[\"Sidecar proxy A\"]\n    PA -->|\"mTLS, retries, load balancing\"| PB[\"Sidecar proxy B\"]\n    PB --> B[\"Service B container\"]\n    CP[\"Mesh control plane (Istio / Linkerd)\"] -->|\"config, certs\"| PA\n    CP --> PB\n    PA -->|\"metrics, traces\"| OBS[\"Observability\"]\n    N[\"No application code changes\"] --- CP",
     "options": [
       "Providing a sidecar-based infrastructure layer that manages service-to-service traffic, including mTLS, retries, and observability, without changing application code",
       "Replacing the container runtime used to run pods",
@@ -1416,6 +1473,7 @@
     "prompt": "In networking and cloud security terminology, `ingress` refers to traffic entering a network or system, while `egress` refers to traffic leaving it.",
     "explanation": "Ingress and egress describe the direction of traffic flow relative to a boundary, such as a VPC, cluster, or firewall: ingress is inbound traffic, egress is outbound traffic.",
     "example": "# Kubernetes NetworkPolicy: allow ingress on 8080, egress only to DNS\nspec:\n  podSelector: {matchLabels: {app: api}}\n  ingress:\n  - ports: [{port: 8080}]\n  egress:\n  - ports: [{port: 53, protocol: UDP}]",
+    "diagram": "flowchart LR\n    EXT[\"External client\"] -->|\"ingress: traffic entering (port 8080)\"| POD[\"api pod inside boundary\"]\n    POD -->|\"egress: traffic leaving (DNS UDP 53)\"| DNS[\"DNS server\"]\n    POD -.->|\"egress not allowed\"| OTHER[\"Other destinations\"]\n    NP[\"NetworkPolicy defines both directions\"] --- POD",
     "answer": true,
     "reference": "https://www.cloudflare.com/learning/security/what-is-a-firewall/",
     "tags": [

@@ -127,4 +127,8 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
 .option-notes .note { color: var(--muted); }
 .option-notes .note code, .option-notes .label code { font-size: 0.9em; }
 .example { margin: 0; padding: 0.7rem 0.9rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.88rem; line-height: 1.45; white-space: pre-wrap; overflow-x: auto; }
+.diagram { margin: 0; padding: 0.7rem 0.9rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+.diagram-svg svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.diagram-source { border: 0; padding: 0; background: transparent; }
+.diagram-source.failed { opacity: 0.7; }
 .explain .reference { display: inline-block; margin-top: 0.6rem; }

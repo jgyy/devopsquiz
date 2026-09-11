@@ -20,6 +20,7 @@
     "answer": 0,
     "explanation": "A Pod is the smallest deployable unit in Kubernetes; it wraps one or more containers that share network and storage. Containers cannot be scheduled directly, and Nodes and Deployments are higher-level concepts.",
     "example": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.27   # one Pod wrapping one container\nkubectl get pods",
+    "diagram": "flowchart TD\n    N[\"Node\"] --> P[\"Pod (smallest deployable unit)\"]\n    P --> C1[\"Container app\"]\n    P --> C2[\"Container sidecar\"]\n    P --> NET[\"Shared network namespace + IP\"]\n    P --> VOL[\"Shared volumes\"]\n    DEP[\"Deployment (higher-level)\"] -->|\"manages\"| P",
     "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
     "tags": [
       "pods",
@@ -35,6 +36,7 @@
     "answer": true,
     "explanation": "All containers in a Pod share the Pod's network namespace (and IP address), so they communicate via `localhost`, and they can optionally share storage through mounted volumes.",
     "example": "# sidecar reaching the app container in the same Pod\nkubectl exec web -c sidecar -- curl -s http://localhost:8080/healthz",
+    "diagram": "flowchart LR\n    subgraph Pod\n        NS[\"One network namespace, one Pod IP\"]\n        A[\"Container A\"] -->|\"localhost:8080\"| B[\"Container B\"]\n        A --- V[\"Shared volume (optional)\"]\n        B --- V\n    end\n    Other[\"Other Pod\"] -->|\"Pod IP only\"| NS",
     "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
     "tags": [
       "pods",
@@ -62,6 +64,7 @@
     "answer": 0,
     "explanation": "A ReplicaSet's purpose is to maintain a stable set of replica Pods running at any given time, creating or removing Pods as needed to match the desired count.",
     "example": "apiVersion: apps/v1\nkind: ReplicaSet\nmetadata:\n  name: web-rs\nspec:\n  replicas: 3   # controller keeps exactly 3 matching Pods\n  selector:\n    matchLabels: {app: web}\n  template:\n    metadata: {labels: {app: web}}\n    spec:\n      containers: [{name: web, image: nginx}]",
+    "diagram": "flowchart LR\n    RS[\"ReplicaSet (replicas: 3)\"] -->|\"observes\"| CUR[\"Running Pods: 2\"]\n    CUR -->|\"2 < 3\"| ADD[\"Create 1 Pod\"]\n    RS -->|\"observes\"| OVER[\"Running Pods: 4\"]\n    OVER -->|\"4 > 3\"| DEL[\"Delete 1 Pod\"]\n    ADD --> OK[\"3 identical Pods\"]\n    DEL --> OK",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/",
     "tags": [
       "replicaset"
@@ -88,6 +91,7 @@
     "answer": 0,
     "explanation": "A Deployment manages ReplicaSets for you and adds features like declarative rolling updates, pausing/resuming rollouts, and rolling back to a previous revision — capabilities a bare ReplicaSet does not provide on its own.",
     "example": "kubectl create deployment web --image=nginx:1.26 --replicas=3\nkubectl set image deployment/web nginx=nginx:1.27   # rolling update\nkubectl rollout history deployment/web              # revision list\nkubectl rollout undo deployment/web                 # roll back",
+    "diagram": "flowchart TD\n    D[\"Deployment (rolling update, rollback, revisions)\"]\n    D -->|\"revision 1\"| RS1[\"ReplicaSet v1 (scaled to 0)\"]\n    D -->|\"revision 2 (current)\"| RS2[\"ReplicaSet v2\"]\n    RS2 --> P1[\"Pod\"]\n    RS2 --> P2[\"Pod\"]\n    RS2 --> P3[\"Pod\"]\n    U[\"kubectl rollout undo\"] -->|\"reactivates\"| RS1",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -115,6 +119,7 @@
     "answer": 0,
     "explanation": "StatefulSet Pods get a sticky, unique ordinal index appended to the StatefulSet name, producing predictable names such as `web-0`, `web-1`, `web-2`, which persist across rescheduling.",
     "example": "kubectl get pods -l app=web\n# NAME    READY   STATUS    RESTARTS   AGE\n# web-0   1/1     Running   0          2m\n# web-1   1/1     Running   0          2m\n# web-2   1/1     Running   0          1m",
+    "diagram": "flowchart TD\n    SS[\"StatefulSet web (replicas: 3)\"]\n    SS -->|\"ordinal 0\"| P0[\"Pod web-0\"]\n    SS -->|\"ordinal 1\"| P1[\"Pod web-1\"]\n    SS -->|\"ordinal 2\"| P2[\"Pod web-2\"]\n    P0 --- V0[\"PVC data-web-0\"]\n    P1 --- V1[\"PVC data-web-1\"]\n    P2 --- V2[\"PVC data-web-2\"]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
     "tags": [
       "statefulset"
@@ -129,6 +134,7 @@
     "answer": true,
     "explanation": "StatefulSets rely on a governing headless Service to give each Pod a stable, predictable DNS name (for example `web-0.web.default.svc.cluster.local`); without it, the Pods lack this stable network identity.",
     "example": "apiVersion: v1\nkind: Service\nmetadata:\n  name: web\nspec:\n  clusterIP: None      # headless: gives web-0.web, web-1.web DNS names\n  selector: {app: web}\n  ports: [{port: 80}]\n---\nkind: StatefulSet\nspec:\n  serviceName: web     # references the headless Service",
+    "diagram": "flowchart LR\n    SS[\"StatefulSet web\"] -->|\"serviceName: web\"| HS[\"Headless Service web (clusterIP: None)\"]\n    HS --> D0[\"web-0.web.ns.svc\"]\n    HS --> D1[\"web-1.web.ns.svc\"]\n    HS --> D2[\"web-2.web.ns.svc\"]\n    D0 --> P0[\"Pod web-0 IP\"]\n    D1 --> P1[\"Pod web-1 IP\"]\n    D2 --> P2[\"Pod web-2 IP\"]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
     "tags": [
       "statefulset",
@@ -156,6 +162,7 @@
     "answer": 0,
     "explanation": "A DaemonSet ensures that all (or some, via node selectors/affinity) nodes run a copy of a Pod — commonly used for node-level agents like log collectors or monitoring daemons.",
     "example": "apiVersion: apps/v1\nkind: DaemonSet\nmetadata:\n  name: node-exporter\nspec:\n  selector: {matchLabels: {app: node-exporter}}\n  template:\n    metadata: {labels: {app: node-exporter}}\n    spec:\n      containers: [{name: exporter, image: prom/node-exporter}]\n# one Pod lands on every node, including new ones",
+    "diagram": "flowchart TD\n    DS[\"DaemonSet log-collector\"]\n    DS -->|\"one Pod per node\"| N1[\"Node 1: Pod\"]\n    DS -->|\"one Pod per node\"| N2[\"Node 2: Pod\"]\n    DS -->|\"one Pod per node\"| N3[\"Node 3: Pod\"]\n    NEW[\"New node joins\"] -->|\"DaemonSet adds Pod\"| N4[\"Node 4: Pod\"]\n    SEL[\"nodeSelector / affinity\"] -.->|\"optional subset\"| DS",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/",
     "tags": [
       "daemonset"
@@ -182,6 +189,7 @@
     "answer": 0,
     "explanation": "A Job creates Pods and tracks successful completions; because a Job's Pods are expected to terminate, the Pod template cannot use `restartPolicy: Always` — only `OnFailure` or `Never` are allowed. Running Pods on a repeating schedule is instead the job of a CronJob.",
     "example": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: db-migrate\nspec:\n  completions: 1\n  backoffLimit: 3\n  template:\n    spec:\n      restartPolicy: OnFailure   # Always is rejected for a Job\n      containers: [{name: migrate, image: app:1.2, command: [\"./migrate\"]}]",
+    "diagram": "flowchart LR\n    J[\"Job (completions: 3)\"] --> P1[\"Pod run 1\"]\n    J --> P2[\"Pod run 2\"]\n    J --> P3[\"Pod run 3\"]\n    P1 -->|\"exit 0\"| DONE[\"Succeeded count\"]\n    P2 -->|\"exit 1, restartPolicy OnFailure\"| RETRY[\"Retry container\"]\n    RETRY --> DONE\n    P3 -->|\"exit 0\"| DONE\n    DONE -->|\"3 of 3\"| C[\"Job Complete\"]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/job/",
     "tags": [
       "job"
@@ -198,6 +206,7 @@
     ],
     "explanation": "CronJob schedules use the standard crontab format `minute hour day-of-month month day-of-week`. `0 0 * * *` means minute 0, hour 0, every day, every month, every weekday — i.e. midnight daily.",
     "example": "apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: nightly-backup\nspec:\n  schedule: \"0 0 * * *\"   # minute hour dom month dow -> 00:00 daily\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          restartPolicy: OnFailure\n          containers: [{name: backup, image: backup:1.0}]",
+    "diagram": "flowchart LR\n    S[\"schedule: 0 0 * * *\"] --> M[\"minute = 0\"]\n    S --> H[\"hour = 0\"]\n    S --> DOM[\"day of month = any\"]\n    S --> MON[\"month = any\"]\n    S --> DOW[\"day of week = any\"]\n    M --> R[\"Runs daily at 00:00\"]\n    H --> R\n    CJ[\"CronJob\"] -->|\"each tick creates\"| JOB[\"Job then Pod\"]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/",
     "tags": [
       "cronjob",
@@ -226,6 +235,7 @@
     "answer": 0,
     "explanation": "`ClusterIP` is the default Service type; it exposes the Service on an internal IP reachable only from within the cluster.",
     "example": "kubectl expose deployment web --port=80   # no --type given\nkubectl get svc web\n# NAME   TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)\n# web    ClusterIP   10.96.12.34    <none>        80/TCP",
+    "diagram": "flowchart LR\n    Y[\"Service manifest with no type\"] -->|\"defaults to\"| CIP[\"type: ClusterIP\"]\n    CIP --> VIP[\"Virtual internal IP 10.96.x.x\"]\n    IN[\"Pod inside cluster\"] -->|\"reachable\"| VIP\n    OUT[\"Client outside cluster\"] -->|\"not reachable\"| VIP\n    VIP --> EP[\"Endpoints: selected Pods\"]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service"
@@ -252,6 +262,7 @@
     "answer": 0,
     "explanation": "Unless the API server's `--service-node-port-range` flag is changed, NodePort Services are assigned a port from the default range 30000-32767 on every node.",
     "example": "kubectl expose deployment web --port=80 --type=NodePort\nkubectl get svc web\n# PORT(S): 80:31457/TCP   <- auto-assigned from 30000-32767\n# override range on the API server: --service-node-port-range=30000-32767",
+    "diagram": "flowchart LR\n    C[\"External client\"] -->|\"NodeIP:31000\"| N1[\"Node 1 port 31000\"]\n    C -->|\"NodeIP:31000\"| N2[\"Node 2 port 31000\"]\n    N1 --> S[\"NodePort Service\"]\n    N2 --> S\n    S --> P[\"Pods\"]\n    R[\"Default range 30000-32767 (apiserver --service-node-port-range)\"] -.-> S",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -288,6 +299,7 @@
     ],
     "explanation": "The four built-in Service types are `ClusterIP`, `NodePort`, `LoadBalancer`, and `ExternalName`. `Ingress` and `Gateway` are separate API objects for routing HTTP(S) traffic, not Service types.",
     "example": "kubectl create service clusterip api --tcp=80:8080\nkubectl create service nodeport api-np --tcp=80:8080\nkubectl create service loadbalancer api-lb --tcp=80:8080\nkubectl create service externalname db --external-name=db.example.com",
+    "diagram": "flowchart TD\n    T[\"Service type\"]\n    T --> A[\"ClusterIP: internal virtual IP (default)\"]\n    T --> B[\"NodePort: ClusterIP + port on every node\"]\n    T --> C[\"LoadBalancer: NodePort + external LB\"]\n    T --> D[\"ExternalName: DNS CNAME to external host\"]\n    A --> B\n    B --> C",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -315,6 +327,7 @@
     "answer": 0,
     "explanation": "Without a controller that can provision an external load balancer, a `LoadBalancer` Service simply never gets an external IP assigned (it stays `<pending>`), while still receiving the NodePort and ClusterIP allocations a LoadBalancer Service also gets.",
     "example": "kubectl expose deployment web --port=80 --type=LoadBalancer\nkubectl get svc web\n# NAME  TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)\n# web   LoadBalancer   10.96.5.10    <pending>     80:31022/TCP\n# still reachable at <node-ip>:31022 like a NodePort",
+    "diagram": "flowchart TD\n    S[\"Service type: LoadBalancer\"] --> CIP[\"ClusterIP allocated\"]\n    S --> NP[\"NodePort allocated\"]\n    S --> LB{\"Cloud controller or LB integration present?\"}\n    LB -->|\"yes\"| EXT[\"External IP provisioned\"]\n    LB -->|\"no\"| PEND[\"EXTERNAL-IP stays pending\"]\n    PEND -->|\"still works via\"| NP",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -342,6 +355,7 @@
     "answer": 0,
     "explanation": "A headless Service has no cluster IP; DNS lookups for it return the set of individual Pod IPs (or per-Pod DNS records for a StatefulSet) instead of load-balancing through a single virtual IP, letting clients discover and connect to individual Pods directly.",
     "example": "kubectl run -it --rm dns --image=busybox -- nslookup web\n# Name: web.default.svc.cluster.local\n# Address 1: 10.244.1.5 web-0.web.default.svc.cluster.local\n# Address 2: 10.244.2.7 web-1.web.default.svc.cluster.local",
+    "diagram": "flowchart LR\n    C[\"Client DNS query my-svc\"] --> DNS[\"CoreDNS\"]\n    DNS -->|\"normal Service\"| VIP[\"One ClusterIP, kube-proxy balances\"]\n    DNS -->|\"headless clusterIP: None\"| IPS[\"A records for each Pod IP\"]\n    IPS --> P1[\"Pod IP 10.1.0.5\"]\n    IPS --> P2[\"Pod IP 10.1.0.6\"]\n    IPS --> P3[\"Pod IP 10.1.0.7\"]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -370,6 +384,7 @@
     "answer": 0,
     "explanation": "Ingress defines rules for routing external HTTP/HTTPS traffic to internal Services, typically based on hostname and URL path, and can also terminate TLS.",
     "example": "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: web\nspec:\n  ingressClassName: nginx\n  rules:\n  - host: shop.example.com\n    http:\n      paths:\n      - path: /api\n        pathType: Prefix\n        backend: {service: {name: api, port: {number: 80}}}",
+    "diagram": "flowchart LR\n    U[\"External HTTP/HTTPS client\"] --> IC[\"Ingress controller\"]\n    IC -->|\"reads rules\"| ING[\"Ingress resource (host + path, TLS)\"]\n    IC -->|\"shop.example.com /api\"| S1[\"Service api\"]\n    IC -->|\"shop.example.com /\"| S2[\"Service web\"]\n    IC -->|\"admin.example.com\"| S3[\"Service admin\"]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress/",
     "tags": [
       "ingress"
@@ -384,6 +399,7 @@
     "answer": true,
     "explanation": "Kubernetes does not ship a built-in Ingress controller; the Ingress resource is just a set of rules, and an Ingress controller (for example ingress-nginx or a cloud provider's controller) must be deployed to actually watch and fulfil those rules.",
     "example": "helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace\nkubectl get ingressclass   # nginx now exists; Ingress rules get an ADDRESS\nkubectl get ingress web    # ADDRESS column stays empty with no controller",
+    "diagram": "flowchart TD\n    ING[\"Ingress resource (just rules)\"] --> Q{\"Ingress controller running?\"}\n    Q -->|\"no\"| NOP[\"Nothing happens, no routing\"]\n    Q -->|\"yes, e.g. ingress-nginx\"| W[\"Controller watches Ingress\"]\n    W --> CFG[\"Configures proxy\"]\n    CFG --> R[\"Traffic routed to Services\"]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/",
     "tags": [
       "ingress",
@@ -411,6 +427,7 @@
     "answer": 0,
     "explanation": "ConfigMaps hold non-sensitive configuration data (such as settings, file contents, or CLI arguments) that can be injected into Pods as environment variables, command-line arguments, or mounted files. Sensitive data belongs in a `Secret` instead.",
     "example": "kubectl create configmap app-config --from-literal=LOG_LEVEL=info --from-file=app.properties\n# consume in a Pod:\nenvFrom:\n- configMapRef:\n    name: app-config",
+    "diagram": "flowchart LR\n    CM[\"ConfigMap app-config (non-secret key/values)\"]\n    CM -->|\"env var\"| E[\"LOG_LEVEL=debug\"]\n    CM -->|\"envFrom\"| A[\"All keys as env\"]\n    CM -->|\"volume mount\"| F[\"/etc/config/app.properties\"]\n    E --> P[\"Pod container\"]\n    A --> P\n    F --> P\n    SEC[\"Sensitive data\"] -->|\"use Secret instead\"| S[\"Secret\"]",
     "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
     "tags": [
       "configmap"
@@ -425,6 +442,7 @@
     "answer": true,
     "explanation": "Base64 is an encoding, not encryption — anyone with API or etcd access can trivially decode it. Encryption at rest requires explicitly configuring an `EncryptionConfiguration` (for example with a KMS provider) for the API server.",
     "example": "kubectl create secret generic db --from-literal=password=hunter2\nkubectl get secret db -o jsonpath='{.data.password}' | base64 -d\n# hunter2   <- trivially decoded, no encryption involved",
+    "diagram": "flowchart LR\n    V[\"password: hunter2\"] -->|\"base64 (encoding)\"| B[\"aHVudGVyMg==\"]\n    B -->|\"stored in\"| E[\"etcd (plaintext by default)\"]\n    E -->|\"base64 -d\"| V\n    ENC[\"EncryptionConfiguration + KMS provider\"] -->|\"opt in\"| E2[\"etcd (encrypted at rest)\"]",
     "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
     "tags": [
       "secret",
@@ -458,6 +476,7 @@
     ],
     "explanation": "ConfigMap data can populate individual environment variables, be bulk-imported with `envFrom`, or be mounted as files in a volume. A ConfigMap cannot supply a container image or a `restartPolicy`.",
     "example": "env:\n- name: LOG_LEVEL\n  valueFrom:\n    configMapKeyRef: {name: app-config, key: LOG_LEVEL}\nenvFrom:\n- configMapRef: {name: app-config}\nvolumes:\n- name: cfg\n  configMap: {name: app-config}   # mounted as files",
+    "diagram": "flowchart TD\n    CM[\"ConfigMap\"]\n    CM -->|\"valueFrom.configMapKeyRef\"| E1[\"Single env var\"]\n    CM -->|\"envFrom.configMapRef\"| E2[\"All keys as env vars\"]\n    CM -->|\"volumes + volumeMounts\"| E3[\"Files in mounted directory\"]\n    E1 --> C[\"Container\"]\n    E2 --> C\n    E3 --> C\n    X[\"Cannot set image or restartPolicy\"] -.-> CM",
     "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
     "tags": [
       "configmap"
@@ -484,6 +503,7 @@
     "answer": 0,
     "explanation": "`kubernetes.io/dockerconfigjson` stores a Docker config file used for authenticating to private registries, referenced from a Pod via `imagePullSecrets`. `kubernetes.io/tls` holds certificate/key pairs, `Opaque` is the generic default type, and `kubernetes.io/service-account-token` holds a ServiceAccount's token.",
     "example": "kubectl create secret docker-registry regcred \\\n  --docker-server=ghcr.io --docker-username=me --docker-password=$TOKEN\n# type: kubernetes.io/dockerconfigjson\nspec:\n  imagePullSecrets:\n  - name: regcred",
+    "diagram": "flowchart LR\n    S[\"Secret type kubernetes.io/dockerconfigjson\"] -->|\".dockerconfigjson\"| D[\"Registry auth (user, token)\"]\n    P[\"Pod spec imagePullSecrets: regcred\"] --> S\n    K[\"kubelet\"] -->|\"uses creds\"| R[\"Private registry\"]\n    R -->|\"image pulled\"| C[\"Container starts\"]\n    O[\"Opaque / tls / service-account-token\"] -.->|\"other types\"| S",
     "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
     "tags": [
       "secret",
@@ -511,6 +531,7 @@
     "answer": 0,
     "explanation": "A PVC is a request for storage made by a user (or Pod); Kubernetes binds it to a `PersistentVolume` that satisfies its size, access mode, and (optionally) StorageClass requirements.",
     "example": "apiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data\nspec:\n  accessModes: [ReadWriteOnce]\n  storageClassName: gp3\n  resources:\n    requests:\n      storage: 20Gi   # request; a PV that satisfies it gets bound",
+    "diagram": "flowchart LR\n    U[\"User creates PVC (10Gi, ReadWriteOnce)\"] --> CTRL[\"PV controller\"]\n    CTRL -->|\"finds matching\"| PV[\"PersistentVolume 20Gi RWO\"]\n    PV -->|\"Bound\"| PVC[\"PVC status: Bound\"]\n    POD[\"Pod volumes.persistentVolumeClaim\"] --> PVC\n    PVC --> M[\"Mounted into container\"]",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pvc",
@@ -538,6 +559,7 @@
     "answer": 0,
     "explanation": "A StorageClass describes a 'class' of storage (provisioner, parameters, reclaim policy) that lets the cluster automatically (dynamically) provision a PersistentVolume when a matching PVC is created, instead of requiring an administrator to pre-create volumes.",
     "example": "apiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: gp3\nprovisioner: ebs.csi.aws.com\nparameters:\n  type: gp3\nreclaimPolicy: Delete\nvolumeBindingMode: WaitForFirstConsumer   # PVC using gp3 triggers a new EBS volume",
+    "diagram": "flowchart LR\n    PVC[\"PVC storageClassName: fast\"] --> SC[\"StorageClass fast (provisioner, parameters, reclaimPolicy)\"]\n    SC -->|\"dynamic provisioning\"| CSI[\"CSI driver e.g. ebs.csi.aws.com\"]\n    CSI -->|\"creates disk\"| DISK[\"Cloud disk\"]\n    CSI -->|\"creates\"| PV[\"PersistentVolume\"]\n    PV -->|\"bound to\"| PVC\n    ADMIN[\"No admin pre-creating PVs\"] -.-> SC",
     "reference": "https://kubernetes.io/docs/concepts/storage/storage-classes/",
     "tags": [
       "storageclass",
@@ -553,6 +575,7 @@
     "answer": true,
     "explanation": "PersistentVolumes are cluster-level resources like Nodes, visible cluster-wide, whereas PersistentVolumeClaims live in a namespace and can only be used by Pods in that same namespace.",
     "example": "kubectl get pv                 # no namespace: cluster-scoped\nkubectl get pvc -n payments    # namespaced\nkubectl api-resources --namespaced=false | grep persistentvolumes",
+    "diagram": "flowchart TD\n    CL[\"Cluster scope\"] --> PV[\"PersistentVolume (no namespace)\"]\n    CL --> NODE[\"Node\"]\n    NS1[\"Namespace team-a\"] --> PVC[\"PVC data (namespaced)\"]\n    NS1 --> POD[\"Pod in team-a\"]\n    PVC -->|\"binds\"| PV\n    POD -->|\"uses\"| PVC\n    NS2[\"Namespace team-b Pod\"] -.->|\"cannot use\"| PVC",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pv",
@@ -588,6 +611,7 @@
     ],
     "explanation": "Kubernetes defines `ReadWriteOnce` (read-write by a single node), `ReadOnlyMany`, `ReadWriteMany`, and the newer `ReadWriteOncePod` (read-write by a single Pod cluster-wide). `ReadWriteAny` is not a real access mode.",
     "example": "spec:\n  accessModes:\n  - ReadWriteOncePod   # RWOP: single Pod cluster-wide\n# kubectl get pv shows short forms: RWO, ROX, RWX, RWOP",
+    "diagram": "flowchart TD\n    AM[\"PV accessModes\"]\n    AM --> RWO[\"ReadWriteOnce: read-write by one node\"]\n    AM --> ROX[\"ReadOnlyMany: read-only by many nodes\"]\n    AM --> RWX[\"ReadWriteMany: read-write by many nodes\"]\n    AM --> RWOP[\"ReadWriteOncePod: read-write by one Pod\"]\n    BAD[\"ReadWriteAny: not real\"] -.-> AM",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pv",
@@ -615,6 +639,7 @@
     "answer": 0,
     "explanation": "Namespaces divide a single cluster into multiple virtual clusters, scoping resource names and letting teams or environments share a cluster without name collisions. They do not provide network isolation by themselves.",
     "example": "kubectl create namespace staging\nkubectl run web --image=nginx -n staging\nkubectl run web --image=nginx -n prod     # same name, no collision\nkubectl config set-context --current --namespace=staging",
+    "diagram": "flowchart TD\n    C[\"One physical cluster\"]\n    C --> NA[\"Namespace dev\"]\n    C --> NB[\"Namespace prod\"]\n    NA --> A1[\"Deployment web\"]\n    NA --> A2[\"Service api\"]\n    NB --> B1[\"Deployment web (same name, no clash)\"]\n    NB --> B2[\"ResourceQuota, RBAC scoped here\"]\n    A1 -.->|\"network still open by default\"| B1",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
     "tags": [
       "namespace"
@@ -631,6 +656,7 @@
     ],
     "explanation": "Kubernetes provides an initial namespace called `default` for objects that don't specify one.",
     "example": "kubectl run web --image=nginx      # no -n flag\nkubectl get pod web -n default     # it landed here\nkubectl config view --minify | grep namespace   # empty means default",
+    "diagram": "flowchart TD\n    K[\"kubectl create/apply\"] --> Q1{\"-n or metadata.namespace set?\"}\n    Q1 -->|\"yes\"| NS[\"That namespace\"]\n    Q1 -->|\"no\"| Q2{\"kubeconfig context namespace set?\"}\n    Q2 -->|\"yes\"| CTX[\"Context namespace\"]\n    Q2 -->|\"no\"| DEF[\"default namespace\"]",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
     "tags": [
       "namespace"
@@ -658,6 +684,7 @@
     "answer": 0,
     "explanation": "A `Role` is namespaced and its rules only apply within that namespace, whereas a `ClusterRole` is a cluster-scoped resource that can grant access to cluster-scoped resources or be reused across multiple namespaces.",
     "example": "kubectl create role pod-reader --verb=get,list --resource=pods -n dev\nkubectl create clusterrole node-reader --verb=get,list --resource=nodes\n# Nodes are cluster-scoped, so only a ClusterRole can grant access to them",
+    "diagram": "flowchart TD\n    R[\"Role (namespaced, rules apply in dev only)\"] --> RB1[\"RoleBinding in dev\"]\n    CR[\"ClusterRole (cluster-scoped rules)\"] --> CRB[\"ClusterRoleBinding: all namespaces + nodes, PVs\"]\n    CR --> RB2[\"RoleBinding in prod: reuse rules, scoped to prod\"]\n    RB1 --> U1[\"User alice\"]\n    CRB --> U2[\"Group ops\"]\n    RB2 --> U3[\"ServiceAccount ci\"]",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
     "tags": [
       "rbac",
@@ -685,6 +712,7 @@
     "answer": 0,
     "explanation": "`LimitRange` constrains individual Pods/containers (for example default requests/limits, or min/max), while `ResourceQuota` constrains the sum total of resources (CPU, memory, object counts, and so on) consumed by everything in a namespace.",
     "example": "kind: LimitRange\nspec:\n  limits:\n  - type: Container\n    default: {cpu: 500m, memory: 256Mi}     # per-container defaults\n---\nkind: ResourceQuota\nspec:\n  hard:\n    requests.cpu: \"10\"\n    pods: \"50\"                              # namespace-wide totals",
+    "diagram": "flowchart TD\n    NS[\"Namespace team-a\"]\n    NS --> LR[\"LimitRange: per container default request 100m, max 2 CPU\"]\n    NS --> RQ[\"ResourceQuota: total namespace CPU 10, pods 20\"]\n    LR -->|\"applies to each\"| P1[\"Pod A\"]\n    LR -->|\"applies to each\"| P2[\"Pod B\"]\n    RQ -->|\"caps the sum of\"| SUM[\"Pod A + Pod B + ...\"]",
     "reference": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
     "tags": [
       "rbac",
@@ -713,6 +741,7 @@
     "answer": 0,
     "explanation": "ServiceAccounts give an identity to processes running in Pods so they can authenticate API requests; they are distinct from the user accounts humans use to access the cluster.",
     "example": "kubectl create serviceaccount ci-runner\nspec:\n  serviceAccountName: ci-runner   # token projected into the Pod\n# inside the Pod:\ncurl -H \"Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://kubernetes.default/api",
+    "diagram": "sequenceDiagram\n    participant P as \"Pod process\"\n    participant SA as \"ServiceAccount token (mounted)\"\n    participant API as \"kube-apiserver\"\n    participant RBAC as \"RoleBinding to SA\"\n    P->>SA: read /var/run/secrets/.../token\n    P->>API: request with Bearer token\n    API->>API: authenticate as system:serviceaccount:ns:name\n    API->>RBAC: authorize verb on resource\n    RBAC-->>API: allowed or denied\n    API-->>P: response",
     "reference": "https://kubernetes.io/docs/concepts/security/service-accounts/",
     "tags": [
       "rbac",
@@ -731,6 +760,7 @@
     ],
     "explanation": "`kubectl auth can-i <verb> <resource>` queries the API server's authorization layer (via a SelfSubjectAccessReview) to report whether the acting identity is permitted to perform that action.",
     "example": "kubectl auth can-i create pods --namespace dev\n# yes\nkubectl auth can-i delete nodes --as=system:serviceaccount:dev:ci-runner\n# no\nkubectl auth can-i --list -n dev   # everything the current identity may do",
+    "diagram": "sequenceDiagram\n    participant U as \"kubectl auth can-i create pods -n dev\"\n    participant API as \"kube-apiserver\"\n    participant AZ as \"Authorizer (RBAC)\"\n    participant RB as \"RoleBindings\"\n    U->>API: SelfSubjectAccessReview\n    AZ->>RB: look up rules for identity\n    API->>AZ: is current identity allowed create pods in dev?\n    AZ-->>API: allowed true/false\n    API-->>U: prints yes or no",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/authorization/",
     "tags": [
       "rbac",
@@ -759,6 +789,7 @@
     "answer": 0,
     "explanation": "A failing liveness probe tells the kubelet the container is unhealthy, so it kills the container and restarts it (subject to the Pod's `restartPolicy`). This differs from a readiness probe, which only affects Service endpoint membership.",
     "example": "livenessProbe:\n  httpGet: {path: /healthz, port: 8080}\n  periodSeconds: 10\n  failureThreshold: 3   # 3 misses -> kubelet restarts the container\n# kubectl get pod shows RESTARTS climbing and describe shows 'Liveness probe failed'",
+    "diagram": "stateDiagram-v2\n    [*] --> Running\n    Running --> ProbeFail: liveness probe fails\n    ProbeFail --> Running: passes before threshold\n    ProbeFail --> Killed: failureThreshold reached\n    Killed --> Restarting: kubelet restarts per restartPolicy\n    Restarting --> Running: container starts again",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes",
@@ -786,6 +817,7 @@
     "answer": 0,
     "explanation": "A failing readiness probe only removes the Pod from Service endpoints (so it stops receiving traffic) — the container keeps running and is not restarted, unlike a failing liveness probe.",
     "example": "readinessProbe:\n  httpGet: {path: /ready, port: 8080}\n  periodSeconds: 5\n# while failing:\nkubectl get endpoints web   # Pod IP missing from the list\nkubectl get pod web-0       # READY 0/1 but STATUS Running, RESTARTS unchanged",
+    "diagram": "flowchart LR\n    RP{\"Readiness probe\"} -->|\"pass\"| IN[\"Pod IP in Service endpoints\"]\n    RP -->|\"fail\"| OUT[\"Pod IP removed from endpoints\"]\n    IN --> T[\"Receives traffic\"]\n    OUT --> NT[\"No traffic, container keeps running\"]\n    NT -->|\"probe passes again\"| IN\n    LP[\"Liveness probe fail\"] -->|\"different: restart\"| RS[\"Container restarted\"]",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes",
@@ -820,6 +852,7 @@
     ],
     "explanation": "Kubernetes probes can be implemented as an HTTP GET request (`httpGet`), a TCP connection check (`tcpSocket`), an in-container command (`exec`), or a gRPC health check (`grpc`). There is no built-in `ping` probe mechanism.",
     "example": "livenessProbe:\n  exec: {command: [cat, /tmp/healthy]}\nreadinessProbe:\n  tcpSocket: {port: 5432}\nstartupProbe:\n  httpGet: {path: /started, port: 8080}\n# grpc: {port: 9090} is also valid (GA in 1.27)",
+    "diagram": "flowchart TD\n    PR[\"Probe (liveness, readiness, startup)\"]\n    PR --> H[\"httpGet: GET /healthz returns 2xx/3xx\"]\n    PR --> T[\"tcpSocket: port accepts connection\"]\n    PR --> E[\"exec: command exits 0\"]\n    PR --> G[\"grpc: health service SERVING\"]\n    X[\"ping: not a probe type\"] -.-> PR",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes"
@@ -846,6 +879,7 @@
     "answer": 0,
     "explanation": "The scheduler filters nodes based on whether they have enough allocatable capacity to satisfy the sum of a Pod's container `requests`; `limits` only bound runtime usage and are not used for the scheduling capacity check.",
     "example": "resources:\n  requests: {cpu: 500m, memory: 256Mi}   # scheduler sums these vs node allocatable\n  limits:   {cpu: \"1\",  memory: 512Mi}   # runtime cap only\nkubectl describe node worker-1 | grep -A5 'Allocated resources'",
+    "diagram": "flowchart LR\n    P[\"Pod requests cpu 500m, mem 256Mi (limits ignored here)\"] --> S[\"kube-scheduler filter\"]\n    S -->|\"allocatable minus requests\"| N1[\"Node 1 free 200m: rejected\"]\n    S -->|\"allocatable minus requests\"| N2[\"Node 2 free 2000m: fits\"]\n    N2 --> B[\"Pod bound to Node 2\"]\n    L[\"limits: bound runtime usage only\"] -.-> P",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "scheduling",
@@ -873,6 +907,7 @@
     "answer": 0,
     "explanation": "Memory is not compressible: a container that exceeds its memory limit is terminated by the kernel's OOM killer. CPU is compressible: a container that exceeds its CPU limit is simply throttled (slowed down) via CFS quotas, not killed.",
     "example": "kubectl get pod api-0\n# STATUS: OOMKilled  RESTARTS: 4   <- exceeded memory limit\nkubectl describe pod api-0 | grep -i 'Last State' -A3\n# CPU over limit only shows up as throttling:\ncat /sys/fs/cgroup/cpu.stat | grep nr_throttled",
+    "diagram": "flowchart TD\n    C[\"Container usage exceeds limit\"]\n    C --> M{\"memory limit exceeded\"}\n    C --> U{\"CPU limit exceeded\"}\n    M -->|\"not compressible\"| OOM[\"OOMKilled by kernel\"]\n    OOM --> R[\"Container restarted\"]\n    U -->|\"compressible\"| TH[\"CFS throttling: slowed down\"]\n    TH --> K[\"Keeps running\"]",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "resources",
@@ -906,6 +941,7 @@
     ],
     "explanation": "Kubernetes assigns every Pod one of three QoS classes based on its requests/limits: `Guaranteed` (requests equal limits for every container), `Burstable` (at least one request set, but not Guaranteed), or `BestEffort` (no requests or limits set at all). `Reserved` and `Priority` are not QoS classes.",
     "example": "kubectl get pod web-0 -o jsonpath='{.status.qosClass}'\n# Guaranteed   <- requests == limits for every container\n# Burstable    <- some requests set, not all equal to limits\n# BestEffort   <- no requests or limits at all",
+    "diagram": "flowchart TD\n    Q{\"requests and limits?\"}\n    Q -->|\"requests == limits for every container\"| G[\"Guaranteed (evicted last)\"]\n    Q -->|\"some request set, not all equal\"| B[\"Burstable\"]\n    Q -->|\"none set\"| BE[\"BestEffort (evicted first)\"]\n    G --> E[\"Eviction order under node pressure\"]\n    B --> E\n    BE --> E",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "qos",
@@ -933,6 +969,7 @@
     "answer": 0,
     "explanation": "`nodeSelector` is the simplest form of node selection constraint: the Pod is only scheduled onto nodes carrying all of the specified labels. Node affinity offers a more expressive alternative for complex rules.",
     "example": "kubectl label node worker-2 disktype=ssd\napiVersion: v1\nkind: Pod\nspec:\n  nodeSelector:\n    disktype: ssd   # only nodes with this label are eligible\n  containers: [{name: db, image: postgres:16}]",
+    "diagram": "flowchart LR\n    P[\"Pod spec nodeSelector disktype: ssd\"] --> S[\"Scheduler\"]\n    S -->|\"labels match\"| N1[\"Node A label disktype=ssd\"]\n    S -->|\"no label\"| N2[\"Node B (skipped)\"]\n    S -->|\"label hdd\"| N3[\"Node C disktype=hdd (skipped)\"]\n    AF[\"nodeAffinity\"] -.->|\"more expressive alternative\"| P",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
     "tags": [
       "scheduling",
@@ -960,6 +997,7 @@
     "answer": 0,
     "explanation": "`IgnoredDuringExecution` means the affinity rule is only enforced at scheduling time; Kubernetes does not continuously re-evaluate it, so a running Pod stays on its node even if the node's labels later change and no longer satisfy the rule.",
     "example": "affinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n      - matchExpressions:\n        - {key: zone, operator: In, values: [eu-west-1a]}\n# kubectl label node worker-1 zone=eu-west-1b --overwrite  -> Pod keeps running",
+    "diagram": "stateDiagram-v2\n    [*] --> Scheduling\n    Scheduling --> Placed: requiredDuringScheduling rule matches node label\n    Placed --> Running\n    Running --> LabelChanged: node label removed later\n    LabelChanged --> Running: IgnoredDuringExecution, Pod stays, not evicted\n    Scheduling --> Pending: no node matches",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
     "tags": [
       "scheduling",
@@ -993,6 +1031,7 @@
     ],
     "explanation": "A taint's effect must be one of `NoSchedule` (don't schedule non-tolerating Pods), `PreferNoSchedule` (try to avoid it), or `NoExecute` (also evict already-running non-tolerating Pods). `NoAdmit` and `BlockSchedule` are not real taint effects.",
     "example": "kubectl taint nodes gpu-1 gpu=true:NoSchedule\nkubectl taint nodes gpu-1 gpu=true:NoExecute     # evicts non-tolerating Pods\ntolerations:\n- {key: gpu, operator: Equal, value: \"true\", effect: NoSchedule}",
+    "diagram": "flowchart TD\n    T[\"Node taint key=value:effect\"]\n    T --> NS[\"NoSchedule: new non-tolerating Pods not placed\"]\n    T --> PNS[\"PreferNoSchedule: avoid if possible\"]\n    T --> NE[\"NoExecute: also evict running non-tolerating Pods\"]\n    TOL[\"Pod with matching toleration\"] -->|\"unaffected\"| T\n    BAD[\"NoAdmit, BlockSchedule: not real\"] -.-> T",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/",
     "tags": [
       "scheduling",
@@ -1020,6 +1059,7 @@
     "answer": 0,
     "explanation": "An HPA watches metrics (CPU/memory utilization, or custom/external metrics) and scales the number of replicas of a target Deployment, ReplicaSet, or StatefulSet up or down to meet a target value. Adding nodes is instead the job of a cluster autoscaler.",
     "example": "kubectl autoscale deployment web --cpu-percent=70 --min=2 --max=10\nkubectl get hpa web\n# NAME  REFERENCE        TARGETS   MINPODS  MAXPODS  REPLICAS\n# web   Deployment/web   45%/70%   2        10       3",
+    "diagram": "flowchart LR\n    MS[\"metrics-server\"] -->|\"CPU 85% vs target 50%\"| HPA[\"HorizontalPodAutoscaler min 2 max 10\"]\n    HPA -->|\"sets replicas\"| DEP[\"Deployment web\"]\n    DEP --> R[\"Pods: 3 to 6\"]\n    HPA -->|\"load drops\"| DOWN[\"Scale in later\"]\n    CA[\"Cluster Autoscaler\"] -.->|\"adds nodes, not HPA's job\"| NODES[\"Nodes\"]",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "hpa",
@@ -1035,6 +1075,7 @@
     "answer": true,
     "explanation": "The HPA controller reads resource metrics from the `metrics.k8s.io` API, which is served by metrics-server (or a compatible implementation); without it, CPU/memory-based autoscaling has no data to act on.",
     "example": "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml\nkubectl top pods            # works once metrics-server serves metrics.k8s.io\nkubectl get hpa             # TARGETS shows <unknown> without it",
+    "diagram": "sequenceDiagram\n    participant K as \"kubelet / cAdvisor\"\n    participant M as \"metrics-server\"\n    participant API as \"metrics.k8s.io API\"\n    participant H as \"HPA controller\"\n    K->>M: scrape container CPU and memory\n    M->>API: serve resource metrics\n    H->>API: get pod metrics\n    API-->>H: usage values\n    H->>H: compare with target, set replicas\n    Note over H: without metrics-server no data, no scaling",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "hpa",
@@ -1062,6 +1103,7 @@
     "answer": 0,
     "explanation": "`RollingUpdate` is the default Deployment strategy: old Pods are gradually replaced by new ones. `Recreate` must be explicitly set, and `BlueGreen`/`Canary` are not built-in Deployment strategies (they are patterns you implement yourself or via other tooling).",
     "example": "kubectl get deployment web -o jsonpath='{.spec.strategy}'\n# {\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"}\n# defaults filled in by the API server when strategy was omitted",
+    "diagram": "flowchart TD\n    C[\"Pod template changed\"] --> Q{\"spec.strategy.type\"}\n    Q -->|\"unset (default)\"| RU[\"RollingUpdate: new Pods replace old gradually\"]\n    Q -->|\"explicit\"| RC[\"Recreate: all old down, then new up\"]\n    RU --> Z[\"Zero downtime\"]\n    RC --> DT[\"Brief downtime\"]\n    BG[\"BlueGreen / Canary\"] -.->|\"not built-in\"| Q",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -1089,6 +1131,7 @@
     "answer": 0,
     "explanation": "`maxUnavailable` caps how many Pods can be down at once during the rollout, and `maxSurge` caps how many extra Pods beyond the desired replica count can be created temporarily, together controlling the rollout's speed versus availability trade-off.",
     "example": "spec:\n  replicas: 4\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 1   # at most 3 of 4 down... never fewer than 3 ready\n      maxSurge: 2         # up to 6 Pods exist during the rollout",
+    "diagram": "flowchart LR\n    D[\"Deployment replicas 4, maxSurge 1, maxUnavailable 1\"]\n    D --> UP[\"Max Pods during rollout: 4 + 1 = 5\"]\n    D --> DOWN[\"Min ready Pods during rollout: 4 - 1 = 3\"]\n    UP --> S[\"New Pod created first\"]\n    DOWN --> T[\"Old Pod terminated\"]\n    S --> R[\"Repeat until all Pods new\"]\n    T --> R",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -1106,6 +1149,7 @@
     ],
     "explanation": "`kubectl logs <pod-name>` prints the logs of a Pod's (default) container; add `-f` to stream them continuously, or `-c <container>` to pick a specific container in a multi-container Pod.",
     "example": "kubectl logs web-1\nkubectl logs -f web-1                 # follow\nkubectl logs web-1 -c sidecar --since=10m\nkubectl logs web-1 --previous         # last crashed container",
+    "diagram": "flowchart LR\n    C[\"kubectl logs web-1\"] --> API[\"kube-apiserver\"]\n    API --> K[\"kubelet on node\"]\n    K --> RT[\"Container runtime stdout/stderr\"]\n    RT --> OUT[\"Log lines printed\"]\n    F[\"-f\"] -.->|\"stream continuously\"| C\n    CC[\"-c container\"] -.->|\"pick container\"| C",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -1124,6 +1168,7 @@
     ],
     "explanation": "`kubectl apply -f <file>` declaratively creates resources that don't yet exist and updates ones that do, reconciling the cluster state with what's defined in the manifest.",
     "example": "kubectl apply -f app.yaml\n# deployment.apps/web created\nkubectl apply -f app.yaml             # rerun after editing the file\n# deployment.apps/web configured\nkubectl apply -f ./manifests/ -R      # whole directory",
+    "diagram": "flowchart LR\n    A[\"kubectl apply -f app.yaml\"] --> Q{\"Object exists?\"}\n    Q -->|\"no\"| CR[\"Create it\"]\n    Q -->|\"yes\"| P[\"Compute diff and patch it\"]\n    CR --> E[\"etcd via API server\"]\n    P --> E\n    E --> C[\"Cluster state matches manifest\"]",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -1152,6 +1197,7 @@
     "answer": 0,
     "explanation": "`kubectl get` is meant for quick, scriptable summaries (often one line per object), while `kubectl describe` gives a verbose, human-focused view of a single object, including its recent Events — very useful for debugging.",
     "example": "kubectl get pod web-0\n# NAME    READY   STATUS    RESTARTS   AGE\n# web-0   0/1     Pending   0          3m\nkubectl describe pod web-0 | tail -5\n# Events: Warning FailedScheduling  0/3 nodes are available: 3 Insufficient cpu.",
+    "diagram": "flowchart TD\n    R[\"Pod web-1\"]\n    R -->|\"kubectl get pod web-1\"| G[\"One table row: NAME READY STATUS RESTARTS AGE\"]\n    R -->|\"kubectl describe pod web-1\"| D[\"Verbose view\"]\n    D --> D1[\"Labels, node, IP, containers\"]\n    D --> D2[\"Conditions\"]\n    D --> D3[\"Events: FailedScheduling, Pulled, Started\"]\n    G -->|\"good for scripts\"| S[\"Scripting\"]\n    D3 -->|\"good for debugging\"| DBG[\"Debugging\"]",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl"
@@ -1178,6 +1224,7 @@
     "answer": 0,
     "explanation": "`kubectl rollout undo` rolls a Deployment back to its previous revision (or a specific one with `--to-revision`), using the revision history retained by the Deployment's ReplicaSets.",
     "example": "kubectl set image deployment/web app=app:2.0   # bad release\nkubectl rollout history deployment/web\nkubectl rollout undo deployment/web             # back to app:1.9\nkubectl rollout undo deployment/web --to-revision=2",
+    "diagram": "flowchart LR\n    U[\"kubectl rollout undo deployment/web\"] --> D[\"Deployment web\"]\n    D -->|\"revision 2 (current, bad)\"| RS2[\"ReplicaSet v2\"]\n    D -->|\"revision 1 (previous)\"| RS1[\"ReplicaSet v1\"]\n    U -->|\"scale down\"| RS2\n    U -->|\"scale up\"| RS1\n    RS1 --> P[\"Pods with previous template\"]\n    TR[\"--to-revision N\"] -.-> U",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -1205,6 +1252,7 @@
     "answer": 0,
     "explanation": "kube-apiserver is the front end of the control plane; it validates and processes REST requests and is the only component that talks directly to etcd, with every other component and client communicating through it.",
     "example": "kubectl get --raw /healthz          # talks straight to kube-apiserver\nkubectl -n kube-system get pods -l component=kube-apiserver\n# every controller, scheduler, kubelet, and kubectl call goes through this endpoint",
+    "diagram": "flowchart TD\n    K[\"kubectl\"] --> API[\"kube-apiserver (REST API)\"]\n    S[\"kube-scheduler\"] --> API\n    CM[\"kube-controller-manager\"] --> API\n    KL[\"kubelet\"] --> API\n    OP[\"Operators\"] --> API\n    API -->|\"only component that talks to\"| E[\"etcd\"]",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane",
@@ -1220,6 +1268,7 @@
     "answer": true,
     "explanation": "etcd is the cluster's single source of truth, storing the entire cluster state (objects, configuration, and status); only kube-apiserver talks to it directly.",
     "example": "ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \\\n  --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=... --key=... \\\n  get /registry/pods/default/web-0 --keys-only   # every object lives under /registry\netcdctl snapshot save backup.db",
+    "diagram": "flowchart LR\n    API[\"kube-apiserver\"] -->|\"reads/writes all objects\"| E[\"etcd (consistent, HA key-value store)\"]\n    E --> D[\"Deployments, Pods, Secrets, CRs, status\"]\n    S[\"scheduler, controllers, kubelet\"] -->|\"never directly\"| API\n    E1[\"etcd member\"] --- E2[\"etcd member\"]\n    E2 --- E3[\"etcd member\"]\n    E1 -.->|\"raft quorum\"| E",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane",
@@ -1256,6 +1305,7 @@
     ],
     "explanation": "kube-apiserver, etcd, kube-scheduler, and kube-controller-manager (plus, in cloud environments, cloud-controller-manager) make up the control plane. `kubelet` and `kube-proxy` are node components that run on every worker (and typically control-plane) node instead.",
     "example": "kubectl -n kube-system get pods\n# etcd-cp1                       1/1  Running\n# kube-apiserver-cp1             1/1  Running\n# kube-controller-manager-cp1    1/1  Running\n# kube-scheduler-cp1             1/1  Running\n# kube-proxy-xxxxx (DaemonSet)   1/1  Running   <- node component",
+    "diagram": "flowchart TD\n    CP[\"Control plane\"]\n    CP --> API[\"kube-apiserver\"]\n    CP --> ETCD[\"etcd\"]\n    CP --> SCH[\"kube-scheduler\"]\n    CP --> CM[\"kube-controller-manager\"]\n    CP --> CCM[\"cloud-controller-manager (cloud only)\"]\n    W[\"Worker node\"] --> KL[\"kubelet\"]\n    W --> KP[\"kube-proxy\"]",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane"
@@ -1288,6 +1338,7 @@
     ],
     "explanation": "Every node runs a `kubelet` (manages Pods on that node), `kube-proxy` (maintains network rules for Services), and a container runtime. `kube-scheduler` and the cluster's primary `etcd` datastore are control-plane components, not per-node agents.",
     "example": "ssh worker-1\nsystemctl status kubelet containerd     # both run as host services\ncrictl ps                                # containers via the CRI runtime\nkubectl -n kube-system get ds kube-proxy # one kube-proxy Pod per node",
+    "diagram": "flowchart TD\n    N[\"Every worker node\"]\n    N --> KL[\"kubelet: runs Pods, reports to API server\"]\n    N --> KP[\"kube-proxy: Service network rules\"]\n    N --> RT[\"Container runtime: containerd / CRI-O\"]\n    KL --> RT\n    CP[\"Control plane\"] --> SCH[\"kube-scheduler\"]\n    CP --> ETCD[\"etcd\"]",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "node-components",
@@ -1316,6 +1367,7 @@
     "answer": 0,
     "explanation": "Kubernetes requires a 'flat' network model where every Pod gets its own unique IP address and can communicate with any other Pod's IP across nodes without NAT, which is what CNI plugins implement.",
     "example": "kubectl get pods -o wide\n# web-0  10.244.1.5  worker-1\n# web-1  10.244.2.9  worker-2\nkubectl exec web-0 -- curl -s http://10.244.2.9:8080   # direct, no NAT",
+    "diagram": "flowchart LR\n    subgraph N1[\"Node 1\"]\n        PA[\"Pod A 10.244.1.5\"]\n    end\n    subgraph N2[\"Node 2\"]\n        PB[\"Pod B 10.244.2.9\"]\n    end\n    PA -->|\"direct to 10.244.2.9, no NAT\"| PB\n    CNI[\"CNI plugin implements flat network\"] -.-> N1\n    CNI -.-> N2",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/",
     "tags": [
       "networking",
@@ -1343,6 +1395,7 @@
     "answer": 0,
     "explanation": "Kubernetes itself does not implement Pod networking; it delegates that to a CNI plugin (for example Calico, Cilium, or Flannel), which is responsible for assigning Pod IPs and setting up routing so the required flat network model is realized.",
     "example": "ls /etc/cni/net.d/            # 10-calico.conflist installed by the CNI plugin\nkubectl -n kube-system get ds  # calico-node / cilium / kube-flannel DaemonSet\n# nodes stay NotReady ('cni plugin not initialized') until a CNI is installed",
+    "diagram": "sequenceDiagram\n    participant KL as \"kubelet\"\n    participant RT as \"Container runtime\"\n    participant CNI as \"CNI plugin (Calico, Cilium, Flannel)\"\n    participant P as \"Pod\"\n    KL->>RT: create Pod sandbox\n    RT->>CNI: ADD network\n    CNI->>P: allocate Pod IP, create veth\n    CNI->>CNI: program routes across nodes\n    CNI-->>RT: IP and routes ready\n    Note over CNI: fulfils flat Pod network model",
     "reference": "https://kubernetes.io/docs/concepts/cluster-administration/networking/",
     "tags": [
       "networking",
@@ -1358,6 +1411,7 @@
     "answer": true,
     "explanation": "CoreDNS runs as Pods inside the cluster and serves DNS records (for example `my-svc.my-namespace.svc.cluster.local`) so that workloads can discover Services and Pods by name instead of hardcoding IPs. It replaced kube-dns as the default in modern Kubernetes.",
     "example": "kubectl -n kube-system get deploy coredns\nkubectl run -it --rm t --image=busybox -- nslookup api.payments.svc.cluster.local\n# resolves to the Service's ClusterIP",
+    "diagram": "sequenceDiagram\n    participant P as \"Pod\"\n    participant DNS as \"CoreDNS (kube-dns Service)\"\n    participant API as \"kube-apiserver\"\n    participant S as \"Service my-svc\"\n    API-->>DNS: watches Services and Endpoints\n    P->>DNS: resolve my-svc.my-ns.svc.cluster.local\n    DNS-->>P: 10.96.0.15 (ClusterIP)\n    P->>S: connect to ClusterIP",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/",
     "tags": [
       "networking",
@@ -1374,6 +1428,7 @@
     "answer": true,
     "explanation": "Kubernetes networking is non-isolating by default: traffic is unrestricted unless a `NetworkPolicy` selects the Pod, at which point that Pod's traffic becomes restricted to what the policy (or policies) allow. Enforcement additionally requires a CNI plugin that supports NetworkPolicy.",
     "example": "kubectl get networkpolicy -n shop   # No resources found -> everything allowed\n# lock it down with a default-deny policy:\nkind: NetworkPolicy\nmetadata: {name: default-deny, namespace: shop}\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]",
+    "diagram": "flowchart TD\n    Q{\"Any NetworkPolicy selects the Pod?\"}\n    Q -->|\"no policy\"| ALL[\"All ingress and egress allowed\"]\n    Q -->|\"policy selects it\"| R[\"Only traffic the policy allows\"]\n    R --> DENY[\"Everything else denied\"]\n    CNI[\"CNI must support NetworkPolicy\"] -.->|\"required to enforce\"| R",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
     "tags": [
       "networking",
@@ -1401,6 +1456,7 @@
     "answer": 0,
     "explanation": "A Helm chart is a package format bundling Kubernetes manifest templates plus metadata and default configuration, letting you install, upgrade, and version an application as a single release.",
     "example": "helm repo add bitnami https://charts.bitnami.com/bitnami\nhelm install cache bitnami/redis --set architecture=standalone\nhelm list   # cache  deployed  redis-19.x\n# chart layout: Chart.yaml, values.yaml, templates/*.yaml",
+    "diagram": "flowchart LR\n    CH[\"Helm chart\"]\n    CH --> M[\"Chart.yaml metadata\"]\n    CH --> V[\"values.yaml defaults\"]\n    CH --> T[\"templates/ deployment, service, ingress\"]\n    V --> R[\"helm install renders\"]\n    T --> R\n    R --> REL[\"Release: resources applied as one unit\"]\n    REL -->|\"helm upgrade / rollback\"| REL",
     "reference": "https://helm.sh/docs/topics/charts/",
     "tags": [
       "helm",
@@ -1428,6 +1484,7 @@
     "answer": 0,
     "explanation": "`values.yaml` holds the default parameters referenced by a chart's templates (for example `{{ .Values.replicaCount }}`); users can override them with `--set` or a custom values file on `helm install`/`helm upgrade`.",
     "example": "# values.yaml\nreplicaCount: 2\nimage:\n  tag: 1.27\n# templates/deployment.yaml\nreplicas: {{ .Values.replicaCount }}\nhelm upgrade --install web ./chart --set replicaCount=5 -f prod-values.yaml",
+    "diagram": "flowchart LR\n    V[\"values.yaml replicaCount: 1\"] --> R[\"Template render\"]\n    O[\"--set replicaCount=3 or -f prod.yaml\"] -->|\"overrides\"| R\n    T[\"templates deployment.yaml .Values.replicaCount\"] --> R\n    R --> M[\"Rendered manifest replicas: 3\"]\n    M --> K[\"Applied to cluster\"]",
     "reference": "https://helm.sh/docs/chart_template_guide/values_files/",
     "tags": [
       "helm",
@@ -1443,6 +1500,7 @@
     "answer": true,
     "explanation": "Helm 2 needed a cluster-side component, Tiller, which raised security concerns due to its broad permissions. Helm 3 removed Tiller entirely, so the Helm client talks directly to the Kubernetes API server using the user's own credentials and RBAC.",
     "example": "helm version   # v3.x: no Tiller Pod to install\nkubectl -n kube-system get deploy tiller-deploy   # NotFound on Helm 3 clusters\nhelm install web ./chart   # uses your kubeconfig identity and RBAC directly",
+    "diagram": "flowchart LR\n    H2[\"Helm 2 client\"] --> T[\"Tiller in cluster (broad permissions)\"]\n    T --> API2[\"kube-apiserver\"]\n    H3[\"Helm 3 client (user kubeconfig)\"] -->|\"directly, user RBAC\"| API3[\"kube-apiserver\"]\n    API3 --> S[\"Release state in Secrets\"]\n    T -.->|\"removed in Helm 3\"| X[\"Gone\"]",
     "reference": "https://helm.sh/docs/intro/using_helm/",
     "tags": [
       "helm",
@@ -1470,6 +1528,7 @@
     "answer": 0,
     "explanation": "The CRD registers a new resource type with the API server, including its OpenAPI schema and versions. Once the CRD exists, users create CRs of that kind just like built-in objects such as Deployments.",
     "example": "kubectl get crd databases.example.com      # the type definition\nkubectl get databases.example.com -A       # instances (CRs) of that type\napiVersion: example.com/v1\nkind: Database\nmetadata: {name: orders}\nspec: {engine: postgres, size: 20Gi}",
+    "diagram": "flowchart LR\n    CRD[\"CRD: group example.com, kind Database, versions, schema\"] -->|\"registers type\"| API[\"kube-apiserver\"]\n    API --> EP[\"New endpoint /apis/example.com/v1/databases\"]\n    U[\"kubectl apply Database prod-db\"] --> CR[\"CR: instance prod-db\"]\n    CR --> EP\n    EP --> E[\"Stored in etcd\"]",
     "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/",
     "tags": [
       "crd",
@@ -1487,6 +1546,7 @@
     ],
     "explanation": "All cluster state, including custom resources, is persisted by the kube-apiserver into etcd. Controllers never write to etcd directly; they always go through the API server.",
     "example": "kubectl apply -f database-orders.yaml\n# kube-apiserver validates against the CRD schema, then writes:\n#   /registry/example.com/databases/default/orders   in etcd\netcdctl get /registry/example.com/databases --prefix --keys-only",
+    "diagram": "sequenceDiagram\n    participant U as \"kubectl apply CR\"\n    participant API as \"kube-apiserver\"\n    participant E as \"etcd\"\n    participant C as \"Controller\"\n    U->>API: POST /apis/example.com/v1/databases\n    API->>API: validate against CRD schema, admission\n    API->>E: persist object\n    E-->>API: ok\n    API-->>U: 201 Created\n    Note over C: never writes to etcd directly",
     "reference": "https://kubernetes.io/docs/concepts/architecture/#etcd",
     "tags": [
       "crd",
@@ -1516,6 +1576,7 @@
     "answer": 1,
     "explanation": "Storing a CR by itself does nothing. The API server's watch mechanism delivers an ADDED/MODIFIED event to any client watching that kind. An operator's informer receives it, enqueues the object key, and the reconcile loop turns the desired state into real resources.",
     "example": "kubectl get databases.example.com orders -w   # client watch like an operator's\n# operator log:\n# INFO Reconciling Database default/orders\n# INFO Created StatefulSet orders-postgres\nkubectl get sts orders-postgres",
+    "diagram": "sequenceDiagram\n    participant E as \"etcd\"\n    participant API as \"kube-apiserver\"\n    participant I as \"Operator informer\"\n    participant R as \"Reconcile loop\"\n    E-->>API: CR stored\n    API-->>I: watch event ADDED / MODIFIED\n    I->>I: update cache, enqueue key ns/name\n    I->>R: Reconcile(ns/name)\n    R->>API: create Deployment, Service, update status",
     "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/operator/",
     "tags": [
       "crd",
@@ -1551,6 +1612,7 @@
     ],
     "explanation": "The request flow is client-side diff or server-side apply, then authn/authz, admission, validation, and persistence in etcd. Pods are not created by the API server; the Deployment controller creates a ReplicaSet, the ReplicaSet controller creates Pods, the scheduler binds them to nodes, and the kubelet runs them.",
     "example": "kubectl apply -f deploy.yaml --server-side --field-manager=ci -v=8\n# I0911 PATCH https://api:6443/apis/apps/v1/namespaces/default/deployments/web?fieldManager=ci\n# -> authn/authz -> admission webhooks -> validation -> etcd\nkubectl get rs,pods -l app=web   # created afterwards by controllers",
+    "diagram": "flowchart TD\n    K[\"kubectl apply -f deploy.yaml: diff or server-side apply\"] --> A[\"authn + authz\"]\n    A --> AD[\"mutating + validating admission\"]\n    AD --> V[\"schema validation\"]\n    V --> E[\"persist in etcd\"]\n    E --> DC[\"Deployment controller creates ReplicaSet\"]\n    DC --> RC[\"ReplicaSet controller creates Pods\"]\n    RC --> S[\"Scheduler binds Pods to nodes\"]\n    S --> KL[\"kubelet runs containers\"]",
     "reference": "https://kubernetes.io/docs/reference/using-api/server-side-apply/",
     "tags": [
       "kubectl",
@@ -1579,6 +1641,7 @@
     "answer": 1,
     "explanation": "A controller is a control loop: watch resources, observe the current state, compute the difference from the desired state, and act (create, update, delete) to close the gap. An operator is a controller that encodes operational knowledge for a specific application, usually driven by CRDs.",
     "example": "for {\n  obj := <-informer.Events()          // watch via API server\n  desired := obj.Spec.Replicas\n  actual := countPods(obj)\n  if actual < desired { createPod(obj) }\n  if actual > desired { deletePod(obj) }\n}",
+    "diagram": "flowchart LR\n    W[\"Watch objects via API server\"] --> O[\"Observe actual state\"]\n    O --> C{\"Compare with desired spec\"}\n    C -->|\"differs\"| ACT[\"Create / update / delete\"]\n    C -->|\"matches\"| IDLE[\"Nothing to do\"]\n    ACT --> W\n    IDLE --> W\n    OP[\"Operator = controller + app knowledge via CRD\"] -.-> W",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1606,6 +1669,7 @@
     "answer": 1,
     "explanation": "Reconciliation is level-triggered rather than edge-triggered: the reconciler is given only an object key and must re-read current state and drive toward the spec regardless of which event woke it. This is why it tolerates missed or duplicated events.",
     "example": "func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {\n    var db examplev1.Database\n    if err := r.Get(ctx, req.NamespacedName, &db); err != nil { ... }\n    // observe actual state, create/update children, update status\n    return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil\n}",
+    "diagram": "flowchart TD\n    EV[\"Any event: add, update, resync, retry\"] -->|\"only key ns/name\"| R[\"Reconcile\"]\n    R --> READ[\"Read current object and real state\"]\n    READ --> CMP{\"spec vs actual\"}\n    CMP -->|\"gap\"| ACT[\"Act to close gap\"]\n    CMP -->|\"equal\"| DONE[\"Done\"]\n    ACT --> EV\n    N[\"Level-triggered: tolerates missed or duplicate events\"] -.-> R",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1633,6 +1697,7 @@
     "answer": 0,
     "explanation": "The user declares intent in `spec`. Controllers report what they observed or achieved in `status`, typically via the `/status` subresource so that spec and status updates have separate RBAC and do not clobber each other.",
     "example": "kubectl get deploy web -o yaml | yq '.spec.replicas, .status.readyReplicas'\n# 3   <- what you asked for\n# 2   <- what the controller currently observes\nkubectl patch deploy web --subresource=status --type=merge -p '{\"status\":{...}}'",
+    "diagram": "flowchart LR\n    U[\"User / client\"] -->|\"writes desired state\"| SPEC[\"spec: replicas 3\"]\n    CTRL[\"Controller\"] -->|\"reads\"| SPEC\n    CTRL -->|\"acts on cluster\"| REAL[\"Real Pods\"]\n    CTRL -->|\"writes observed state via /status\"| ST[\"status: readyReplicas 2\"]\n    U -->|\"reads\"| ST\n    RBAC[\"Separate RBAC for /status\"] -.-> ST",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/#object-spec-and-status",
     "tags": [
       "spec",
@@ -1661,6 +1726,7 @@
     "answer": 2,
     "explanation": "client-go informers do an initial list followed by a long-running watch. Events update a local indexed cache and trigger handlers that enqueue keys; worker goroutines pop keys and call reconcile. controller-runtime wraps this pattern.",
     "example": "informer := factory.Example().V1().Databases().Informer()\ninformer.AddEventHandler(cache.ResourceEventHandlerFuncs{\n    AddFunc:    func(o interface{}) { queue.Add(keyOf(o)) },\n    UpdateFunc: func(_, n interface{}) { queue.Add(keyOf(n)) },\n})\n// LIST once, then WATCH; workers pop keys and call reconcile",
+    "diagram": "sequenceDiagram\n    participant API as \"kube-apiserver\"\n    participant I as \"Informer\"\n    participant C as \"Local cache\"\n    participant Q as \"Work queue\"\n    participant W as \"Worker\"\n    I->>API: initial LIST\n    I->>API: long-running WATCH\n    API-->>I: event for CR\n    I->>C: update indexed cache\n    I->>Q: enqueue key ns/name\n    W->>Q: pop key\n    W->>W: Reconcile(key)",
     "reference": "https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes",
     "tags": [
       "operators",
@@ -1689,6 +1755,7 @@
     "answer": 0,
     "explanation": "Reconcile is triggered by many sources and events can be coalesced or replayed. An idempotent reconcile checks current state and only acts on the difference, so repeated runs converge to the same result instead of, for example, creating a second Deployment.",
     "example": "// idempotent: look before you create\nvar sts appsv1.StatefulSet\nerr := r.Get(ctx, types.NamespacedName{Name: db.Name, Namespace: db.Namespace}, &sts)\nif apierrors.IsNotFound(err) {\n    return r.Create(ctx, buildStatefulSet(&db))\n}\nreturn r.Update(ctx, mergeDesired(&sts, &db))   // safe to run 100 times",
+    "diagram": "flowchart TD\n    T[\"Triggers: duplicate event, resync, retry, restart\"] --> R[\"Reconcile(ns/name) runs again\"]\n    R --> Q{\"Deployment already exists?\"}\n    Q -->|\"yes\"| U[\"Update only if different\"]\n    Q -->|\"no\"| C[\"Create it\"]\n    U --> S[\"Same end state every run\"]\n    C --> S\n    B[\"Non-idempotent: creates second Deployment\"] -.->|\"bug\"| R",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1716,6 +1783,7 @@
     "answer": 1,
     "explanation": "When an object with finalizers is deleted, the API server sets `metadata.deletionTimestamp` instead of removing it. The controller sees this, cleans up external resources (cloud disks, DNS records), then removes its finalizer; once the list is empty the object is garbage collected.",
     "example": "metadata:\n  finalizers:\n  - example.com/cleanup-cloud-disk\nkubectl delete database orders   # sets deletionTimestamp, object remains\n# controller deletes the disk, then:\ncontrollerutil.RemoveFinalizer(&db, \"example.com/cleanup-cloud-disk\"); r.Update(ctx, &db)",
+    "diagram": "stateDiagram-v2\n    [*] --> Active: metadata.finalizers has example.com/cleanup\n    Active --> Terminating: kubectl delete sets deletionTimestamp\n    Terminating --> Cleanup: controller sees deletionTimestamp\n    Cleanup --> FinalizerRemoved: delete cloud disk / DNS, then remove key\n    FinalizerRemoved --> [*]: finalizers empty, object removed",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
     "tags": [
       "finalizers",
@@ -1743,6 +1811,7 @@
     "answer": 0,
     "explanation": "ownerReferences describe the parent/child graph used for cascading (background or foreground) deletion of in-cluster objects. Finalizers are for cleanup the garbage collector cannot do itself, such as deleting resources outside the cluster. Operators often use both: children carry an ownerReference to the CR, and the CR carries a finalizer for external cleanup.",
     "example": "# child created by the operator\nmetadata:\n  ownerReferences:\n  - apiVersion: example.com/v1\n    kind: Database\n    name: orders\n    uid: 5f1c...\n    controller: true   # GC deletes this child when Database orders goes away\n# the CR itself carries finalizers: [example.com/cleanup-cloud-disk]",
+    "diagram": "flowchart TD\n    CR[\"Custom Resource Database\"] -->|\"metadata.finalizers\"| FIN[\"Finalizer: block deletion until external cleanup\"]\n    FIN --> EXT[\"Delete cloud DB, DNS record\"]\n    DEP[\"Deployment child\"] -->|\"ownerReference to CR\"| CR\n    SVC[\"Service child\"] -->|\"ownerReference to CR\"| CR\n    DEL[\"CR deleted\"] --> GC[\"Garbage collector cascades to children\"]\n    DEL --> FIN",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/",
     "tags": [
       "finalizers",
@@ -1778,6 +1847,7 @@
     ],
     "explanation": "Kubebuilder and Operator SDK sit on controller-runtime, which provides the manager, cached client, informers, work queue and leader election. Reconcile receives only a namespaced name and must re-read state. Writing to etcd directly bypasses validation, admission and RBAC and is never done.",
     "example": "kubebuilder init --domain example.com --repo github.com/acme/db-operator\nkubebuilder create api --group example --version v1 --kind Database\nmake manifests generate   # controller-gen -> CRD YAML + deepcopy\n# in SetupWithManager:\nctrl.NewControllerManagedBy(mgr).For(&examplev1.Database{}).Owns(&appsv1.StatefulSet{}).Complete(r)",
+    "diagram": "flowchart TD\n    S[\"kubebuilder init / operator-sdk\"] --> T[\"Spec and Status Go structs + markers\"]\n    T --> G[\"controller-gen: CRD YAML, deepcopy, RBAC\"]\n    G --> R[\"Reconcile(ctx, req): get object, create/update owned resources, update status, return ctrl.Result\"]\n    R --> W[\"SetupWithManager: For(CR).Owns(Deployment).Watches(...)\"]\n    W --> M[\"controller-runtime manager: cache, client, queue, leader election\"]\n    X[\"Write to etcd directly\"] -.->|\"never\"| M",
     "reference": "https://book.kubebuilder.io/",
     "tags": [
       "operators",
@@ -1817,6 +1887,7 @@
     ],
     "explanation": "Follow least privilege: only the verbs and kinds the controller actually touches. Kubebuilder generates the ClusterRole from `+kubebuilder:rbac` markers. If leader election is enabled it also needs access to `leases` in coordination.k8s.io. cluster-admin is a common but poor shortcut.",
     "example": "// +kubebuilder:rbac:groups=example.com,resources=databases,verbs=get;list;watch;update;patch\n// +kubebuilder:rbac:groups=example.com,resources=databases/status,verbs=get;update;patch\n// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete\n// +kubebuilder:rbac:groups=\"\",resources=events,verbs=create;patch\nmake manifests   # regenerates config/rbac/role.yaml",
+    "diagram": "flowchart LR\n    OP[\"Operator ServiceAccount\"] --> CR[\"CR: get list watch, update (finalizers)\"]\n    OP --> ST[\"CR /status: update patch\"]\n    OP --> CH[\"Children Deployments, Services: create update delete get list watch\"]\n    OP --> EV[\"events: create patch\"]\n    OP --> LE[\"leases: leader election\"]\n    LP[\"Least privilege, generated from kubebuilder rbac markers\"] -.-> OP",
     "reference": "https://book.kubebuilder.io/reference/markers/rbac",
     "tags": [
       "operators",
@@ -1844,6 +1915,7 @@
     "answer": 0,
     "explanation": "Returning an error triggers the work queue's rate limiter (exponential backoff, capped). For expected waits such as polling a slow resource, return `ctrl.Result{RequeueAfter: d}` with nil error. Blocking inside Reconcile starves other keys, and the default resync period is too coarse to rely on.",
     "example": "if err := external.Provision(ctx, db); err != nil {\n    return ctrl.Result{}, err              // re-enqueued with exponential backoff\n}\nif !external.Ready(ctx, db) {\n    return ctrl.Result{RequeueAfter: 30 * time.Second}, nil   // expected wait\n}\nreturn ctrl.Result{}, nil",
+    "diagram": "flowchart TD\n    R[\"Reconcile\"] --> Q{\"Outcome\"}\n    Q -->|\"transient error\"| ERR[\"return ctrl.Result{}, err\"]\n    ERR --> BO[\"Rate-limited exponential backoff, re-enqueue\"]\n    BO --> R\n    Q -->|\"expected wait\"| RA[\"return ctrl.Result{RequeueAfter: 30s}, nil\"]\n    RA --> R\n    Q -->|\"done\"| OK[\"return ctrl.Result{}, nil\"]\n    BL[\"time.Sleep inside Reconcile\"] -.->|\"starves other keys\"| R",
     "reference": "https://book.kubebuilder.io/reference/reconcile",
     "tags": [
       "operators",
@@ -1872,6 +1944,7 @@
     "answer": 1,
     "explanation": "A CRD can serve several versions concurrently. Objects are persisted in the storage version; the API server converts on read/write using the conversion strategy. When the schemas differ, a conversion webhook implements the mapping. After migrating stored objects you can drop the old version from `served` and `storedVersions`.",
     "example": "spec:\n  versions:\n  - name: v1alpha1\n    served: true\n    storage: false\n  - name: v1\n    served: true\n    storage: true      # exactly one storage version\n  conversion:\n    strategy: Webhook  # or None when schemas are identical\n    webhook: {clientConfig: {service: {name: db-webhook, namespace: ops, path: /convert}}}",
+    "diagram": "flowchart LR\n    C1[\"Client writes v1alpha1\"] --> API[\"kube-apiserver\"]\n    C2[\"Client reads v1\"] --> API\n    API -->|\"conversion webhook or None\"| CONV[\"Convert between versions\"]\n    CONV -->|\"storage version v1\"| E[\"etcd stores v1 only\"]\n    CRD[\"CRD versions: v1alpha1 served, v1 served + storage\"] -.-> API\n    MIG[\"Migrate stored objects, then drop old from served\"] -.-> CRD",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/",
     "tags": [
       "crd",
@@ -1907,6 +1980,7 @@
     ],
     "explanation": "Pending means the scheduler has not bound the pod to a node (or the image pull has not started). The Events in `describe` almost always name the reason: insufficient resources, taints, affinity, unbound PVC, or quota. If the cluster is simply full, the Cluster Autoscaler or Karpenter logs show whether a node is being added. Restarting kubelets does not help a scheduling problem.",
     "example": "kubectl describe pod api-7c9d -n shop | sed -n '/Events/,$p'\n# Warning  FailedScheduling  0/5 nodes are available: 2 node(s) had untolerated taint, 3 Insufficient memory.\nkubectl get pvc -n shop           # STATUS Pending means storage is the blocker\nkubectl describe quota -n shop    # check used vs hard",
+    "diagram": "flowchart TD\n    P[\"Pod Pending\"] --> D[\"kubectl describe pod: read Events\"]\n    D --> R[\"Insufficient cpu/memory: cluster full, autoscaler adding node?\"]\n    D --> T[\"Taints vs tolerations, nodeSelector, affinity\"]\n    D --> V[\"PVC unbound: waiting on storage\"]\n    D --> Q[\"ResourceQuota / LimitRange rejects\"]\n    X[\"Restart kubelets\"] -.->|\"not a cause\"| P",
     "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/",
     "tags": [
       "troubleshooting",
@@ -1942,6 +2016,7 @@
     ],
     "explanation": "Work from the inside out: is the app listening on the expected port, does the pod pass readiness so it is in the Endpoints, does the Service map the right ports, does DNS resolve the Service name, and is a NetworkPolicy blocking traffic. Changing Service type does not address any of these.",
     "example": "kubectl get endpoints api -n shop\n# NAME  ENDPOINTS\n# api   <none>          <- selector mismatch or readiness failing\nkubectl get svc api -o yaml | grep -E 'port|targetPort'\nkubectl exec -n shop debug -- curl -s http://10.244.3.8:8080/healthz   # bypass the Service\nkubectl get networkpolicy -n shop",
+    "diagram": "flowchart TD\n    S[\"Pod Running but Service unreachable\"] --> E[\"kubectl get endpoints svc\"]\n    E -->|\"empty\"| SEL[\"Selector vs Pod labels, readiness probe failing\"]\n    E -->|\"has IP\"| PT[\"Service port vs targetPort vs container listen port\"]\n    PT --> C[\"curl Pod IP from another Pod\"]\n    C -->|\"works\"| DNS[\"DNS or Service problem\"]\n    C -->|\"fails\"| APP[\"App not listening\"]\n    S --> NP[\"NetworkPolicy denying ingress?\"]",
     "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/",
     "tags": [
       "troubleshooting",
@@ -1961,6 +2036,7 @@
     ],
     "explanation": "`kubectl drain` marks the node unschedulable and evicts pods using the Eviction API, which honours PodDisruptionBudgets. You typically add `--ignore-daemonsets` and `--delete-emptydir-data`. After maintenance, `kubectl uncordon` makes the node schedulable again.",
     "example": "kubectl cordon worker-3\nkubectl drain worker-3 --ignore-daemonsets --delete-emptydir-data\n# evicting pod shop/api-7c9d ... respects PodDisruptionBudgets\n# ... do maintenance ...\nkubectl uncordon worker-3",
+    "diagram": "sequenceDiagram\n    participant A as \"Admin\"\n    participant N as \"Node\"\n    participant API as \"Eviction API\"\n    participant PDB as \"PodDisruptionBudget\"\n    A->>N: kubectl cordon (unschedulable)\n    A->>API: kubectl drain --ignore-daemonsets\n    API->>PDB: allowed to evict?\n    PDB-->>API: yes, minAvailable respected\n    API->>N: graceful eviction of Pods\n    A->>N: maintenance, then kubectl uncordon",
     "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
     "tags": [
       "nodes",
@@ -1990,6 +2066,7 @@
     "answer": 1,
     "explanation": "Cordon stops new pods landing on the node, drain evicts existing ones gracefully while PDBs prevent taking too many replicas of a service down at once, and uncordon returns the node to service. Force-deleting pods or powering off bypasses graceful termination and PDBs.",
     "example": "kubectl get pdb -A                         # confirm budgets exist\nkubectl cordon worker-3\nkubectl drain worker-3 --ignore-daemonsets --delete-emptydir-data --timeout=300s\nsudo apt upgrade && sudo reboot            # on the node\nkubectl uncordon worker-3",
+    "diagram": "flowchart LR\n    A[\"Ensure PodDisruptionBudgets for critical apps\"] --> B[\"kubectl cordon node: no new Pods\"]\n    B --> C[\"kubectl drain --ignore-daemonsets: graceful eviction honouring PDBs\"]\n    C --> D[\"Perform maintenance\"]\n    D --> E[\"kubectl uncordon node\"]\n    X[\"Force delete Pods or power off\"] -.->|\"bypasses PDBs\"| C",
     "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
     "tags": [
       "nodes",
@@ -2018,6 +2095,7 @@
     "answer": 1,
     "explanation": "PVCs are the pod's request for storage; PVs are the actual volumes. With dynamic provisioning the StorageClass names a CSI driver (for example EBS on EKS) that creates the backing disk. Access modes (RWO, RWX) and the volume binding mode (for example `WaitForFirstConsumer`) determine which nodes can mount it.",
     "example": "kind: PersistentVolumeClaim\nmetadata: {name: pgdata}\nspec:\n  storageClassName: gp3          # CSI driver ebs.csi.aws.com\n  accessModes: [ReadWriteOnce]\n  resources: {requests: {storage: 50Gi}}\n---\nvolumes:\n- name: data\n  persistentVolumeClaim: {claimName: pgdata}   # mounted into the Pod",
+    "diagram": "flowchart LR\n    POD[\"Pod volume claimName data\"] --> PVC[\"PVC 20Gi RWO storageClassName gp3\"]\n    PVC --> SC[\"StorageClass gp3 provisioner ebs.csi.aws.com\"]\n    SC --> CSI[\"CSI driver creates disk\"]\n    CSI --> PV[\"PersistentVolume\"]\n    PV -->|\"Bound\"| PVC\n    PV -->|\"attach + mount\"| POD\n    WFC[\"WaitForFirstConsumer: bind after scheduling\"] -.-> SC",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "storage",
@@ -2047,6 +2125,7 @@
     "answer": 1,
     "explanation": "Authentication is IAM: `aws eks get-token` produces a token the API server verifies. Authorization is two layers: the IAM-to-Kubernetes identity mapping (access entries with access policies, or aws-auth), then normal RBAC inside the cluster. Workloads use IRSA or Pod Identity to get IAM permissions.",
     "example": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:role/ci-deployer --kubernetes-groups deployers\nkubectl create rolebinding deployers --clusterrole=edit --group=deployers -n shop\naws eks update-kubeconfig --name prod   # kubeconfig uses aws eks get-token",
+    "diagram": "sequenceDiagram\n    participant U as \"User / CI (IAM principal)\"\n    participant STS as \"aws eks get-token\"\n    participant API as \"EKS API server\"\n    participant MAP as \"Access entries / aws-auth\"\n    participant RBAC as \"Kubernetes RBAC\"\n    U->>STS: sign token with IAM creds\n    U->>API: request with token\n    API->>MAP: map IAM ARN to k8s user/groups\n    API->>RBAC: RoleBinding for group allows?\n    RBAC-->>U: allowed or forbidden",
     "reference": "https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html",
     "tags": [
       "eks",
@@ -2082,6 +2161,7 @@
     ],
     "explanation": "Kubernetes only supports upgrading one minor version at a time, and the API server must be newer than or equal to kubelets. Test in a non-production cluster first, watch for API removals, and rely on PDBs and surge capacity so drains are graceful. Skipping minor versions is unsupported.",
     "example": "kubectl version                          # note server vs kubelet skew\npluto detect-all-in-cluster -o wide      # find deprecated APIs first\naws eks update-cluster-version --name prod --kubernetes-version 1.31\naws eks update-nodegroup-version --cluster-name prod --nodegroup-name workers   # surge rolling\naws eks update-addon --cluster-name prod --addon-name coredns --addon-version v1.11.3-eksbuild.1",
+    "diagram": "flowchart LR\n    A[\"Check deprecated/removed APIs (Pluto, kubectl-convert)\"] --> B[\"Upgrade control plane one minor at a time\"]\n    B --> C[\"Upgrade add-ons: CNI, CoreDNS, kube-proxy\"]\n    C --> D[\"Surge node group: add new nodes\"]\n    D --> E[\"Drain old nodes, PDBs + 2 replicas keep service up\"]\n    E --> F[\"Kubelet within version skew\"]\n    T[\"Test in non-prod first\"] -.-> A",
     "reference": "https://kubernetes.io/releases/version-skew-policy/",
     "tags": [
       "upgrades",
@@ -2117,6 +2197,7 @@
     ],
     "explanation": "Portability means parameterising anything that differs by cluster, avoiding dependence on provider-specific defaults, building multi-arch images (arm64 nodes are common), and declaring which Kubernetes versions the chart and operator support. Helm's `crds/` directory installs CRDs before templates are rendered but does not upgrade them, so document or automate CRD upgrades.",
     "example": "# Chart.yaml\nkubeVersion: \">=1.27.0-0\"\n# values.yaml\nstorageClassName: \"\"          # empty -> cluster default\ningressClassName: nginx\n# crds/databases.yaml installed before templates\ndocker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/acme/db-operator:1.4 --push .",
+    "diagram": "flowchart TD\n    P[\"Portable operator + chart\"]\n    P --> V[\"Helm values for StorageClass, ingressClass, domain, IAM role\"]\n    P --> C[\"CRDs in crds/ dir or separate chart\"]\n    P --> N[\"Namespace from Downward API, WATCH_NAMESPACE\"]\n    P --> K[\"kubeVersion constraint in Chart.yaml, tested per version\"]\n    P --> M[\"Multi-arch images\"]\n    X[\"Hard-coded cloud-specific defaults\"] -.->|\"avoid\"| P",
     "reference": "https://helm.sh/docs/chart_best_practices/custom_resource_definitions/",
     "tags": [
       "helm",
@@ -2134,6 +2215,7 @@
     "answer": true,
     "explanation": "Removing a CRD removes the API type, and the API server garbage-collects all objects of that kind. If those CRs carry finalizers whose controller is already gone, the CRD deletion hangs until the finalizers are removed manually.",
     "example": "kubectl get databases.example.com -A   # 12 objects\nkubectl delete crd databases.example.com\n# all 12 Database objects are garbage-collected with the CRD\n# hangs if any CR still carries a finalizer with no controller to clear it",
+    "diagram": "flowchart TD\n    DEL[\"kubectl delete crd databases.example.com\"] --> API[\"API type removed\"]\n    API --> GC[\"All Database CRs garbage-collected\"]\n    GC --> Q{\"CR has finalizer?\"}\n    Q -->|\"no\"| GONE[\"CRs and CRD gone\"]\n    Q -->|\"yes, controller gone\"| HANG[\"CRD deletion hangs\"]\n    HANG -->|\"patch finalizers away\"| GONE",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#delete-a-customresourcedefinition",
     "tags": [
       "crd",
@@ -2149,6 +2231,7 @@
     "answer": true,
     "explanation": "Enabling `subresources.status` splits the object: PUT/PATCH on the resource only persists spec and metadata, while PUT/PATCH on `/status` only persists status. This prevents controllers and users from overwriting each other and allows separate RBAC rules for each.",
     "example": "spec:\n  versions:\n  - name: v1\n    subresources:\n      status: {}\n# with status enabled:\nkubectl patch database orders --type=merge -p '{\"status\":{\"phase\":\"Ready\"}}'           # ignored\nkubectl patch database orders --subresource=status --type=merge -p '{\"status\":{\"phase\":\"Ready\"}}'  # persisted",
+    "diagram": "flowchart LR\n    U[\"PUT /databases/db1 (spec + status changed)\"] --> MAIN[\"Main endpoint\"]\n    MAIN -->|\"persists\"| S1[\"spec + metadata\"]\n    MAIN -->|\"ignores\"| X1[\"status change dropped\"]\n    C[\"PUT /databases/db1/status\"] --> ST[\"Status subresource\"]\n    ST -->|\"persists\"| S2[\"status\"]\n    ST -->|\"ignores\"| X2[\"spec change dropped\"]\n    R[\"Separate RBAC, no clobbering\"] -.-> ST",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource",
     "tags": [
       "crd",
@@ -2177,6 +2260,7 @@
     "answer": 1,
     "explanation": "`metadata.generation` increments on every spec change. A controller copies it into `status.observedGeneration` after reconciling. If they differ, the status is stale and the controller has not yet processed the latest spec, which is how tools like `kubectl rollout status` decide whether to keep waiting.",
     "example": "kubectl get deploy web -o jsonpath='{.metadata.generation} {.status.observedGeneration}'\n# 7 6   <- controller has not yet processed the latest spec change\n# in a custom controller after reconciling:\ndb.Status.ObservedGeneration = db.Generation\nr.Status().Update(ctx, &db)",
+    "diagram": "flowchart LR\n    U[\"User edits spec\"] --> G[\"metadata.generation 4 to 5\"]\n    G --> R[\"Controller reconciles generation 5\"]\n    R --> OG[\"status.observedGeneration = 5\"]\n    CHK{\"generation == observedGeneration?\"}\n    OG --> CHK\n    CHK -->|\"yes\"| FRESH[\"Status reflects current spec\"]\n    CHK -->|\"no\"| STALE[\"Status stale, keep waiting (kubectl rollout status)\"]",
     "reference": "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/#DeploymentStatus",
     "tags": [
       "status",
@@ -2205,6 +2289,7 @@
     "answer": 0,
     "explanation": "DiskPressure means the kubelet's eviction thresholds for `nodefs` or `imagefs` were crossed. Typical culprits are image bloat, application logs written to the node, or emptyDir volumes. `kubectl describe node` and `df` on the node confirm it; ephemeral-storage limits let the kubelet evict the offending pod rather than random ones.",
     "example": "kubectl describe node ip-10-0-1-23 | grep -A3 DiskPressure\n# on the node:\ndf -h /var/lib/containerd /var/log\ncrictl rmi --prune                       # remove unused images\n# in the Pod spec:\nresources: {limits: {ephemeral-storage: 2Gi}}",
+    "diagram": "flowchart TD\n    DP[\"Node condition DiskPressure\"] --> KE[\"kubelet eviction threshold nodefs/imagefs crossed\"]\n    KE --> EV[\"Pods evicted repeatedly\"]\n    DP --> C1[\"Unused container images\"]\n    DP --> C2[\"Container logs overflowing\"]\n    DP --> C3[\"emptyDir growth\"]\n    C1 --> F[\"Fix: prune images, log rotation, ephemeral-storage limits, bigger root volume\"]\n    C2 --> F\n    C3 --> F",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/",
     "tags": [
       "troubleshooting",
@@ -2234,6 +2319,7 @@
     "answer": 1,
     "explanation": "OOMKilled means the container exceeded its cgroup memory limit and the kernel killed it. The fix is right-sizing the limit or fixing the application's memory growth. Removing probes or changing restart policy just hides the failure; more replicas only helps if memory scales with traffic.",
     "example": "kubectl get pod api-5f6d -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'\n# OOMKilled\nkubectl top pod api-5f6d            # actual working set vs limit\nkubectl set resources deploy/api --limits=memory=1Gi --requests=memory=768Mi",
+    "diagram": "flowchart TD\n    O[\"Pod OOMKilled: exceeded cgroup memory limit\"] --> I[\"Inspect: kubectl top pod, heap metrics\"]\n    I --> Q{\"Working set vs limit\"}\n    Q -->|\"leak / unbounded growth\"| FIX[\"Fix application memory\"]\n    Q -->|\"legit need above limit\"| RAISE[\"Raise memory limit\"]\n    X[\"Remove probes, change restartPolicy\"] -.->|\"hides symptom\"| O",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/",
     "tags": [
       "troubleshooting",
@@ -2262,6 +2348,7 @@
     "answer": 0,
     "explanation": "Autoscaling in Kubernetes has two layers. HPA (and KEDA for event-driven sources like SQS queue depth) scales workloads. When new pods go Pending for lack of capacity, the node autoscaler provisions nodes; when nodes are mostly empty it consolidates them. VPA is a third option that adjusts requests instead of replica count.",
     "example": "kubectl autoscale deploy api --cpu-percent=60 --min=3 --max=30   # HPA: pods\n# Karpenter NodePool: nodes appear when pods go Pending\nkubectl get nodeclaims\nkubectl get events --field-selector reason=TriggeredScaleUp   # Cluster Autoscaler",
+    "diagram": "flowchart TD\n    M[\"CPU / custom metrics\"] --> HPA[\"HPA: changes Pod replicas\"]\n    HPA --> PODS[\"Pods 3 to 8\"]\n    PODS -->|\"some Pending, no capacity\"| CA[\"Cluster Autoscaler / Karpenter: adds nodes\"]\n    CA --> NODES[\"Nodes 2 to 4\"]\n    NODES -->|\"underutilised\"| CA\n    VPA[\"VPA: adjusts requests\"] -.-> PODS",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "autoscaling",
@@ -2290,6 +2377,7 @@
     "answer": 1,
     "explanation": "An object with `deletionTimestamp` set and a non-empty `metadata.finalizers` list is not removed until each finalizer is cleared. If the operator that owns the finalizer is down, the object hangs. Restore the operator, or as a last resort patch the finalizers away after doing the cleanup manually.",
     "example": "kubectl get database orders -o jsonpath='{.metadata.deletionTimestamp} {.metadata.finalizers}'\n# 2026-09-11T08:12:00Z [example.com/cleanup-cloud-disk]\nkubectl -n ops get pods -l app=db-operator   # operator missing or CrashLoopBackOff\n# last resort after manual cleanup:\nkubectl patch database orders -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge",
+    "diagram": "flowchart TD\n    D[\"kubectl delete database db1\"] --> TS[\"deletionTimestamp set, finalizers non-empty\"]\n    TS --> Q{\"Operator running?\"}\n    Q -->|\"yes\"| CL[\"Cleanup, remove finalizer\"]\n    CL --> GONE[\"Object removed\"]\n    Q -->|\"no / failing\"| STUCK[\"Stuck in Terminating\"]\n    STUCK --> FIX[\"Restore operator, or manual cleanup then patch finalizers\"]\n    FIX --> GONE",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
     "tags": [
       "finalizers",

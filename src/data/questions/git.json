@@ -20,6 +20,7 @@
     "answer": 0,
     "explanation": "`git init` creates a new `.git` subdirectory, turning the current directory into a Git repository. The other commands are not real Git commands.",
     "example": "mkdir my-app && cd my-app\ngit init   # creates the .git directory\ngit status # 'No commits yet'",
+    "diagram": "flowchart LR\nA[\"Plain directory\"] -->|\"git init\"| B[\"Creates .git subdirectory\"]\nB --> C[\"Empty repository\"]\nC --> D[\"No commits yet\"]\nD -->|\"git add + git commit\"| E[\"First commit\"]",
     "reference": "https://git-scm.com/docs/git-init",
     "tags": [
       "basics"
@@ -46,6 +47,7 @@
     "answer": 2,
     "explanation": "`git add <file>` stages changes (`git stage` is an accepted synonym). `git index` and `git track` are not Git commands, and `git commit` records already-staged changes rather than staging new ones.",
     "example": "git add src/app.py        # stage one file\ngit add -A                # stage all changes\ngit add -p                # interactively stage hunks",
+    "diagram": "flowchart LR\nW[\"Working directory (edited files)\"] -->|\"git add file\"| S[\"Staging area (index)\"]\nS -->|\"git commit\"| R[\"Repository (history)\"]\nN[\"git stage = synonym of git add\"] --> S",
     "reference": "https://git-scm.com/docs/git-add",
     "tags": [
       "basics"
@@ -72,6 +74,7 @@
     "answer": 1,
     "explanation": "`git status` summarizes the state of the working directory and staging area. `git diff` shows line-by-line changes, and `git log` shows commit history.",
     "example": "git status\n# On branch main\n# Changes to be committed:   modified: README.md\n# Changes not staged:        modified: app.py\n# Untracked files:           notes.txt\ngit status -s   # short form",
+    "diagram": "flowchart TD\nA[\"git status\"] --> B[\"Staged changes (ready to commit)\"]\nA --> C[\"Unstaged changes (modified, not added)\"]\nA --> D[\"Untracked files (never added)\"]\nE[\"git diff shows line changes\"] -.-> C\nF[\"git log shows commit history\"] -.-> G[\"Not working tree state\"]",
     "reference": "https://git-scm.com/docs/git-status",
     "tags": [
       "basics"
@@ -98,6 +101,7 @@
     "answer": 2,
     "explanation": "`git commit` creates a new commit from whatever is currently staged. `git push` sends commits to a remote, and `git save` is not a Git command.",
     "example": "git add .\ngit commit -m \"Add login endpoint\"   # records the staged snapshot\ngit commit                          # opens editor for the message",
+    "diagram": "flowchart LR\nS[\"Staging area snapshot\"] -->|\"git commit -m msg\"| C[\"New commit object\"]\nC --> H[\"Branch / HEAD moves to it\"]\nH -->|\"git push (later)\"| R[\"Remote repository\"]\nX[\"git save = not a Git command\"] -.-> S",
     "reference": "https://git-scm.com/docs/git-commit",
     "tags": [
       "basics"
@@ -124,6 +128,7 @@
     "answer": 0,
     "explanation": "`git log` lists commits reachable from HEAD, newest first by default. `git history`, `git track`, and `git commits` are not Git commands.",
     "example": "git log                 # full history of the current branch\ngit log --oneline -5    # last 5 commits, one per line\ngit log --graph --all   # visualise all branches",
+    "diagram": "flowchart LR\nA[\"git log\"] --> H[\"HEAD\"]\nH --> C3[\"commit c3 (newest)\"]\nC3 --> C2[\"commit c2\"]\nC2 --> C1[\"commit c1 (oldest)\"]\nN[\"Lists commits reachable from HEAD, newest first\"] -.-> A",
     "reference": "https://git-scm.com/docs/git-log",
     "tags": [
       "basics"
@@ -150,6 +155,7 @@
     "answer": 0,
     "explanation": "`.gitignore` contains patterns matching files Git should leave untracked, such as build artifacts or secrets, so they never get accidentally staged.",
     "example": "# .gitignore\nnode_modules/\n*.log\n.env\ndist/\n# Then: git status no longer lists these paths as untracked",
+    "diagram": "flowchart TD\nF[\".gitignore patterns (node_modules, *.log, .env)\"] --> M{\"Does file match?\"}\nM -->|\"yes\"| I[\"Ignored: never staged by git add\"]\nM -->|\"no\"| T[\"Shown as untracked, can be staged\"]\nI --> S[\"Secrets and build artifacts stay out of history\"]",
     "reference": "https://git-scm.com/docs/gitignore",
     "tags": [
       "basics",
@@ -177,6 +183,7 @@
     "answer": 1,
     "explanation": "`git switch develop` (or the older `git checkout develop`) changes the currently checked-out branch. `git branch develop` only creates a branch without switching to it.",
     "example": "git switch develop       # switch to existing branch\ngit checkout develop     # older equivalent\ngit switch -c feature/x  # create and switch",
+    "diagram": "flowchart LR\nM[\"On branch main\"] -->|\"git switch develop\"| D[\"On branch develop (HEAD moved)\"]\nM -->|\"git checkout develop (older form)\"| D\nM -->|\"git branch develop\"| C[\"Creates branch only, HEAD stays on main\"]",
     "reference": "https://git-scm.com/docs/git-switch",
     "tags": [
       "branching"
@@ -203,6 +210,7 @@
     "answer": 0,
     "explanation": "`-d` is the safe delete flag: Git refuses if deleting the branch would make commits unreachable. Using `-D` forces deletion regardless.",
     "example": "git branch -d old-feature\n# error: The branch 'old-feature' is not fully merged.\ngit log main..old-feature   # see the unmerged commits\ngit branch -D old-feature   # force delete if you really mean it",
+    "diagram": "flowchart TD\nA[\"git branch -d old-feature\"] --> Q{\"All commits reachable from current branch?\"}\nQ -->|\"yes\"| B[\"Branch deleted safely\"]\nQ -->|\"no\"| C[\"Error: branch not fully merged\"]\nC --> D[\"Commits would become unreachable\"]\nC -->|\"really discard?\"| E[\"git branch -D forces deletion\"]",
     "reference": "https://git-scm.com/docs/git-branch",
     "tags": [
       "branching"
@@ -229,6 +237,7 @@
     "answer": 0,
     "explanation": "A fast-forward happens when the current branch has no commits of its own since it diverged, so Git can just move the branch pointer forward instead of creating a merge commit.",
     "example": "git switch main\ngit merge feature\n# Updating a1b2c3d..e4f5g6h\n# Fast-forward\ngit merge --no-ff feature   # force a merge commit instead",
+    "diagram": "flowchart LR\nA[\"c1\"] --> B[\"c2 (main before merge)\"]\nB --> C[\"c3 (feature)\"]\nC --> D[\"c4 (feature tip)\"]\nB -.->|\"main has no new commits\"| E[\"git merge feature\"]\nE --> F[\"main pointer moves to c4, no merge commit\"]",
     "reference": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
     "tags": [
       "merging"
@@ -255,6 +264,7 @@
     "answer": 0,
     "explanation": "Rebase re-applies each commit from your branch onto the tip of the target branch, resulting in a linear history instead of the merge commit that `git merge` would create.",
     "example": "git switch feature\ngit rebase main      # replay feature commits on top of main\n# resolve conflicts, then:\ngit rebase --continue\ngit log --oneline --graph   # linear history",
+    "diagram": "flowchart LR\nsubgraph merge[\"git merge\"]\nM1[\"main tip\"] --> MC[\"merge commit (2 parents)\"]\nF1[\"feature tip\"] --> MC\nend\nsubgraph rebase[\"git rebase main\"]\nR1[\"main tip\"] --> R2[\"feature c1 replayed\"]\nR2 --> R3[\"feature c2 replayed\"]\nR3 --> L[\"linear history, new hashes\"]\nend",
     "reference": "https://git-scm.com/docs/git-rebase",
     "tags": [
       "rebasing"
@@ -281,6 +291,7 @@
     "answer": 0,
     "explanation": "Git inserts these markers around the conflicting sections: content above `=======` comes from your current branch (HEAD), content below comes from the branch being merged in. You must edit the file to resolve them.",
     "example": "<<<<<<< HEAD\nport = 8080\n=======\nport = 9090\n>>>>>>> feature/ports\n# keep the wanted lines, delete the markers, then: git add config.py && git commit",
+    "diagram": "flowchart TD\nA[\"<<<<<<< HEAD\"] --> B[\"Content from your current branch\"]\nB --> C[\"=======\"]\nC --> D[\"Content from branch being merged\"]\nD --> E[\">>>>>>> other-branch\"]\nE --> F[\"Edit file, remove markers\"]\nF --> G[\"git add, then git commit\"]",
     "reference": "https://git-scm.com/docs/git-merge#_how_to_resolve_conflicts",
     "tags": [
       "merging",
@@ -308,6 +319,7 @@
     "answer": 0,
     "explanation": "`git pull` is effectively `git fetch` followed by `git merge` (or `git rebase` with `--rebase`). `git fetch` alone updates remote-tracking branches but never touches your local branches.",
     "example": "git fetch origin            # update origin/main, working branch untouched\ngit log main..origin/main   # review what arrived\ngit merge origin/main       # integrate when ready\ngit pull --rebase origin main   # fetch + rebase in one step",
+    "diagram": "flowchart LR\nR[\"Remote origin/main\"] -->|\"git fetch\"| T[\"Updates remote-tracking ref origin/main only\"]\nT -.->|\"local branch untouched\"| L[\"Local main unchanged\"]\nR -->|\"git pull\"| P[\"fetch + merge (or rebase)\"]\nP --> M[\"Local main updated\"]",
     "reference": "https://git-scm.com/docs/git-pull",
     "tags": [
       "remotes"
@@ -334,6 +346,7 @@
     "answer": 0,
     "explanation": "`git push` transfers local commits to a remote repository and updates the corresponding remote branch.",
     "example": "git push                    # push current branch to its upstream\ngit push origin feature/x   # explicit remote and branch\ngit push --force-with-lease # safer force push after a rebase",
+    "diagram": "flowchart LR\nW[\"Working dir\"] -->|\"git add\"| S[\"Index\"]\nS -->|\"git commit\"| L[\"Local branch commits\"]\nL -->|\"git push origin branch\"| R[\"Remote branch updated\"]\nR -.->|\"pull brings the other direction\"| L",
     "reference": "https://git-scm.com/docs/git-push",
     "tags": [
       "remotes"
@@ -352,6 +365,7 @@
     ],
     "explanation": "Full command accepted too.",
     "example": "git remote add origin https://example.com/repo.git\ngit remote -v   # verify: origin https://example.com/repo.git (fetch/push)",
+    "diagram": "flowchart LR\nA[\"git remote add origin URL\"] --> B[\"Writes remote origin into .git/config\"]\nB --> C[\"origin = https://example.com/repo.git\"]\nC -->|\"git push origin main\"| D[\"Upload commits\"]\nC -->|\"git fetch origin\"| E[\"Download commits\"]\nF[\"git remote -v lists remotes\"] -.-> C",
     "reference": "https://git-scm.com/docs/git-remote",
     "pattern": "^(git\\s+)?remote\\s+add(\\s+origin\\s+https?:\\/\\/\\S+)?$",
     "tags": [
@@ -372,6 +386,7 @@
     ],
     "explanation": "The `-u`/`--set-upstream` flag on `git push` both pushes the branch and records the tracking relationship.",
     "example": "git switch -c feature/login\ngit push -u origin HEAD          # push and set upstream\ngit push --set-upstream origin feature/login   # long form\ngit status   # 'Your branch is up to date with origin/feature/login'",
+    "diagram": "flowchart LR\nA[\"git push -u origin HEAD\"] --> B[\"Pushes current branch to origin\"]\nA --> C[\"Records upstream: branch tracks origin/branch\"]\nC --> D[\"Later: plain git push / git pull work without args\"]\nE[\"--set-upstream is the long form of -u\"] -.-> A",
     "reference": "https://git-scm.com/docs/git-push",
     "pattern": "^git\\s+push\\s+(-u|--set-upstream)\\s+origin\\s+\\S+$",
     "tags": [
@@ -400,6 +415,7 @@
     "answer": 0,
     "explanation": "`git stash` saves your uncommitted working directory and index changes on a stack, restoring a clean working directory so you can do something else, then reapply the changes later with `git stash pop` or `git stash apply`.",
     "example": "git stash            # shelve uncommitted changes\ngit switch hotfix    # do other work\ngit switch feature\ngit stash pop        # bring the changes back\ngit stash list       # see saved stashes",
+    "diagram": "flowchart LR\nA[\"Uncommitted changes in working dir\"] -->|\"git stash\"| B[\"Saved on stash stack\"]\nB --> C[\"Clean working directory\"]\nC -->|\"git switch other-branch, do work\"| D[\"Come back\"]\nD -->|\"git stash pop / apply\"| E[\"Changes reapplied\"]",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -414,6 +430,7 @@
     "answer": true,
     "explanation": "`git stash` pushes each stash onto a stack, so multiple stashes can coexist; `git stash list` shows them all, most recent first.",
     "example": "git stash push -m \"wip: header\"\ngit stash push -m \"wip: footer\"\ngit stash list\n# stash@{0}: On main: wip: footer\n# stash@{1}: On main: wip: header\ngit stash apply stash@{1}",
+    "diagram": "flowchart TD\nA[\"git stash (edit A)\"] --> S0[\"stash@{2}\"]\nB[\"git stash (edit B)\"] --> S1[\"stash@{1}\"]\nC[\"git stash (edit C)\"] --> S2[\"stash@{0} most recent\"]\nL[\"git stash list shows all three\"] --> S2\nL --> S1\nL --> S0",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -440,6 +457,7 @@
     "answer": 0,
     "explanation": "`--soft` only moves HEAD (and the branch ref); the index and working tree are untouched, so the changes from the undone commit remain staged and ready to be recommitted.",
     "example": "git reset --soft HEAD~1   # undo last commit, keep changes staged\ngit status                # 'Changes to be committed'\ngit commit -m \"Better message\"   # re-commit",
+    "diagram": "flowchart LR\nA[\"git reset --soft HEAD~1\"] --> H[\"HEAD and branch move back one commit\"]\nA --> I[\"Index unchanged: changes still staged\"]\nA --> W[\"Working tree unchanged\"]\nI -->|\"git commit\"| R[\"Recommit the same changes\"]",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -466,6 +484,7 @@
     "answer": 0,
     "explanation": "`--mixed` is the default: it moves HEAD and resets the staging area to match the new HEAD, but working directory files are left as-is, so changes appear as unstaged modifications.",
     "example": "git reset HEAD~1          # same as --mixed\ngit status                # changes now unstaged but still in files\ngit add -p && git commit  # re-stage selectively",
+    "diagram": "flowchart LR\nA[\"git reset --mixed HEAD~1 (default)\"] --> H[\"HEAD moves back one commit\"]\nA --> I[\"Index reset to match new HEAD\"]\nA --> W[\"Working tree files kept\"]\nI --> U[\"Changes now appear unstaged\"]\nU -->|\"git add\"| S[\"Stage again if wanted\"]",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -492,6 +511,7 @@
     "answer": 0,
     "explanation": "`--hard` resets HEAD, the index, and the working directory to match the target commit, discarding uncommitted work with no confirmation. Committed work may still be recoverable via the reflog, but uncommitted changes are generally lost.",
     "example": "git reset --hard HEAD~1   # uncommitted edits are gone for good\n# safer alternatives:\ngit stash                 # save first\ngit reflog                # can recover committed work, not uncommitted",
+    "diagram": "flowchart TD\nA[\"git reset --hard target\"] --> H[\"HEAD moves\"]\nA --> I[\"Index overwritten\"]\nA --> W[\"Working tree overwritten\"]\nW --> L[\"Uncommitted changes lost, no confirmation\"]\nH -.->|\"committed work\"| R[\"Still recoverable via git reflog\"]",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -518,6 +538,7 @@
     "answer": 0,
     "explanation": "Because `revert` adds a new commit instead of removing or rewriting existing ones, it is safe to use on shared branches. `reset` moves the branch pointer and, if the rewritten history is pushed, forces collaborators to reconcile diverged histories.",
     "example": "git revert abc1234        # new commit that undoes abc1234\ngit push                  # history only grows, collaborators fast-forward\n# versus: git reset --hard HEAD~1 && git push --force  (rewrites shared history)",
+    "diagram": "flowchart LR\nsubgraph revert[\"git revert (safe on shared)\"]\nA[\"c1\"] --> B[\"c2 bad\"]\nB --> C[\"c3 inverse of c2\"]\nend\nsubgraph reset[\"git reset (rewrites)\"]\nD[\"c1\"] --> E[\"c2 removed from branch\"]\nE --> F[\"Force push needed, collaborators diverge\"]\nend",
     "reference": "https://git-scm.com/docs/git-revert",
     "tags": [
       "revert",
@@ -533,6 +554,7 @@
     "answer": false,
     "explanation": "`git revert` does not remove or rewrite the original commit; it creates a brand new commit that applies the inverse of the target commit's changes, keeping full history intact.",
     "example": "git revert abc1234\ngit log --oneline -2\n# 9f8e7d6 Revert \"Add feature X\"\n# abc1234 Add feature X   <- still present",
+    "diagram": "flowchart LR\nA[\"c1\"] --> B[\"c2 (target)\"]\nB --> C[\"c3\"]\nC -->|\"git revert c2\"| D[\"c4 = inverse diff of c2\"]\nB -.->|\"still in history\"| N[\"Not deleted or rewritten\"]",
     "reference": "https://git-scm.com/docs/git-revert",
     "tags": [
       "revert"
@@ -559,6 +581,7 @@
     "answer": 0,
     "explanation": "`cherry-pick` takes the diff introduced by one specific commit and applies it to the current branch, creating a new commit with (by default) a new hash.",
     "example": "git switch main\ngit cherry-pick abc1234       # new commit on main with abc1234's changes\ngit cherry-pick -x abc1234    # add '(cherry picked from commit ...)' to message",
+    "diagram": "flowchart LR\nF1[\"feature: c1\"] --> F2[\"feature: c2 (wanted)\"]\nF2 --> F3[\"feature: c3\"]\nM1[\"main: m1\"] --> M2[\"main: m2\"]\nF2 -->|\"git cherry-pick c2\"| M3[\"main: c2' (new hash)\"]\nM2 --> M3",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "tags": [
       "cherry-pick"
@@ -573,6 +596,7 @@
     "answer": true,
     "explanation": "Cherry-picking replays a commit's diff onto a potentially different tree, so conflicts can occur. Git pauses and lets you resolve files, `git add` them, and then run `git cherry-pick --continue` (or `--abort` to cancel).",
     "example": "git cherry-pick abc1234\n# CONFLICT (content): Merge conflict in app.py\nvim app.py            # resolve markers\ngit add app.py\ngit cherry-pick --continue\n# or abandon: git cherry-pick --abort",
+    "diagram": "stateDiagram-v2\n[*] --> Applying: git cherry-pick commit\nApplying --> Done: no conflict\nApplying --> Conflict: overlapping changes\nConflict --> Resolved: edit files, git add\nResolved --> Done: git cherry-pick --continue\nConflict --> Aborted: git cherry-pick --abort\nDone --> [*]\nAborted --> [*]",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "tags": [
       "cherry-pick",
@@ -600,6 +624,7 @@
     "answer": 0,
     "explanation": "Annotated tags (`git tag -a`) create a full tag object with metadata and are recommended for releases; lightweight tags are simply a named reference to a commit with no extra metadata.",
     "example": "git tag v1.0.0-rc            # lightweight: just a ref to a commit\ngit tag -a v1.0.0 -m \"GA\"    # annotated: tag object with tagger, date, message\ngit cat-file -t v1.0.0       # 'tag' ; lightweight prints 'commit'",
+    "diagram": "flowchart TD\nC[\"Commit abc123\"]\nL[\"Lightweight tag: git tag v1\"] -->|\"plain ref pointing at commit\"| C\nA[\"Annotated tag: git tag -a v1 -m msg\"] --> O[\"Tag object: tagger, date, message, signature\"]\nO --> C\nA -.-> R[\"Recommended for releases\"]",
     "reference": "https://git-scm.com/book/en/v2/Git-Basics-Tagging",
     "tags": [
       "tags"
@@ -617,6 +642,7 @@
     ],
     "explanation": "The `-a` flag creates an annotated tag object, and `-m` supplies its message, similarly to a commit.",
     "example": "git tag -a v1.0.0 -m \"Release 1.0.0\"\ngit show v1.0.0        # shows tagger, date, message, then the commit\ngit push origin v1.0.0",
+    "diagram": "flowchart LR\nA[\"git tag -a v1.0.0 -m Release\"] --> B[\"Tag object v1.0.0\"]\nB --> M[\"Message: Release 1.0.0\"]\nB --> T[\"Tagger + date\"]\nB --> C[\"Points at current commit\"]\nC -->|\"git push origin v1.0.0\"| R[\"Share tag with remote\"]",
     "reference": "https://git-scm.com/docs/git-tag",
     "pattern": "^git\\s+tag\\s+-a\\s+v1\\.0\\.0\\s+-m\\s+.*Release 1\\.0\\.0.*$",
     "tags": [
@@ -653,6 +679,7 @@
     ],
     "explanation": "Git's object database stores exactly four object types: blobs (file contents), trees (directory listings), commits, and tag objects. The index and branches are not stored as objects; the index is a separate file and a branch is just a ref (a pointer) to a commit.",
     "example": "git cat-file -t HEAD          # commit\ngit cat-file -t HEAD^{tree}   # tree\ngit cat-file -t HEAD:README.md   # blob\ngit cat-file -t v1.0.0        # tag (for an annotated tag)",
+    "diagram": "flowchart TD\nT[\"Tag object\"] --> C[\"Commit object\"]\nC --> R[\"Tree object (directory)\"]\nR --> B1[\"Blob (file contents)\"]\nR --> R2[\"Tree (subdirectory)\"]\nR2 --> B2[\"Blob\"]\nN[\"Branch = ref file, index = separate file, not objects\"] -.-> C",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects",
     "tags": [
       "internals"
@@ -679,6 +706,7 @@
     "answer": 0,
     "explanation": "`HEAD` is a symbolic reference that normally points at the branch you have checked out, which in turn points at a commit; it represents your current position in history.",
     "example": "cat .git/HEAD\n# ref: refs/heads/main      <- HEAD points at a branch\ngit rev-parse HEAD          # resolves to the checked-out commit\ngit log -1 HEAD",
+    "diagram": "flowchart LR\nH[\"HEAD (symbolic ref)\"] -->|\"ref: refs/heads/main\"| B[\"Branch main\"]\nB --> C3[\"commit c3\"]\nC3 --> C2[\"c2\"]\nC2 --> C1[\"c1\"]\nN[\"HEAD = your current position in history\"] -.-> H",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
     "tags": [
       "internals",
@@ -706,6 +734,7 @@
     "answer": 0,
     "explanation": "A detached HEAD occurs when you check out a specific commit, tag, or remote branch directly rather than a local branch; HEAD then points at that commit itself rather than at a branch reference.",
     "example": "git checkout a1b2c3d\n# You are in 'detached HEAD' state...\ncat .git/HEAD     # a1b2c3d... (raw SHA, no 'ref:')\ngit switch -c rescue-branch   # keep any new commits",
+    "diagram": "flowchart LR\nsubgraph normal[\"Normal\"]\nH1[\"HEAD\"] --> B[\"branch main\"]\nB --> C1[\"commit\"]\nend\nsubgraph detached[\"Detached HEAD\"]\nH2[\"HEAD\"] -->|\"git checkout abc123 / tag\"| C2[\"commit directly\"]\nC2 --> W[\"New commits on no branch, may be lost\"]\nend",
     "reference": "https://git-scm.com/docs/git-checkout#_detached_head",
     "tags": [
       "internals",
@@ -733,6 +762,7 @@
     "answer": 0,
     "explanation": "Local branch references live as files under `.git/refs/heads/`, each containing the SHA-1 (or SHA-256) of the commit the branch points to. Remote-tracking branches live under `.git/refs/remotes/`.",
     "example": "cat .git/refs/heads/main\n# 3f2a9c1e...   (the commit SHA the branch points to)\ngit update-ref refs/heads/main <sha>   # the low-level way to move it",
+    "diagram": "flowchart TD\nG[\".git/\"] --> R[\"refs/\"]\nR --> H[\"heads/\"]\nH --> M[\"main (file with commit SHA)\"]\nR --> RM[\"remotes/\"]\nRM --> O[\"origin/main\"]\nG --> HD[\"HEAD -> ref: refs/heads/main\"]",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
     "tags": [
       "internals",
@@ -760,6 +790,7 @@
     "answer": 0,
     "explanation": "The reflog records every movement of HEAD (commits, resets, rebases, checkouts) on your local machine, which is invaluable for recovering 'lost' commits after a hard reset or a bad rebase. It is purely local and is never pushed to a remote.",
     "example": "git reset --hard HEAD~2   # oops, lost two commits\ngit reflog\n# 7c1d2e3 HEAD@{0}: reset: moving to HEAD~2\n# 9a8b7c6 HEAD@{1}: commit: add tests\ngit reset --hard HEAD@{1}   # recovered",
+    "diagram": "flowchart LR\nA[\"Every HEAD move: commit, reset, rebase, checkout\"] --> L[\"Reflog entries (local only)\"]\nL --> E[\"HEAD@{1}, HEAD@{2} ...\"]\nB[\"Bad reset --hard or rebase\"] -->|\"git reflog\"| F[\"Find lost commit SHA\"]\nF -->|\"git reset --hard SHA\"| R[\"Recovered\"]",
     "reference": "https://git-scm.com/docs/git-reflog",
     "tags": [
       "internals",
@@ -775,6 +806,7 @@
     "answer": false,
     "explanation": "The reflog is entirely local metadata and is never transmitted by push or fetch. Likewise, commits made in a detached HEAD state are not on any branch, so a plain `git push` will not send them anywhere; they can be lost once garbage collected unless you point a branch or tag at them.",
     "example": "git checkout a1b2c3d\ngit commit -m \"experiment\"    # only in local reflog\ngit push origin HEAD:refs/heads/experiment   # must push explicitly to share",
+    "diagram": "flowchart LR\nL[\"Local: reflog entries\"] -.->|\"never sent\"| R[\"Remote\"]\nD[\"Commit made in detached HEAD\"] -->|\"on no branch\"| N[\"Plain git push sends nothing\"]\nD -->|\"git switch -c rescue\"| B[\"Branch points at it\"]\nB -->|\"git push -u origin rescue\"| R",
     "reference": "https://git-scm.com/docs/git-reflog",
     "tags": [
       "internals",
@@ -802,6 +834,7 @@
     "answer": 0,
     "explanation": "`git bisect` automates a binary search: you tell it one known-good and one known-bad commit, it checks out a midpoint, and you test and mark it good/bad, repeating until it narrows down the exact commit that introduced the regression.",
     "example": "git bisect start\ngit bisect bad            # current commit is broken\ngit bisect good v1.2.0    # known good release\n# test, then mark: git bisect good | git bisect bad\ngit bisect reset          # done",
+    "diagram": "flowchart TD\nA[\"git bisect start\"] --> B[\"git bisect bad HEAD, git bisect good v1.0\"]\nB --> C[\"Git checks out midpoint commit\"]\nC --> T{\"Test: bug present?\"}\nT -->|\"git bisect bad\"| C\nT -->|\"git bisect good\"| C\nC -->|\"range narrowed to 1\"| F[\"First bad commit found\"]\nF --> R[\"git bisect reset\"]",
     "reference": "https://git-scm.com/docs/git-bisect",
     "tags": [
       "bisect"
@@ -834,6 +867,7 @@
     ],
     "explanation": "`git bisect start` begins a session, and each candidate commit is marked with `git bisect good` or `git bisect bad`. There is no `git bisect commit` or `git bisect finish` subcommand; a session is ended with `git bisect reset`.",
     "example": "git bisect start\ngit bisect bad HEAD\ngit bisect good v1.0.0\ngit bisect run ./test.sh   # automate marking good/bad\ngit bisect reset",
+    "diagram": "flowchart LR\nS[\"git bisect start\"] --> B[\"git bisect bad\"]\nB --> G[\"git bisect good\"]\nG --> L[\"...loop until culprit found\"]\nL --> R[\"git bisect reset ends session\"]\nX[\"No bisect commit or bisect finish\"] -.-> R",
     "reference": "https://git-scm.com/docs/git-bisect",
     "tags": [
       "bisect"
@@ -860,6 +894,7 @@
     "answer": 0,
     "explanation": "`git rebase -i <base>` (interactive rebase) opens a 'todo list' of commits since `<base>` in your editor, where each line's action (pick, reword, edit, squash, drop, etc.) controls what happens to that commit.",
     "example": "git rebase -i HEAD~3\n# editor opens:\n# pick a1b2c3d Add feature\n# squash d4e5f6a fix typo\n# reword 7g8h9i0 wip -> becomes 'Add tests'",
+    "diagram": "flowchart LR\nA[\"git rebase -i base\"] --> T[\"Todo list in editor\"]\nT --> P[\"pick c1\"]\nT --> Q[\"squash c2\"]\nT --> R[\"reword c3\"]\nT --> S[\"drop c4\"]\nT -->|\"save and close\"| N[\"Commits replayed onto base\"]",
     "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
     "tags": [
       "rebasing",
@@ -896,6 +931,7 @@
     ],
     "explanation": "Valid interactive rebase todo commands include `pick` (keep as-is), `reword` (keep changes, edit message), `squash`/`fixup` (combine into previous commit), `edit` (pause to amend), and `drop` (remove the commit). `rename` and `amend` are not todo-list commands.",
     "example": "pick 1a2b3c Add API client\nreword 4d5e6f Fix client timeout\nsquash 7g8h9i Tweak\ndrop 0j1k2l Debug print\n# also valid: edit, fixup, exec, break, label, reset, merge",
+    "diagram": "flowchart TD\nT[\"Todo line: action sha message\"] --> P[\"pick: keep as-is\"]\nT --> R[\"reword: edit message\"]\nT --> S[\"squash / fixup: fold into previous\"]\nT --> E[\"edit: pause to amend\"]\nT --> D[\"drop: remove commit\"]\nX[\"rename, amend: not valid here\"] -.-> T",
     "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
     "tags": [
       "rebasing",
@@ -923,6 +959,7 @@
     "answer": 0,
     "explanation": "Squashing combines noisy, incremental commits into a single well-described commit, making the project history easier to read, bisect, and review without losing the final result.",
     "example": "git rebase -i main\n# pick   a1 Add search endpoint\n# fixup  b2 wip\n# fixup  c3 fix typo\n# fixup  d4 fix again\n# result: one commit 'Add search endpoint'",
+    "diagram": "flowchart LR\nA[\"wip\"] --> B[\"fix typo\"]\nB --> C[\"fix again\"]\nC -->|\"git rebase -i, squash\"| S[\"One commit: Add login form\"]\nS --> R[\"Readable history, easier review and bisect\"]",
     "reference": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
     "tags": [
       "squash",
@@ -938,6 +975,7 @@
     "answer": true,
     "explanation": "Because a commit's hash is derived from its content, parent, author, and committer timestamp, replaying a commit onto a new base (or combining commits) always produces a new commit object with a new hash, distinct from the originals.",
     "example": "git log --oneline -1        # e4f5g6h Add tests\ngit rebase main             # replay onto a new parent\ngit log --oneline -1        # 9z8y7x6 Add tests  <- same content, new hash",
+    "diagram": "flowchart LR\nO[\"Original c2 (hash a1b2)\"] -->|\"rebase onto new base\"| N[\"New c2' (hash f9e8)\"]\nH[\"Hash = content + parent + author + committer time\"] --> N\nP[\"Parent changed\"] --> N\nN --> S[\"Different SHA even if files identical\"]",
     "reference": "https://git-scm.com/docs/git-rebase",
     "tags": [
       "rebasing"
@@ -964,6 +1002,7 @@
     "answer": 0,
     "explanation": "Git looks for executable scripts named things like `pre-commit` or `pre-push` inside `.git/hooks/` by default. Since `.git/` is not cloned as regular content, these are local-only unless a `core.hooksPath` pointing at a tracked directory is configured.",
     "example": "ls .git/hooks/\n# pre-commit.sample  commit-msg.sample  pre-push.sample ...\ncp .git/hooks/pre-commit.sample .git/hooks/pre-commit\nchmod +x .git/hooks/pre-commit",
+    "diagram": "flowchart TD\nG[\".git/\"] --> H[\"hooks/\"]\nH --> P[\"pre-commit (executable)\"]\nH --> U[\"pre-push\"]\nH --> M[\"commit-msg\"]\nP -->|\"runs on git commit\"| C[\"Can abort commit\"]\nN[\"Local only unless core.hooksPath set\"] -.-> H",
     "reference": "https://git-scm.com/docs/githooks",
     "tags": [
       "hooks"
@@ -978,6 +1017,7 @@
     "answer": false,
     "explanation": "The `.git` directory itself is never version-controlled by Git, so files under `.git/hooks/` are local to each clone and are not shared automatically. Teams typically share hooks by storing them in a tracked directory and configuring `core.hooksPath`, or by using a hook manager tool.",
     "example": "# .git/ is never committed, so share hooks via a tracked directory:\nmkdir .githooks && cp pre-commit .githooks/\ngit config core.hooksPath .githooks   # each clone must run this\n# or use a tool like pre-commit / husky",
+    "diagram": "flowchart LR\nH[\".git/hooks/pre-commit\"] -.->|\"not versioned, not cloned\"| R[\"Remote clone has no hook\"]\nT[\"Tracked dir: .githooks/pre-commit\"] -->|\"git config core.hooksPath .githooks\"| S[\"Shared with everyone\"]\nF[\"Or tools like pre-commit / husky\"] --> S",
     "reference": "https://git-scm.com/docs/githooks",
     "tags": [
       "hooks"
@@ -994,6 +1034,7 @@
     ],
     "explanation": "`git submodule add <url> <path>` clones the given repository into `<path>` and records it, along with the commit it is pinned to, in a `.gitmodules` file.",
     "example": "git submodule add https://example.com/lib.git vendor/lib\ncat .gitmodules\n# [submodule \"vendor/lib\"]\n#   path = vendor/lib\n#   url = https://example.com/lib.git\ngit commit -m \"Add lib submodule\"",
+    "diagram": "flowchart LR\nA[\"git submodule add URL vendor/lib\"] --> C[\"Clones lib into vendor/lib\"]\nA --> M[\"Writes .gitmodules (path + url)\"]\nA --> P[\"Superproject records pinned commit\"]\nM --> K[\"Commit both in superproject\"]",
     "reference": "https://git-scm.com/docs/git-submodule",
     "pattern": "^git\\s+submodule\\s+add\\s+https?:\\/\\/\\S+\\s+vendor\\/lib$",
     "tags": [
@@ -1021,6 +1062,7 @@
     "answer": 0,
     "explanation": "By default, `git clone` leaves submodule directories empty; passing `--recurse-submodules` tells Git to also initialize and clone each registered submodule at the commit the superproject expects.",
     "example": "git clone --recurse-submodules https://example.com/app.git\n# if already cloned without it:\ngit submodule update --init --recursive",
+    "diagram": "flowchart LR\nA[\"git clone URL\"] --> E[\"Submodule dirs empty\"]\nE -->|\"git submodule update --init --recursive\"| F[\"Filled later\"]\nB[\"git clone --recurse-submodules URL\"] --> G[\"Init + clone every submodule\"]\nG --> P[\"Checked out at pinned commit\"]",
     "reference": "https://git-scm.com/docs/git-clone",
     "tags": [
       "submodules"
@@ -1047,6 +1089,7 @@
     "answer": 0,
     "explanation": "`git worktree add` creates an additional working directory attached to the same repository (sharing the same `.git` object database), each with its own checked-out branch, so you can avoid stashing or cloning to work on multiple branches simultaneously.",
     "example": "git worktree add ../hotfix hotfix-branch\ncd ../hotfix && git status   # On branch hotfix-branch\ngit worktree list\ngit worktree remove ../hotfix",
+    "diagram": "flowchart TD\nR[\"Shared .git object database\"] --> W1[\"Main worktree: branch main\"]\nR -->|\"git worktree add ../hotfix hotfix-branch\"| W2[\"../hotfix: branch hotfix-branch\"]\nW2 --> B[\"Work on both at once, no stash or clone\"]\nN[\"A branch can be checked out in only one worktree\"] -.-> W2",
     "reference": "https://git-scm.com/docs/git-worktree",
     "tags": [
       "worktrees"
@@ -1073,6 +1116,7 @@
     "answer": 0,
     "explanation": "The uppercase `-S` flag signs the commit with your configured signing key. (The lowercase `-s` instead adds a `Signed-off-by` trailer, which is a plain text convention unrelated to cryptographic signing.)",
     "example": "git config --global user.signingkey ABC123DEF\ngit commit -S -m \"Signed change\"     # GPG or SSH signature\ngit config --global commit.gpgsign true   # sign every commit\ngit log --show-signature -1",
+    "diagram": "flowchart LR\nA[\"git commit -S\"] --> K[\"Uses configured GPG/SSH key\"]\nK --> C[\"Commit carries cryptographic signature\"]\nB[\"git commit -s (lowercase)\"] --> T[\"Adds Signed-off-by trailer text only\"]\nT -.-> N[\"No cryptography\"]",
     "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--S",
     "tags": [
       "signing"
@@ -1099,6 +1143,7 @@
     "answer": 0,
     "explanation": "`git verify-commit` validates a commit's GPG/SSH signature. You can also see signature status inline with `git log --show-signature`.",
     "example": "git verify-commit HEAD\n# gpg: Good signature from \"Dev <dev@example.com>\"\ngit verify-commit --raw abc1234\ngit log --show-signature -1   # alternative view",
+    "diagram": "flowchart LR\nC[\"Signed commit\"] -->|\"git verify-commit sha\"| V{\"Signature check\"}\nV --> G[\"Good: key trusted\"]\nV --> B[\"Bad: content tampered\"]\nV --> U[\"Unverifiable: key unknown\"]\nL[\"git log --show-signature shows inline\"] -.-> V",
     "reference": "https://git-scm.com/docs/git-verify-commit",
     "tags": [
       "signing"
@@ -1134,6 +1179,7 @@
     ],
     "explanation": "Git flow defines long-lived `main`/`master` and `develop` branches, plus short-lived supporting branches: `feature/*`, `release/*`, and `hotfix/*`. 'trunk' and 'staging' are not part of this named model.",
     "example": "git flow init                 # sets main, develop, feature/, release/, hotfix/\ngit flow feature start login\ngit flow release start 1.2.0\ngit flow hotfix start 1.2.1",
+    "diagram": "flowchart LR\nM[\"main (releases)\"] --> D[\"develop\"]\nD --> F[\"feature/x\"]\nF --> D\nD --> R[\"release/1.2\"]\nR --> M\nR --> D\nM --> H[\"hotfix/1.2.1\"]\nH --> M\nH --> D",
     "reference": "https://nvie.com/posts/a-successful-git-branching-model/",
     "tags": [
       "workflows",
@@ -1161,6 +1207,7 @@
     "answer": 0,
     "explanation": "GitHub flow simplifies Git flow: there is no `develop` or `release` branch, just `main` plus short-lived feature branches merged via reviewed pull requests, suited to teams that deploy frequently.",
     "example": "git switch -c fix/typo\ngit commit -am \"Fix typo\" && git push -u origin fix/typo\ngh pr create --base main      # review + CI\n# merge PR -> deploy main; branch deleted",
+    "diagram": "flowchart LR\nM[\"main (always deployable)\"] -->|\"branch\"| F[\"feature branch\"]\nF -->|\"open PR\"| P[\"Review + CI checks\"]\nP -->|\"merge\"| M\nM -->|\"deploy\"| D[\"Production\"]\nN[\"No develop or release branches\"] -.-> M",
     "reference": "https://docs.github.com/en/get-started/using-github/github-flow",
     "tags": [
       "workflows",
@@ -1188,6 +1235,7 @@
     "answer": 0,
     "explanation": "Trunk-based development minimizes long-lived branches and merge drift by having developers integrate small changes into the trunk frequently, often paired with feature flags to hide incomplete work.",
     "example": "git switch -c small-change    # lives < 1 day\ngit commit -am \"Add flag-guarded checkout v2\"\ngit push && open PR -> merged to main same day\n# feature stays hidden behind a feature flag until ready",
+    "diagram": "flowchart LR\nD1[\"Dev A: small change\"] -->|\"commit daily\"| T[\"trunk / main\"]\nD2[\"Dev B: small change\"] -->|\"commit daily\"| T\nF[\"Incomplete work behind feature flag\"] --> T\nT --> C[\"CI on every integration\"]\nT -.-> X[\"No long-lived branches\"]",
     "reference": "https://trunkbaseddevelopment.com/",
     "tags": [
       "workflows",
@@ -1203,6 +1251,7 @@
     "answer": false,
     "explanation": "A pull (or merge) request is a proposal to merge changes; it stays open for discussion, review, and required checks, and only merges when someone with permission explicitly merges it (or when configured automation does, after conditions are met) — it is not an automatic, immediate merge.",
     "example": "gh pr create --base main --head feature/x\n# PR is open: CI runs, reviewers comment, 'Merge' button stays inactive\n# until required approvals/checks pass and someone clicks merge",
+    "diagram": "stateDiagram-v2\n[*] --> Open: PR opened\nOpen --> Review: discussion, CI checks\nReview --> Changes: reviewer requests changes\nChanges --> Review: push fixes\nReview --> Approved: approvals + checks pass\nApproved --> Merged: someone clicks merge\nMerged --> [*]",
     "reference": "https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests",
     "tags": [
       "workflows",
@@ -1230,6 +1279,7 @@
     "answer": 0,
     "explanation": "Protected branches let a team require reviews, passing CI checks, and up-to-date branches, and typically block force-pushes or deletions, keeping an important branch like `main` from being broken or rewritten accidentally.",
     "example": "# GitHub: Settings > Branches > Add rule for main\n# [x] Require a pull request before merging (1 approval)\n# [x] Require status checks to pass (ci/test)\n# [x] Do not allow force pushes\ngit push --force origin main   # rejected: protected branch",
+    "diagram": "flowchart TD\nP[\"Protected branch main\"] --> R[\"Require PR reviews\"]\nP --> C[\"Require passing CI checks\"]\nP --> F[\"Block force pushes\"]\nP --> D[\"Block deletion\"]\nX[\"Direct push or rewrite\"] -->|\"rejected\"| P",
     "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
     "tags": [
       "workflows",
@@ -1263,6 +1313,7 @@
     ],
     "explanation": "Protected branches commonly require reviews and passing CI checks and block force pushes or deletions. Deleting the repository or granting broad admin access are not branch protection features — they are the opposite of what protection is for.",
     "example": "# GitLab: Settings > Repository > Protected branches\n#   Branch: main  Allowed to merge: Maintainers  Allowed to push: No one\n# GitHub rule: required reviews=2, required checks=build,test, block force push",
+    "diagram": "flowchart LR\nP[\"Branch protection rules\"] --> A[\"Require approvals\"]\nP --> B[\"Require status checks\"]\nP --> C[\"Block force push / deletion\"]\nN[\"Not protection: delete repo, grant admin\"] -.-> P",
     "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
     "tags": [
       "workflows",
@@ -1280,6 +1331,7 @@
     ],
     "explanation": "Conventional Commits defines standard type prefixes such as `feat` for new features and `fix` for bug fixes, enabling automated changelog and version generation.",
     "example": "git commit -m \"feat: add dark mode toggle\"\ngit commit -m \"feat(ui)!: drop legacy theme\"   # scope and breaking-change marker",
+    "diagram": "flowchart LR\nM[\"feat: add dark mode toggle\"] --> T[\"type = feat\"]\nT --> V[\"Automated: minor version bump\"]\nT --> C[\"Changelog: Features section\"]\nF[\"fix: ...\"] --> P[\"patch bump\"]",
     "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
     "pattern": "^feat$",
     "tags": [
@@ -1316,6 +1368,7 @@
     ],
     "explanation": "Conventional Commits defines types such as `feat`, `fix`, `docs`, `style`, `refactor`, `test`, and `chore`. Generic words like `update` or `change` are not part of the specification.",
     "example": "git commit -m \"feat(auth): add SSO login\"\ngit commit -m \"fix: handle null user\"\ngit commit -m \"chore: bump dependencies\"\ngit commit -m \"docs: update README\"",
+    "diagram": "flowchart TD\nS[\"Conventional Commits types\"] --> A[\"feat\"]\nS --> B[\"fix\"]\nS --> C[\"docs\"]\nS --> D[\"style / refactor / test / chore\"]\nX[\"update, change: not in spec\"] -.-> S\nA --> V[\"Drive changelog + semver automatically\"]",
     "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
     "tags": [
       "conventional-commits"
@@ -1348,6 +1401,7 @@
     ],
     "explanation": "`HEAD~1`, `HEAD^`, and `HEAD^1` are all equivalent ways to name the first parent of HEAD. `HEAD@{1}` instead refers to where HEAD pointed one reflog entry ago (a different, local-only concept), and `HEAD:1` is not valid revision syntax.",
     "example": "git rev-parse HEAD~1 HEAD^ HEAD^1   # all print the same SHA\ngit show HEAD@{1}      # where HEAD was one reflog move ago (different thing)\ngit show HEAD^2        # second parent of a merge commit",
+    "diagram": "flowchart LR\nH[\"HEAD\"] --> C3[\"c3\"]\nC3 -->|\"HEAD~1 = HEAD^ = HEAD^1\"| C2[\"c2 first parent\"]\nC2 -->|\"HEAD~2\"| C1[\"c1\"]\nR[\"HEAD@{1} = previous reflog position, not a parent\"] -.-> H",
     "reference": "https://git-scm.com/docs/gitrevisions",
     "tags": [
       "internals",
@@ -1381,6 +1435,7 @@
     ],
     "explanation": "`git reset` supports `--soft`, `--mixed` (the default), and `--hard`, plus the less common `--merge` and `--keep`. There is no `--force` or `--delete` mode for `git reset`.",
     "example": "git reset --soft HEAD~1    # move ref only\ngit reset --mixed HEAD~1   # move ref + reset index (default)\ngit reset --hard HEAD~1    # move ref + index + working tree\n# also real: --merge, --keep",
+    "diagram": "flowchart TD\nR[\"git reset modes\"] --> S[\"--soft: move HEAD only\"]\nR --> M[\"--mixed (default): HEAD + index\"]\nR --> H[\"--hard: HEAD + index + working tree\"]\nR --> K[\"--merge, --keep (rare)\"]\nX[\"--force, --delete: do not exist\"] -.-> R",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -1413,6 +1468,7 @@
     ],
     "explanation": "`git fetch`, `git pull`, and `git clone` all retrieve data from a remote. `git push` sends local commits up to a remote, and `git add` only affects the local staging area, never touching a remote at all.",
     "example": "git clone https://example.com/repo.git   # full download\ngit fetch origin                          # update remote-tracking refs\ngit pull origin main                      # fetch + merge",
+    "diagram": "flowchart LR\nR[\"Remote repo\"] -->|\"git clone\"| L[\"Local repo\"]\nR -->|\"git fetch\"| L\nR -->|\"git pull\"| L\nL -->|\"git push (upload)\"| R\nW[\"git add: local index only\"] -.-> L",
     "reference": "https://git-scm.com/docs/git-fetch",
     "tags": [
       "remotes"
@@ -1427,6 +1483,7 @@
     "answer": false,
     "explanation": "`git fetch` only downloads new objects and updates remote-tracking references (e.g. `origin/main`); it never touches your working directory or local branches. You need `git merge`, `git rebase`, or `git pull` to actually bring those changes into your checked-out branch.",
     "example": "git fetch origin\ngit status   # 'Your branch is behind origin/main by 3 commits' - files unchanged\ngit merge origin/main   # now the working tree updates",
+    "diagram": "flowchart LR\nR[\"Remote main\"] -->|\"git fetch\"| T[\"origin/main updated\"]\nT -.->|\"not touched\"| L[\"Local main\"]\nT -.->|\"not touched\"| W[\"Working directory\"]\nT -->|\"git merge / rebase / pull\"| L\nL --> W",
     "reference": "https://git-scm.com/docs/git-fetch",
     "tags": [
       "remotes"
@@ -1453,6 +1510,7 @@
     "answer": 0,
     "explanation": "Both commands restore stashed changes to the working directory, but `git stash pop` also drops that stash entry afterward, whereas `git stash apply` keeps it so it can be reapplied elsewhere if needed.",
     "example": "git stash apply       # changes restored, stash@{0} still listed\ngit stash list        # stash@{0} remains\ngit stash pop         # changes restored AND stash@{0} removed\ngit stash drop stash@{0}   # manual cleanup after apply",
+    "diagram": "flowchart LR\nS[\"stash@{0}\"] -->|\"git stash apply\"| A[\"Changes restored, stash kept\"]\nS -->|\"git stash pop\"| P[\"Changes restored, stash dropped\"]\nA -->|\"git stash drop\"| D[\"Removed manually\"]",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -1469,6 +1527,7 @@
     ],
     "explanation": "`git cherry-pick <commit>` replays the diff introduced by the given commit onto the current branch.",
     "example": "git switch main\ngit cherry-pick abc1234\ngit log --oneline -1   # new commit with a new hash but abc1234's changes",
+    "diagram": "flowchart LR\nO[\"other branch: abc1234\"] -->|\"git cherry-pick abc1234\"| N[\"current branch: new commit\"]\nC[\"current branch tip\"] --> N\nN --> H[\"Same diff, new hash\"]",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "pattern": "^git\\s+cherry-pick\\s+abc1234$",
     "tags": [
@@ -1484,6 +1543,7 @@
     "answer": false,
     "explanation": "`--amend` actually creates a brand-new commit object that replaces the previous one; because the content and/or timestamp differ, the new commit gets a different hash, and the old commit becomes unreferenced (recoverable via `git reflog` until garbage collected).",
     "example": "git log --oneline -1        # 1a2b3c4 Fix typo\ngit commit --amend -m \"Fix typo in README\"\ngit log --oneline -1        # 9d8e7f6 Fix typo in README  <- new hash\ngit push --force-with-lease  # required if already pushed",
+    "diagram": "flowchart LR\nA[\"c1\"] --> B[\"c2 (old, hash a1b2)\"]\nA --> C[\"c2' (amended, hash c3d4)\"]\nB -.->|\"unreferenced, in reflog\"| G[\"Garbage collected later\"]\nM[\"main / HEAD\"] --> C\nX[\"git commit --amend\"] --> C",
     "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---amend",
     "tags": [
       "basics"

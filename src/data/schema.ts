@@ -9,6 +9,8 @@ const baseFields = {
   explanation: z.string().min(1),
   /** Short command, snippet, or scenario showing the concept in use. Newlines allowed. */
   example: z.string().min(1),
+  /** Mermaid source for a small diagram of the concept, shown after every answer. */
+  diagram: z.string().min(1),
   reference: z.string().url().optional(),
   tags: z.array(z.string()).optional(),
 }

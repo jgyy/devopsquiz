@@ -8,6 +8,7 @@
     "prompt": "The three pillars of observability are commonly described as metrics, logs, and traces.",
     "explanation": "Metrics, logs, and traces are the three foundational data types most observability tooling is built around.",
     "example": "# One request seen through all three pillars\nhttp_request_duration_seconds_bucket{le=\"0.5\"} 1203   # metric\n{\"level\":\"error\",\"msg\":\"db timeout\",\"trace_id\":\"4bf9...\"}  # log line\ntrace 4bf9...: api (420ms) -> orders (380ms) -> postgres (350ms)  # trace",
+    "diagram": "flowchart TD\nO[\"Observability\"] --> M[\"Metrics: numeric time series\"]\nO --> L[\"Logs: discrete events\"]\nO --> T[\"Traces: request paths\"]\nM --> Q[\"Answer: what is happening and why?\"]\nL --> Q\nT --> Q",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "fundamentals"
@@ -34,6 +35,7 @@
     "prompt": "In the Prometheus data model, what is a `counter` metric type used for?",
     "explanation": "A counter is a cumulative metric whose value can only increase, or reset to zero on a process restart; it is not meant to represent values that can decrease.",
     "example": "# Prometheus counter exposition\n# TYPE http_requests_total counter\nhttp_requests_total{method=\"GET\",code=\"200\"} 18342\n\n# Query it as a per-second rate, never as a raw value\nrate(http_requests_total[5m])",
+    "diagram": "flowchart LR\nA[\"http_requests_total = 0\"] -->|\"request served\"| B[\"1\"]\nB -->|\"request served\"| C[\"2\"]\nC -->|\"more requests\"| D[\"1500\"]\nD -->|\"process restart\"| E[\"reset to 0\"]\nE -->|\"only ever increases again\"| F[\"counter\"]",
     "reference": "https://prometheus.io/docs/concepts/metric_types/",
     "tags": [
       "prometheus",
@@ -61,6 +63,7 @@
     "prompt": "Which Prometheus metric type represents a single numerical value that can arbitrarily go up and down, such as current queue length or CPU temperature?",
     "explanation": "A gauge is the metric type meant for values that can increase or decrease, unlike a counter which only ever increases.",
     "example": "# TYPE queue_depth gauge\nqueue_depth{queue=\"emails\"} 42\n\n# Python client\nfrom prometheus_client import Gauge\ng = Gauge('queue_depth', 'Jobs waiting', ['queue'])\ng.labels(queue='emails').set(42)   # can later go down",
+    "diagram": "flowchart LR\nG[\"Gauge: queue_length\"] -->|\"jobs added\"| U[\"12\"]\nU -->|\"jobs drained\"| Dn[\"3\"]\nDn -->|\"burst\"| Up[\"40\"]\nC[\"Counter: only up or reset\"] -.->|\"not suitable\"| G",
     "reference": "https://prometheus.io/docs/concepts/metric_types/",
     "tags": [
       "prometheus",
@@ -88,6 +91,7 @@
     "prompt": "What is the key operational advantage of a Prometheus `histogram` over a `summary` when quantiles need to be aggregated across many instances?",
     "explanation": "Histogram buckets are cumulative counters that can be summed across instances (e.g. with `sum by`) and then passed to `histogram_quantile()`, whereas a summary's quantiles are pre-computed per instance and cannot be validly averaged together.",
     "example": "# Fleet-wide p95 latency from histogram buckets of all replicas\nhistogram_quantile(0.95,\n  sum by (le) (rate(http_request_duration_seconds_bucket[5m])))\n\n# The equivalent on a summary is NOT valid:\n# avg(http_request_duration_seconds{quantile=\"0.95\"})  -- misleading",
+    "diagram": "flowchart LR\nI1[\"Instance 1 buckets le=0.1, 0.5, 1\"] --> S[\"sum by (le)\"]\nI2[\"Instance 2 buckets le=0.1, 0.5, 1\"] --> S\nI3[\"Instance 3 buckets le=0.1, 0.5, 1\"] --> S\nS --> H[\"histogram_quantile(0.95, ...)\"]\nH --> R[\"valid fleet-wide p95\"]\nQ[\"Summary: per-instance quantiles\"] -.->|\"cannot be averaged\"| X[\"invalid\"]",
     "reference": "https://prometheus.io/docs/practices/histograms/",
     "tags": [
       "prometheus",
@@ -106,6 +110,7 @@
     "prompt": "Which PromQL function computes the per-second average rate of increase of a counter over a given time range, e.g. `rate(http_requests_total[5m])`?",
     "explanation": "`rate()` calculates the per-second average rate of increase of a counter over the supplied range vector, automatically accounting for counter resets.",
     "example": "# Requests per second averaged over the last 5 minutes, per service\nsum by (service) (rate(http_requests_total[5m]))",
+    "diagram": "flowchart LR\nC[\"counter samples over [5m]\"] --> R[\"rate()\"]\nR --> P[\"per-second average increase\"]\nR --> H[\"handles counter resets\"]\nP --> G[\"graph or alert on req/s\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
     "tags": [
       "promql"
@@ -123,6 +128,7 @@
     "prompt": "Which PromQL function calculates an approximate quantile (e.g. the 0.95th) from the cumulative bucket counters of a Prometheus histogram metric?",
     "explanation": "`histogram_quantile()` estimates a quantile from the `_bucket` time series produced by a histogram metric, using linear interpolation within the bucket containing the target quantile.",
     "example": "# 99th percentile request latency, aggregated across all pods\nhistogram_quantile(0.99,\n  sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+    "diagram": "flowchart LR\nB1[\"_bucket le=0.1: 200\"] --> Q[\"histogram_quantile(0.95, ...)\"]\nB2[\"_bucket le=0.5: 900\"] --> Q\nB3[\"_bucket le=1: 990\"] --> Q\nB4[\"_bucket le=+Inf: 1000\"] --> Q\nQ --> I[\"find bucket holding 95th percentile\"]\nI --> L[\"linear interpolation inside bucket\"]\nL --> R[\"approx p95 in seconds\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
     "tags": [
       "promql"
@@ -150,6 +156,7 @@
     "prompt": "When should PromQL's `irate()` generally be preferred over `rate()`?",
     "explanation": "`irate()` uses only the last two data points in the range to compute an instantaneous per-second rate, which is useful for graphing volatile, fast-moving counters, but it is discouraged for alerting because it is noisy and can miss slower trends.",
     "example": "# Fast-reacting panel for a spiky counter (uses last 2 samples only)\nirate(node_network_receive_bytes_total{device=\"eth0\"}[5m])\n\n# Alerting rule: prefer the smoothed rate()\nexpr: rate(http_requests_total{code=~\"5..\"}[5m]) > 5",
+    "diagram": "flowchart TD\nQ[\"Need a per-second rate?\"] --> D{\"purpose\"}\nD -->|\"alerting or smooth dashboards\"| R[\"rate(): averages whole window\"]\nD -->|\"volatile counter, reactive graph\"| I[\"irate(): last two samples only\"]\nI --> N[\"noisy, can miss slow trends\"]\nR --> S[\"stable, safe for alerts\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
     "tags": [
       "promql"
@@ -176,6 +183,7 @@
     "prompt": "Why does PromQL's `rate()` function need to specifically account for counter resets, such as when a process restarts and its counter value drops back to zero?",
     "explanation": "`rate()` detects apparent decreases within a series and treats them as resets, adjusting the calculation so a restart doesn't produce a large, misleading negative spike in the computed rate.",
     "example": "# Samples of http_requests_total over 5m: 900, 950, 1000, 20, 70\n# Process restarted after 1000. rate() treats the drop as a reset\n# and counts 50 + 50 + 20 + 50 = 170 increase, not a -980 dip.\nrate(http_requests_total[5m])",
+    "diagram": "flowchart LR\nA[\"counter: 950\"] --> B[\"counter: 1000\"]\nB -->|\"process restart\"| C[\"counter: 20\"]\nC --> D[\"rate() sees decrease\"]\nD --> E[\"treat as reset: 1000 to 0 then 20\"]\nE --> F[\"increase = 50 + 20, no negative spike\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
     "tags": [
       "promql",
@@ -203,6 +211,7 @@
     "prompt": "By default, how does Prometheus collect metrics from the systems it monitors?",
     "explanation": "Prometheus is fundamentally a pull-based system: it scrapes metrics by issuing HTTP GET requests against each target's metrics endpoint (typically `/metrics`) on a configured interval.",
     "example": "# prometheus.yml\nscrape_configs:\n  - job_name: api\n    scrape_interval: 15s\n    static_configs:\n      - targets: ['api-1:8080', 'api-2:8080']   # GET /metrics on each\n\n# What Prometheus sends\ncurl http://api-1:8080/metrics",
+    "diagram": "sequenceDiagram\nparticipant P as \"Prometheus\"\nparticipant T as \"Target /metrics\"\nloop every scrape_interval\nP->>T: HTTP GET /metrics\nT-->>P: text exposition format\nP->>P: store samples in TSDB\nend",
     "reference": "https://prometheus.io/docs/introduction/overview/",
     "tags": [
       "prometheus",
@@ -218,6 +227,7 @@
     "prompt": "The Prometheus Pushgateway is recommended as the standard way to expose metrics for all long-running services, since it lets Prometheus remain purely pull-based.",
     "explanation": "The Pushgateway is intended only for short-lived or batch jobs that would otherwise disappear before being scraped; using it for regular long-running services is explicitly discouraged, as it becomes a single point of failure and loses per-instance scrape semantics.",
     "example": "# Pushgateway is meant for short-lived batch jobs, e.g. a cron backup:\necho \"backup_last_success_timestamp $(date +%s)\" | \\\n  curl --data-binary @- http://pushgateway:9091/metrics/job/nightly_backup\n# Long-running services should expose /metrics and be scraped instead.",
+    "diagram": "flowchart TD\nJ[\"What kind of job?\"] --> K{\"lifetime\"}\nK -->|\"long-running service\"| S[\"expose /metrics, let Prometheus scrape\"]\nK -->|\"short batch job\"| P[\"push to Pushgateway\"]\nP --> G[\"Prometheus scrapes Pushgateway\"]\nS --> N[\"keeps per-instance up and scrape semantics\"]\nP --> W[\"single point of failure if used for services\"]",
     "reference": "https://prometheus.io/docs/practices/pushing/",
     "tags": [
       "prometheus",
@@ -245,6 +255,7 @@
     "prompt": "What is the primary role of Prometheus Alertmanager?",
     "explanation": "Alertmanager receives firing alerts sent by Prometheus servers and handles deduplication, grouping, silencing, inhibition, and routing them to receivers such as email, Slack, or PagerDuty.",
     "example": "# alertmanager.yml\nroute:\n  group_by: ['alertname', 'namespace']\n  group_wait: 30s\n  receiver: slack-ops\n  routes:\n    - matchers: ['severity=\"critical\"']\n      receiver: pagerduty\nreceivers:\n  - name: slack-ops\n    slack_configs: [{channel: '#ops', api_url: 'https://hooks.slack.com/...'}]",
+    "diagram": "flowchart LR\nP1[\"Prometheus A\"] -->|\"firing alerts\"| AM[\"Alertmanager\"]\nP2[\"Prometheus B\"] -->|\"firing alerts\"| AM\nAM --> D[\"dedupe\"]\nD --> G[\"group\"]\nG --> S[\"silence / inhibit\"]\nS --> R[\"route by labels\"]\nR --> E[\"email\"]\nR --> K[\"Slack\"]\nR --> PD[\"PagerDuty\"]",
     "reference": "https://prometheus.io/docs/alerting/latest/alertmanager/",
     "tags": [
       "alertmanager"
@@ -277,6 +288,7 @@
     "prompt": "Which of the following are core features provided by Prometheus Alertmanager? (select all that apply)",
     "explanation": "Alertmanager groups related alerts, supports silences and label-based routing to receivers. It does not store raw time series data (that's Prometheus's job) and does not execute recording rules (those run inside the Prometheus server).",
     "example": "# Silence every alert for a node during maintenance (2h)\namtool silence add instance=\"node-7\" --duration=2h --comment=\"disk swap\"\n\n# Grouping and routing in alertmanager.yml\nroute:\n  group_by: ['alertname', 'cluster']\n  routes:\n    - matchers: ['team=\"db\"']\n      receiver: db-oncall",
+    "diagram": "flowchart TD\nAM[\"Alertmanager\"] --> G[\"Grouping into one notification\"]\nAM --> S[\"Silences for a time window\"]\nAM --> R[\"Label-based routing to receivers\"]\nP[\"Prometheus server\"] --> T[\"Stores time series\"]\nP --> RR[\"Runs recording rules\"]\nP -->|\"sends alerts\"| AM",
     "reference": "https://prometheus.io/docs/alerting/latest/alertmanager/",
     "tags": [
       "alertmanager"
@@ -303,6 +315,7 @@
     "prompt": "What is Grafana primarily used for in an observability stack?",
     "explanation": "Grafana is a visualization and dashboarding layer that can query and combine data from many backends (Prometheus, Loki, Elasticsearch, SQL databases, and more).",
     "example": "# Grafana dashboard panel (JSON model excerpt)\n{\n  \"type\": \"timeseries\",\n  \"title\": \"5xx rate\",\n  \"datasource\": {\"type\": \"prometheus\", \"uid\": \"prom\"},\n  \"targets\": [{\"expr\": \"sum(rate(http_requests_total{code=~\\\"5..\\\"}[5m]))\"}]\n}",
+    "diagram": "flowchart LR\nP[\"Prometheus metrics\"] --> G[\"Grafana\"]\nL[\"Loki logs\"] --> G\nT[\"Tempo traces\"] --> G\nS[\"SQL databases\"] --> G\nG --> D[\"Dashboards\"]\nG --> E[\"Explore and correlate\"]",
     "reference": "https://grafana.com/docs/grafana/latest/introduction/",
     "tags": [
       "grafana"
@@ -317,6 +330,7 @@
     "prompt": "Grafana can only visualize data stored in Prometheus; it has no built-in support for other data sources such as Loki, Elasticsearch, or SQL databases.",
     "explanation": "Grafana ships with a large ecosystem of data source plugins, including Loki, Elasticsearch/OpenSearch, MySQL, PostgreSQL, CloudWatch, Tempo, and many more, in addition to Prometheus.",
     "example": "# provisioning/datasources/ds.yaml - several backends in one Grafana\napiVersion: 1\ndatasources:\n  - name: Prometheus\n    type: prometheus\n    url: http://prometheus:9090\n  - name: Loki\n    type: loki\n    url: http://loki:3100\n  - name: Postgres\n    type: postgres\n    url: db:5432",
+    "diagram": "flowchart TD\nG[\"Grafana data source plugins\"] --> P[\"Prometheus\"]\nG --> L[\"Loki\"]\nG --> E[\"Elasticsearch / OpenSearch\"]\nG --> M[\"MySQL / PostgreSQL\"]\nG --> C[\"CloudWatch\"]\nG --> T[\"Tempo\"]",
     "reference": "https://grafana.com/docs/grafana/latest/datasources/",
     "tags": [
       "grafana"
@@ -343,6 +357,7 @@
     "prompt": "What does SLI stand for in the context of site reliability engineering?",
     "explanation": "SLI stands for Service Level Indicator: a quantitative measurement of some aspect of the level of service provided, such as request latency or error rate.",
     "example": "# Availability SLI: ratio of good requests to all requests\nsum(rate(http_requests_total{code!~\"5..\"}[30d]))\n/\nsum(rate(http_requests_total[30d]))",
+    "diagram": "flowchart LR\nS[\"SLI = Service Level Indicator\"] --> W[\"a measurement of service quality\"]\nW --> L[\"request latency\"]\nW --> E[\"error rate\"]\nW --> A[\"availability\"]\nW --> T[\"throughput\"]",
     "reference": "https://sre.google/sre-book/service-level-objectives/",
     "tags": [
       "sre",
@@ -370,6 +385,7 @@
     "prompt": "What is a Service Level Objective (SLO)?",
     "explanation": "An SLO is a target value or range for an SLI over a defined period, expressing the reliability level a service aims to meet, generally used as an internal engineering goal.",
     "example": "# SLO definition (e.g. Sloth / OpenSLO style)\nslos:\n  - name: checkout-availability\n    objective: 99.9        # percent of good requests\n    window: 30d\n    sli:\n      events:\n        error_query: sum(rate(http_requests_total{code=~\"5..\"}[5m]))\n        total_query: sum(rate(http_requests_total[5m]))",
+    "diagram": "flowchart LR\nSLI[\"SLI: fraction of requests under 300ms\"] --> SLO[\"SLO: 99% over 30 days\"]\nSLO --> I[\"internal engineering target\"]\nSLO --> EB[\"defines error budget\"]\nSLO -.->|\"not\"| C[\"legal contract\"]",
     "reference": "https://sre.google/sre-book/service-level-objectives/",
     "tags": [
       "sre",
@@ -397,6 +413,7 @@
     "prompt": "How does a Service Level Agreement (SLA) typically differ from a Service Level Objective (SLO)?",
     "explanation": "An SLA is usually a customer-facing, often contractual agreement that carries consequences (like service credits) if missed, while an SLO is an internal target — frequently stricter than the SLA — used to catch problems before the SLA itself is at risk.",
     "example": "# Typical layering for one service\nSLI : successful_requests / total_requests\nSLO : 99.95% over 30 days     # internal target, alerts fire here\nSLA : 99.9% over a month, 10% service credit if missed   # contract\n# The SLO is stricter so the team reacts before the SLA is breached.",
+    "diagram": "flowchart LR\nSLO[\"SLO: 99.95% internal target\"] -->|\"stricter, early warning\"| SLA[\"SLA: 99.9% customer contract\"]\nSLO --> T[\"engineering acts here\"]\nSLA --> C[\"consequences: credits, penalties\"]\nT --> P[\"problem caught before SLA at risk\"]",
     "reference": "https://sre.google/sre-book/service-level-objectives/",
     "tags": [
       "sre",
@@ -424,6 +441,7 @@
     "prompt": "If a service has an availability SLO of 99.9% over a 30-day period, what does its 'error budget' for that period represent?",
     "explanation": "The error budget (here, roughly 0.1% of 30 days, about 43 minutes) is the amount of unreliability the service is allowed to spend before it violates its SLO; it does not mean zero downtime is required.",
     "example": "# 99.9% availability over 30 days\nallowed_unavailability = 0.001 * 30 * 24 * 60 = 43.2 minutes\n\n# Remaining error budget as a PromQL ratio (1 = untouched, 0 = exhausted)\n1 - (\n  sum(increase(http_requests_total{code=~\"5..\"}[30d]))\n  / sum(increase(http_requests_total[30d]))\n) / 0.001",
+    "diagram": "flowchart LR\nSLO[\"SLO 99.9% over 30 days\"] --> A[\"allowed failure = 0.1%\"]\nA --> B[\"30 days x 0.1% = ~43 minutes\"]\nB --> EB[\"error budget\"]\nEB -->|\"spent slowly\"| OK[\"ship features\"]\nEB -->|\"exhausted\"| F[\"freeze risky changes, fix reliability\"]",
     "reference": "https://sre.google/sre-book/embracing-risk/",
     "tags": [
       "sre",
@@ -451,6 +469,7 @@
     "prompt": "In multi-window, multi-burn-rate SLO alerting (as described in Google's SRE Workbook), why are a short window (e.g. 5 minutes) and a long window (e.g. 1 hour or more) typically evaluated together against the same burn-rate threshold?",
     "explanation": "The short window gives fast detection of a severe, fast error-budget burn, while the long window confirms the burn is sustained rather than a brief blip, which together reduce both detection time and false positives.",
     "example": "# Page when a 14.4x burn rate is seen on BOTH 1h and 5m windows\n- alert: ErrorBudgetBurnFast\n  expr: |\n    (error_ratio:1h  > 14.4 * 0.001)\n    and\n    (error_ratio:5m  > 14.4 * 0.001)\n  labels: {severity: page}",
+    "diagram": "flowchart TD\nBR[\"burn rate above 14.4\"] --> S{\"short window 5m?\"}\nBR --> L{\"long window 1h?\"}\nS -->|\"yes\"| B[\"both must be true\"]\nL -->|\"yes\"| B\nB --> P[\"page: fast and sustained burn\"]\nS -->|\"only short true\"| N[\"brief blip, no page\"]\nL -->|\"long true, short false\"| R[\"already recovered, no page\"]",
     "reference": "https://sre.google/workbook/alerting-on-slos/",
     "tags": [
       "sre",
@@ -488,6 +507,7 @@
     "prompt": "According to Google's SRE book, which of the following are among the four 'golden signals' recommended for monitoring a user-facing system? (select all that apply)",
     "explanation": "The four golden signals are latency, traffic, errors, and saturation — a compact set intended to cover most user-facing service health without needing to monitor every low-level metric.",
     "example": "# Four golden signals for an API, in PromQL\nhistogram_quantile(0.99, sum by (le)(rate(req_duration_seconds_bucket[5m])))  # latency\nsum(rate(http_requests_total[5m]))                                          # traffic\nsum(rate(http_requests_total{code=~\"5..\"}[5m]))                             # errors\nsum(container_memory_working_set_bytes) / sum(kube_pod_container_resource_limits{resource=\"memory\"})  # saturation",
+    "diagram": "flowchart TD\nG[\"Four golden signals\"] --> L[\"Latency: how long requests take\"]\nG --> T[\"Traffic: demand on the system\"]\nG --> E[\"Errors: rate of failed requests\"]\nG --> S[\"Saturation: how full the resource is\"]\nL --> U[\"user-facing service health\"]\nT --> U\nE --> U\nS --> U",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "sre",
@@ -515,6 +535,7 @@
     "prompt": "What does the RED method (popularized by Weaveworks for monitoring request-driven microservices) track for each service?",
     "explanation": "RED stands for Rate, Errors, Duration: the number of requests per second, the fraction of those requests that fail, and how long requests take to serve.",
     "example": "# RED for the checkout service\nsum(rate(http_requests_total{service=\"checkout\"}[5m]))                     # Rate\nsum(rate(http_requests_total{service=\"checkout\",code=~\"5..\"}[5m]))        # Errors\nhistogram_quantile(0.95, sum by (le)(rate(http_request_duration_seconds_bucket{service=\"checkout\"}[5m])))  # Duration",
+    "diagram": "flowchart LR\nSvc[\"request-driven service\"] --> R[\"Rate: requests per second\"]\nSvc --> E[\"Errors: failed requests\"]\nSvc --> D[\"Duration: request latency\"]\nR --> Dash[\"RED dashboard per service\"]\nE --> Dash\nD --> Dash",
     "reference": "https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/",
     "tags": [
       "red-method"
@@ -541,6 +562,7 @@
     "prompt": "What does the USE method (proposed by Brendan Gregg) focus on when analyzing system performance?",
     "explanation": "USE stands for Utilization, Saturation, and Errors, applied to every physical resource (CPU, memory, disks, network interfaces, and so on) to quickly locate performance bottlenecks.",
     "example": "# USE checklist for the CPU resource on a Linux host\nmpstat -P ALL 1          # Utilization: busy percentage per core\nuptime                    # Saturation: load average vs core count (run queue)\ndmesg | grep -i 'mce'     # Errors: machine-check / hardware errors\n\n# Disk: iostat -xz 1  (%util, avgqu-sz, errors in /sys/block/*/device)",
+    "diagram": "flowchart LR\nRes[\"each resource: CPU, memory, disk, NIC\"] --> U[\"Utilization: % busy\"]\nRes --> S[\"Saturation: queued work\"]\nRes --> E[\"Errors: error count\"]\nU --> B[\"locate bottleneck\"]\nS --> B\nE --> B",
     "reference": "https://www.brendangregg.com/usemethod.html",
     "tags": [
       "use-method"
@@ -555,6 +577,7 @@
     "prompt": "The USE method is generally best applied to individual physical resources like CPUs and disks, while the RED method is generally best applied to request-driven services.",
     "explanation": "USE (Utilization, Saturation, Errors) targets resources, while RED (Rate, Errors, Duration) targets request-driven services; they are complementary but aimed at different layers.",
     "example": "# USE on a resource                 # RED on a service\nnode_cpu_seconds_total (util)       rate(http_requests_total[5m])\nnode_load1 vs cores (saturation)     rate(http_requests_total{code=~\"5..\"}[5m])\nnode_edac_uncorrectable_errors_total histogram_quantile(0.95, ...)",
+    "diagram": "flowchart TD\nSys[\"system\"] --> Rq[\"request-driven services\"]\nSys --> Rs[\"physical resources\"]\nRq --> RED[\"RED: Rate, Errors, Duration\"]\nRs --> USE[\"USE: Utilization, Saturation, Errors\"]\nRED --> C[\"complementary views\"]\nUSE --> C",
     "reference": "https://www.brendangregg.com/usemethod.html",
     "tags": [
       "use-method",
@@ -582,6 +605,7 @@
     "prompt": "What is 'structured logging'?",
     "explanation": "Structured logging emits each log entry in a consistent, machine-parseable format, most commonly JSON key-value pairs, rather than free-form text sentences.",
     "example": "# Unstructured\nUser 42 failed login from 10.1.2.3 after 3 attempts\n\n# Structured (JSON) - fields are directly queryable\n{\"ts\":\"2026-09-11T08:15:02Z\",\"level\":\"warn\",\"event\":\"login_failed\",\n \"user_id\":42,\"src_ip\":\"10.1.2.3\",\"attempts\":3,\"trace_id\":\"4bf92f35\"}",
+    "diagram": "flowchart LR\nF[\"free text: user 42 failed login from 10.0.0.1\"] -->|\"hard to parse\"| X[\"regex, fragile\"]\nS[\"JSON: level=warn, user_id=42, ip=10.0.0.1, event=login_failed\"] -->|\"machine-parseable\"| Q[\"filter, index, aggregate by field\"]\nQ --> D[\"dashboards and alerts on log fields\"]",
     "reference": "https://opentelemetry.io/docs/concepts/signals/logs/",
     "tags": [
       "logging"
@@ -608,6 +632,7 @@
     "prompt": "What is Grafana Loki?",
     "explanation": "Loki is a horizontally-scalable log aggregation system, inspired by Prometheus's architecture, that indexes only metadata (labels) for each log stream rather than the full text of every log line.",
     "example": "# LogQL: filter by indexed labels, then grep the unindexed line text\n{namespace=\"prod\", app=\"checkout\"} |= \"timeout\" | json | status >= 500\n\n# Promtail/Alloy ships logs with labels; the message body is stored compressed, not indexed",
+    "diagram": "flowchart LR\nA[\"app logs\"] --> P[\"Promtail / agent\"]\nP -->|\"labels: app, namespace, pod\"| L[\"Loki\"]\nL --> I[\"index: labels only\"]\nL --> C[\"chunks: compressed log lines\"]\nG[\"Grafana LogQL query\"] -->|\"select stream by labels\"| I\nI --> C\nC -->|\"grep inside chunks\"| G",
     "reference": "https://grafana.com/docs/loki/latest/",
     "tags": [
       "loki",
@@ -635,6 +660,7 @@
     "prompt": "What does the 'ELK' in the ELK Stack stand for?",
     "explanation": "ELK refers to Elasticsearch (storage and search), Logstash (ingestion and processing), and Kibana (visualization).",
     "example": "# Classic ELK pipeline\napp -> Filebeat -> Logstash (parse/enrich) -> Elasticsearch (index) -> Kibana (UI)\n\n# logstash.conf\ninput  { beats { port => 5044 } }\nfilter { grok { match => { \"message\" => \"%{COMBINEDAPACHELOG}\" } } }\noutput { elasticsearch { hosts => [\"es:9200\"] } }",
+    "diagram": "flowchart LR\nA[\"app logs\"] --> L[\"Logstash: ingest, parse, enrich\"]\nL --> E[\"Elasticsearch: store and search\"]\nE --> K[\"Kibana: visualize\"]",
     "reference": "https://www.elastic.co/elastic-stack",
     "tags": [
       "elk",
@@ -662,6 +688,7 @@
     "prompt": "Why was OpenSearch created as a fork of Elasticsearch and Kibana?",
     "explanation": "In 2021 Elastic changed the license of Elasticsearch and Kibana away from a fully open-source license, prompting AWS and other contributors to fork the last Apache 2.0-licensed versions into what became OpenSearch.",
     "example": "# Timeline\n2021-01: Elastic moves Elasticsearch & Kibana 7.11+ to SSPL / Elastic License\n2021-04: AWS and community fork 7.10.2 (Apache 2.0) -> OpenSearch + OpenSearch Dashboards\n\n# Same API surface, different package\ndocker run -p 9200:9200 -e discovery.type=single-node opensearchproject/opensearch:2",
+    "diagram": "flowchart LR\nES[\"Elasticsearch 7.10 Apache 2.0\"] -->|\"2021 license change\"| SSPL[\"Elastic: SSPL / Elastic License\"]\nES -->|\"fork last Apache 2.0 version\"| OS[\"OpenSearch\"]\nKB[\"Kibana 7.10\"] -->|\"fork\"| OSD[\"OpenSearch Dashboards\"]\nAWS[\"AWS and contributors\"] --> OS",
     "reference": "https://opensearch.org/docs/latest/about/",
     "tags": [
       "opensearch",
@@ -689,6 +716,7 @@
     "prompt": "How does Fluent Bit generally compare to Fluentd for collecting and forwarding logs?",
     "explanation": "Fluent Bit is written in C and built to be lightweight in CPU and memory usage, making it popular as a per-node or sidecar log forwarder, while Fluentd (Ruby with C extensions) offers a larger plugin ecosystem at a higher resource cost.",
     "example": "# Fluent Bit per node (tiny footprint) forwarding to a Fluentd aggregator\n[INPUT]\n    Name   tail\n    Path   /var/log/containers/*.log\n    Parser docker\n[OUTPUT]\n    Name   forward\n    Match  *\n    Host   fluentd-aggregator\n    Port   24224",
+    "diagram": "flowchart LR\nN1[\"node 1: Fluent Bit (C, few MB)\"] -->|\"forward\"| FD[\"Fluentd aggregator (Ruby, rich plugins)\"]\nN2[\"node 2: Fluent Bit\"] -->|\"forward\"| FD\nN3[\"node 3: Fluent Bit\"] -->|\"forward\"| FD\nFD --> ES[\"Elasticsearch / S3 / CloudWatch\"]",
     "reference": "https://docs.fluentbit.io/manual",
     "tags": [
       "fluent-bit",
@@ -704,6 +732,7 @@
     "prompt": "Fluent Bit is a CNCF project commonly deployed as a Kubernetes DaemonSet to collect and forward container logs from every node.",
     "explanation": "Fluent Bit is a CNCF graduated project frequently run as a DaemonSet so exactly one instance runs per node, tailing container log files and shipping them onward.",
     "example": "# One Fluent Bit pod on every node via Helm\nhelm repo add fluent https://fluent.github.io/helm-charts\nhelm install fluent-bit fluent/fluent-bit -n logging --create-namespace\nkubectl get daemonset -n logging   # DESIRED equals node count",
+    "diagram": "flowchart TD\nDS[\"DaemonSet: fluent-bit\"] --> P1[\"pod on node 1\"]\nDS --> P2[\"pod on node 2\"]\nDS --> P3[\"pod on node 3\"]\nP1 -->|\"tail /var/log/containers\"| O[\"log backend\"]\nP2 -->|\"tail /var/log/containers\"| O\nP3 -->|\"tail /var/log/containers\"| O",
     "reference": "https://docs.fluentbit.io/manual/concepts/data-pipeline",
     "tags": [
       "fluent-bit",
@@ -731,6 +760,7 @@
     "prompt": "What problem does distributed tracing primarily help diagnose?",
     "explanation": "Distributed tracing follows a single request as it travels across multiple services, showing where time is spent and where errors occur along that path.",
     "example": "# One user request as a trace (spans nested by parent id)\ntrace 7c3e...  GET /checkout                     total 1.9s\n  span api-gateway     0-1900ms\n    span cart-svc     20-140ms\n    span payment-svc 150-1850ms   <- 1.7s: the slow hop\n      span stripe-api 160-1840ms  status=ERROR timeout",
+    "diagram": "sequenceDiagram\nparticipant U as \"User\"\nparticipant G as \"Gateway\"\nparticipant O as \"Orders\"\nparticipant P as \"Payments\"\nU->>G: request trace_id=abc\nG->>O: 20ms\nO->>P: 900ms slow!\nP-->>O: 500 error\nO-->>G: error\nG-->>U: 502\nNote over G,P: one trace shows where time and errors occurred",
     "reference": "https://opentelemetry.io/docs/concepts/signals/traces/",
     "tags": [
       "tracing"
@@ -757,6 +787,7 @@
     "prompt": "In distributed tracing terminology, what is a 'span'?",
     "explanation": "A span represents a single unit of work, such as one service call or database query, carrying a name, start time, duration, and metadata; it is the basic building block of a trace.",
     "example": "# Creating a span with the OpenTelemetry Python SDK\nfrom opentelemetry import trace\ntracer = trace.get_tracer(\"orders\")\nwith tracer.start_as_current_span(\"charge_card\") as span:\n    span.set_attribute(\"payment.amount\", 42.5)\n    charge()   # duration is recorded when the block exits",
+    "diagram": "flowchart TD\nT[\"trace: one request\"] --> S1[\"span: GET /checkout 300ms\"]\nS1 --> S2[\"child span: call inventory 80ms\"]\nS1 --> S3[\"child span: SQL insert 40ms\"]\nS2 --> A[\"attributes: name, start, duration, status\"]\nS3 --> A",
     "reference": "https://opentelemetry.io/docs/concepts/signals/traces/",
     "tags": [
       "tracing",
@@ -784,6 +815,7 @@
     "prompt": "What is OpenTelemetry (OTel)?",
     "explanation": "OpenTelemetry is a vendor-neutral, CNCF observability framework offering APIs, SDKs, and tools to generate, collect, and export telemetry data — traces, metrics, and logs.",
     "example": "# Auto-instrument a Python app and export to an OTel Collector\npip install opentelemetry-distro opentelemetry-exporter-otlp\nopentelemetry-bootstrap -a install\nOTEL_SERVICE_NAME=api \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 \\\nopentelemetry-instrument python app.py",
+    "diagram": "flowchart LR\nApp[\"application\"] --> API[\"OTel API + SDK\"]\nAPI --> T[\"traces\"]\nAPI --> M[\"metrics\"]\nAPI --> L[\"logs\"]\nT --> C[\"OTel Collector\"]\nM --> C\nL --> C\nC --> B[\"any backend: Jaeger, Prometheus, vendor\"]",
     "reference": "https://opentelemetry.io/docs/what-is-opentelemetry/",
     "tags": [
       "opentelemetry"
@@ -816,6 +848,7 @@
     "prompt": "Which of the following telemetry signal types does OpenTelemetry provide standardized instrumentation APIs and SDKs for? (select all that apply)",
     "explanation": "OpenTelemetry's three core signals are traces, metrics, and logs; it does not standardize database schemas or UI themes.",
     "example": "# otel-collector config receiving all three signals over OTLP\nreceivers:\n  otlp:\n    protocols: {grpc: {endpoint: 0.0.0.0:4317}}\nservice:\n  pipelines:\n    traces:  {receivers: [otlp], exporters: [otlp/tempo]}\n    metrics: {receivers: [otlp], exporters: [prometheusremotewrite]}\n    logs:    {receivers: [otlp], exporters: [loki]}",
+    "diagram": "flowchart TD\nO[\"OpenTelemetry signals\"] --> T[\"Traces\"]\nO --> M[\"Metrics\"]\nO --> L[\"Logs\"]\nT --> S[\"standard API, SDK, OTLP export\"]\nM --> S\nL --> S",
     "reference": "https://opentelemetry.io/docs/what-is-opentelemetry/",
     "tags": [
       "opentelemetry"
@@ -842,6 +875,7 @@
     "prompt": "What is 'context propagation' in distributed tracing?",
     "explanation": "Context propagation passes trace identifiers, such as the trace ID and current span ID, between services — typically via HTTP headers — so spans created by downstream services can be linked into the same overall trace.",
     "example": "# Service A calls B and forwards the trace context in headers\nGET /orders/42 HTTP/1.1\nHost: service-b\ntraceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\n\n# In code (OTel): inject() writes the header, extract() reads it downstream\ninject(carrier=headers); ctx = extract(carrier=incoming_headers)",
+    "diagram": "sequenceDiagram\nparticipant A as \"Service A\"\nparticipant B as \"Service B\"\nparticipant C as \"Service C\"\nA->>B: HTTP + traceparent: trace=abc, parent=span1\nB->>B: new span2, parent=span1\nB->>C: HTTP + traceparent: trace=abc, parent=span2\nC->>C: new span3, parent=span2\nNote over A,C: all spans share trace abc",
     "reference": "https://opentelemetry.io/docs/concepts/context-propagation/",
     "tags": [
       "tracing",
@@ -859,6 +893,7 @@
     "prompt": "What is the name of the standard HTTP header, defined by the W3C Trace Context specification, used to propagate trace ID, span ID, and trace flags between services?",
     "explanation": "The `traceparent` header carries the trace ID, parent span ID, and trace flags, and is the interoperable header adopted by OpenTelemetry and most modern tracing tools.",
     "example": "# W3C Trace Context header carried on every hop\ntraceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\n#            ver-trace-id (32 hex)---------------parent-id (16 hex)-flags\ncurl -H \"traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\" http://svc/api",
+    "diagram": "flowchart LR\nH[\"traceparent header\"] --> V[\"version 00\"]\nH --> T[\"trace-id 32 hex\"]\nH --> P[\"parent-id 16 hex\"]\nH --> F[\"trace-flags 01 = sampled\"]\nS1[\"service A\"] -->|\"traceparent\"| S2[\"service B\"]",
     "reference": "https://www.w3.org/TR/trace-context/",
     "tags": [
       "tracing",
@@ -886,6 +921,7 @@
     "prompt": "What is Jaeger?",
     "explanation": "Jaeger is an open-source, CNCF-graduated distributed tracing system, originally created at Uber, used to monitor and troubleshoot request flows in microservice architectures.",
     "example": "# All-in-one Jaeger for local development (UI on :16686, OTLP on :4317)\ndocker run -d --name jaeger \\\n  -p 16686:16686 -p 4317:4317 \\\n  jaegertracing/all-in-one:1.60\n\n# Point any OTel SDK at it\nexport OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317",
+    "diagram": "flowchart LR\nApp[\"instrumented services\"] -->|\"spans\"| A[\"Jaeger agent / collector\"]\nA --> S[\"storage: Cassandra, ES, Badger\"]\nS --> Q[\"Jaeger query\"]\nQ --> UI[\"Jaeger UI: trace waterfall\"]\nO[\"origin: Uber, CNCF graduated\"] -.-> A",
     "reference": "https://www.jaegertracing.io/docs/latest/",
     "tags": [
       "jaeger",
@@ -913,6 +949,7 @@
     "prompt": "What is Grafana Tempo?",
     "explanation": "Tempo is a distributed tracing backend that stores trace data cost-effectively in object storage and is designed to be queried primarily by trace ID, integrating tightly with Grafana, Loki, and Prometheus exemplars.",
     "example": "# tempo.yaml - traces land in S3, no index database required\nstorage:\n  trace:\n    backend: s3\n    s3:\n      bucket: my-traces\n      endpoint: s3.amazonaws.com\n\n# Grafana: look up by trace id, or search with TraceQL\n{ span.http.status_code = 500 && duration > 2s }",
+    "diagram": "flowchart LR\nOT[\"OTel / Jaeger spans\"] --> D[\"Tempo distributor\"]\nD --> I[\"ingester\"]\nI --> S3[\"object storage: S3 / GCS\"]\nQ[\"query by trace ID\"] --> S3\nE[\"Prometheus exemplar\"] -->|\"trace_id\"| Q\nL[\"Loki log line\"] -->|\"trace_id\"| Q\nQ --> G[\"Grafana\"]",
     "reference": "https://grafana.com/docs/tempo/latest/",
     "tags": [
       "tempo",
@@ -940,6 +977,7 @@
     "prompt": "What is the key difference between head-based and tail-based sampling in distributed tracing?",
     "explanation": "Head-based sampling decides whether to keep a trace right at its start, usually via a random probability, before the outcome is known; tail-based sampling waits until a trace completes and can then sample based on final characteristics such as errors or high latency.",
     "example": "# Head-based: SDK keeps 10% of traces, decided at the root span\nOTEL_TRACES_SAMPLER=parentbased_traceidratio OTEL_TRACES_SAMPLER_ARG=0.1\n\n# Tail-based in the OTel Collector: keep all errors and slow traces\nprocessors:\n  tail_sampling:\n    policies:\n      - {name: errors, type: status_code, status_code: {status_codes: [ERROR]}}\n      - {name: slow,   type: latency, latency: {threshold_ms: 2000}}",
+    "diagram": "flowchart TD\nR[\"request starts\"] --> H{\"head-based\"}\nH -->|\"random 10%\"| K[\"keep whole trace\"]\nH -->|\"90%\"| D[\"drop before outcome known\"]\nR --> C[\"collect all spans\"]\nC --> E[\"trace completes\"]\nE --> T{\"tail-based\"}\nT -->|\"error or slow\"| K2[\"keep\"]\nT -->|\"normal\"| D2[\"drop\"]",
     "reference": "https://opentelemetry.io/docs/concepts/sampling/",
     "tags": [
       "tracing",
@@ -967,6 +1005,7 @@
     "prompt": "What causes a 'cardinality explosion' problem in a metrics system like Prometheus?",
     "explanation": "Using a label whose values are effectively unbounded or highly variable, such as a raw user ID, request ID, or full URL with query parameters, causes the number of unique time series to grow extremely large, straining memory and storage.",
     "example": "# Bad: user_id and raw path create one series per user per URL\nhttp_requests_total{user_id=\"88213\", path=\"/orders/88213?ref=abc\"} 1\n\n# Good: bounded label values\nhttp_requests_total{route=\"/orders/{id}\", method=\"GET\", code=\"200\"} 18342\n\n# Find the offenders\ntopk(10, count by (__name__)({__name__=~\".+\"}))",
+    "diagram": "flowchart LR\nM[\"http_requests_total\"] -->|\"label status=200,500\"| S[\"few series\"]\nM -->|\"label user_id=raw ID\"| U[\"1 series per user\"]\nU --> E[\"millions of series\"]\nE --> X[\"memory and storage explode\"]\nS --> OK[\"healthy TSDB\"]",
     "reference": "https://prometheus.io/docs/practices/naming/",
     "tags": [
       "cardinality",
@@ -982,6 +1021,7 @@
     "prompt": "Adding a high-cardinality label, such as a raw customer email address or a full request URL including query parameters, to a Prometheus metric is a recommended best practice because it makes the metric more queryable.",
     "explanation": "Prometheus documentation explicitly warns against high-cardinality label values (unbounded sets like user IDs, emails, or full URLs), because each unique combination of label values creates a new time series, which can overwhelm memory and storage.",
     "example": "# Do not do this: unbounded label values\nlogin_attempts_total{email=\"alice@example.com\"} 3\nhttp_requests_total{url=\"/search?q=shoes&page=7&sid=9f1a\"} 1\n\n# Instead keep labels bounded and put identifiers in logs or trace attributes\nhttp_requests_total{route=\"/search\", method=\"GET\", code=\"200\"} 1",
+    "diagram": "flowchart TD\nL[\"choose a label\"] --> B{\"bounded values?\"}\nB -->|\"yes: method, status, region\"| G[\"good label\"]\nB -->|\"no: email, full URL, request ID\"| H[\"high cardinality\"]\nH --> S[\"new series per unique value\"]\nS --> X[\"TSDB memory blowup\"]\nH --> A[\"alternative: put it in logs or traces\"]",
     "reference": "https://prometheus.io/docs/practices/naming/",
     "tags": [
       "cardinality",
@@ -1009,6 +1049,7 @@
     "prompt": "In the Prometheus data model, what uniquely identifies a specific time series?",
     "explanation": "A time series is uniquely identified by its metric name together with its complete set of key-value label pairs; the same metric name with a different label set is a distinct series.",
     "example": "# Three distinct series of the same metric name\nhttp_requests_total{job=\"api\", instance=\"10.0.0.5:8080\", method=\"GET\", code=\"200\"}\nhttp_requests_total{job=\"api\", instance=\"10.0.0.5:8080\", method=\"GET\", code=\"500\"}\nhttp_requests_total{job=\"api\", instance=\"10.0.0.6:8080\", method=\"GET\", code=\"200\"}\n# name + full label set = series identity",
+    "diagram": "flowchart LR\nN[\"metric name: http_requests_total\"] --> S1[\"series 1: method=GET, status=200\"]\nN --> S2[\"series 2: method=POST, status=200\"]\nN --> S3[\"series 3: method=GET, status=500\"]\nS1 --> K[\"identity = name + full label set\"]\nS2 --> K\nS3 --> K",
     "reference": "https://prometheus.io/docs/concepts/data_model/",
     "tags": [
       "prometheus",
@@ -1026,6 +1067,7 @@
     "prompt": "What is the name of the automatically generated Prometheus metric whose value is 1 if the most recent scrape of a target succeeded and 0 if it failed?",
     "explanation": "Prometheus automatically exposes an `up` metric for every scrape target, making it a common building block for availability alerts and dashboards.",
     "example": "# Alert when any target has been unreachable for 5 minutes\n- alert: TargetDown\n  expr: up == 0\n  for: 5m\n  labels: {severity: warning}\n  annotations:\n    summary: \"{{ $labels.instance }} of job {{ $labels.job }} is down\"",
+    "diagram": "flowchart LR\nP[\"Prometheus scrape\"] --> T{\"target responded?\"}\nT -->|\"yes\"| U1[\"up = 1\"]\nT -->|\"no\"| U0[\"up = 0\"]\nU0 --> A[\"alert: up == 0 for 5m\"]\nU1 --> D[\"availability dashboard\"]",
     "reference": "https://prometheus.io/docs/concepts/jobs_instances/",
     "tags": [
       "prometheus",
@@ -1043,6 +1085,7 @@
     "prompt": "Which PromQL aggregation operator returns the largest `k` elements by sample value from an instant vector, e.g. `topk(5, http_requests_total)`?",
     "explanation": "`topk()` returns the k series with the largest values from the given instant vector, commonly used to find the noisiest or busiest series on a dashboard.",
     "example": "# Ten pods using the most CPU right now\ntopk(10, sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"prod\"}[5m])))\n\n# Counterpart: bottomk(3, node_filesystem_avail_bytes)",
+    "diagram": "flowchart LR\nV[\"instant vector: 50 series\"] --> T[\"topk(5, http_requests_total)\"]\nT --> R1[\"busiest series 1\"]\nT --> R2[\"series 2\"]\nT --> R3[\"series 3\"]\nT --> R4[\"series 4\"]\nT --> R5[\"series 5\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/operators/",
     "tags": [
       "promql",
@@ -1071,6 +1114,7 @@
     "prompt": "What does it mean to write 'symptom-based' alerts rather than 'cause-based' alerts?",
     "explanation": "Symptom-based alerting pages on the user-visible problem, such as elevated error rate or latency, instead of firing a separate alert for every possible internal cause, such as one disk nearing capacity.",
     "example": "# Symptom-based (pages): users are seeing errors\n- alert: HighErrorRate\n  expr: sum(rate(http_requests_total{code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) > 0.02\n  labels: {severity: page}\n\n# Cause-based (ticket/dashboard only): may or may not hurt users\n- alert: HighCPU\n  expr: avg(rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) > 0.9\n  labels: {severity: info}",
+    "diagram": "flowchart TD\nC1[\"cause: disk 90% full\"] --> S[\"symptom: error rate 5%, p99 3s\"]\nC2[\"cause: DB connection pool exhausted\"] --> S\nC3[\"cause: one replica OOM\"] --> S\nS -->|\"page\"| O[\"on-call\"]\nC1 -.->|\"dashboard / ticket\"| D[\"context, not a page\"]\nC2 -.-> D\nC3 -.-> D",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "alerting",
@@ -1098,6 +1142,7 @@
     "prompt": "What is 'alert fatigue'?",
     "explanation": "Alert fatigue is the desensitization of on-call responders caused by receiving too many alerts, especially low-value or noisy ones, which can lead to important alerts being missed, delayed, or ignored.",
     "example": "# One week of on-call: 412 pages, 9 actionable\n# Result: engineer starts acking pages without reading them and misses\n# the real 'CheckoutErrorRate' page buried between 40 'DiskUsage70%' notifications.\n\n# Remedy: demote noise to tickets\nroutes:\n  - matchers: ['severity=\"info\"']\n    receiver: jira-ticket   # not pager",
+    "diagram": "flowchart LR\nN[\"many low-value alerts\"] --> R[\"responder desensitized\"]\nR --> I[\"alerts ignored or muted\"]\nI --> M[\"critical alert missed\"]\nM --> O[\"longer outages\"]\nF[\"fix: fewer, actionable, symptom-based alerts\"] -.-> N",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "alerting",
@@ -1131,6 +1176,7 @@
     "prompt": "Which of the following are widely considered best practices for writing effective, actionable alerts? (select all that apply)",
     "explanation": "Good alerts are symptom-focused, actionable, and point responders to a runbook. Paging on every minor anomaly or every alert regardless of severity instead drives alert fatigue rather than preventing it.",
     "example": "# Actionable, symptom-based, runbook-linked alert\n- alert: CheckoutLatencyHigh\n  expr: histogram_quantile(0.99, sum by (le)(rate(checkout_duration_seconds_bucket[5m]))) > 2\n  for: 10m\n  labels: {severity: page, team: payments}\n  annotations:\n    runbook_url: https://runbooks.example.com/checkout-latency\n    summary: \"Checkout p99 above 2s for 10m\"",
+    "diagram": "flowchart TD\nA[\"alert fires\"] --> Q1{\"user-visible symptom?\"}\nQ1 -->|\"no\"| D[\"dashboard or ticket\"]\nQ1 -->|\"yes\"| Q2{\"someone must act now?\"}\nQ2 -->|\"no\"| D\nQ2 -->|\"yes\"| P[\"page on-call\"]\nP --> R[\"link to runbook\"]",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "alerting",
@@ -1158,6 +1204,7 @@
     "prompt": "What is a 'runbook' in an incident response context?",
     "explanation": "A runbook is a documented set of steps for diagnosing and responding to a specific type of alert or incident, meant to guide an on-call responder quickly and consistently.",
     "example": "# runbooks/checkout-latency.md\n## CheckoutLatencyHigh\n1. Check dashboard: https://grafana/d/checkout\n2. kubectl -n prod get pods -l app=checkout   # any CrashLoopBackOff?\n3. kubectl -n prod rollout history deploy/checkout  # recent deploy?\n4. If deploy in last 30m: kubectl rollout undo deploy/checkout\n5. Escalate to #payments-oncall if unresolved in 15 min",
+    "diagram": "flowchart LR\nA[\"alert: HighErrorRate\"] --> R[\"runbook link\"]\nR --> M[\"what the alert means\"]\nR --> C[\"how to confirm impact\"]\nR --> L[\"likely causes\"]\nR --> F[\"exact remediation steps\"]\nF --> Res[\"resolved consistently\"]",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "runbooks",
@@ -1173,6 +1220,7 @@
     "prompt": "A blameless postmortem process aims to identify contributing factors and systemic fixes after an incident without assigning personal blame, which encourages honest and complete reporting.",
     "explanation": "Blameless postmortems focus on the systemic and process factors that allowed an incident to occur, rather than singling out an individual, which in practice leads to more honest reporting and better long-term fixes.",
     "example": "# Postmortem excerpt (blameless wording)\nRoot cause: the deploy pipeline allowed a config change with no canary stage,\nso a bad feature flag reached 100% of traffic in one step.\nAction items:\n  - AI-1 Add mandatory 5% canary to the config pipeline (owner: platform, due 2026-10-01)\n# Not: 'Alice pushed a bad config'",
+    "diagram": "flowchart LR\nI[\"incident\"] --> P[\"blameless postmortem\"]\nP --> H[\"honest, complete reporting\"]\nH --> C[\"contributing factors found\"]\nC --> S[\"systemic fixes\"]\nB[\"blame culture\"] -.->|\"hides facts\"| X[\"shallow fixes\"]",
     "reference": "https://sre.google/sre-book/postmortem-culture/",
     "tags": [
       "postmortem",
@@ -1200,6 +1248,7 @@
     "prompt": "What is the primary goal of a postmortem written after a production incident?",
     "explanation": "A postmortem documents the incident timeline, root cause(s), impact, and concrete follow-up action items, so the organization can learn from the incident and reduce the chance it recurs.",
     "example": "# Postmortem template\nTitle: 2026-09-10 Checkout outage (SEV1, 38 min)\nImpact: 12% of checkouts failed; ~3,400 orders lost\nTimeline: 14:02 deploy | 14:05 alert | 14:11 IC declared | 14:40 rollback complete\nRoot cause: schema migration ran before the new code was fully rolled out\nAction items: gate migrations on rollout completion (AI-1); add migration canary (AI-2)",
+    "diagram": "flowchart LR\nI[\"incident resolved\"] --> PM[\"postmortem\"]\nPM --> T[\"timeline\"]\nPM --> R[\"root causes\"]\nPM --> Im[\"impact\"]\nPM --> A[\"action items\"]\nA --> L[\"organization learns, recurrence reduced\"]",
     "reference": "https://sre.google/sre-book/postmortem-culture/",
     "tags": [
       "postmortem",
@@ -1227,6 +1276,7 @@
     "prompt": "What does being 'on-call' typically mean for an engineer?",
     "explanation": "Being on-call means an engineer is designated as the primary responder during a defined rotation or shift, expected to be reachable and to investigate and respond to alerts or incidents as they occur.",
     "example": "# PagerDuty-style schedule\nrotation: payments-primary\n  shift: 1 week, handover Monday 10:00\n  members: [alice, bob, carol]\nescalation:\n  - primary on-call  (page, 5 min to ack)\n  - secondary on-call (page after 5 min)\n  - engineering manager (after 15 min)",
+    "diagram": "stateDiagram-v2\n[*] --> OffShift\nOffShift --> OnCall: rotation starts\nOnCall --> Paged: alert fires\nPaged --> Investigating: acknowledge\nInvestigating --> OnCall: resolved\nOnCall --> OffShift: handoff to next engineer",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "on-call",
@@ -1254,6 +1304,7 @@
     "prompt": "What is 'synthetic monitoring' (also called synthetic checks)?",
     "explanation": "Synthetic monitoring proactively simulates user actions or simple requests against a system, from outside it and on a schedule, to detect availability or performance problems before real users encounter them.",
     "example": "# Blackbox exporter probe run by Prometheus every 30s from outside the cluster\n- job_name: synthetic-checkout\n  metrics_path: /probe\n  params: {module: [http_2xx]}\n  static_configs: [{targets: ['https://shop.example.com/healthz']}]\n  relabel_configs:\n    - {source_labels: [__address__], target_label: __param_target}\n    - {target_label: __address__, replacement: blackbox-exporter:9115}",
+    "diagram": "sequenceDiagram\nparticipant S as \"Synthetic prober\"\nparticipant E as \"Public endpoint\"\nparticipant A as \"Alerting\"\nloop every 1 minute\nS->>E: scripted request from outside\nE-->>S: status, latency, content\nS->>A: fail if not 200 or too slow\nend\nNote over S,A: catches issues before real users",
     "reference": "https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/",
     "tags": [
       "synthetic-monitoring",
@@ -1281,6 +1332,7 @@
     "prompt": "What is StatsD?",
     "explanation": "StatsD is a simple network daemon, originally from Etsy, that listens for metrics (counters, timers, gauges) sent over a lightweight text protocol, then aggregates and flushes them to one or more backend systems.",
     "example": "# Application sends one UDP datagram per event\necho \"checkout.completed:1|c\" | nc -u -w0 statsd 8125     # counter\necho \"checkout.latency:230|ms\" | nc -u -w0 statsd 8125   # timing\n\n# StatsD aggregates for 10s, then flushes to Graphite / Prometheus (statsd_exporter)",
+    "diagram": "flowchart LR\nA1[\"app: api.requests:1|c\"] -->|\"UDP\"| S[\"StatsD daemon\"]\nA2[\"app: db.query:45|ms\"] -->|\"UDP\"| S\nS --> Ag[\"aggregate over flush interval\"]\nAg --> B[\"Graphite / Datadog / Prometheus exporter\"]",
     "reference": "https://github.com/statsd/statsd",
     "tags": [
       "statsd"
@@ -1295,6 +1347,7 @@
     "prompt": "StatsD traditionally receives metrics over UDP, which trades guaranteed delivery for low overhead so that a slow or unavailable StatsD daemon does not block the instrumented application.",
     "explanation": "Using UDP means the sending application fires metrics and moves on without waiting for acknowledgment, so StatsD being slow or down does not add latency or cause the application to block, at the cost of possible packet loss.",
     "example": "# Fire-and-forget: no connection, no ack, app never blocks\nimport socket\ns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\ns.sendto(b\"orders.created:1|c\", (\"statsd\", 8125))   # returns immediately even if statsd is down",
+    "diagram": "sequenceDiagram\nparticipant App as \"Application\"\nparticipant S as \"StatsD\"\nApp->>S: UDP metric packet\nNote over App: no ack awaited, continues immediately\nApp->>S: UDP packet (StatsD down)\nNote over App,S: packet lost, app not blocked",
     "reference": "https://github.com/statsd/statsd",
     "tags": [
       "statsd"
@@ -1327,6 +1380,7 @@
     "prompt": "Which of the following are conventional log severity levels used by most structured logging libraries? (select all that apply)",
     "explanation": "DEBUG, INFO, and ERROR (alongside others like WARN and FATAL) are standard log severity levels; 'COMMIT' and 'ROLLBACK' are database transaction terms, not log levels.",
     "example": "# Python logging levels in ascending severity\nimport logging\nlog = logging.getLogger(\"api\")\nlog.debug(\"cache key %s\", key)      # DEBUG  10\nlog.info(\"order created\")           # INFO   20\nlog.warning(\"retrying db\")          # WARNING 30\nlog.error(\"payment failed\")         # ERROR  40\nlog.critical(\"out of disk\")         # CRITICAL 50",
+    "diagram": "flowchart LR\nD[\"DEBUG\"] --> I[\"INFO\"]\nI --> W[\"WARN\"]\nW --> E[\"ERROR\"]\nE --> F[\"FATAL\"]\nX[\"COMMIT / ROLLBACK\"] -.->|\"database terms, not levels\"| N[\"not log levels\"]",
     "tags": [
       "logging"
     ]
@@ -1361,6 +1415,7 @@
     "prompt": "Which of the following are valid Prometheus metric types? (select all that apply)",
     "explanation": "Prometheus defines four core metric types: counter, gauge, histogram, and summary. 'Timer' is a StatsD concept and 'span' belongs to distributed tracing, not Prometheus's metric model.",
     "example": "# TYPE http_requests_total counter\n# TYPE queue_depth gauge\n# TYPE http_request_duration_seconds histogram\nhttp_request_duration_seconds_bucket{le=\"0.1\"} 240\nhttp_request_duration_seconds_sum 41.2\nhttp_request_duration_seconds_count 300\n# TYPE rpc_duration_seconds summary\nrpc_duration_seconds{quantile=\"0.99\"} 0.87",
+    "diagram": "flowchart TD\nP[\"Prometheus metric types\"] --> C[\"Counter: only increases\"]\nP --> G[\"Gauge: up and down\"]\nP --> H[\"Histogram: cumulative buckets\"]\nP --> S[\"Summary: client-side quantiles\"]\nT[\"Timer\"] -.-> SD[\"StatsD concept\"]\nSp[\"Span\"] -.-> Tr[\"tracing concept\"]",
     "reference": "https://prometheus.io/docs/concepts/metric_types/",
     "tags": [
       "prometheus",
@@ -1394,6 +1449,7 @@
     "prompt": "Which of the following are official Prometheus exporters used to expose metrics for scraping? (select all that apply)",
     "explanation": "`node_exporter`, `blackbox_exporter`, and `statsd_exporter` are all exporters that expose metrics in Prometheus format. Alertmanager and Grafana are not exporters: Alertmanager routes alerts, and Grafana visualizes data.",
     "example": "# node_exporter on a host (:9100)\n./node_exporter --collector.systemd\n\n# blackbox_exporter probing an HTTPS URL (:9115)\ncurl 'http://localhost:9115/probe?module=http_2xx&target=https://example.com'\n\n# statsd_exporter translating StatsD UDP (:9125) into /metrics (:9102)\n./statsd_exporter --statsd.listen-udp=:9125",
+    "diagram": "flowchart LR\nN[\"node_exporter: host CPU, memory, disk\"] -->|\"/metrics\"| P[\"Prometheus\"]\nB[\"blackbox_exporter: probes HTTP, TCP, ICMP\"] -->|\"/metrics\"| P\nS[\"statsd_exporter: translates StatsD\"] -->|\"/metrics\"| P\nP -->|\"alerts\"| AM[\"Alertmanager: not an exporter\"]\nP -->|\"queries\"| G[\"Grafana: not an exporter\"]",
     "reference": "https://prometheus.io/docs/instrumenting/exporters/",
     "tags": [
       "prometheus",
@@ -1430,6 +1486,7 @@
     "prompt": "Which of the following are valid PromQL functions? (select all that apply)",
     "explanation": "`rate`, `irate`, `histogram_quantile`, and `topk` are all real PromQL functions/operators. `JOIN` and `SELECT` are SQL keywords with no equivalent in PromQL's query language.",
     "example": "rate(http_requests_total[5m])                          # per-second average\nirate(http_requests_total[5m])                         # last two samples\nhistogram_quantile(0.9, sum by (le)(rate(latency_bucket[5m])))\ntopk(3, sum by (pod)(rate(container_cpu_usage_seconds_total[5m])))",
+    "diagram": "flowchart TD\nQ[\"PromQL\"] --> R[\"rate()\"]\nQ --> I[\"irate()\"]\nQ --> H[\"histogram_quantile()\"]\nQ --> T[\"topk()\"]\nS[\"SQL\"] --> J[\"JOIN\"]\nS --> Se[\"SELECT\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/",
     "tags": [
       "promql"
@@ -1462,6 +1519,7 @@
     "prompt": "Which of the following are core pipeline component types configured in the OpenTelemetry Collector? (select all that apply)",
     "explanation": "An OpenTelemetry Collector pipeline is built from receivers (ingest telemetry), processors (transform, filter, or batch it), and exporters (send it to a backend). 'Retrievers' and 'aggregators' are not OpenTelemetry Collector pipeline component types.",
     "example": "# otel-collector-config.yaml\nreceivers:\n  otlp: {protocols: {grpc: {}, http: {}}}\nprocessors:\n  batch: {}\n  memory_limiter: {limit_mib: 512, check_interval: 1s}\nexporters:\n  otlp/tempo: {endpoint: tempo:4317, tls: {insecure: true}}\nservice:\n  pipelines:\n    traces: {receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp/tempo]}",
+    "diagram": "flowchart LR\nApp[\"apps / agents\"] --> R[\"Receivers: OTLP, Jaeger, Prometheus\"]\nR --> P[\"Processors: batch, filter, attributes\"]\nP --> E[\"Exporters: OTLP, Prometheus, vendor\"]\nE --> B[\"backends\"]",
     "reference": "https://opentelemetry.io/docs/collector/",
     "tags": [
       "opentelemetry",
@@ -1479,6 +1537,7 @@
     "prompt": "Which PromQL function returns the total increase of a counter over a time range, accounting for resets, e.g. `increase(http_requests_total[1h])`?",
     "explanation": "`increase()` calculates the total increase in a counter's value over the given range, internally extrapolating using the same reset-aware logic as `rate()` (it is equivalent to `rate()` multiplied by the number of seconds in the range).",
     "example": "# Total 5xx responses in the last hour, reset-safe\nsum(increase(http_requests_total{code=~\"5..\"}[1h]))\n\n# Equivalent to rate(...[1h]) * 3600",
+    "diagram": "flowchart LR\nC[\"counter at t-1h: 1000\"] --> I[\"increase(http_requests_total[1h])\"]\nC2[\"counter now: 4600\"] --> I\nI --> R[\"total increase = 3600\"]\nI --> Eq[\"equals rate() x 3600s\"]\nI --> Rs[\"reset-aware, extrapolated\"]",
     "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/#increase",
     "tags": [
       "promql"
@@ -1506,6 +1565,7 @@
     "answer": 1,
     "explanation": "Fluentd's config is a pipeline of `<source>`, `<filter>` and `<match>` blocks. Records are tagged and routed by tag pattern, which lets one agent send application logs, audit logs and system logs to different destinations.",
     "example": "# fluent.conf\n<source>\n  @type tail\n  path /var/log/app/*.log\n  tag app.*\n  <parse> @type json </parse>\n</source>\n<filter app.**>\n  @type record_transformer\n  <record> env prod </record>\n</filter>\n<match app.**>\n  @type elasticsearch\n  host es  port 9200\n</match>",
+    "diagram": "flowchart LR\nS[\"source: tail app.log, tag app.*\"] --> F[\"filter: parse JSON, add hostname\"]\nF --> B[\"buffer\"]\nB --> M1[\"match app.audit: S3\"]\nB --> M2[\"match app.**: Elasticsearch\"]\nB --> M3[\"match system.*: CloudWatch\"]",
     "reference": "https://docs.fluentd.org/quickstart/life-of-a-fluentd-event",
     "tags": [
       "fluentd",
@@ -1533,6 +1593,7 @@
     "answer": 1,
     "explanation": "The container runtime writes each container's stdout/stderr to files on the node. A DaemonSet agent mounts `/var/log` and `/var/lib/docker/containers` (or the containerd equivalent), tails those files with a position file so restarts do not re-ship logs, and enriches records via the Kubernetes API.",
     "example": "# DaemonSet excerpt for Fluent Bit\nkind: DaemonSet\nspec:\n  template:\n    spec:\n      containers:\n        - name: fluent-bit\n          volumeMounts:\n            - {name: varlog, mountPath: /var/log, readOnly: true}\n      volumes:\n        - {name: varlog, hostPath: {path: /var/log}}\n# INPUT tail /var/log/containers/*.log + FILTER kubernetes adds pod/namespace/labels",
+    "diagram": "flowchart TD\nDS[\"DaemonSet\"] --> A[\"agent pod per node\"]\nA -->|\"hostPath mount\"| L[\"/var/log/containers/*.log\"]\nL --> T[\"tail with position file\"]\nT --> K[\"kubernetes metadata filter: namespace, pod, labels\"]\nK --> O[\"output backend\"]\nAPI[\"Kubernetes API\"] --> K",
     "reference": "https://docs.fluentd.org/container-deployment/kubernetes",
     "tags": [
       "fluentd",
@@ -1562,6 +1623,7 @@
     "answer": 1,
     "explanation": "Both are CNCF projects. A common pattern is Fluent Bit as the node agent (tens of MB of memory) and Fluentd as an aggregator for heavy parsing and routing. Fluent Bit now covers most use cases on its own, so many clusters run only it.",
     "example": "# Typical two-tier layout\nnode: Fluent Bit (C, ~1 MB RSS)  --forward-->  Fluentd aggregator (Ruby, plugins, buffering)  -->  Elasticsearch / S3\n\n# Or skip the aggregator: Fluent Bit -> Loki directly\n[OUTPUT]\n    Name loki\n    Host loki\n    Labels job=fluentbit, namespace=$kubernetes['namespace_name']",
+    "diagram": "flowchart LR\nFB[\"Fluent Bit: C, tens of MB, edge / per node\"] -->|\"forward\"| FD[\"Fluentd: Ruby, big plugin ecosystem, aggregator\"]\nFB -->|\"or direct\"| B[\"backend\"]\nFD --> B\nCN[\"both CNCF projects\"] -.-> FB\nCN -.-> FD",
     "reference": "https://docs.fluentbit.io/manual/about/fluentd-and-fluent-bit",
     "tags": [
       "fluentd",
@@ -1590,6 +1652,7 @@
     "answer": 1,
     "explanation": "Fluentd stages records in chunks and retries failed flushes with exponential backoff. A `file` buffer survives agent restarts; a memory buffer does not. If the buffer fills, `overflow_action` decides whether to block, throw an exception, or drop the oldest chunk. Alert on buffer queue length and retry counts.",
     "example": "<match app.**>\n  @type elasticsearch\n  host es\n  <buffer>\n    @type file\n    path /var/log/fluentd-buffer\n    total_limit_size 8GB        # keep up to 8 GB of chunks on disk\n    flush_interval 5s\n    retry_type exponential_backoff\n    retry_timeout 2h            # keep retrying for 2 hours\n    overflow_action block       # back-pressure instead of dropping\n  </buffer>\n</match>",
+    "diagram": "flowchart TD\nR[\"records\"] --> B[\"buffer chunks: file or memory\"]\nB -->|\"flush\"| O{\"backend up?\"}\nO -->|\"yes\"| S[\"sent\"]\nO -->|\"no\"| Rt[\"retry with backoff: retry_max_times, retry_timeout\"]\nRt --> B\nB -->|\"total_limit_size reached\"| OA{\"overflow_action\"}\nOA -->|\"block\"| BP[\"back-pressure input\"]\nOA -->|\"drop_oldest_chunk\"| L[\"logs lost\"]",
     "reference": "https://docs.fluentd.org/configuration/buffer-section",
     "tags": [
       "fluentd",
@@ -1618,6 +1681,7 @@
     "answer": 1,
     "explanation": "A percentile describes the distribution, not the mean. p99 is the value below which 99% of observations fall. Tail percentiles matter because a user page that fans out to many backend calls will hit the slow tail of at least one of them very often.",
     "example": "# 1000 requests sorted by latency: the 990th slowest is 800 ms\nhistogram_quantile(0.99, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))\n# => 0.8   (99% of requests finished within 0.8 s, 1% took longer)",
+    "diagram": "flowchart LR\nReq[\"1000 requests sorted by latency\"] --> F[\"fastest 990 requests: at most 800ms\"]\nReq --> S[\"slowest 10 requests: over 800ms\"]\nF --> P[\"p99 = 800ms\"]\nS --> P\nP -.->|\"not\"| A[\"average\"]",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "latency",
@@ -1646,6 +1710,7 @@
     "answer": 1,
     "explanation": "Latency distributions are long-tailed. A mean of 100 ms can coexist with a p99 of 3 s. Expressing the requirement as 'p99 under 500 ms' makes the promise concrete, and histogram-based metrics let you compute the percentile server-side with `histogram_quantile`.",
     "example": "# 1000 requests: 990 at 50 ms, 10 at 5000 ms\navg  = (990*50 + 10*5000)/1000 = 99.5 ms   # looks fine\np99  = 5000 ms                              # 1 in 100 users waits 5 s\n# A page that fans out to 20 backend calls hits a p99 event ~18% of the time (1 - 0.99^20).",
+    "diagram": "flowchart TD\nDist[\"latency distribution: mean 100ms, p99 3s\"] --> Avg[\"average hides slow tail\"]\nDist --> P99[\"p99 exposes tail users feel\"]\nFan[\"page = 20 backend calls\"] --> Hit[\"high chance one call hits the tail\"]\nP99 --> SLO[\"SLO: p99 under 500ms\"]\nHit --> SLO\nSLO --> HQ[\"computed via histogram_quantile\"]",
     "reference": "https://sre.google/workbook/implementing-slos/",
     "tags": [
       "latency",
@@ -1662,6 +1727,7 @@
     "answer": false,
     "explanation": "Percentiles are not additive or averageable. The correct approach is to aggregate the underlying histogram buckets (for example `histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))`) and compute the quantile from the merged distribution. Averaging per-instance percentiles gives a misleading number.",
     "example": "# Wrong: avg of per-replica quantiles\navg(http_request_duration_seconds{quantile=\"0.99\"})   # from a summary; not aggregatable\n\n# Right: merge histogram buckets first, then take the quantile\nhistogram_quantile(0.99, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))",
+    "diagram": "flowchart LR\nR1[\"replica 1 buckets\"] --> S[\"sum by (le)\"]\nR2[\"replica 2 buckets\"] --> S\nR3[\"replica N buckets\"] --> S\nS --> H[\"histogram_quantile(0.99, ...)\"]\nH --> OK[\"true fleet p99\"]\nP1[\"replica p99 values\"] -.->|\"avg()\"| X[\"misleading number\"]",
     "reference": "https://prometheus.io/docs/practices/histograms/",
     "tags": [
       "latency",
@@ -1701,6 +1767,7 @@
     ],
     "explanation": "APM tools instrument application code (via agents or OpenTelemetry SDKs) to capture distributed traces, per-endpoint latency and error rates, database query timings and often profiling. Terraform is infrastructure as code, not observability.",
     "example": "# Same app, different APM agents\nDD_SERVICE=api DD_ENV=prod ddtrace-run python app.py        # Datadog APM\njava -javaagent:newrelic.jar -jar app.jar                     # New Relic\nELASTIC_APM_SERVER_URL=http://apm:8200 node -r elastic-apm-node/start app.js  # Elastic APM\n# AWS X-Ray: aws xray put-trace-segments ... or the X-Ray SDK/daemon",
+    "diagram": "flowchart TD\nAPM[\"APM platforms\"] --> DD[\"Datadog APM\"]\nAPM --> NR[\"New Relic\"]\nAPM --> EA[\"Elastic APM\"]\nAPM --> XR[\"AWS X-Ray\"]\nAPM --> DT[\"Dynatrace\"]\nAPM --> C[\"traces, latency, errors, DB timing\"]\nTF[\"Terraform\"] -.-> IaC[\"infrastructure as code, not APM\"]",
     "reference": "https://opentelemetry.io/docs/concepts/observability-primer/",
     "tags": [
       "apm",
@@ -1728,6 +1795,7 @@
     "answer": 1,
     "explanation": "Context propagation is what makes distributed tracing work. Instrumentation libraries inject the ids into outgoing HTTP/gRPC calls and message headers (SQS message attributes, Pub/Sub attributes) and extract them on the receiving side. The backend stitches spans with the same trace id into a waterfall view.",
     "example": "# Hop 1: frontend -> orders\ntraceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-a1b2c3d4e5f60718-01\n# Hop 2: orders -> payments (same trace id, new parent id = orders span)\ntraceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-9c8d7e6f5a4b3c2d-01\n# Each service exports spans {trace_id, span_id, parent_id, duration} to the APM collector",
+    "diagram": "sequenceDiagram\nparticipant W as \"Web\"\nparticipant O as \"Orders\"\nparticipant Q as \"Queue\"\nparticipant C as \"Collector\"\nW->>O: traceparent trace=abc parent=s1\nO->>Q: message attr trace=abc parent=s2\nW->>C: span s1\nO->>C: span s2\nQ->>C: span s3\nNote over C: stitch spans with trace abc into waterfall",
     "reference": "https://opentelemetry.io/docs/concepts/context-propagation/",
     "tags": [
       "apm",
@@ -1756,6 +1824,7 @@
     "answer": 1,
     "explanation": "Black-box monitoring answers 'is it down for users?' regardless of cause: DNS, certificate expiry, load balancer, or application. White-box metrics then explain why. A service can have healthy pods and still be down because of a broken ingress or an expired certificate.",
     "example": "# Route 53 health check hitting the public endpoint every 30s\naws route53 create-health-check --caller-reference $(date +%s) \\\n  --health-check-config Type=HTTPS,FullyQualifiedDomainName=shop.example.com,ResourcePath=/healthz,RequestInterval=30,FailureThreshold=3\n\n# Prometheus blackbox: probe_success == 0 pages the on-call",
+    "diagram": "flowchart LR\nBB[\"black-box probe from outside\"] --> DNS[\"DNS\"]\nDNS --> Cert[\"TLS cert\"]\nCert --> LB[\"load balancer\"]\nLB --> Ing[\"ingress\"]\nIng --> App[\"app\"]\nBB --> Q[\"is it down for users?\"]\nWB[\"white-box metrics: CPU, pods\"] --> Why[\"explains why\"]",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/#black-box-versus-white-box",
     "tags": [
       "blackbox",
@@ -1784,6 +1853,7 @@
     "answer": 1,
     "explanation": "Fast diagnosis is about narrowing scope: is it everyone or one region, one endpoint or all, since when, and what changed. Most outages correlate with a change (deploy, config, certificate, upstream). Restarting things blindly destroys evidence and may not fix it.",
     "example": "# Top-down triage\ncurl -sI https://shop.example.com/healthz | head -1     # 1. users affected?\naws elbv2 describe-target-health --target-group-arn $TG  # 2. LB targets healthy?\nkubectl -n prod get ingress,endpoints checkout           # 3. endpoints populated?\nkubectl -n prod get pods -l app=checkout                 # 4. pods Ready?\nkubectl -n prod rollout history deploy/checkout          # 5. what changed?",
+    "diagram": "flowchart TD\nA[\"page: service X down\"] --> C[\"confirm: synthetic check + error dashboard\"]\nC --> S[\"scope: all users or one region / endpoint?\"]\nS --> LB[\"load balancer target health\"]\nLB --> I[\"ingress\"]\nI --> P[\"pod readiness / endpoints\"]\nP --> Ch[\"recent deploy or config change?\"]\nCh --> F[\"rollback or fix\"]",
     "reference": "https://sre.google/sre-book/effective-troubleshooting/",
     "tags": [
       "troubleshooting",
@@ -1812,6 +1882,7 @@
     "answer": 1,
     "explanation": "The response plan is the playbook the on-call follows under pressure. The postmortem is the blameless retrospective that feeds improvements back into the plan, alerts and runbooks.",
     "example": "# Before: incident-response-plan.md\nSeverity: SEV1 = customer-facing outage, page IC within 5 min, status update every 30 min\nRoles: Incident Commander, Comms Lead, Ops Lead\nChannels: #inc-<id> Slack, status.example.com\n\n# After: postmortem-2026-09-10.md\nTimeline, impact, root cause, action items (with owners and due dates)",
+    "diagram": "flowchart LR\nPlan[\"incident response plan: written before\"] --> R[\"roles, severities, escalation, runbooks\"]\nR --> Inc[\"incident\"]\nInc --> PM[\"postmortem: written after\"]\nPM --> T[\"timeline, impact, root cause, actions\"]\nT -->|\"improve\"| Plan",
     "reference": "https://sre.google/sre-book/managing-incidents/",
     "tags": [
       "incident-response",
@@ -1846,6 +1917,7 @@
     ],
     "explanation": "A good plan is short enough to follow at 3 am: who is in charge, how bad is it, who needs to know, where the tools are, and what 'done' means. Rehearse it with game days so the first real use is not the first use.",
     "example": "# incident-response-plan.md (outline)\n1. Severity: SEV1 outage (ack 5m, update 30m) / SEV2 degraded / SEV3 minor\n2. Roles: Incident Commander, Comms Lead, SMEs; paged via PagerDuty policy\n3. Escalation and channels: #inc-<id>, bridge call, status page\n4. Links: runbooks/, Grafana dashboards, rollback procedure\n5. Resolution criteria and postmortem trigger (SEV1/SEV2 always)",
+    "diagram": "flowchart TD\nP[\"incident response plan\"] --> S[\"severity levels + response times\"]\nP --> R[\"roles: IC, comms lead, responders\"]\nP --> E[\"escalation paths + channels\"]\nP --> L[\"links: runbooks, dashboards, rollback\"]\nP --> D[\"resolution criteria + postmortem trigger\"]\nX[\"full source code\"] -.->|\"not included\"| P",
     "reference": "https://response.pagerduty.com/",
     "tags": [
       "incident-response",
@@ -1874,6 +1946,7 @@
     "answer": 1,
     "explanation": "Separating coordination from investigation keeps one person with a complete picture. The commander delegates technical work to responders and communications to a comms lead, and keeps the timeline so the postmortem has accurate data.",
     "example": "# Incident channel, IC messages\n14:11 IC: I am incident commander. Bob = ops lead, Carol = comms lead.\n14:12 IC: Bob, confirm whether 14:02 deploy correlates. Carol, post status page update.\n14:20 IC: Decision: roll back checkout to v1.41 now, fix-forward later.\n14:40 IC: Rollback complete, error rate back to baseline. Monitoring 30 min before resolving.",
+    "diagram": "flowchart TD\nIC[\"incident commander\"] -->|\"assigns tasks\"| R[\"responders: hands-on debugging\"]\nIC -->|\"delegates updates\"| CL[\"comms lead: status page, stakeholders\"]\nIC --> D[\"decisions: rollback vs fix forward\"]\nIC --> T[\"keeps timeline\"]\nT --> PM[\"postmortem\"]",
     "reference": "https://sre.google/sre-book/managing-incidents/",
     "tags": [
       "incident-response",
@@ -1892,6 +1965,7 @@
     ],
     "explanation": "Every paging alert should link to a runbook that explains what the alert means, how to confirm impact, likely causes, and the exact commands or buttons to remediate. Runbooks are living documents updated after each incident.",
     "example": "# Alert annotation pointing to the runbook\nannotations:\n  runbook_url: https://runbooks.example.com/alerts/KubePodCrashLooping\n\n# runbooks/alerts/KubePodCrashLooping.md\n1. kubectl -n $NS describe pod $POD   # check Events\n2. kubectl -n $NS logs $POD --previous",
+    "diagram": "flowchart LR\nA[\"alert fires\"] --> RB[\"runbook / playbook\"]\nRB --> M[\"what it means\"]\nRB --> I[\"confirm impact\"]\nRB --> C[\"likely causes\"]\nRB --> S[\"exact remediation commands\"]\nPM[\"postmortem\"] -->|\"update\"| RB",
     "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
     "tags": [
       "runbook",
@@ -1920,6 +1994,7 @@
     "answer": 1,
     "explanation": "Multi-window, multi-burn-rate alerts combine a long window (to be sure it is real) with a short window (to reset quickly). A 1% error rate might be fine for a 99% SLO and catastrophic for a 99.99% one; burn rate expresses this relative to the promise.",
     "example": "# 99.9% SLO, 30-day window. Burn rate 14.4 = whole budget gone in ~2 days\n- alert: SLOBurnRateFast     # pages\n  expr: error_ratio:1h > 14.4 * 0.001 and error_ratio:5m > 14.4 * 0.001\n  labels: {severity: page}\n- alert: SLOBurnRateSlow     # ticket\n  expr: error_ratio:3d > 1 * 0.001 and error_ratio:6h > 1 * 0.001\n  labels: {severity: ticket}",
+    "diagram": "flowchart TD\nE[\"error rate\"] --> BR[\"burn rate = actual / allowed by SLO\"]\nBR --> F{\"how fast?\"}\nF -->|\"14x: budget gone in ~2h\"| P[\"page now\"]\nF -->|\"1x-2x: slow burn over days\"| T[\"ticket\"]\nF -->|\"under 1x\"| OK[\"within budget\"]\nFx[\"fixed 1% threshold\"] -.->|\"ignores SLO\"| N[\"noisy or blind\"]",
     "reference": "https://sre.google/workbook/alerting-on-slos/",
     "tags": [
       "slo",
@@ -1948,6 +2023,7 @@
     "answer": 1,
     "explanation": "MTTD is improved with better monitoring and synthetic checks; MTTR with runbooks, fast rollback and good incident coordination. Both feed the postmortem: how long were we blind, and how long did recovery take once we knew.",
     "example": "# Incident timeline\n14:02 failure begins (bad deploy)\n14:05 alert fires and on-call acknowledges   -> MTTD = 3 min\n14:40 rollback complete, SLI back to normal  -> MTTR = 38 min\n# Track the mean over the quarter; shrink MTTD with better alerts, MTTR with runbooks and fast rollback",
+    "diagram": "flowchart LR\nF[\"failure starts\"] -->|\"MTTD\"| D[\"detected: alert or awareness\"]\nD -->|\"MTTR\"| R[\"service restored\"]\nM[\"better monitoring, synthetics\"] -.-> F\nRB[\"runbooks, fast rollback\"] -.-> D",
     "reference": "https://sre.google/sre-book/postmortem-culture/",
     "tags": [
       "incident-response",
@@ -1976,6 +2052,7 @@
     "answer": 1,
     "explanation": "Symptom-based paging means every page is something users feel and requires human action now. Cause-based alerts are useful context but a single symptom can have dozens of causes; paging on each produces duplicate, noisy pages and alert fatigue.",
     "example": "# Alertmanager routing by severity\nroute:\n  receiver: slack-ops\n  routes:\n    - matchers: ['severity=\"page\"']     # SLO burn, error rate, latency\n      receiver: pagerduty\n    - matchers: ['severity=\"ticket\"']   # high CPU, one replica down\n      receiver: jira\n# Cause-based rules carry severity=ticket; only symptom-based rules carry severity=page",
+    "diagram": "flowchart TD\nSy[\"symptom: SLO violation, error rate, latency\"] -->|\"page\"| OC[\"on-call\"]\nC1[\"cause: high CPU\"] -->|\"dashboard / ticket\"| Ctx[\"context\"]\nC2[\"cause: one replica down\"] -->|\"dashboard / ticket\"| Ctx\nCtx -.->|\"consulted during investigation\"| OC\nOC --> H[\"healthy rotation, no alert fatigue\"]",
     "reference": "https://docs.google.com/document/d/199PqyG3UsyXlwieHaqbGiWVa8eMWi8zzAn0YfcApr8Q/",
     "tags": [
       "alerting",

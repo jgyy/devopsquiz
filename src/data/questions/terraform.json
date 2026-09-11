@@ -7,6 +7,7 @@
     "prompt": "What does the acronym HCL stand for, the language Terraform configuration files are written in?",
     "explanation": "HCL stands for HashiCorp Configuration Language, a declarative language designed to be both human-readable and machine-friendly.",
     "example": "# main.tf written in HCL\nresource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"acme-logs\"   # argument = value syntax\n}",
+    "diagram": "flowchart LR\n  A[\"HCL\"] --> B[\"HashiCorp\"]\n  A --> C[\"Configuration\"]\n  A --> E[\"Language\"]\n  A --> F[\"Declarative, human-readable\"]\n  F --> G[\"main.tf parsed by Terraform\"]",
     "options": [
       "HashiCorp Configuration Language",
       "High-level Cloud Language",
@@ -34,6 +35,7 @@
     "prompt": "What file extension do native (non-JSON) Terraform configuration files use?",
     "explanation": "Terraform configuration files use the `.tf` extension (or `.tf.json` for the JSON variant of the syntax); variable definition files use `.tfvars`.",
     "example": "ls\n# main.tf  variables.tf  outputs.tf  terraform.tfvars\n# .tf files hold HCL; .tfvars supply variable values",
+    "diagram": "flowchart LR\n  A[\"Terraform working directory\"] --> B[\"main.tf (native HCL)\"]\n  A --> C[\"variables.tf (native HCL)\"]\n  A --> E[\"config.tf.json (JSON variant)\"]\n  A --> F[\"prod.tfvars (variable values)\"]\n  B --> G[\"terraform loads all .tf files\"]\n  C --> G\n  E --> G",
     "options": [
       ".tf",
       ".hcl",
@@ -59,6 +61,7 @@
     "prompt": "Terraform is primarily a declarative infrastructure-as-code tool: you describe the desired end state and Terraform figures out how to reach it, rather than scripting each step imperatively.",
     "explanation": "Terraform configurations describe the desired end state of infrastructure; the Terraform engine computes and executes the plan of API calls needed to reach that state.",
     "example": "# You declare the end state; Terraform works out the create/update/delete calls\nresource \"aws_instance\" \"web\" {\n  ami           = \"ami-0abc123\"\n  instance_type = \"t3.micro\"\n}\n# terraform plan shows: 1 to add, 0 to change, 0 to destroy",
+    "diagram": "flowchart LR\n  A[\"You write desired end state (.tf)\"] --> B[\"Terraform engine\"]\n  C[\"Current state (tfstate)\"] --> B\n  B --> E[\"Computes diff\"]\n  E --> F[\"Plans required API calls\"]\n  F --> G[\"Executes them to reach desired state\"]\n  H[\"Imperative script: you list each step\"] -.->|\"not how Terraform works\"| B",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/intro",
     "tags": [
@@ -73,6 +76,7 @@
     "prompt": "What is the purpose of a `provider` block in a Terraform configuration?",
     "explanation": "A `provider` block configures the named provider (for example `aws` or `azurerm`), such as region and credentials, so Terraform can authenticate and communicate with that platform's API.",
     "example": "provider \"aws\" {\n  region  = \"ap-southeast-1\"\n  profile = \"prod\"   # credentials profile used for API calls\n}",
+    "diagram": "flowchart LR\n  A[\"provider aws block: region, credentials\"] --> B[\"AWS provider plugin\"]\n  B --> C[\"AWS API\"]\n  E[\"resource aws_instance\"] --> B\n  F[\"resource aws_s3_bucket\"] --> B\n  C --> G[\"Real cloud objects\"]",
     "options": [
       "It configures a plugin that lets Terraform communicate with a specific API, such as a cloud platform",
       "It declares an input variable that must be supplied on the command line",
@@ -99,6 +103,7 @@
     "prompt": "Which line correctly declares a resource block for an AWS EC2 instance named `web`?",
     "explanation": "Resource blocks use the syntax `resource \"<TYPE>\" \"<LOCAL NAME>\" { ... }`, so `resource \"aws_instance\" \"web\" { ... }` is correct; the type comes from the provider and the local name is chosen by the author.",
     "example": "resource \"aws_instance\" \"web\" {\n  ami           = \"ami-0abc123\"\n  instance_type = \"t3.micro\"\n}\n# referenced elsewhere as aws_instance.web.id",
+    "diagram": "flowchart LR\n  A[\"resource\"] --> B[\"TYPE: aws_instance (from provider)\"]\n  B --> C[\"LOCAL NAME: web (chosen by author)\"]\n  C --> E[\"{ arguments... }\"]\n  E --> F[\"Address: aws_instance.web\"]\n  F --> G[\"Referenced as aws_instance.web.id\"]",
     "options": [
       "resource \"aws_instance\" \"web\" { ... }",
       "resource web \"aws_instance\" { ... }",
@@ -126,6 +131,7 @@
     "prompt": "Which command initializes a Terraform working directory, downloading required providers and modules and configuring the backend?",
     "explanation": "`terraform init` prepares a working directory for other commands by installing provider plugins and modules and setting up the configured backend. It is safe to run repeatedly.",
     "example": "terraform init\n# Initializing the backend...\n# Initializing provider plugins...\n# - Installing hashicorp/aws v5.60.0...",
+    "diagram": "flowchart TD\n  A[\"terraform init\"] --> B[\"Download provider plugins\"]\n  A --> C[\"Fetch referenced modules\"]\n  A --> E[\"Configure backend\"]\n  A --> F[\"Write .terraform.lock.hcl\"]\n  B --> G[\"Directory ready for plan/apply\"]\n  C --> G\n  E --> G\n  G -.->|\"safe to run again\"| A",
     "answer": [
       "terraform init"
     ],
@@ -143,6 +149,7 @@
     "prompt": "What does `terraform plan` do?",
     "explanation": "`terraform plan` creates an execution plan, showing what actions Terraform would take to reach the desired state, without actually making any changes to real infrastructure.",
     "example": "terraform plan -out=tfplan\n# Plan: 2 to add, 1 to change, 0 to destroy.\n# nothing is created yet; the plan is saved to tfplan",
+    "diagram": "flowchart LR\n  A[\"Configuration (.tf)\"] --> C[\"terraform plan\"]\n  B[\"State + refreshed real infra\"] --> C\n  C --> E[\"Execution plan: + create, ~ update, - destroy\"]\n  E --> F[\"Shown to user for review\"]\n  F -.->|\"no changes made\"| G[\"Real infrastructure untouched\"]",
     "options": [
       "It shows what changes Terraform would make without applying them",
       "It permanently deletes all resources described in the configuration",
@@ -169,6 +176,7 @@
     "prompt": "What does `terraform apply` do by default when run interactively?",
     "explanation": "`terraform apply` generates an execution plan (like `terraform plan`) and then, after the user types `yes` at the interactive confirmation prompt, carries out the described actions to reach the desired state.",
     "example": "terraform apply\n# Plan: 1 to add, 0 to change, 0 to destroy.\n# Do you want to perform these actions?\n#   Enter a value: yes",
+    "diagram": "flowchart TD\n  A[\"terraform apply\"] --> B[\"Generate execution plan\"]\n  B --> C[\"Show plan and prompt: Enter a value\"]\n  C -->|\"yes\"| E[\"Execute changes via provider APIs\"]\n  C -->|\"anything else\"| F[\"Abort, nothing changed\"]\n  E --> G[\"Update state file\"]",
     "options": [
       "It shows a plan, asks for confirmation, then makes the real infrastructure changes",
       "It only validates syntax and never touches real infrastructure",
@@ -195,6 +203,7 @@
     "prompt": "What is the primary purpose of the `terraform destroy` command?",
     "explanation": "`terraform destroy` destroys all remote objects that are managed by the current Terraform configuration and state, effectively tearing down the infrastructure Terraform created.",
     "example": "terraform destroy\n# Plan: 0 to add, 0 to change, 7 to destroy.\n# Do you really want to destroy all resources? yes",
+    "diagram": "flowchart LR\n  A[\"terraform destroy\"] --> B[\"Read state: all tracked resources\"]\n  B --> C[\"Plan: - destroy every object\"]\n  C --> E[\"Confirm yes\"]\n  E --> F[\"Provider API deletes real objects\"]\n  F --> G[\"State emptied of resources\"]\n  H[\".tf files\"] -.->|\"left untouched\"| A",
     "options": [
       "It destroys all resources tracked in the current state",
       "It deletes the local `.tf` configuration files",
@@ -221,6 +230,7 @@
     "prompt": "Which command rewrites Terraform configuration files into a canonical format and style (indentation, alignment, spacing)?",
     "explanation": "`terraform fmt` automatically formats `.tf` files to a canonical style; adding `-recursive` also formats files in subdirectories.",
     "example": "terraform fmt -recursive   # rewrite all .tf files in canonical style\nterraform fmt -check       # exit non-zero in CI if anything is unformatted",
+    "diagram": "flowchart LR\n  A[\"Messy main.tf: uneven indent, misaligned =\"] --> B[\"terraform fmt\"]\n  B --> C[\"Canonical style: 2-space indent, aligned =\"]\n  B -->|\"-recursive\"| E[\"Also formats subdirectories\"]\n  B -->|\"-check\"| F[\"Exit code only, CI lint\"]",
     "answer": [
       "terraform fmt"
     ],
@@ -238,6 +248,7 @@
     "prompt": "Which of the following statements about `terraform validate` are true?",
     "explanation": "`terraform validate` checks that a configuration is syntactically valid and internally consistent (correct argument types, required arguments present, valid references) using only the configuration on disk. It does not contact the target platform's API, does not require valid cloud credentials, and cannot guarantee that `apply` will succeed, since that depends on real-world state and permissions.",
     "example": "terraform validate\n# Error: Missing required argument\n#   on main.tf line 3, in resource \"aws_instance\" \"web\":\n#   The argument \"ami\" is required, but no definition was found.",
+    "diagram": "flowchart LR\n  A[\"terraform validate\"] --> B[\"Reads .tf files on disk only\"]\n  B --> C[\"Checks syntax\"]\n  B --> E[\"Checks required args and types\"]\n  B --> F[\"Checks references resolve\"]\n  A -.->|\"never contacts\"| G[\"Cloud API / credentials\"]\n  A -.->|\"cannot promise\"| H[\"apply will succeed\"]",
     "options": [
       "It checks the configuration is syntactically valid and internally consistent",
       "It does not require access to remote APIs or valid cloud credentials",
@@ -271,6 +282,7 @@
     "prompt": "Which of the following statements about Terraform data sources are true?",
     "explanation": "Data sources (declared with a `data` block) let a configuration read information about infrastructure that already exists, including resources managed outside the current configuration; they support `count`, `for_each`, and `depends_on` like resources do. They are read-only and cannot create, modify, or destroy infrastructure.",
     "example": "data \"aws_ami\" \"ubuntu\" {\n  most_recent = true\n  owners      = [\"099720109477\"]   # Canonical\n  filter {\n    name   = \"name\"\n    values = [\"ubuntu/images/*22.04*\"]\n  }\n}\n# use: ami = data.aws_ami.ubuntu.id",
+    "diagram": "flowchart LR\n  A[\"data aws_ami latest block\"] -->|\"read-only query\"| B[\"Provider API\"]\n  B --> C[\"Existing object (managed elsewhere)\"]\n  C --> E[\"Attributes: data.aws_ami.latest.id\"]\n  E --> F[\"resource aws_instance uses ami\"]\n  A -.->|\"supports\"| G[\"count, for_each, depends_on\"]\n  A -.->|\"never\"| H[\"creates or destroys infra\"]",
     "options": [
       "They allow a configuration to read information about infrastructure not managed by it",
       "They are declared using a `data` block",
@@ -303,6 +315,7 @@
     "prompt": "What is the purpose of a `variable` block in Terraform?",
     "explanation": "A `variable` block declares an input variable, letting a configuration be parameterized so the same code can be reused with different values supplied via CLI flags, `.tfvars` files, environment variables, or defaults.",
     "example": "variable \"instance_type\" {\n  type        = string\n  default     = \"t3.micro\"\n  description = \"EC2 size for the web tier\"\n}\n# override: terraform apply -var=\"instance_type=t3.small\"",
+    "diagram": "flowchart LR\n  A[\"variable region block\"] --> B[\"Input parameter\"]\n  C[\"-var flag\"] --> B\n  E[\".tfvars file\"] --> B\n  F[\"TF_VAR_region env\"] --> B\n  G[\"default value\"] --> B\n  B --> H[\"var.region used in resources\"]",
     "options": [
       "It declares an input parameter that can be set when the configuration is used",
       "It defines a value computed once and reused elsewhere in the module",
@@ -329,6 +342,7 @@
     "prompt": "What is the purpose of an `output` block in Terraform?",
     "explanation": "An `output` block exposes a value from a module, such as the root module, so it can be displayed after `apply`, queried with `terraform output`, or consumed by a calling module or another configuration via remote state.",
     "example": "output \"web_public_ip\" {\n  value       = aws_instance.web.public_ip\n  description = \"Address of the web server\"\n}\n# terraform output web_public_ip  -> 54.12.34.56",
+    "diagram": "flowchart LR\n  A[\"output public_ip block\"] --> B[\"Value exposed from module\"]\n  B --> C[\"Printed after apply\"]\n  B --> E[\"terraform output public_ip\"]\n  B --> F[\"Parent: module.web.public_ip\"]\n  B --> G[\"Other config via remote state\"]",
     "options": [
       "It exposes a value from a module for display or use by other configurations",
       "It declares a required input parameter for the module",
@@ -355,6 +369,7 @@
     "prompt": "What is the purpose of a `locals` block in Terraform?",
     "explanation": "A `locals` block assigns names to expressions so they can be reused multiple times within a module without repeating the logic; unlike variables, locals are not set by the caller, they are computed within the module.",
     "example": "locals {\n  name_prefix = \"${var.project}-${terraform.workspace}\"\n  common_tags = { Project = var.project, Env = terraform.workspace }\n}\n# use: tags = local.common_tags",
+    "diagram": "flowchart LR\n  A[\"locals block: name_prefix = join(...)\"] --> B[\"Computed inside module\"]\n  B --> C[\"local.name_prefix in resource 1\"]\n  B --> E[\"local.name_prefix in resource 2\"]\n  F[\"variable: set by caller\"] -.->|\"different from\"| A\n  G[\"output: returned to caller\"] -.->|\"different from\"| A",
     "options": [
       "It defines named, reusable expressions computed within the module",
       "It declares an input value that must be supplied by the caller",
@@ -381,6 +396,7 @@
     "prompt": "Terraform's state file records a mapping between the resources declared in configuration and the real-world objects they correspond to in the target platform.",
     "explanation": "The state file (by default `terraform.tfstate`) tracks metadata and attributes for every managed resource, mapping configuration resource addresses to real-world object IDs so Terraform can detect drift and compute diffs.",
     "example": "terraform state show aws_instance.web\n# resource \"aws_instance\" \"web\" {\n#   id            = \"i-0abc123def456\"   # real-world object ID\n#   instance_type = \"t3.micro\"\n# }",
+    "diagram": "flowchart LR\n  A[\"Config: aws_instance.web\"] <-->|\"mapping\"| B[\"terraform.tfstate\"]\n  B <-->|\"real ID i-0abc123\"| C[\"EC2 instance in AWS\"]\n  B --> E[\"Stored attributes\"]\n  E --> F[\"Detect drift\"]\n  E --> G[\"Compute diff for plan\"]",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/language/state",
     "tags": [
@@ -395,6 +411,7 @@
     "prompt": "If a Terraform configuration does not define a `backend` block, where is the state stored by default?",
     "explanation": "With no backend configured, Terraform uses the `local` backend, which stores the state file as plain JSON on disk (`terraform.tfstate`) in the working directory.",
     "example": "# no backend block in the terraform {} block\nterraform apply\nls\n# main.tf  terraform.tfstate  terraform.tfstate.backup",
+    "diagram": "flowchart TD\n  A[\"Is a backend block configured?\"] -->|\"no\"| B[\"local backend (default)\"]\n  A -->|\"yes\"| C[\"Remote backend: s3, gcs, azurerm...\"]\n  B --> E[\"terraform.tfstate JSON in working dir\"]\n  C --> F[\"State stored remotely, shareable\"]",
     "options": [
       "In a local file on disk, using the local backend",
       "In HCP Terraform automatically, with no configuration needed",
@@ -422,6 +439,7 @@
     "prompt": "Which of the following are valid Terraform state backend types?",
     "explanation": "Terraform ships with several backends for storing state remotely, including `s3` (AWS), `azurerm` (Azure Blob Storage), `gcs` (Google Cloud Storage), and `remote` (HCP Terraform / Terraform Enterprise). \"docker\" and \"github\" are not backend types.",
     "example": "terraform {\n  backend \"s3\" {\n    bucket         = \"acme-tfstate\"\n    key            = \"prod/network.tfstate\"\n    region         = \"ap-southeast-1\"\n    use_lockfile   = true   # S3-native locking (Terraform 1.10+)\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"backend block\"] --> B[\"s3: AWS S3 bucket\"]\n  A --> C[\"azurerm: Azure Blob Storage\"]\n  A --> E[\"gcs: Google Cloud Storage\"]\n  A --> F[\"remote: HCP Terraform\"]\n  G[\"docker, github\"] -.->|\"not backend types\"| A",
     "options": [
       "s3",
       "azurerm",
@@ -455,6 +473,7 @@
     "prompt": "If a team runs Terraform against a shared remote backend without state locking enabled, what are realistic consequences?",
     "explanation": "Without locking, two people (or a person and a CI pipeline) can run `apply` concurrently against the same state, which can cause one run's changes to be silently overwritten, the state file to become corrupted, or Terraform to lose track of created resources. Locking does not, by itself, prevent drift caused by manual changes made outside Terraform.",
     "example": "# Two engineers apply at the same time against the same s3 key with no locking:\n# alice: terraform apply   -> writes state serial 41\n# bob:   terraform apply   -> writes state serial 41 from a stale read\n# result: alice's new resources vanish from state and are orphaned",
+    "diagram": "sequenceDiagram\n  participant A as Engineer apply\n  participant S as Shared state, no lock\n  participant C as CI pipeline apply\n  A->>S: read state v1\n  C->>S: read state v1\n  A->>S: write state v2 (new resource)\n  C->>S: write state v2 (overwrites A)\n  Note over S: A's resource lost or state corrupted",
     "options": [
       "Concurrent applies can overwrite each other's state changes",
       "The state file can become corrupted from simultaneous writes",
@@ -488,6 +507,7 @@
     "prompt": "Which command lists the resource addresses currently tracked in the Terraform state?",
     "explanation": "`terraform state list` prints the addresses of all resources (and data sources) recorded in the current state, optionally filtered by a resource address pattern.",
     "example": "terraform state list\n# aws_instance.web\n# aws_security_group.web\n# module.vpc.aws_vpc.this[0]\nterraform state list module.vpc   # filter by address prefix",
+    "diagram": "flowchart LR\n  A[\"terraform state list\"] --> B[\"terraform.tfstate\"]\n  B --> C[\"aws_vpc.main\"]\n  B --> E[\"aws_instance.web[0]\"]\n  B --> F[\"module.db.aws_db_instance.this\"]\n  B --> G[\"data.aws_ami.latest\"]\n  A -.->|\"filter by address\"| H[\"terraform state list module.db\"]",
     "options": [
       "terraform state list",
       "terraform state show",
@@ -515,6 +535,7 @@
     "prompt": "What does `terraform state mv` do?",
     "explanation": "`terraform state mv` moves an item (or items) within the state, such as renaming a resource or moving it into a module, updating the state's bookkeeping without destroying and recreating the underlying real-world object.",
     "example": "# rename aws_instance.web to aws_instance.app without recreating it\nterraform state mv aws_instance.web aws_instance.app\n# or declaratively (Terraform 1.1+):\nmoved {\n  from = aws_instance.web\n  to   = aws_instance.app\n}",
+    "diagram": "flowchart LR\n  A[\"terraform state mv aws_instance.a aws_instance.b\"] --> B[\"State entry renamed\"]\n  B --> C[\"aws_instance.b -> i-0abc123\"]\n  E[\"Real EC2 i-0abc123\"] -.->|\"untouched\"| C\n  C --> F[\"Next plan: no destroy/recreate\"]\n  A -.->|\"also\"| G[\"Move into module.x\"]",
     "options": [
       "It moves or renames a resource's tracking entry within the state, without touching the real object",
       "It moves the state file from a local backend to a remote backend",
@@ -542,6 +563,7 @@
     "prompt": "What does `terraform state rm` do?",
     "explanation": "`terraform state rm` removes one or more resources from the state file so Terraform no longer manages them; it does not delete or modify the actual infrastructure object, which keeps running untouched outside of Terraform's management.",
     "example": "terraform state rm aws_instance.legacy\n# Removed aws_instance.legacy\n# The EC2 instance keeps running; Terraform just forgets it.\n# Terraform 1.7+ alternative:\nremoved {\n  from = aws_instance.legacy\n  lifecycle { destroy = false }\n}",
+    "diagram": "flowchart LR\n  A[\"terraform state rm aws_instance.web\"] --> B[\"Entry removed from tfstate\"]\n  B --> C[\"Terraform no longer manages it\"]\n  E[\"Real EC2 instance\"] -.->|\"keeps running\"| C\n  A -.->|\"no provider API call\"| F[\"Nothing deleted in cloud\"]",
     "options": [
       "It stops Terraform tracking a resource, without deleting the real infrastructure",
       "It deletes the real infrastructure object and removes it from state",
@@ -569,6 +591,7 @@
     "prompt": "Running `terraform state rm aws_instance.web` deletes the actual EC2 instance from AWS, in addition to removing it from Terraform's state.",
     "explanation": "`terraform state rm` only edits the state file; it does not call the provider's API to delete anything. The real EC2 instance keeps running but is no longer managed by Terraform.",
     "example": "terraform state rm aws_instance.web\n# Removed aws_instance.web\naws ec2 describe-instances --instance-ids i-0abc123 --query 'Reservations[].Instances[].State.Name'\n# [\"running\"]   # instance still exists in AWS",
+    "diagram": "flowchart LR\n  A[\"terraform state rm aws_instance.web\"] --> B[\"Edits state file only\"]\n  B --> C[\"Entry gone from tfstate\"]\n  A -.->|\"does NOT call\"| E[\"AWS TerminateInstances API\"]\n  F[\"EC2 instance\"] --> G[\"Still running, unmanaged\"]\n  H[\"terraform destroy -target\"] -->|\"would actually delete\"| F",
     "answer": false,
     "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/rm",
     "tags": [
@@ -584,6 +607,7 @@
     "prompt": "What does the `terraform.workspace` expression return inside a configuration?",
     "explanation": "`terraform.workspace` evaluates to the name of the currently selected workspace (for example `default`), and is commonly used to vary resource names or settings per workspace.",
     "example": "terraform workspace select staging\nresource \"aws_s3_bucket\" \"data\" {\n  bucket = \"acme-data-${terraform.workspace}\"   # acme-data-staging\n}",
+    "diagram": "flowchart LR\n  A[\"terraform workspace select prod\"] --> B[\"Active workspace: prod\"]\n  B --> C[\"terraform.workspace expression\"]\n  C --> E[\"Evaluates to prod\"]\n  E --> F[\"name = app-prod\"]\n  G[\"workspace default\"] --> C",
     "options": [
       "The name of the currently selected workspace",
       "The absolute filesystem path of the working directory",
@@ -610,6 +634,7 @@
     "prompt": "Which command creates a new Terraform workspace named `staging` and switches to it?",
     "explanation": "`terraform workspace new <name>` creates a new named workspace with its own state and immediately selects it as the active workspace.",
     "example": "terraform workspace new staging\n# Created and switched to workspace \"staging\"!\nterraform workspace list\n#   default\n# * staging",
+    "diagram": "flowchart LR\n  A[\"terraform workspace new staging\"] --> B[\"Create workspace staging\"]\n  B --> C[\"New empty state for staging\"]\n  B --> E[\"Select staging as active\"]\n  E --> F[\"terraform.workspace = staging\"]\n  G[\"terraform workspace list\"] --> H[\"default, * staging\"]",
     "answer": [
       "terraform workspace new staging"
     ],
@@ -628,6 +653,7 @@
     "prompt": "In a `module` block, what does the `source` argument specify?",
     "explanation": "The `source` argument tells Terraform where to find the module's code: a local relative path, a Terraform Registry address such as `terraform-aws-modules/vpc/aws`, a Git repository URL, or another supported source type.",
     "example": "module \"vpc\" {\n  source  = \"terraform-aws-modules/vpc/aws\"   # public registry address\n  version = \"~> 5.0\"\n  name    = \"prod\"\n}\nmodule \"app\" {\n  source = \"./modules/app\"   # local path\n}",
+    "diagram": "flowchart LR\n  A[\"module vpc block: source = ...\"] --> B[\"Local path ./modules/vpc\"]\n  A --> C[\"Registry terraform-aws-modules/vpc/aws\"]\n  A --> E[\"Git git::https://github.com/org/repo.git\"]\n  A --> F[\"HTTP archive, S3, GCS\"]\n  B --> G[\"terraform init fetches module code\"]\n  C --> G\n  E --> G",
     "options": [
       "Where to find the module's source code, such as a local path, registry address, or Git URL",
       "The AWS region the module's resources should be created in",
@@ -654,6 +680,7 @@
     "prompt": "What is the \"root module\" in a Terraform configuration?",
     "explanation": "The root module is the module made up of the `.tf` files in the directory where you run Terraform commands directly; it may call other (child) modules, whose resources become part of the overall configuration.",
     "example": "cd infra/prod        # this directory's .tf files are the root module\nterraform apply\n# main.tf here calls module \"vpc\" { source = \"../../modules/vpc\" }  (a child module)",
+    "diagram": "flowchart TD\n  A[\"Root module: .tf files in working dir\"] -->|\"terraform apply runs here\"| A\n  A --> B[\"module network (child)\"]\n  A --> C[\"module app (child)\"]\n  B --> E[\"module subnets (grandchild)\"]\n  A --> F[\"All resources form one configuration\"]",
     "options": [
       "The module in the working directory where Terraform commands are run directly",
       "The first child module called by any configuration",
@@ -680,6 +707,7 @@
     "prompt": "A module block specifies `version = \"~> 3.0\"`. Which versions of that module does this constraint allow?",
     "explanation": "The `~>` (pessimistic constraint) operator allows only the rightmost component shown to increment, so `~> 3.0` permits any `3.x` release (`3.0.0`, `3.5.2`, and so on) but excludes `4.0.0` and above.",
     "example": "module \"vpc\" {\n  source  = \"terraform-aws-modules/vpc/aws\"\n  version = \"~> 3.0\"   # allows 3.0.0, 3.14.4, ... but not 4.0.0\n}",
+    "diagram": "flowchart LR\n  A[\"version = ~> 3.0\"] --> B[\"Rightmost segment may increase\"]\n  B --> C[\"3.0.0 allowed\"]\n  B --> E[\"3.5.2 allowed\"]\n  B --> F[\"3.99.0 allowed\"]\n  A -.->|\"excluded\"| G[\"4.0.0 and later\"]\n  A -.->|\"excluded\"| H[\"2.x\"]",
     "options": [
       "Any 3.x version, but not 4.0.0 or later",
       "Only exactly version 3.0.0",
@@ -707,6 +735,7 @@
     "prompt": "Running `terraform init` downloads the provider plugins and any external modules referenced by the configuration.",
     "explanation": "As part of preparing a working directory, `terraform init` installs the provider plugins declared (directly or transitively) in the configuration and downloads any modules referenced by non-local `source` addresses.",
     "example": "terraform init\n# Initializing modules...\n# Downloading registry.terraform.io/terraform-aws-modules/vpc/aws 5.8.1 for vpc...\n# Initializing provider plugins...\n# - Installing hashicorp/aws v5.60.0...",
+    "diagram": "flowchart LR\n  A[\"terraform init\"] --> B[\"Reads required_providers\"]\n  B --> C[\"Downloads provider plugins to .terraform/\"]\n  A --> E[\"Reads module source addresses\"]\n  E --> F[\"Downloads remote modules to .terraform/modules\"]\n  A --> G[\"Initializes backend\"]",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/cli/commands/init",
     "tags": [
@@ -721,6 +750,7 @@
     "prompt": "What is the purpose of the `-out` flag on `terraform plan`?",
     "explanation": "`terraform plan -out=tfplan` saves the generated execution plan to a binary file, which can later be passed to `terraform apply tfplan` to apply exactly the reviewed plan without Terraform recomputing it or prompting again.",
     "example": "terraform plan -out=tfplan     # save the reviewed plan\nterraform show tfplan          # inspect it later\nterraform apply tfplan         # apply exactly that plan, no prompt",
+    "diagram": "flowchart LR\n  A[\"terraform plan -out=tfplan\"] --> B[\"Binary plan file tfplan\"]\n  B --> C[\"Review in code review / CI\"]\n  C --> E[\"terraform apply tfplan\"]\n  E --> F[\"Applies exactly the reviewed actions\"]\n  E -.->|\"no recompute, no prompt\"| G[\"Consistent with review\"]",
     "options": [
       "It saves the generated plan to a file so it can be applied later exactly as reviewed",
       "It writes the plan as human-readable JSON to standard output only",
@@ -748,6 +778,7 @@
     "prompt": "Which of the following are valid meta-arguments that can be set inside a resource's `lifecycle` block?",
     "explanation": "Terraform's `lifecycle` block supports `create_before_destroy`, `prevent_destroy`, `ignore_changes`, and (since 1.2) `replace_triggered_by`. `depends_on` and `count` are meta-arguments too, but they are set directly on the resource, not nested inside `lifecycle`.",
     "example": "resource \"aws_db_instance\" \"main\" {\n  # ...\n  lifecycle {\n    prevent_destroy       = true\n    create_before_destroy = true\n    ignore_changes        = [tags[\"LastScanned\"]]\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"resource block\"] --> B[\"lifecycle block\"]\n  B --> C[\"create_before_destroy\"]\n  B --> E[\"prevent_destroy\"]\n  B --> F[\"ignore_changes\"]\n  B --> G[\"replace_triggered_by\"]\n  A --> H[\"depends_on (directly on resource)\"]\n  A --> I[\"count / for_each (directly on resource)\"]",
     "options": [
       "create_before_destroy",
       "prevent_destroy",
@@ -780,6 +811,7 @@
     "prompt": "What does setting `create_before_destroy = true` in a resource's `lifecycle` block do?",
     "explanation": "With `create_before_destroy`, Terraform creates the replacement object before destroying the old one when a change requires replacement, which reduces downtime for resources that would otherwise be unavailable during recreation.",
     "example": "resource \"aws_launch_template\" \"web\" {\n  # ...\n  lifecycle {\n    create_before_destroy = true   # new template exists before old one is removed\n  }\n}",
+    "diagram": "stateDiagram-v2\n  [*] --> OldRunning: change needs replacement\n  OldRunning --> BothRunning: create new resource first\n  BothRunning --> NewOnly: destroy old resource\n  NewOnly --> [*]\n  note right of BothRunning\n    create_before_destroy = true\n    no downtime window\n  end note",
     "options": [
       "It creates the new replacement resource before destroying the old one",
       "It prevents the resource from ever being destroyed",
@@ -806,6 +838,7 @@
     "prompt": "What effect does `prevent_destroy = true` have on a resource?",
     "explanation": "`prevent_destroy` causes Terraform to reject, with an error, any plan that would destroy that resource, helping guard critical resources like production databases against accidental deletion. It does not block updates, only destroys.",
     "example": "resource \"aws_db_instance\" \"prod\" {\n  # ...\n  lifecycle { prevent_destroy = true }\n}\n# terraform destroy\n# Error: Instance cannot be destroyed\n#   Resource aws_db_instance.prod has lifecycle.prevent_destroy set",
+    "diagram": "flowchart TD\n  A[\"Plan would destroy aws_db_instance.prod\"] --> B[\"lifecycle prevent_destroy = true?\"]\n  B -->|\"yes\"| C[\"Error: instance has prevent_destroy set\"]\n  C --> E[\"Plan rejected, nothing applied\"]\n  B -->|\"no\"| F[\"Destroy proceeds\"]\n  G[\"Plan only updates the resource\"] -->|\"allowed\"| F",
     "options": [
       "Terraform refuses to run any plan that would destroy the resource",
       "Terraform silently skips destroying the resource but still reports success",
@@ -832,6 +865,7 @@
     "prompt": "What is the purpose of the `ignore_changes` argument inside a `lifecycle` block?",
     "explanation": "`ignore_changes` tells Terraform to disregard differences in the listed attributes (or all attributes, with `ignore_changes = all`) when computing a diff, which is useful when something outside Terraform, such as an autoscaler, legitimately modifies those attributes.",
     "example": "resource \"aws_autoscaling_group\" \"web\" {\n  desired_capacity = 2\n  # ...\n  lifecycle {\n    ignore_changes = [desired_capacity]   # autoscaler adjusts this outside Terraform\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"Autoscaler changes desired_capacity outside Terraform\"] --> B[\"Real: 5, State: 3\"]\n  B --> C[\"terraform plan\"]\n  C --> E[\"lifecycle ignore_changes = [desired_capacity]\"]\n  E --> F[\"Diff on that attribute ignored\"]\n  F --> G[\"No changes for the resource\"]\n  H[\"Other attribute changes\"] -->|\"still planned\"| C",
     "options": [
       "It tells Terraform to ignore future changes to specific attributes when planning",
       "It tells Terraform to ignore the resource entirely and never manage it",
@@ -858,6 +892,7 @@
     "prompt": "Which of the following are genuine advantages of `for_each` over `count` when creating multiple similar resource instances?",
     "explanation": "With `for_each`, each instance is tracked by a stable map/set key rather than a numeric index, so removing or reordering an item in the middle of the collection does not force Terraform to destroy and recreate unrelated instances the way shifting `count` indices can; it also naturally accepts a map, giving each instance access to both a key and a value.",
     "example": "variable \"buckets\" {\n  default = { logs = \"private\", assets = \"public-read\" }\n}\nresource \"aws_s3_bucket\" \"b\" {\n  for_each = var.buckets\n  bucket   = \"acme-${each.key}\"   # addresses: aws_s3_bucket.b[\"logs\"], [\"assets\"]\n}",
+    "diagram": "flowchart LR\n  A[\"count = 3, remove item 1\"] --> B[\"index 2 shifts to 1\"]\n  B --> C[\"Instance recreated needlessly\"]\n  E[\"for_each over map\"] --> F[\"Keys web, api, db\"]\n  F --> G[\"Remove api: only api destroyed\"]\n  F --> H[\"each.key and each.value available\"]",
     "options": [
       "Instances are addressed by a stable key instead of a shifting numeric index",
       "Removing an item from the middle of the collection does not force-recreate unrelated instances",
@@ -891,6 +926,7 @@
     "prompt": "Inside a resource block that uses `count`, which expression gives the zero-based index of the current instance being created?",
     "explanation": "`count.index` provides the current iteration number, starting at 0, and is commonly used to derive unique names or pick values from a list by position.",
     "example": "resource \"aws_subnet\" \"private\" {\n  count      = 3\n  cidr_block = cidrsubnet(var.vpc_cidr, 8, count.index)   # 0, 1, 2\n  tags       = { Name = \"private-${count.index}\" }\n}",
+    "diagram": "flowchart LR\n  A[\"resource aws_instance web count = 3\"] --> B[\"web[0] count.index = 0\"]\n  A --> C[\"web[1] count.index = 1\"]\n  A --> E[\"web[2] count.index = 2\"]\n  B --> F[\"name = server-0\"]\n  C --> G[\"var.zones[count.index]\"]",
     "answer": [
       "count.index"
     ],
@@ -908,6 +944,7 @@
     "prompt": "Inside a resource block that uses `for_each` over a map, what does `each.value` refer to?",
     "explanation": "When `for_each` iterates over a map, `each.key` is bound to the map key for the current instance and `each.value` is bound to the corresponding map value; for a set of strings, both `each.key` and `each.value` equal the set element.",
     "example": "variable \"users\" {\n  default = { alice = \"admin\", bob = \"viewer\" }\n}\nresource \"aws_iam_user\" \"u\" {\n  for_each = var.users\n  name     = each.key            # alice, bob\n  tags     = { role = each.value }   # admin, viewer\n}",
+    "diagram": "flowchart LR\n  A[\"for_each = { web = t3.micro, db = t3.large }\"] --> B[\"Instance web\"]\n  A --> C[\"Instance db\"]\n  B --> E[\"each.key = web\"]\n  B --> F[\"each.value = t3.micro\"]\n  C --> G[\"each.key = db\"]\n  C --> H[\"each.value = t3.large\"]",
     "options": [
       "The value associated with the current map key being iterated over",
       "The zero-based position of the current instance",
@@ -934,6 +971,7 @@
     "prompt": "A single resource block can use both `count` and `for_each` at the same time.",
     "explanation": "`count` and `for_each` are mutually exclusive on the same resource or module block; Terraform reports an error if both are set, since they are two different strategies for creating multiple instances.",
     "example": "resource \"aws_instance\" \"web\" {\n  count    = 2\n  for_each = toset([\"a\", \"b\"])   # invalid\n}\n# Error: Invalid combination of \"count\" and \"for_each\"",
+    "diagram": "flowchart TD\n  A[\"resource block\"] --> B[\"Choose one multi-instance strategy\"]\n  B -->|\"numeric list\"| C[\"count = N\"]\n  B -->|\"map or set\"| E[\"for_each = ...\"]\n  F[\"count and for_each together\"] --> G[\"Error: cannot use both\"]\n  C --> H[\"Addresses: web[0], web[1]\"]\n  E --> I[\"Addresses: web[key]\"]",
     "answer": false,
     "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/for_each",
     "tags": [
@@ -949,6 +987,7 @@
     "prompt": "When should you add an explicit `depends_on` to a resource?",
     "explanation": "Terraform automatically infers most ordering from references between resources and data sources in expressions. `depends_on` is needed only when a dependency exists that is not visible through any expression reference, such as a hidden dependency on side effects (for example, an IAM policy that must exist before an API call in another resource succeeds).",
     "example": "resource \"aws_iam_role_policy\" \"s3_access\" { ... }\nresource \"aws_instance\" \"app\" {\n  # no expression references the policy, but the app needs it at boot\n  depends_on = [aws_iam_role_policy.s3_access]\n}",
+    "diagram": "flowchart LR\n  A[\"aws_instance uses aws_subnet.main.id\"] -->|\"implicit dependency inferred\"| B[\"Subnet created first\"]\n  C[\"aws_iam_role_policy must exist\"] -.->|\"no expression reference\"| E[\"aws_lambda_function\"]\n  E --> F[\"Add depends_on = [aws_iam_role_policy.x]\"]\n  F --> G[\"Terraform orders it explicitly\"]",
     "options": [
       "When a dependency exists that Terraform cannot infer from expression references",
       "On every resource, since Terraform never infers dependencies automatically",
@@ -975,6 +1014,7 @@
     "prompt": "Which provisioner runs the given command on the machine running Terraform, rather than on the resource being created?",
     "explanation": "The `local-exec` provisioner executes a command on the machine running Terraform (for example your laptop or CI runner). Its counterpart, `remote-exec`, instead connects to the newly created resource over SSH or WinRM and runs commands there.",
     "example": "resource \"aws_instance\" \"web\" {\n  # ...\n  provisioner \"local-exec\" {\n    command = \"echo ${self.private_ip} >> inventory.txt\"   # runs on the Terraform host\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"Machine running Terraform\"] --> B[\"provisioner local-exec\"]\n  B --> C[\"Runs command on this machine\"]\n  A --> E[\"provisioner remote-exec\"]\n  E -->|\"SSH / WinRM via connection\"| F[\"New resource\"]\n  F --> G[\"Runs command on the resource\"]",
     "options": [
       "local-exec",
       "remote-exec",
@@ -1001,6 +1041,7 @@
     "prompt": "According to HashiCorp's own documentation, how should provisioners be treated in Terraform configurations?",
     "explanation": "HashiCorp explicitly recommends using provisioners only \"as a last resort\": prefer built-in provider mechanisms (such as `user_data` / cloud-init) or a dedicated configuration management tool for bootstrapping, since provisioners fall outside Terraform's usual planning and state-tracking guarantees.",
     "example": "# Preferred: built-in provider feature instead of a provisioner\nresource \"aws_instance\" \"web\" {\n  ami       = data.aws_ami.ubuntu.id\n  user_data = file(\"${path.module}/cloud-init.yaml\")   # cloud-init handles bootstrap\n}",
+    "diagram": "flowchart TD\n  A[\"Need to configure software on resource\"] --> B[\"Provider feature? user_data / cloud-init\"]\n  B -->|\"yes\"| C[\"Use it\"]\n  B -->|\"no\"| E[\"Dedicated tool? Ansible, Packer image\"]\n  E -->|\"yes\"| F[\"Use it\"]\n  E -->|\"no\"| G[\"Provisioner as last resort\"]",
     "options": [
       "As a last resort, after built-in provider features or dedicated tools have been ruled out",
       "As the primary, recommended way to configure software on every resource",
@@ -1027,6 +1068,7 @@
     "prompt": "Why do the Terraform docs discourage relying heavily on provisioners such as `local-exec` and `remote-exec`?",
     "explanation": "Provisioners run arbitrary scripts that Terraform cannot inspect, so it cannot predict their effect during `plan`, detect drift they cause, or guarantee they are idempotent; `remote-exec` also depends on network reachability and valid SSH/WinRM credentials at creation time, and a failed provisioner leaves the resource in a tainted, only partially known state.",
     "example": "provisioner \"remote-exec\" {\n  inline = [\"sudo apt-get install -y nginx\"]\n  connection { type = \"ssh\", host = self.public_ip, user = \"ubuntu\" }\n}\n# If SSH fails during apply, the resource is created but marked tainted",
+    "diagram": "flowchart LR\n  A[\"provisioner local-exec / remote-exec\"] --> B[\"Arbitrary script, opaque to Terraform\"]\n  B --> C[\"Cannot be planned or diffed\"]\n  B --> E[\"Not guaranteed idempotent\"]\n  B --> F[\"Drift it causes is invisible\"]\n  A --> G[\"remote-exec needs network + SSH creds\"]\n  A --> H[\"Failure taints resource, no rollback\"]",
     "options": [
       "Terraform cannot predict or diff their effects the way it does for resource arguments",
       "They are not guaranteed to be idempotent if re-run",
@@ -1059,6 +1101,7 @@
     "prompt": "What is the purpose of the classic `terraform import <address> <id>` command?",
     "explanation": "`terraform import` brings an existing real-world object under Terraform management by writing an entry for it into the state file, associated with a resource address that must already have a matching (even if mostly empty) resource block in configuration; the classic command populates state only, it does not write HCL configuration for you.",
     "example": "# main.tf must already contain: resource \"aws_s3_bucket\" \"logs\" {}\nterraform import aws_s3_bucket.logs acme-logs\n# Import successful!  (state updated; you still write the HCL yourself)",
+    "diagram": "flowchart LR\n  A[\"Existing EC2 i-0abc123 created manually\"] --> B[\"Write empty resource aws_instance web block\"]\n  B --> C[\"terraform import aws_instance.web i-0abc123\"]\n  C --> E[\"State entry written\"]\n  E --> F[\"terraform plan shows attribute diffs\"]\n  F --> G[\"Fill in HCL by hand until plan clean\"]",
     "options": [
       "It attaches an existing infrastructure object to a resource address in the state file",
       "It generates a brand-new resource in the target platform and adds it to state",
@@ -1085,6 +1128,7 @@
     "prompt": "Which `terraform plan` flag, used together with a configuration `import` block, tells Terraform to generate HCL resource configuration for the object being imported?",
     "explanation": "Since Terraform 1.5, declarative `import` blocks can be combined with `terraform plan -generate-config-out=FILENAME`, which writes generated HCL for the imported resource to the given file so you can review and adapt it instead of hand-writing it.",
     "example": "# imports.tf\nimport {\n  to = aws_s3_bucket.logs\n  id = \"acme-logs\"\n}\nterraform plan -generate-config-out=generated.tf   # writes HCL for the bucket",
+    "diagram": "flowchart LR\n  A[\"import block: to = aws_instance.web, id = i-0abc123\"] --> B[\"terraform plan -generate-config-out=gen.tf\"]\n  B --> C[\"Reads real object via provider\"]\n  C --> E[\"Writes generated HCL to gen.tf\"]\n  E --> F[\"Review and adapt\"]\n  F --> G[\"terraform apply completes import\"]",
     "options": [
       "-generate-config-out",
       "-out",
@@ -1111,6 +1155,7 @@
     "prompt": "What does `terraform taint <resource address>` mark a resource instance to do?",
     "explanation": "Tainting a resource instance forces Terraform to destroy and recreate it on the next `apply`, even though its configuration has not changed, which is useful when a resource is known to be broken or misconfigured outside of Terraform's view.",
     "example": "terraform taint aws_instance.web\n# Resource instance aws_instance.web has been marked as tainted.\nterraform apply\n# aws_instance.web is tainted, so must be replaced\n# Plan: 1 to add, 0 to change, 1 to destroy.",
+    "diagram": "stateDiagram-v2\n  [*] --> Healthy\n  Healthy --> Tainted: terraform taint aws_instance.web\n  Tainted --> Destroyed: next apply destroys\n  Destroyed --> Recreated: apply creates fresh instance\n  Recreated --> Healthy\n  Tainted --> Healthy: terraform untaint",
     "options": [
       "Destroy and recreate the resource instance on the next apply",
       "Permanently prevent the resource from being modified again",
@@ -1137,6 +1182,7 @@
     "prompt": "What CLI flag on `terraform apply` forces replacement of a specific resource instance, identified by its address, without editing configuration?",
     "explanation": "`terraform apply -replace=<resource address>` (for example `terraform apply -replace=aws_instance.web`) is the modern, plan-based way to force a resource to be destroyed and recreated, superseding the older `terraform taint` workflow.",
     "example": "terraform apply -replace=aws_instance.web\n# aws_instance.web will be replaced, as requested\n# Plan: 1 to add, 0 to change, 1 to destroy.",
+    "diagram": "flowchart LR\n  A[\"terraform apply -replace=aws_instance.web\"] --> B[\"Plan: aws_instance.web must be replaced\"]\n  B --> C[\"Review and confirm\"]\n  C --> E[\"Destroy old instance\"]\n  E --> F[\"Create new instance\"]\n  G[\"No config edit needed\"] -.-> A",
     "answer": [
       "terraform apply -replace",
       "-replace"
@@ -1156,6 +1202,7 @@
     "prompt": "The `terraform taint` and `terraform untaint` subcommands are deprecated in favor of the `-replace` flag on `terraform plan` and `terraform apply`.",
     "explanation": "HashiCorp deprecated the `taint`/`untaint` commands starting with Terraform 0.15.2, recommending `terraform apply -replace=<address>` instead, since it goes through the normal plan review step rather than mutating state directly outside of a plan.",
     "example": "terraform taint aws_instance.web\n# Warning: Command is deprecated... use terraform apply -replace=aws_instance.web\nterraform apply -replace=aws_instance.web   # goes through normal plan review",
+    "diagram": "flowchart LR\n  A[\"terraform taint (deprecated 0.15.2)\"] --> B[\"Mutates state directly, no plan review\"]\n  C[\"terraform apply -replace=addr (modern)\"] --> E[\"Replacement shown in plan\"]\n  E --> F[\"Reviewed and confirmed\"]\n  F --> G[\"Destroy + recreate\"]\n  B -.->|\"superseded by\"| C",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/cli/commands/taint",
     "tags": [
@@ -1171,6 +1218,7 @@
     "prompt": "What is the effect of the `-target` flag on `terraform plan` or `terraform apply`?",
     "explanation": "`-target=<address>` restricts the operation to the specified resource (plus anything it depends on), rather than the whole configuration, which is useful for narrowly scoped operations such as recovering from a specific error.",
     "example": "terraform apply -target=module.database\n# only module.database and its dependencies are planned\n# Warning: Resource targeting is in effect ... Applying changes may lead to an inconsistent state",
+    "diagram": "flowchart LR\n  A[\"terraform apply -target=aws_instance.web\"] --> B[\"aws_instance.web\"]\n  B -->|\"dependency included\"| C[\"aws_subnet.main\"]\n  C -->|\"dependency included\"| E[\"aws_vpc.main\"]\n  F[\"aws_s3_bucket.logs\"] -.->|\"skipped, not targeted\"| A\n  G[\"aws_rds.db\"] -.->|\"skipped\"| A",
     "options": [
       "It limits the plan or apply to only the specified resource and its dependencies",
       "It targets a specific remote backend to store the resulting state",
@@ -1197,6 +1245,7 @@
     "prompt": "Why does HashiCorp caution against routinely using `-target` as part of a normal workflow?",
     "explanation": "Because `-target` only plans a subset of the configuration, the resulting plan can be inconsistent with what a full plan would produce, potentially leaving other resources out of sync with configuration; HashiCorp recommends it only for exceptional situations, such as working around an error, followed by a normal full `apply`.",
     "example": "terraform apply -target=aws_security_group.web   # fix one broken resource\n# Warning: Applying with -target may lead to state inconsistent with configuration\nterraform apply                                  # then run a full apply to reconcile",
+    "diagram": "flowchart TD\n  A[\"terraform apply -target=x\"] --> B[\"Only subset planned\"]\n  B --> C[\"Other pending changes masked\"]\n  C --> E[\"Infra inconsistent with full config\"]\n  E --> F[\"Follow with full terraform apply\"]\n  G[\"Use only for exceptional recovery\"] -.-> A",
     "options": [
       "A targeted plan can be inconsistent with the full configuration and mask other pending changes",
       "It permanently deletes all resources not included in the target list",
@@ -1223,6 +1272,7 @@
     "prompt": "What happens when a Terraform input variable is declared with `sensitive = true`?",
     "explanation": "Terraform redacts the variable's value from `plan` and `apply` console output, displaying `(sensitive value)` instead, to reduce the chance of secrets being exposed in logs or a terminal.",
     "example": "variable \"db_password\" {\n  type      = string\n  sensitive = true\n}\n# terraform plan\n#   + password = (sensitive value)",
+    "diagram": "flowchart LR\n  A[\"variable db_password sensitive = true\"] --> B[\"terraform plan / apply\"]\n  B --> C[\"Console shows (sensitive value)\"]\n  A --> E[\"Still usable in resources\"]\n  A -.->|\"not\"| F[\"Encrypted in storage\"]\n  A -.->|\"not\"| G[\"Restricted to env vars\"]",
     "options": [
       "Its value is hidden from normal plan and apply console output",
       "Its value is encrypted wherever Terraform stores it",
@@ -1249,6 +1299,7 @@
     "prompt": "Marking a variable or output as `sensitive = true` in Terraform hides its value from CLI output, but the value is still stored in plain text inside the state file.",
     "explanation": "The `sensitive` flag only affects what Terraform prints to the console; it does not encrypt the value within the state. Anyone with read access to the state file can see sensitive values in plain text, so state storage itself needs to be secured (for example an encrypted remote backend with restricted access).",
     "example": "terraform state pull | grep -A2 password\n#   \"password\": \"Sup3rSecret!\",   # plain text despite sensitive = true\n# Mitigate with an encrypted backend and restricted access",
+    "diagram": "flowchart LR\n  A[\"sensitive = true\"] --> B[\"CLI output: (sensitive value)\"]\n  A --> C[\"terraform.tfstate: plain text password\"]\n  C --> E[\"Anyone with state read access sees it\"]\n  E --> F[\"Secure state: encrypted remote backend + IAM\"]",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/language/state/sensitive-data",
     "tags": [
@@ -1264,6 +1315,7 @@
     "prompt": "What does the built-in `nonsensitive()` function do in Terraform?",
     "explanation": "`nonsensitive()` takes a value that carries the sensitive marking and returns an identical value with that marking removed, letting it be shown in output; it should be used deliberately, since it intentionally exposes a value that was marked sensitive.",
     "example": "output \"db_endpoint\" {\n  # endpoint is derived from a sensitive value but is safe to display\n  value = nonsensitive(aws_db_instance.main.endpoint)\n}",
+    "diagram": "flowchart LR\n  A[\"Sensitive value: db_password\"] --> B[\"nonsensitive(var.db_password)\"]\n  B --> C[\"Same value, marking removed\"]\n  C --> E[\"Can appear in plain output\"]\n  F[\"sensitive(value)\"] -->|\"opposite direction\"| A\n  B -.->|\"use deliberately\"| G[\"Exposes secret in logs\"]",
     "options": [
       "It returns a copy of a sensitive value with the sensitive marking removed",
       "It permanently deletes a sensitive value from the state file",
@@ -1291,6 +1343,7 @@
     "prompt": "Which of the following statements about Terraform version constraints are true?",
     "explanation": "`required_version` in the `terraform` block constrains which Terraform CLI versions may run the configuration, and `required_providers` declares each provider's source address plus a version constraint. The `~>` operator only allows the rightmost specified segment to increment. None of this guarantees identical output across provider versions, since providers can change behavior between releases even within an allowed range.",
     "example": "terraform {\n  required_version = \">= 1.5.0, < 2.0.0\"\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"~> 5.40\"   # 5.40.x through 5.x, not 6.0\n    }\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"terraform block\"] --> B[\"required_version = ~> 1.5\"]\n  B --> C[\"Constrains Terraform CLI\"]\n  A --> E[\"required_providers aws source + version\"]\n  E --> F[\"Constrains provider version\"]\n  F --> G[\"~> lets rightmost segment increment\"]\n  F -.->|\"does not guarantee\"| H[\"Identical behavior across versions\"]",
     "options": [
       "`required_version` in the `terraform` block constrains which CLI versions may run the configuration",
       "`required_providers` declares each provider's source address and version constraint",
@@ -1323,6 +1376,7 @@
     "prompt": "What is the name of the file that Terraform creates and updates to record the exact provider versions and checksums selected during `init`?",
     "explanation": "The dependency lock file, `.terraform.lock.hcl`, is written to the working directory by `terraform init` and records the exact provider versions and checksums in use so that runs are consistent across machines and CI.",
     "example": "cat .terraform.lock.hcl\n# provider \"registry.terraform.io/hashicorp/aws\" {\n#   version     = \"5.60.0\"\n#   constraints = \"~> 5.40\"\n#   hashes      = [\"h1:...\", \"zh:...\"]\n# }",
+    "diagram": "flowchart LR\n  A[\"terraform init\"] --> B[\"Selects provider versions\"]\n  B --> C[\".terraform.lock.hcl\"]\n  C --> E[\"provider hashicorp/aws version 5.40.0\"]\n  C --> F[\"hashes h1:... zh:...\"]\n  G[\"Next init on any machine\"] -->|\"reads\"| C\n  G --> H[\"Same version, checksum verified\"]",
     "answer": [
       ".terraform.lock.hcl",
       "terraform.lock.hcl"
@@ -1341,6 +1395,7 @@
     "prompt": "Why does HashiCorp recommend committing `.terraform.lock.hcl` to version control for a typical application configuration?",
     "explanation": "Committing the lock file ensures every teammate and CI run installs the exact same provider versions (verified by checksum) until someone deliberately runs `terraform init -upgrade`, preventing surprise provider upgrades from silently changing behavior between runs.",
     "example": "git add .terraform.lock.hcl && git commit -m \"Pin provider versions\"\n# CI and teammates now install aws v5.60.0 with verified checksums\nterraform init -upgrade   # deliberately move to newer allowed versions",
+    "diagram": "flowchart LR\n  A[\".terraform.lock.hcl committed to git\"] --> B[\"Dev laptop init\"]\n  A --> C[\"CI runner init\"]\n  B --> E[\"Same provider version, checksums verified\"]\n  C --> E\n  F[\"terraform init -upgrade\"] -->|\"only deliberate upgrade\"| A\n  G[\"Not committed\"] -.-> H[\"Surprise provider upgrade changes behavior\"]",
     "options": [
       "So every run installs the exact same, checksum-verified provider versions until deliberately upgraded",
       "So Terraform can skip downloading providers entirely on every run",
@@ -1367,6 +1422,7 @@
     "prompt": "If you run `terraform apply` twice in a row with no changes to the configuration or the real infrastructure in between, the second run should report that there are no changes to make.",
     "explanation": "This describes idempotency: applying the same configuration against infrastructure already in the desired state should produce no further changes, which is a core property Terraform aims to guarantee for well-behaved providers.",
     "example": "terraform apply -auto-approve\n# Apply complete! Resources: 3 added, 0 changed, 0 destroyed.\nterraform apply -auto-approve\n# No changes. Your infrastructure matches the configuration.",
+    "diagram": "flowchart LR\n  A[\"First terraform apply\"] --> B[\"Creates resources\"]\n  B --> C[\"State matches config\"]\n  C --> E[\"Second terraform apply\"]\n  E --> F[\"Refresh: real infra = state = config\"]\n  F --> G[\"No changes. Infrastructure is up-to-date.\"]\n  G -.-> H[\"Idempotency\"]",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/intro",
     "tags": [
@@ -1381,6 +1437,7 @@
     "prompt": "In infrastructure-as-code terminology, what does \"drift\" refer to?",
     "explanation": "Drift is the divergence between the actual state of real-world infrastructure and what is recorded in the IaC tool's state or configuration, typically caused by manual, out-of-band changes made outside the tool (for example editing a resource directly in a cloud console).",
     "example": "# Someone changed the instance type in the AWS console\nterraform plan\n# ~ resource \"aws_instance\" \"web\" {\n#     ~ instance_type = \"t3.large\" -> \"t3.micro\"   # drift detected, will be reverted",
+    "diagram": "flowchart LR\n  A[\"Terraform state: instance type t3.micro\"] --> B[\"Matches config\"]\n  C[\"Someone edits in cloud console: t3.large\"] --> E[\"Real infra now t3.large\"]\n  E -.->|\"mismatch = drift\"| A\n  F[\"terraform plan refresh\"] --> G[\"Detects drift, proposes revert\"]",
     "options": [
       "A mismatch between real infrastructure and what the state or configuration describes",
       "The time delay between running `plan` and running `apply`",
@@ -1407,6 +1464,7 @@
     "prompt": "\"Immutable infrastructure\" means that when a change is needed, existing servers are replaced with new ones built from an updated image or configuration, rather than being modified in place.",
     "explanation": "Immutable infrastructure treats deployed instances as disposable: instead of patching a running server, you build a new image or launch configuration and replace the old instance entirely, which reduces configuration drift and makes deployments more predictable.",
     "example": "# Instead of ssh-ing in to patch, bake a new image and roll it out\npacker build web.pkr.hcl                       # produces ami-0new\nresource \"aws_launch_template\" \"web\" {\n  image_id = \"ami-0new\"   # ASG replaces old instances with fresh ones\n}",
+    "diagram": "flowchart LR\n  A[\"Change needed\"] --> B[\"Build new image / config\"]\n  B --> C[\"Launch new server v2\"]\n  C --> E[\"Shift traffic to v2\"]\n  E --> F[\"Terminate old server v1\"]\n  G[\"Mutable: patch v1 in place\"] -.->|\"avoided, causes drift\"| A",
     "answer": true,
     "reference": "https://developer.hashicorp.com/terraform/intro",
     "tags": [
@@ -1421,6 +1479,7 @@
     "prompt": "Which of the following statements correctly compare Terraform to other infrastructure-as-code and configuration-management tools?",
     "explanation": "Pulumi lets you write infrastructure definitions in general-purpose languages (TypeScript, Python, Go, and others) instead of a dedicated DSL like HCL. AWS CloudFormation is AWS-native and can only manage AWS resources, whereas Terraform's provider model targets many clouds and services. Ansible is primarily an agentless, push-based configuration management tool best known for configuring software on existing hosts, and it is procedural by default rather than maintaining a persistent state file the way Terraform does.",
     "example": "# Pulumi (TypeScript): new aws.s3.Bucket(\"logs\");\n# CloudFormation (YAML): Resources: Logs: { Type: AWS::S3::Bucket }\n# Ansible (push, agentless): ansible-playbook -i hosts site.yml\n# Terraform (stateful): terraform apply  -> writes terraform.tfstate",
+    "diagram": "flowchart TD\n  A[\"Infrastructure tools\"] --> B[\"Terraform: HCL, multi-provider, state file\"]\n  A --> C[\"Pulumi: TypeScript/Python/Go, multi-cloud\"]\n  A --> E[\"CloudFormation: AWS only, YAML/JSON\"]\n  A --> F[\"Ansible: agentless push config mgmt, no state by default\"]\n  B --> G[\"Provisioning\"]\n  C --> G\n  E --> G\n  F --> H[\"Configuring existing hosts\"]",
     "options": [
       "Pulumi lets you define infrastructure using general-purpose programming languages instead of a DSL",
       "AWS CloudFormation only manages AWS resources, while Terraform supports many providers",
@@ -1453,6 +1512,7 @@
     "prompt": "Which statement best captures a key difference between Terraform and Ansible?",
     "explanation": "Terraform is a declarative, stateful provisioning tool centered on creating and tracking infrastructure resources over time, while Ansible is primarily an agentless, procedural configuration-management tool used to install and configure software on already-provisioned hosts. The two are often used together rather than as strict substitutes.",
     "example": "terraform apply            # provision VMs, record them in terraform.tfstate\nterraform output -json > inventory.json\nansible-playbook -i inventory.json site.yml   # configure software on the new hosts",
+    "diagram": "flowchart LR\n  A[\"Terraform: declarative, stateful\"] --> B[\"Provision VMs, networks, DBs\"]\n  B --> C[\"State file tracks resources\"]\n  E[\"Ansible: agentless, procedural\"] --> F[\"Install and configure software on hosts\"]\n  F --> G[\"Push over SSH, no state file\"]\n  B -->|\"then hand off\"| E\n  H[\"Often used together\"] -.-> A",
     "options": [
       "Terraform is a stateful provisioning tool, while Ansible is primarily an agentless configuration-management tool",
       "Ansible requires a persistent state file for every run, while Terraform does not",

@@ -20,6 +20,7 @@
     "answer": 2,
     "explanation": "Least privilege means granting only the permissions required to perform a task, and no more, which limits the blast radius if credentials are compromised.",
     "example": "# Policy that only allows reading one bucket, nothing more\n{\n  \"Effect\": \"Allow\",\n  \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n  \"Resource\": [\"arn:aws:s3:::app-logs\", \"arn:aws:s3:::app-logs/*\"]\n}",
+    "diagram": "flowchart LR\nT[\"Task: read one S3 bucket\"] --> N[\"Needed: s3:GetObject on that bucket\"]\nN --> G[\"Grant exactly that (least privilege)\"]\nG --> S[\"Compromised key = small blast radius\"]\nT -.->|\"anti-pattern\"| A[\"AdministratorAccess\"]\nA --> B[\"Compromised key = whole account\"]",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
     "tags": [
       "iam",
@@ -47,6 +48,7 @@
     "answer": 1,
     "explanation": "A role is an identity with temporary credentials that can be assumed by trusted entities (users, applications, or AWS services), whereas a user has long-term credentials tied to a single person or application.",
     "example": "# Application on EC2 assumes a role instead of storing user keys\naws sts assume-role \\\n  --role-arn arn:aws:iam::123456789012:role/AppReadOnly \\\n  --role-session-name deploy-$(date +%s)   # returns temp keys + session token",
+    "diagram": "flowchart LR\nU[\"IAM user\"] --> K[\"Long-term access key + secret\"]\nK --> ID[\"Tied to one identity\"]\nR[\"IAM role\"] --> TP[\"Trust policy: who may assume\"]\nTP --> AS[\"sts:AssumeRole by user, app or AWS service\"]\nAS --> TC[\"Temporary credentials that expire\"]",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html",
     "tags": [
       "iam"
@@ -63,6 +65,7 @@
     ],
     "explanation": "`Effect` is set to either `Allow` or `Deny` and determines the outcome of the statement when it matches a request.",
     "example": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Deny\",        # Allow or Deny\n    \"Action\": \"s3:DeleteBucket\",\n    \"Resource\": \"*\"\n  }]\n}",
+    "diagram": "flowchart TD\nP[\"IAM policy Statement\"] --> E[\"Effect: Allow or Deny\"]\nP --> A[\"Action: s3:GetObject\"]\nP --> R[\"Resource: arn:aws:s3:::bucket/*\"]\nE --> D[\"Decides outcome when statement matches request\"]",
     "pattern": "^effect$",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_effect.html",
     "tags": [
@@ -91,6 +94,7 @@
     "answer": 3,
     "explanation": "`AssumeRole` returns a set of temporary credentials (access key, secret key, and session token) that a caller can use to act as the specified role.",
     "example": "aws sts assume-role \\\n  --role-arn arn:aws:iam::123456789012:role/CIDeployer \\\n  --role-session-name gh-actions \\\n  --duration-seconds 3600\n# output contains AccessKeyId, SecretAccessKey, SessionToken",
+    "diagram": "sequenceDiagram\nparticipant App\nparticipant STS as \"AWS STS\"\nparticipant Role as \"IAM Role\"\nApp->>STS: AssumeRole(RoleArn, SessionName)\nSTS->>Role: check trust policy\nRole-->>STS: trusted\nSTS-->>App: AccessKeyId, SecretAccessKey, SessionToken (expire)\nApp->>STS: call AWS APIs as the role",
     "reference": "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
     "tags": [
       "iam",
@@ -106,6 +110,7 @@
     "answer": false,
     "explanation": "AWS recommends locking away root user credentials, enabling MFA on the root account, and using IAM users/roles (often via IAM Identity Center) for everyday tasks instead of the root user.",
     "example": "# Instead of root: create an admin user via IAM Identity Center or IAM,\n# then lock root behind MFA and use it only for account-level tasks\naws iam create-user --user-name alice\naws iam attach-user-policy --user-name alice \\\n  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+    "diagram": "flowchart TD\nR[\"Root user\"] --> L[\"Lock away credentials + enable MFA\"]\nL --> O[\"Use only for rare account-level tasks\"]\nD[\"Day-to-day admin work\"] --> I[\"IAM users / roles via Identity Center\"]\nI --> P[\"Scoped permissions, auditable, revocable\"]\nD -.->|\"never\"| R",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
     "tags": [
       "iam",
@@ -133,6 +138,7 @@
     "answer": 1,
     "explanation": "An explicit `Deny` always overrides any `Allow` in IAM policy evaluation logic, regardless of how many policies grant the permission.",
     "example": "# Policy A: Allow s3:PutObject on *\n# Policy B: Deny  s3:PutObject on arn:aws:s3:::prod-*\naws s3 cp app.zip s3://prod-artifacts/   # AccessDenied: explicit Deny wins\naws s3 cp app.zip s3://dev-artifacts/    # succeeds",
+    "diagram": "flowchart TD\nQ[\"Request: s3:DeleteObject\"] --> X{\"Any explicit Deny?\"}\nX -->|\"yes\"| N[\"DENIED - Deny always wins\"]\nX -->|\"no\"| Y{\"Any Allow?\"}\nY -->|\"yes\"| A[\"Allowed\"]\nY -->|\"no\"| I[\"Implicit deny\"]",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html",
     "tags": [
       "iam",
@@ -164,6 +170,7 @@
     ],
     "explanation": "IAM supports identity-based policies (attached to users/groups/roles), resource-based policies (attached directly to resources like S3 buckets), and permissions boundaries (which set the maximum permissions an identity can have). A 'network ACL policy' is not an IAM policy type.",
     "example": "# Identity-based: on a role\naws iam attach-role-policy --role-name App --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess\n# Resource-based: on the bucket\naws s3api put-bucket-policy --bucket logs --policy file://policy.json\n# Permissions boundary: caps what the role can ever do\naws iam put-role-permissions-boundary --role-name App --permissions-boundary arn:aws:iam::111:policy/Boundary",
+    "diagram": "flowchart TD\nC[\"IAM policy categories\"] --> I[\"Identity-based: attached to user, group, role\"]\nC --> R[\"Resource-based: on S3 bucket, SQS queue, KMS key\"]\nC --> P[\"Permissions boundary: max an identity may have\"]\nC --> S[\"Also: SCPs, session policies\"]\nX[\"Network ACL\"] -.->|\"VPC subnet firewall, not IAM\"| C",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html",
     "tags": [
       "iam",
@@ -181,6 +188,7 @@
     ],
     "explanation": "EC2 instances can query `http://169.254.169.254/latest/meta-data/` to retrieve metadata such as instance ID, IAM role credentials, and network configuration.",
     "example": "# From inside the instance (IMDSv2 token flow)\nTOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 300\")\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" \\\n  http://169.254.169.254/latest/meta-data/instance-id",
+    "diagram": "sequenceDiagram\nparticipant I as \"EC2 instance\"\nparticipant M as \"IMDS 169.254.169.254\"\nI->>M: GET /latest/meta-data/instance-id\nM-->>I: i-0abc123\nI->>M: GET /latest/meta-data/iam/security-credentials/role\nM-->>I: temporary role credentials",
     "pattern": "^169\\.254\\.169\\.254$",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html",
     "tags": [
@@ -209,6 +217,7 @@
     "answer": 0,
     "explanation": "IMDSv2 requires a session-oriented PUT request to first obtain a token, which helps protect against SSRF and open-proxy attacks that could otherwise be used to steal metadata credentials with simple GET requests.",
     "example": "# IMDSv2: PUT for a token first, then GET with the token header\nTOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\")\ncurl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/\n# enforce it: aws ec2 modify-instance-metadata-options --instance-id i-0abc --http-tokens required",
+    "diagram": "sequenceDiagram\nparticipant A as \"App on instance\"\nparticipant M as \"IMDSv2\"\nA->>M: PUT /latest/api/token (TTL header)\nM-->>A: session token\nA->>M: GET /latest/meta-data/ with token header\nM-->>A: metadata\nNote over A,M: SSRF via simple GET fails without the token",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html",
     "tags": [
       "ec2",
@@ -241,6 +250,7 @@
     ],
     "explanation": "EC2 offers On-Demand, Reserved Instances, Spot Instances, Savings Plans, and Dedicated Hosts. 'Lifecycle Instances' is not a real EC2 purchasing option.",
     "example": "# On-Demand: default for run-instances\naws ec2 run-instances --instance-type t3.micro --image-id ami-0abc ...\n# Spot: request spare capacity at a discount\naws ec2 run-instances --instance-market-options 'MarketType=spot' ...\n# Reserved: 1 or 3 year commitment\naws ec2 purchase-reserved-instances-offering --reserved-instances-offering-id <id> --instance-count 2",
+    "diagram": "flowchart TD\nP[\"EC2 purchasing options\"] --> O[\"On-Demand: pay per second, no commitment\"]\nP --> R[\"Reserved: 1-3 yr commitment, discount\"]\nP --> S[\"Spot: spare capacity, deep discount, interruptible\"]\nP --> V[\"Savings Plans / Dedicated Hosts\"]\nX[\"Lifecycle Instances\"] -.->|\"not real\"| P",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html",
     "tags": [
       "ec2",
@@ -268,6 +278,7 @@
     "answer": 1,
     "explanation": "By default, a security group allows all outbound traffic unless you add rules to restrict it; inbound traffic, by contrast, is denied by default until rules are added.",
     "example": "aws ec2 create-security-group --group-name web --description web --vpc-id vpc-0abc\naws ec2 describe-security-groups --group-names web \\\n  --query 'SecurityGroups[0].IpPermissionsEgress'\n# [{\"IpProtocol\": \"-1\", \"IpRanges\": [{\"CidrIp\": \"0.0.0.0/0\"}]}]  <- allow all outbound",
+    "diagram": "flowchart LR\nE[\"EC2 instance\"] --> SG[\"New security group\"]\nSG -->|\"outbound default\"| O[\"Allow ALL to 0.0.0.0/0\"]\nSG -->|\"inbound default\"| I[\"Deny ALL until rules added\"]\nO --> N[\"Internet / other hosts\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html",
     "tags": [
       "vpc",
@@ -295,6 +306,7 @@
     "answer": 3,
     "explanation": "An Auto Scaling group automatically launches or terminates EC2 instances to keep the fleet size within a defined minimum, maximum, and desired capacity, helping maintain availability and adjust to load.",
     "example": "aws autoscaling create-auto-scaling-group \\\n  --auto-scaling-group-name web-asg \\\n  --launch-template LaunchTemplateName=web,Version='$Latest' \\\n  --min-size 2 --max-size 10 --desired-capacity 3 \\\n  --vpc-zone-identifier subnet-0a,subnet-0b   # spreads across AZs",
+    "diagram": "flowchart TD\nASG[\"Auto Scaling group min=2 desired=3 max=6\"] --> H{\"Instance unhealthy?\"}\nH -->|\"yes\"| R[\"Terminate + launch replacement\"]\nASG --> L{\"Load high or low?\"}\nL -->|\"high\"| O[\"Scale out (up to max)\"]\nL -->|\"low\"| I[\"Scale in (down to min)\"]",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html",
     "tags": [
       "ec2",
@@ -326,6 +338,7 @@
     ],
     "explanation": "Auto Scaling supports target tracking scaling, step scaling, simple scaling, and scheduled scaling. 'Round-robin scaling' is not a real scaling policy type.",
     "example": "# Target tracking: keep average CPU near 50%\naws autoscaling put-scaling-policy --auto-scaling-group-name web --policy-name cpu50 \\\n  --policy-type TargetTrackingScaling --target-tracking-configuration file://cpu50.json\n# Scheduled: 6 instances on weekdays at 08:00 UTC\naws autoscaling put-scheduled-update-group-action --auto-scaling-group-name web \\\n  --scheduled-action-name am --recurrence \"0 8 * * 1-5\" --desired-capacity 6",
+    "diagram": "flowchart TD\nS[\"Scaling policy types\"] --> T[\"Target tracking: keep metric at target\"]\nS --> P[\"Step scaling: tiered thresholds\"]\nS --> M[\"Simple scaling: one alarm, one action\"]\nS --> C[\"Scheduled: known time patterns\"]\nX[\"Round-robin scaling\"] -.->|\"does not exist\"| S",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html",
     "tags": [
       "auto-scaling"
@@ -352,6 +365,7 @@
     "answer": 2,
     "explanation": "The Application Load Balancer (ALB) operates at Layer 7 and supports content-based routing such as path-based and host-based rules, whereas the Network Load Balancer (NLB) operates at Layer 4.",
     "example": "# ALB listener rule: send /api/* to the api target group\naws elbv2 create-rule --listener-arn <listener-arn> --priority 10 \\\n  --conditions Field=path-pattern,Values='/api/*' \\\n  --actions Type=forward,TargetGroupArn=<api-tg-arn>",
+    "diagram": "flowchart LR\nC[\"Client HTTP request\"] --> ALB[\"ALB (Layer 7)\"]\nALB -->|\"path /api/*\"| A[\"API target group\"]\nALB -->|\"host shop.example.com\"| S[\"Shop target group\"]\nALB -->|\"default\"| W[\"Web target group\"]\nN[\"NLB (Layer 4)\"] -.->|\"TCP port only, no path rules\"| C",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html",
     "tags": [
       "load-balancer",
@@ -367,6 +381,7 @@
     "answer": true,
     "explanation": "ALB is a Layer 7 load balancer that can inspect HTTP headers, paths, and hostnames to make routing decisions.",
     "example": "# ALB rule matching on an HTTP Host header (a Layer 7 property)\naws elbv2 create-rule --listener-arn <arn> --priority 5 \\\n  --conditions Field=host-header,Values='admin.example.com' \\\n  --actions Type=forward,TargetGroupArn=<admin-tg>",
+    "diagram": "flowchart TD\nL7[\"Layer 7: ALB reads HTTP\"] --> H[\"Headers, host, path, query\"]\nH --> R[\"Routing rules and target groups\"]\nL4[\"Layer 4: NLB reads TCP/UDP\"] --> P[\"IP + port only\"]\nP --> F[\"Fast passthrough, no HTTP inspection\"]",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html",
     "tags": [
       "load-balancer",
@@ -394,6 +409,7 @@
     "answer": 0,
     "explanation": "The Network Load Balancer (NLB) operates at Layer 4 and supports a static IP per AZ, which is useful for clients that need to allowlist fixed IPs. ALB does not expose a static IP; it is accessed via a DNS name that can resolve to changing IPs.",
     "example": "# NLB with a fixed Elastic IP in each AZ\naws elbv2 create-load-balancer --name ingress-nlb --type network \\\n  --subnet-mappings SubnetId=subnet-0a,AllocationId=eipalloc-111 \\\n                    SubnetId=subnet-0b,AllocationId=eipalloc-222",
+    "diagram": "flowchart LR\nC[\"Partner firewall allowlist\"] --> IP1[\"NLB static IP in AZ-a\"]\nC --> IP2[\"NLB static IP in AZ-b\"]\nIP1 --> T[\"Targets\"]\nIP2 --> T\nA[\"ALB\"] --> D[\"DNS name only, IPs change\"]",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html",
     "tags": [
       "load-balancer",
@@ -421,6 +437,7 @@
     "answer": 1,
     "explanation": "The CIDR block (e.g. `10.0.0.0/16`) defines the private IP address range available to resources within the VPC, from which subnets carve out smaller ranges.",
     "example": "aws ec2 create-vpc --cidr-block 10.0.0.0/16   # 65,536 private addresses\naws ec2 create-subnet --vpc-id vpc-0abc --cidr-block 10.0.1.0/24 --availability-zone ap-southeast-1a\naws ec2 create-subnet --vpc-id vpc-0abc --cidr-block 10.0.2.0/24 --availability-zone ap-southeast-1b",
+    "diagram": "flowchart TD\nV[\"VPC CIDR 10.0.0.0/16 = 65536 private IPs\"] --> S1[\"Subnet 10.0.1.0/24 AZ-a\"]\nV --> S2[\"Subnet 10.0.2.0/24 AZ-b\"]\nV --> S3[\"Subnet 10.0.3.0/24 AZ-c\"]\nS1 --> E[\"Instances get IPs from their subnet range\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html",
     "tags": [
       "vpc"
@@ -447,6 +464,7 @@
     "answer": 2,
     "explanation": "A subnet is considered public when its route table has a route sending internet-bound traffic (0.0.0.0/0) to an Internet Gateway, and resources in it typically have public IP addresses.",
     "example": "# Make a subnet public: route 0.0.0.0/0 to the IGW\naws ec2 create-route --route-table-id rtb-0pub --destination-cidr-block 0.0.0.0/0 --gateway-id igw-0abc\naws ec2 associate-route-table --route-table-id rtb-0pub --subnet-id subnet-0a\naws ec2 modify-subnet-attribute --subnet-id subnet-0a --map-public-ip-on-launch",
+    "diagram": "flowchart LR\nS[\"Subnet\"] --> RT[\"Route table\"]\nRT -->|\"10.0.0.0/16\"| L[\"local\"]\nRT -->|\"0.0.0.0/0\"| IGW[\"Internet Gateway\"]\nIGW --> I[\"Internet\"]\nS --> P[\"Public subnet: IGW route + public IPs\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Subnets.html",
     "tags": [
       "vpc",
@@ -474,6 +492,7 @@
     "answer": 1,
     "explanation": "A route table contains a set of rules (routes) that determine where network traffic from a subnet or gateway is directed, such as to an Internet Gateway, NAT gateway, or peering connection.",
     "example": "aws ec2 describe-route-tables --route-table-ids rtb-0priv --query 'RouteTables[0].Routes'\n# 10.0.0.0/16   local          # intra-VPC\n# 0.0.0.0/0     nat-0abc123    # internet via NAT gateway\n# 10.1.0.0/16   pcx-0def456    # peered VPC",
+    "diagram": "flowchart LR\nS[\"Subnet traffic\"] --> RT[\"Route table\"]\nRT -->|\"10.0.0.0/16 local\"| V[\"Inside VPC\"]\nRT -->|\"0.0.0.0/0\"| N[\"NAT gateway or IGW\"]\nRT -->|\"172.16.0.0/16\"| P[\"Peering connection\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html",
     "tags": [
       "vpc",
@@ -501,6 +520,7 @@
     "answer": 0,
     "explanation": "An Internet Gateway is a horizontally scaled, redundant VPC component that allows communication between instances in the VPC and the internet, when combined with public IPs and appropriate routes.",
     "example": "aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId'\naws ec2 attach-internet-gateway --internet-gateway-id igw-0abc --vpc-id vpc-0abc\n# then add 0.0.0.0/0 -> igw-0abc in the public route table",
+    "diagram": "flowchart LR\nE[\"EC2 with public IP\"] --> RT[\"Route 0.0.0.0/0 to igw\"]\nRT --> IGW[\"Internet Gateway (redundant, scaled)\"]\nIGW <--> I[\"Internet\"]\nIGW -->|\"inbound to public IP\"| E",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html",
     "tags": [
       "vpc",
@@ -528,6 +548,7 @@
     "answer": 3,
     "explanation": "A NAT gateway lets instances in private subnets initiate outbound connections to the internet (e.g., for software updates) while preventing the internet from initiating inbound connections to those instances.",
     "example": "# NAT gateway lives in the public subnet with an Elastic IP\naws ec2 create-nat-gateway --subnet-id subnet-0pub --allocation-id eipalloc-111\n# private route table sends internet traffic through it\naws ec2 create-route --route-table-id rtb-0priv --destination-cidr-block 0.0.0.0/0 --nat-gateway-id nat-0abc",
+    "diagram": "flowchart LR\nP[\"Private subnet instance\"] -->|\"outbound: apt update\"| NAT[\"NAT gateway in public subnet\"]\nNAT --> IGW[\"Internet Gateway\"]\nIGW --> I[\"Internet\"]\nI -.->|\"inbound initiated: blocked\"| P",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html",
     "tags": [
       "vpc",
@@ -543,6 +564,7 @@
     "answer": true,
     "explanation": "Security groups automatically allow response traffic for an allowed request, while NACLs evaluate inbound and outbound rules independently, requiring explicit rules for both directions.",
     "example": "# Security group: one inbound rule; replies allowed automatically\naws ec2 authorize-security-group-ingress --group-id sg-0web --protocol tcp --port 443 --cidr 0.0.0.0/0\n# NACL: must also allow ephemeral return ports outbound\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --rule-number 100 --egress \\\n  --protocol tcp --port-range From=1024,To=65535 --cidr-block 0.0.0.0/0 --rule-action allow",
+    "diagram": "flowchart LR\nR[\"Request in :443\"] --> SG[\"Security group: stateful\"]\nSG --> A[\"Return traffic auto-allowed\"]\nR2[\"Request in :443\"] --> NACL[\"Network ACL: stateless\"]\nNACL --> O[\"Needs outbound rule for ephemeral ports 1024-65535\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
     "tags": [
       "vpc",
@@ -578,6 +600,7 @@
     ],
     "explanation": "NACLs operate at the subnet level, are stateless, evaluate rules in numeric order until a match is found, and support both allow and deny rules — unlike security groups, which only support allow rules and operate at the instance/ENI level.",
     "example": "# Deny one bad IP at the subnet edge, evaluated before the allow at 200\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --ingress \\\n  --rule-number 50 --protocol -1 --cidr-block 203.0.113.9/32 --rule-action deny\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --ingress \\\n  --rule-number 200 --protocol tcp --port-range From=443,To=443 --cidr-block 0.0.0.0/0 --rule-action allow",
+    "diagram": "flowchart TD\nN[\"Network ACL on subnet\"] --> R1[\"Rule 100: ALLOW tcp 443\"]\nR1 --> R2[\"Rule 200: DENY tcp 22 from 0.0.0.0/0\"]\nR2 --> R3[\"Rule *: DENY all\"]\nN --> S[\"Stateless: inbound and outbound evaluated separately\"]\nN --> O[\"First matching rule number wins\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
     "tags": [
       "vpc",
@@ -605,6 +628,7 @@
     "answer": 1,
     "explanation": "VPC peering establishes a private, direct network connection between two VPCs so resources can communicate as if on the same network, using private IP addresses; it is not transitive across multiple peered VPCs.",
     "example": "aws ec2 create-vpc-peering-connection --vpc-id vpc-A --peer-vpc-id vpc-B --peer-owner-id 210987654321\naws ec2 accept-vpc-peering-connection --vpc-peering-connection-id pcx-0abc\n# routes needed in BOTH VPCs\naws ec2 create-route --route-table-id rtb-A --destination-cidr-block 10.1.0.0/16 --vpc-peering-connection-id pcx-0abc",
+    "diagram": "flowchart LR\nA[\"VPC A 10.0.0.0/16\"] <-->|\"peering pcx-1\"| B[\"VPC B 10.1.0.0/16\"]\nB <-->|\"peering pcx-2\"| C[\"VPC C 10.2.0.0/16\"]\nA -.->|\"NOT reachable: no transitive routing\"| C\nA --> R[\"Each VPC route table needs a route to the peer CIDR\"]",
     "reference": "https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html",
     "tags": [
       "vpc",
@@ -632,6 +656,7 @@
     "answer": 2,
     "explanation": "S3 Standard-IA (Infrequent Access) is designed for infrequently accessed data that still needs rapid access, offering lower storage cost with a retrieval fee, compared to S3 Standard which is optimized for frequently accessed data.",
     "example": "aws s3 cp report.parquet s3://analytics/2026/ --storage-class STANDARD_IA\n# or move by lifecycle rule after 30 days\n\"Transitions\": [{\"Days\": 30, \"StorageClass\": \"STANDARD_IA\"}]",
+    "diagram": "flowchart LR\nS[\"S3 Standard: frequent access\"] --> IA[\"Standard-IA: infrequent, ms access, retrieval fee\"]\nIA --> G[\"Glacier: minutes to hours\"]\nG --> DA[\"Deep Archive: 12+ hours\"]\nS -->|\"storage cost\"| H[\"highest\"]\nDA -->|\"storage cost\"| L[\"lowest\"]",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html",
     "tags": [
       "s3",
@@ -659,6 +684,7 @@
     "answer": 0,
     "explanation": "Versioning keeps multiple variants of an object in the same bucket, protecting against accidental overwrites and deletions by letting you retrieve or restore previous versions.",
     "example": "aws s3api put-bucket-versioning --bucket app-config --versioning-configuration Status=Enabled\naws s3api list-object-versions --bucket app-config --prefix settings.yaml\n# restore an older version by copying it over the current one\naws s3api copy-object --bucket app-config --key settings.yaml --copy-source app-config/settings.yaml?versionId=3sL4kqtJlcpXroDTDmJ",
+    "diagram": "flowchart LR\nP1[\"PUT report.csv\"] --> V1[\"version 1\"]\nP2[\"PUT report.csv again\"] --> V2[\"version 2 (current)\"]\nDEL[\"DELETE report.csv\"] --> DM[\"delete marker\"]\nV1 --> R[\"Restore any previous version\"]\nDM --> R",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html",
     "tags": [
       "s3",
@@ -686,6 +712,7 @@
     "answer": 1,
     "explanation": "Lifecycle rules automate moving objects between storage classes (e.g., Standard to Standard-IA to Glacier) as they age, and/or expiring (deleting) them after a defined period, without manual intervention.",
     "example": "# lifecycle.json applied with: aws s3api put-bucket-lifecycle-configuration --bucket logs --lifecycle-configuration file://lifecycle.json\n{\"Rules\": [{\"ID\": \"age-out\", \"Status\": \"Enabled\", \"Filter\": {\"Prefix\": \"\"},\n  \"Transitions\": [{\"Days\": 30, \"StorageClass\": \"STANDARD_IA\"}, {\"Days\": 90, \"StorageClass\": \"GLACIER\"}],\n  \"Expiration\": {\"Days\": 365}}]}",
+    "diagram": "stateDiagram-v2\n[*] --> Standard: object uploaded\nStandard --> StandardIA: after 30 days\nStandardIA --> Glacier: after 90 days\nGlacier --> Expired: after 365 days\nExpired --> [*]: object deleted",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html",
     "tags": [
       "s3",
@@ -713,6 +740,7 @@
     "answer": 3,
     "explanation": "A bucket policy is a resource-based JSON policy attached directly to the bucket that can grant or deny access to any principal (including cross-account principals), whereas an IAM identity-based policy is attached to a user, group, or role and defines what that identity can do.",
     "example": "# Bucket policy granting another account read access\n{\"Version\": \"2012-10-17\", \"Statement\": [{\n  \"Effect\": \"Allow\",\n  \"Principal\": {\"AWS\": \"arn:aws:iam::210987654321:role/Reader\"},\n  \"Action\": \"s3:GetObject\",\n  \"Resource\": \"arn:aws:s3:::shared-data/*\"}]}",
+    "diagram": "flowchart TD\nI[\"Identity-based policy\"] --> U[\"Attached to user, group, role\"]\nU --> W[\"What this identity may do\"]\nB[\"Bucket policy (resource-based)\"] --> S[\"Attached to the bucket\"]\nS --> P[\"Principal element: any account, even cross-account\"]\nP --> X[\"Grant or deny access to this bucket\"]",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-policy-language-overview.html",
     "tags": [
       "s3",
@@ -732,6 +760,7 @@
     ],
     "explanation": "Amazon S3 Standard, Standard-IA, and Glacier storage classes are designed for 99.999999999% (eleven 9s) durability of objects over a given year.",
     "example": "# Durability is a design target, not a setting; you still protect against\n# accidental deletion with versioning and MFA delete\naws s3api put-bucket-versioning --bucket prod-backups \\\n  --versioning-configuration Status=Enabled,MFADelete=Enabled \\\n  --mfa \"arn:aws:iam::123456789012:mfa/root 123456\"",
+    "diagram": "flowchart LR\nO[\"Object PUT\"] --> R[\"Stored redundantly across 3+ AZs\"]\nR --> D[\"99.999999999% durability (11 nines)\"]\nD --> M[\"~1 object lost per 10 million objects per 10,000 years\"]\nD --> C[\"Applies to Standard, Standard-IA, Glacier\"]",
     "pattern": "^99\\.999999999%?$",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/DataDurability.html",
     "tags": [
@@ -748,6 +777,7 @@
     "answer": true,
     "explanation": "Since December 2020, S3 provides strong read-after-write consistency automatically for all requests, without additional cost or performance impact, replacing the older eventual-consistency model.",
     "example": "aws s3 cp config.json s3://app-config/config.json\naws s3 cp s3://app-config/config.json -   # immediately returns the new content\n# same for overwrite: the next GET after a PUT never returns the stale object",
+    "diagram": "sequenceDiagram\nparticipant W as \"Writer\"\nparticipant S3\nparticipant R as \"Reader\"\nW->>S3: PUT key (overwrite)\nS3-->>W: 200 OK\nR->>S3: GET key\nS3-->>R: newest version, always (strong consistency)",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Introduction.html",
     "tags": [
       "s3",
@@ -775,6 +805,7 @@
     "answer": 1,
     "explanation": "Amazon EFS (Elastic File System) provides a shared, elastic NFS file system usable by many instances at once, unlike EBS, which is block storage that (with rare Multi-Attach exceptions) is normally attached to a single instance in a single AZ.",
     "example": "# Same EFS file system mounted on instances in two AZs\nsudo mount -t efs -o tls fs-0abc123:/ /mnt/shared   # on instance in az-a\nsudo mount -t efs -o tls fs-0abc123:/ /mnt/shared   # on instance in az-b",
+    "diagram": "flowchart TD\nEFS[\"Amazon EFS (NFS)\"] --> A[\"EC2 in AZ-a\"]\nEFS --> B[\"EC2 in AZ-b\"]\nEFS --> C[\"EC2 in AZ-c\"]\nEBS[\"Amazon EBS (block)\"] --> E[\"One instance, one AZ\"]\nS3[\"Amazon S3\"] --> O[\"Object API, not a mountable FS\"]",
     "reference": "https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html",
     "tags": [
       "efs",
@@ -791,6 +822,7 @@
     "answer": true,
     "explanation": "EBS volumes exist within a single AZ; to use one with an instance in a different AZ, you must first create a snapshot and restore it as a new volume in the target AZ.",
     "example": "# Move a volume to another AZ via snapshot\naws ec2 create-snapshot --volume-id vol-0abc --description \"move to 1b\"\naws ec2 create-volume --snapshot-id snap-0def --availability-zone ap-southeast-1b\naws ec2 attach-volume --volume-id vol-0new --instance-id i-0inst-in-1b --device /dev/xvdf",
+    "diagram": "flowchart LR\nV[\"EBS volume in AZ-a\"] --> E1[\"EC2 in AZ-a: attach OK\"]\nV -.->|\"cannot attach\"| E2[\"EC2 in AZ-b\"]\nV --> S[\"Snapshot (regional)\"]\nS --> V2[\"New volume in AZ-b\"]\nV2 --> E2",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volumes.html",
     "tags": [
       "ebs"
@@ -817,6 +849,7 @@
     "answer": 0,
     "explanation": "Multi-AZ deployments maintain a synchronous standby replica in a different Availability Zone for high availability and automatic failover; the standby is not intended for offloading read traffic in the classic Multi-AZ model.",
     "example": "aws rds create-db-instance --db-instance-identifier orders \\\n  --engine postgres --db-instance-class db.m6g.large \\\n  --allocated-storage 100 --multi-az \\\n  --master-username admin --master-user-password '...'\n# failover test: aws rds reboot-db-instance --db-instance-identifier orders --force-failover",
+    "diagram": "flowchart LR\nApp[\"Application\"] --> DNS[\"RDS endpoint DNS\"]\nDNS --> P[\"Primary AZ-a\"]\nP -->|\"synchronous replication\"| S[\"Standby AZ-b (no reads)\"]\nP -.->|\"failure\"| F[\"Automatic failover: DNS flips to standby\"]\nF --> S",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html",
     "tags": [
       "rds",
@@ -844,6 +877,7 @@
     "answer": 2,
     "explanation": "Read replicas use asynchronous replication to offload read-only query traffic from the primary database, improving read scalability; they can also be promoted to a standalone writable database if needed.",
     "example": "aws rds create-db-instance-read-replica \\\n  --db-instance-identifier orders-replica-1 \\\n  --source-db-instance-identifier orders\n# point reporting queries at the replica endpoint\nDATABASE_READ_URL=postgres://orders-replica-1.abc.ap-southeast-1.rds.amazonaws.com/app",
+    "diagram": "flowchart LR\nApp[\"Application\"] -->|\"writes\"| P[\"Primary RDS\"]\nApp -->|\"reads\"| R1[\"Read replica 1\"]\nApp -->|\"reads\"| R2[\"Read replica 2\"]\nP -->|\"async replication\"| R1\nP -->|\"async replication\"| R2\nR1 -.->|\"promote if needed\"| W[\"Standalone writable DB\"]",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html",
     "tags": [
       "rds",
@@ -875,6 +909,7 @@
     ],
     "explanation": "Multi-AZ uses synchronous replication primarily for failover/HA, while read replicas use asynchronous replication and are primarily for scaling reads. Read replicas can be created in a different AWS Region, and can be promoted to a standalone instance.",
     "example": "# cross-region replica for DR / local reads\naws rds create-db-instance-read-replica --db-instance-identifier orders-eu \\\n  --source-db-instance-identifier arn:aws:rds:ap-southeast-1:123456789012:db:orders --region eu-west-1\n# promote it to a standalone writable instance\naws rds promote-read-replica --db-instance-identifier orders-eu --region eu-west-1",
+    "diagram": "flowchart TD\nP[\"Primary DB\"] -->|\"sync\"| S[\"Multi-AZ standby: auto failover, no reads\"]\nP -->|\"async\"| R[\"Read replica: scale reads\"]\nR --> X[\"Can live in another Region\"]\nR --> Pr[\"Can be promoted to standalone\"]\nS -.->|\"automatic, no DNS edits\"| F[\"Failover\"]",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html",
     "tags": [
       "rds"
@@ -901,6 +936,7 @@
     "answer": 1,
     "explanation": "AWS Lambda is a serverless compute service that runs your code in response to events and automatically manages the underlying compute resources, so you don't provision or manage servers.",
     "example": "# handler.py\ndef handler(event, context):\n    return {\"statusCode\": 200, \"body\": f\"got {len(event.get('Records', []))} records\"}\n\naws lambda create-function --function-name hello --runtime python3.12 \\\n  --handler handler.handler --zip-file fileb://fn.zip --role arn:aws:iam::123456789012:role/lambda-exec",
+    "diagram": "flowchart LR\nE[\"Event: S3 upload / HTTP / schedule\"] --> L[\"Lambda service\"]\nL --> R[\"Provisions runtime automatically\"]\nR --> F[\"Runs your handler code\"]\nF --> B[\"Billed per invocation and ms\"]\nL --> Z[\"Scales to zero when idle, no servers to manage\"]",
     "reference": "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
     "tags": [
       "lambda",
@@ -932,6 +968,7 @@
     ],
     "explanation": "Lambda can be invoked by many event sources including S3 (object events), API Gateway (HTTP requests), and DynamoDB Streams (table changes). A Route 53 hosted zone by itself does not invoke Lambda functions.",
     "example": "# S3 -> Lambda on object creation (JSON names the function ARN)\naws s3api put-bucket-notification-configuration --bucket uploads --notification-configuration file://notif.json\n# DynamoDB Streams -> Lambda via event source mapping\naws lambda create-event-source-mapping --function-name audit --starting-position LATEST \\\n  --event-source-arn arn:aws:dynamodb:ap-southeast-1:111:table/orders/stream/2026-01-01",
+    "diagram": "flowchart LR\nS3[\"S3 event notification\"] --> L[\"Lambda function\"]\nAPI[\"API Gateway HTTP request\"] --> L\nDDB[\"DynamoDB Streams\"] --> L\nSQS[\"SQS / SNS / EventBridge\"] --> L\nR53[\"Route 53 hosted zone\"] -.->|\"DNS only, no invoke\"| L",
     "reference": "https://docs.aws.amazon.com/lambda/latest/dg/lambda-services.html",
     "tags": [
       "lambda"
@@ -958,6 +995,7 @@
     "answer": 0,
     "explanation": "A task definition is a JSON blueprint that describes one or more containers (image, CPU/memory, ports, environment variables, etc.) that make up an application, used by ECS to launch tasks.",
     "example": "# task-def.json, registered with: aws ecs register-task-definition --cli-input-json file://task-def.json\n{\"family\": \"api\", \"requiresCompatibilities\": [\"FARGATE\"], \"networkMode\": \"awsvpc\",\n \"cpu\": \"512\", \"memory\": \"1024\",\n \"containerDefinitions\": [{\"name\": \"api\", \"image\": \"123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0\",\n   \"portMappings\": [{\"containerPort\": 8080}]}]}",
+    "diagram": "flowchart TD\nTD[\"Task definition (JSON)\"] --> C1[\"Container: image, cpu, memory\"]\nTD --> C2[\"Ports, env vars, log config\"]\nTD --> R[\"Task role + execution role\"]\nTD --> S[\"ECS service runs N tasks from it\"]\nS --> T[\"Running task on Fargate or EC2\"]",
     "reference": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html",
     "tags": [
       "ecs"
@@ -984,6 +1022,7 @@
     "answer": 2,
     "explanation": "With Fargate, AWS manages the underlying compute infrastructure automatically, so you don't need to provision, patch, or scale EC2 instances yourself — you just define your task's CPU/memory needs.",
     "example": "aws ecs create-service --cluster prod --service-name api \\\n  --task-definition api:7 --desired-count 3 --launch-type FARGATE \\\n  --network-configuration 'awsvpcConfiguration={subnets=[subnet-0a,subnet-0b],securityGroups=[sg-0api]}'\n# no EC2 instances, AMIs or agent upgrades to manage",
+    "diagram": "flowchart TD\nEC2[\"EC2 launch type\"] --> Y[\"You: provision, patch, scale instances\"]\nY --> T1[\"Tasks placed on your instances\"]\nFG[\"Fargate launch type\"] --> A[\"AWS: manages compute\"]\nA --> T2[\"You declare task CPU/memory only\"]\nT2 --> T3[\"Task runs, no instances to manage\"]",
     "reference": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html",
     "tags": [
       "ecs",
@@ -1011,6 +1050,7 @@
     "answer": 3,
     "explanation": "EKS is a managed Kubernetes service in which AWS runs and manages the Kubernetes control plane (API server, etcd, etc.) across multiple AZs, while you manage worker nodes (or use Fargate for those too).",
     "example": "eksctl create cluster --name prod --region ap-southeast-1 --nodes 3\naws eks update-kubeconfig --name prod\nkubectl get nodes   # nodes are yours; the API server and etcd are AWS-managed",
+    "diagram": "flowchart TD\nEKS[\"Amazon EKS\"] --> CP[\"Control plane: API server, etcd, scheduler\"]\nCP --> M[\"Multi-AZ, patched by AWS\"]\nEKS --> W[\"Data plane\"]\nW --> N[\"Worker nodes: managed node groups or self-managed\"]\nW --> F[\"or Fargate pods\"]\nN --> P[\"Your pods run here\"]",
     "reference": "https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html",
     "tags": [
       "eks",
@@ -1038,6 +1078,7 @@
     "answer": 1,
     "explanation": "ECR is a fully managed Docker/OCI container image registry used to store, manage, and deploy container images, integrating with ECS, EKS, and Lambda.",
     "example": "aws ecr get-login-password | docker login --username AWS --password-stdin 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com\ndocker tag api:1.4.0 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0\ndocker push 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0",
+    "diagram": "flowchart LR\nB[\"CI build: docker build\"] --> P[\"docker push to ECR\"]\nP --> ECR[\"ECR repository (OCI images, scanning)\"]\nECR --> ECS[\"ECS task pulls image\"]\nECR --> EKS[\"EKS pod pulls image\"]\nECR --> L[\"Lambda container image\"]",
     "reference": "https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html",
     "tags": [
       "ecr",
@@ -1065,6 +1106,7 @@
     "answer": 0,
     "explanation": "CloudWatch Logs centralizes log collection, storage, and monitoring from EC2 instances, Lambda functions, and other AWS resources, letting you search, filter, and set alarms on log data.",
     "example": "aws logs create-log-group --log-group-name /app/api\naws logs put-retention-policy --log-group-name /app/api --retention-in-days 30\naws logs tail /app/api --follow --filter-pattern \"ERROR\"   # live stream of matching events",
+    "diagram": "flowchart LR\nE[\"EC2 agent\"] --> G[\"CloudWatch Logs log group\"]\nL[\"Lambda stdout\"] --> G\nC[\"ECS containers\"] --> G\nG --> S[\"Streams, retention, search\"]\nG --> F[\"Metric filters -> alarms\"]\nG --> I[\"Logs Insights queries\"]",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
     "tags": [
       "cloudwatch",
@@ -1092,6 +1134,7 @@
     "answer": 2,
     "explanation": "A CloudWatch alarm watches a single metric (or metric math expression) over a specified period and triggers one or more actions (such as an SNS notification or an Auto Scaling action) when the metric breaches a defined threshold.",
     "example": "aws cloudwatch put-metric-alarm --alarm-name api-5xx-high \\\n  --namespace AWS/ApplicationELB --metric-name HTTPCode_Target_5XX_Count \\\n  --dimensions Name=LoadBalancer,Value=app/api/0abc \\\n  --statistic Sum --period 60 --evaluation-periods 3 --threshold 50 \\\n  --comparison-operator GreaterThanThreshold \\\n  --alarm-actions arn:aws:sns:ap-southeast-1:123456789012:oncall",
+    "diagram": "stateDiagram-v2\n[*] --> OK: CPU below 80%\nOK --> ALARM: metric over threshold for 3 periods\nALARM --> OK: metric back under threshold\nALARM --> INSUFFICIENT: no data points\nINSUFFICIENT --> OK: data resumes\nALARM --> Action: fires SNS notification or Auto Scaling action\nAction --> ALARM: stays until metric recovers",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html",
     "tags": [
       "cloudwatch",
@@ -1107,6 +1150,7 @@
     "answer": true,
     "explanation": "CloudWatch supports custom metrics via the `PutMetricData` API (or embedded metric format), letting applications publish business or application-specific metrics alongside built-in AWS service metrics.",
     "example": "aws cloudwatch put-metric-data --namespace MyApp/Checkout \\\n  --metric-name OrdersPlaced --value 12 --unit Count \\\n  --dimensions Region=apac,Version=1.4.0\n# or emit EMF JSON to stdout in Lambda and CloudWatch extracts the metric",
+    "diagram": "flowchart LR\nA[\"Application code\"] -->|\"PutMetricData\"| N[\"Custom namespace MyApp\"]\nN --> M[\"Metric OrdersPlaced, dims env=prod\"]\nS[\"AWS services\"] -->|\"automatic\"| AWS[\"Namespace AWS/EC2\"]\nM --> D[\"Dashboards + alarms\"]\nAWS --> D",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html",
     "tags": [
       "cloudwatch",
@@ -1134,6 +1178,7 @@
     "answer": 1,
     "explanation": "CloudTrail records API calls and account activity made in an AWS account (who did what, when, and from where), which is essential for auditing, governance, and security investigation.",
     "example": "aws cloudtrail create-trail --name org-audit --s3-bucket-name audit-logs --is-multi-region-trail\naws cloudtrail start-logging --name org-audit\n# who deleted that bucket?\naws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=DeleteBucket",
+    "diagram": "sequenceDiagram\nparticipant U as \"User / role\"\nparticipant API as \"AWS API\"\nparticipant CT as \"CloudTrail\"\nparticipant S3\nU->>API: TerminateInstances\nAPI->>CT: event: who, what, when, from where\nCT->>S3: store trail log\nNote over CT,S3: audit, governance, security investigation",
     "reference": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html",
     "tags": [
       "cloudtrail",
@@ -1161,6 +1206,7 @@
     "answer": 1,
     "explanation": "CloudTrail focuses on auditing 'who did what' by recording API calls/management events for governance and compliance, while CloudWatch focuses on operational monitoring: metrics, logs, dashboards, and alarms about resource performance and health.",
     "example": "# CloudTrail answers \"who did it?\"\naws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=TerminateInstances\n# CloudWatch answers \"how is it performing?\"\naws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization \\\n  --dimensions Name=InstanceId,Value=i-0abc --period 300 --statistics Average \\\n  --start-time 2026-09-11T00:00Z --end-time 2026-09-11T01:00Z",
+    "diagram": "flowchart TD\nCT[\"CloudTrail\"] --> A[\"Records API calls: who did what, when\"]\nA --> G[\"Audit, compliance, forensics\"]\nCW[\"CloudWatch\"] --> M[\"Metrics, logs, dashboards, alarms\"]\nM --> O[\"Operational health and performance\"]\nQ1[\"Who deleted the bucket?\"] --> CT\nQ2[\"Is CPU too high right now?\"] --> CW",
     "reference": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html",
     "tags": [
       "cloudtrail",
@@ -1179,6 +1225,7 @@
     ],
     "explanation": "A stack is a collection of AWS resources that CloudFormation creates, updates, and deletes together as a single unit, based on a template.",
     "example": "aws cloudformation deploy --stack-name web-prod \\\n  --template-file template.yaml \\\n  --parameter-overrides Env=prod --capabilities CAPABILITY_IAM\naws cloudformation delete-stack --stack-name web-prod   # removes every resource in the stack",
+    "diagram": "flowchart LR\nT[\"Template (YAML/JSON)\"] --> S[\"Stack: one unit\"]\nS --> R1[\"VPC\"]\nS --> R2[\"Subnets\"]\nS --> R3[\"EC2 instances\"]\nS -->|\"update-stack\"| U[\"All changed together\"]\nS -->|\"delete-stack\"| D[\"All deleted together\"]",
     "pattern": "^(a\\s+)?stack$",
     "reference": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html",
     "tags": [
@@ -1194,6 +1241,7 @@
     "answer": true,
     "explanation": "Drift detection compares the current state of stack resources to the expected configuration defined in the template/stack, flagging resources that have been modified outside of CloudFormation.",
     "example": "aws cloudformation detect-stack-drift --stack-name web-prod\naws cloudformation describe-stack-resource-drifts --stack-name web-prod \\\n  --stack-resource-drift-status-filters MODIFIED DELETED\n# shows e.g. a security group rule added by hand in the console",
+    "diagram": "flowchart LR\nT[\"Template: sg allows port 443\"] --> S[\"Stack expected state\"]\nC[\"Console edit: adds port 22\"] --> A[\"Actual resource state\"]\nS --> D[\"Drift detection compares\"]\nA --> D\nD --> R[\"Status: DRIFTED, property diff shown\"]",
     "reference": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html",
     "tags": [
       "cloudformation",
@@ -1225,6 +1273,7 @@
     ],
     "explanation": "Route 53 supports Simple, Weighted, Latency-based, Failover, Geolocation, Geoproximity, and Multivalue answer routing policies. 'Round-trip' routing is not one of them.",
     "example": "# Weighted record for app.example.com: this one gets 90%, a second record with SetIdentifier green gets 10\n{\"Action\": \"UPSERT\", \"ResourceRecordSet\": {\"Name\": \"app.example.com\", \"Type\": \"A\",\n  \"SetIdentifier\": \"blue\", \"Weight\": 90, \"TTL\": 60, \"ResourceRecords\": [{\"Value\": \"203.0.113.10\"}]}}\n# aws route53 change-resource-record-sets --hosted-zone-id Z123 --change-batch file://weighted.json",
+    "diagram": "flowchart TD\nR[\"Route 53 routing policies\"] --> S[\"Simple\"]\nR --> W[\"Weighted: traffic split\"]\nR --> L[\"Latency-based: fastest Region\"]\nR --> F[\"Failover: primary / secondary\"]\nR --> G[\"Geolocation, Geoproximity, Multivalue\"]\nX[\"Round-trip\"] -.->|\"not a policy\"| R",
     "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html",
     "tags": [
       "route53",
@@ -1252,6 +1301,7 @@
     "answer": 1,
     "explanation": "Weighted routing lets you assign relative weights to records associated with the same domain name, controlling what proportion of traffic goes to each resource — useful for gradual rollouts and A/B testing.",
     "example": "# canary: 5% of users to the new stack (Terraform)\nresource \"aws_route53_record\" \"green\" {\n  zone_id = var.zone_id\n  name    = \"app.example.com\"\n  ttl     = 60   # short TTL so shifts apply fast\n  set_identifier = \"green\"\n  weighted_routing_policy { weight = 5 }   # blue record: weight 95\n  records = [aws_lb.green.dns_name] }",
+    "diagram": "flowchart LR\nU[\"Users query app.example.com\"] --> R53[\"Route 53 weighted records\"]\nR53 -->|\"weight 90\"| B[\"Blue stack (current)\"]\nR53 -->|\"weight 10\"| G[\"Green stack (canary)\"]\nG --> M[\"Healthy? shift weight gradually\"]\nM --> R53",
     "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html",
     "tags": [
       "route53"
@@ -1278,6 +1328,7 @@
     "answer": 2,
     "explanation": "CloudFront is a content delivery network (CDN) that caches and delivers content from edge locations close to users, reducing latency for static and dynamic content.",
     "example": "aws cloudfront create-distribution --origin-domain-name static-site.s3.ap-southeast-1.amazonaws.com\n# users hit d1234abcd.cloudfront.net; edge caches serve repeat requests\ncurl -sI https://d1234abcd.cloudfront.net/logo.png | grep -i x-cache   # X-Cache: Hit from cloudfront",
+    "diagram": "sequenceDiagram\nparticipant U as \"User (Singapore)\"\nparticipant E as \"CloudFront edge\"\nparticipant O as \"Origin (S3 in us-east-1)\"\nU->>E: GET /logo.png\nE->>O: cache miss: fetch\nO-->>E: object\nE-->>U: response (cached at edge)\nU->>E: GET /logo.png again\nE-->>U: cache hit, low latency",
     "reference": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html",
     "tags": [
       "cloudfront",
@@ -1305,6 +1356,7 @@
     "answer": 3,
     "explanation": "An origin is the source location CloudFront fetches content from when it isn't already cached at the edge, such as an S3 bucket, an Application Load Balancer, or a custom HTTP server.",
     "example": "# Terraform: an S3 bucket as the origin behind a distribution\nresource \"aws_cloudfront_distribution\" \"site\" {\n  origin {\n    domain_name = aws_s3_bucket.site.bucket_regional_domain_name\n    origin_id   = \"s3-site\"\n  }\n  default_cache_behavior { target_origin_id = \"s3-site\" ... }\n}",
+    "diagram": "flowchart LR\nV[\"Viewer\"] --> D[\"CloudFront distribution\"]\nD -->|\"miss\"| O1[\"Origin: S3 bucket\"]\nD -->|\"miss\"| O2[\"Origin: ALB\"]\nD -->|\"miss\"| O3[\"Origin: custom HTTP server\"]\nD -->|\"hit\"| C[\"Edge cache\"]",
     "reference": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistS3AndCustomOrigins.html",
     "tags": [
       "cloudfront"
@@ -1331,6 +1383,7 @@
     "answer": 0,
     "explanation": "SQS is a pull-based message queue where consumers poll for messages, typically used for decoupling and buffering work between producers and a single logical consumer group. SNS is a push-based publish/subscribe service that fans a message out to multiple subscribers (email, SMS, Lambda, SQS, etc.) at once.",
     "example": "# SNS: one publish, pushed to every subscriber\naws sns publish --topic-arn arn:aws:sns:ap-southeast-1:123456789012:orders --message '{\"orderId\":42}'\n# SQS: consumer must poll\naws sqs receive-message --queue-url https://sqs.ap-southeast-1.amazonaws.com/123456789012/billing --wait-time-seconds 20",
+    "diagram": "flowchart LR\nP1[\"Producer\"] --> Q[\"SQS queue\"]\nQ -->|\"consumer polls\"| C1[\"One consumer group\"]\nP2[\"Publisher\"] --> T[\"SNS topic\"]\nT -->|\"push\"| S1[\"Email\"]\nT -->|\"push\"| S2[\"Lambda\"]\nT -->|\"push\"| S3[\"SQS queue\"]",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html",
     "tags": [
       "sqs",
@@ -1346,6 +1399,7 @@
     "answer": false,
     "explanation": "Standard queues provide best-effort, at-least-once delivery but do not guarantee strict ordering; if strict FIFO ordering (and exactly-once processing) is required, you must use a FIFO queue instead.",
     "example": "# Standard queue: ordering is best effort\naws sqs create-queue --queue-name jobs\n# FIFO queue: strict order within a message group\naws sqs create-queue --queue-name jobs.fifo --attributes FifoQueue=true,ContentBasedDeduplication=true\naws sqs send-message --queue-url .../jobs.fifo --message-body '{\"id\":1}' --message-group-id order-42",
+    "diagram": "flowchart LR\nS[\"Standard queue\"] --> A[\"At-least-once, may duplicate\"]\nS --> B[\"Best-effort order: 1,3,2,3\"]\nS --> H[\"Nearly unlimited throughput\"]\nF[\"FIFO queue\"] --> O[\"Strict order 1,2,3 per MessageGroupId\"]\nF --> E[\"Exactly-once processing\"]",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html",
     "tags": [
       "sqs"
@@ -1372,6 +1426,7 @@
     "answer": 1,
     "explanation": "AWS Secrets Manager provides built-in automatic rotation support for supported services like RDS, using AWS-provided or custom Lambda rotation functions. Systems Manager Parameter Store can store secrets but does not have this same native rotation workflow built in.",
     "example": "aws secretsmanager create-secret --name prod/db/orders \\\n  --secret-string '{\"username\":\"app\",\"password\":\"initial\"}'\naws secretsmanager rotate-secret --secret-id prod/db/orders \\\n  --rotation-lambda-arn arn:aws:lambda:ap-southeast-1:123456789012:function:SecretsManagerRDSPostgreSQLRotation \\\n  --rotation-rules AutomaticallyAfterDays=30",
+    "diagram": "sequenceDiagram\nparticipant SM as \"Secrets Manager\"\nparticipant L as \"Rotation Lambda\"\nparticipant RDS\nparticipant App\nSM->>L: schedule: rotate every 30 days\nL->>RDS: set new password\nL->>SM: store new secret version\nApp->>SM: GetSecretValue\nSM-->>App: current credentials",
     "reference": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html",
     "tags": [
       "secrets-manager",
@@ -1391,6 +1446,7 @@
     ],
     "explanation": "AWS Key Management Service (KMS) lets you create, manage, and control cryptographic keys used to encrypt and decrypt data, and integrates with many AWS services to provide server-side encryption.",
     "example": "aws kms create-key --description \"app data key\" --query KeyMetadata.KeyId\naws kms create-alias --alias-name alias/app-data --target-key-id <key-id>\naws kms encrypt --key-id alias/app-data --plaintext fileb://secret.txt --query CiphertextBlob --output text > secret.enc",
+    "diagram": "flowchart LR\nK[\"AWS KMS key\"] --> S3[\"S3 SSE-KMS\"]\nK --> EBS[\"EBS encryption\"]\nK --> RDS[\"RDS at rest\"]\nK --> SM[\"Secrets Manager\"]\nK --> P[\"Key policy + IAM control who can Encrypt/Decrypt\"]\nK --> C[\"CloudTrail logs every key use\"]",
     "pattern": "^(aws\\s+)?(kms|key management service)$",
     "reference": "https://docs.aws.amazon.com/kms/latest/developerguide/overview.html",
     "tags": [
@@ -1419,6 +1475,7 @@
     "answer": 0,
     "explanation": "An AWS Region is a geographic area that contains multiple, isolated Availability Zones, each consisting of one or more discrete data centers with independent power, cooling, and networking, connected by low-latency links.",
     "example": "aws ec2 describe-availability-zones --region ap-southeast-1 \\\n  --query 'AvailabilityZones[].ZoneName'\n# [\"ap-southeast-1a\", \"ap-southeast-1b\", \"ap-southeast-1c\"]  <- 3 AZs in one Region",
+    "diagram": "flowchart TD\nR[\"Region: ap-southeast-1 (geographic area)\"] --> A[\"AZ a\"]\nR --> B[\"AZ b\"]\nR --> C[\"AZ c\"]\nA --> D1[\"1+ data centers, own power and network\"]\nA <-->|\"low-latency links\"| B\nB <--> C",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html",
     "tags": [
       "regions",
@@ -1436,6 +1493,7 @@
     ],
     "explanation": "`aws s3 ls` with no bucket argument lists all S3 buckets owned by the caller's account.",
     "example": "aws s3 ls\n# 2026-03-04 09:12:31 app-logs\n# 2026-05-19 14:02:07 static-site\naws s3 ls s3://app-logs/2026/   # lists objects under a prefix instead",
+    "diagram": "flowchart LR\nC[\"aws s3 ls\"] --> API[\"ListBuckets API\"]\nAPI --> O[\"2024-01-02 my-logs\"]\nAPI --> O2[\"2024-03-05 my-assets\"]\nC2[\"aws s3 ls s3://my-assets\"] --> K[\"lists objects in that bucket\"]",
     "pattern": "^aws\\s+s3\\s+ls$",
     "reference": "https://docs.aws.amazon.com/cli/latest/reference/s3/ls.html",
     "tags": [
@@ -1468,6 +1526,7 @@
     ],
     "explanation": "The AWS Well-Architected Framework's six pillars are Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, and Sustainability. 'Portability' is not one of the named pillars.",
     "example": "# Well-Architected Tool review tagged by pillar\naws wellarchitected create-workload --workload-name payments \\\n  --description \"payments api\" --environment PRODUCTION \\\n  --aws-regions ap-southeast-1 --lenses wellarchitected --review-owner platform-team\n# pillars: operationalExcellence, security, reliability, performance, costOptimization, sustainability",
+    "diagram": "flowchart TD\nW[\"Well-Architected Framework\"] --> O[\"Operational Excellence\"]\nW --> S[\"Security\"]\nW --> R[\"Reliability\"]\nW --> P[\"Performance Efficiency\"]\nW --> C[\"Cost Optimization\"]\nW --> U[\"Sustainability\"]\nX[\"Portability\"] -.->|\"not a pillar\"| W",
     "reference": "https://docs.aws.amazon.com/wellarchitected/latest/framework/the-pillars-of-the-framework.html",
     "tags": [
       "well-architected"
@@ -1494,6 +1553,7 @@
     "answer": 2,
     "explanation": "Spot Instances let you use spare EC2 capacity at steep discounts compared to On-Demand, but AWS can reclaim (interrupt) the capacity with short notice, making them best suited for fault-tolerant or flexible workloads.",
     "example": "aws ec2 run-instances --image-id ami-0abc --instance-type c6i.xlarge --count 4 \\\n  --instance-market-options 'MarketType=spot,SpotOptions={SpotInstanceType=one-time}'\n# handle the 2-minute interruption notice\ncurl -s http://169.254.169.254/latest/meta-data/spot/instance-action",
+    "diagram": "flowchart LR\nOD[\"On-Demand: 100% price, no interruption\"] --> RI[\"Reserved / Savings Plans: commit, ~40-70% off\"]\nRI --> SP[\"Spot: spare capacity, up to 90% off\"]\nSP --> I[\"2-minute interruption notice\"]\nI --> F[\"Use for batch, CI, stateless, fault-tolerant work\"]",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-spot-instances.html",
     "tags": [
       "ec2",
@@ -1522,6 +1582,7 @@
     "answer": 1,
     "explanation": "After a `ReceiveMessage`, the message stays in the queue but is invisible for the visibility timeout. If the consumer fails to delete it in time, it reappears and another consumer may process it, which is why SQS consumers must be idempotent.",
     "example": "aws sqs set-queue-attributes --queue-url $Q --attributes VisibilityTimeout=120\n# consumer loop\nMSG=$(aws sqs receive-message --queue-url $Q)   # hidden for 120s\n# ... process ...\naws sqs delete-message --queue-url $Q --receipt-handle \"$RH\"   # delete before the timeout",
+    "diagram": "stateDiagram-v2\n[*] --> Visible: message sent\nVisible --> InFlight: ReceiveMessage by consumer A\nInFlight --> Deleted: DeleteMessage within timeout\nInFlight --> Visible: visibility timeout expires (no delete)\nVisible --> InFlight: consumer B receives again (idempotency needed)\nInFlight --> DLQ: receive count exceeds maxReceiveCount\nDeleted --> [*]",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
     "tags": [
       "sqs",
@@ -1549,6 +1610,7 @@
     "answer": 1,
     "explanation": "The redrive policy on the source queue names a DLQ and a `maxReceiveCount`. Each receive increments the receive count; once it exceeds the threshold SQS moves the message to the DLQ so poison messages stop blocking consumers. Alert on DLQ depth and use redrive to move messages back after a fix.",
     "example": "# after 5 failed receives, move the message to jobs-dlq\naws sqs set-queue-attributes --queue-url $JOBS_URL --attributes \\\n  '{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"arn:aws:sqs:ap-southeast-1:123456789012:jobs-dlq\\\",\\\"maxReceiveCount\\\":\\\"5\\\"}\"}'\n# alarm on ApproximateNumberOfMessagesVisible of jobs-dlq > 0",
+    "diagram": "flowchart TD\nQ[\"Source queue, redrive maxReceiveCount=3\"] --> R[\"Consumer receives, fails, no delete\"]\nR --> C{\"ReceiveCount > 3?\"}\nC -->|\"no\"| Q\nC -->|\"yes\"| DLQ[\"Dead-letter queue\"]\nDLQ --> A[\"Alarm on DLQ depth\"]\nDLQ -->|\"after fix: redrive\"| Q",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html",
     "tags": [
       "sqs",
@@ -1577,6 +1639,7 @@
     "answer": 0,
     "explanation": "Standard queues may deliver duplicates and out of order, so consumers must be idempotent. FIFO queues deduplicate within a 5-minute window (via deduplication id) and preserve order within a `MessageGroupId`, at a throughput cap unless high-throughput mode is enabled.",
     "example": "# FIFO: order preserved per group, duplicates dropped for 5 minutes\naws sqs send-message --queue-url .../payments.fifo \\\n  --message-body '{\"orderId\":42,\"amount\":19.99}' \\\n  --message-group-id order-42 --message-deduplication-id charge-42-attempt1\n# Standard: same call without group/dedup ids; consumer must be idempotent",
+    "diagram": "flowchart TD\nS[\"Standard queue\"] --> S1[\"At-least-once, duplicates possible\"]\nS --> S2[\"Best-effort ordering\"]\nS --> S3[\"Nearly unlimited throughput\"]\nF[\"FIFO queue (.fifo)\"] --> F1[\"Exactly-once via dedup id, 5 min window\"]\nF --> F2[\"Strict order per MessageGroupId\"]\nF --> F3[\"Throughput cap unless high-throughput mode\"]",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-queue-types.html",
     "tags": [
       "sqs",
@@ -1593,6 +1656,7 @@
     "answer": true,
     "explanation": "With long polling, `ReceiveMessage` waits up to 20 seconds for a message to arrive instead of returning immediately, cutting the number of empty API calls and the chance of missing messages that are only on some SQS servers.",
     "example": "# queue-wide default\naws sqs set-queue-attributes --queue-url $Q --attributes ReceiveMessageWaitTimeSeconds=20\n# or per call\naws sqs receive-message --queue-url $Q --wait-time-seconds 20 --max-number-of-messages 10",
+    "diagram": "sequenceDiagram\nparticipant C as \"Consumer\"\nparticipant Q as \"SQS\"\nC->>Q: ReceiveMessage WaitTimeSeconds=0 (short)\nQ-->>C: empty (billed)\nC->>Q: ReceiveMessage WaitTimeSeconds=20 (long)\nNote over Q: waits until a message arrives, queries all servers\nQ-->>C: message (fewer empty responses)",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html",
     "tags": [
       "sqs",
@@ -1620,6 +1684,7 @@
     "answer": 1,
     "explanation": "A queue delivers each message to one consumer, so multiple services reading one SQS queue would compete. Fan-out uses a topic: SNS pushes a copy into each subscribed queue, which buffers and retries independently. Pub/Sub combines topic and subscription in one service, with each subscription getting its own copy and ack deadline (the Pub/Sub equivalent of the SQS visibility timeout).",
     "example": "# SNS fan-out: one topic, one SQS queue per consumer\nTOPIC=arn:aws:sns:ap-southeast-1:111:order-placed\naws sns subscribe --topic-arn $TOPIC --protocol sqs --notification-endpoint arn:aws:sqs:ap-southeast-1:111:billing-q\naws sns subscribe --topic-arn $TOPIC --protocol sqs --notification-endpoint arn:aws:sqs:ap-southeast-1:111:email-q\n# GCP: gcloud pubsub subscriptions create billing-sub --topic order-placed",
+    "diagram": "flowchart LR\nP[\"Producer: OrderPlaced\"] --> T[\"SNS topic (or EventBridge)\"]\nT --> Q1[\"SQS billing queue\"]\nT --> Q2[\"SQS analytics queue\"]\nT --> Q3[\"SQS email queue\"]\nQ1 --> B[\"Billing service\"]\nQ2 --> A[\"Analytics service\"]\nQ3 --> E[\"Email service\"]\nG[\"GCP: Pub/Sub topic + one subscription each\"] -.-> T",
     "reference": "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html",
     "tags": [
       "sns",
@@ -1657,6 +1722,7 @@
     ],
     "explanation": "Redis is an in-memory data structure store: excellent as a cache, session store, rate limiter, leaderboard, lock or lightweight message bus. It is not a durable source of truth by default; even with AOF/RDB persistence you would still keep authoritative data in a database.",
     "example": "# cache with TTL\nSET user:42:profile '{\"name\":\"Ann\"}' EX 300\n# rate limit: 100 requests per minute\nINCR ratelimit:42:202609111203\nEXPIRE ratelimit:42:202609111203 60\n# distributed lock\nSET lock:report-job token123 NX PX 30000",
+    "diagram": "flowchart TD\nR[\"Redis (ElastiCache)\"] --> C[\"Cache with TTL\"]\nR --> S[\"Shared session store\"]\nR --> L[\"Rate limits: INCR + EXPIRE\"]\nR --> P[\"Pub/sub, streams, locks SET NX PX\"]\nDB[\"Database = system of record\"] --> R\nX[\"Financial ledger without persistence\"] -.->|\"wrong use\"| R",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html",
     "tags": [
       "redis",
@@ -1686,6 +1752,7 @@
     "answer": 1,
     "explanation": "`allkeys-lru` evicts the least recently used key across the whole keyspace, which is what a cache wants. `volatile-*` policies only evict keys that have a TTL, and `noeviction` returns errors on writes when memory is full, which is safer for a datastore but wrong for a cache.",
     "example": "# ElastiCache parameter group\naws elasticache modify-cache-parameter-group --cache-parameter-group-name redis7-cache \\\n  --parameter-name-values ParameterName=maxmemory-policy,ParameterValue=allkeys-lru\n# self-hosted redis.conf\nmaxmemory 2gb\nmaxmemory-policy allkeys-lru",
+    "diagram": "flowchart TD\nM[\"Memory full on write\"] --> P{\"maxmemory-policy\"}\nP -->|\"allkeys-lru\"| A[\"Evict least recently used key, any key (cache)\"]\nP -->|\"volatile-ttl / volatile-lfu\"| V[\"Only evict keys that have a TTL\"]\nP -->|\"noeviction\"| N[\"Return error on write (datastore)\"]",
     "reference": "https://redis.io/docs/latest/develop/reference/eviction/",
     "tags": [
       "redis",
@@ -1714,6 +1781,7 @@
     "answer": 1,
     "explanation": "Cache-aside keeps the application in control: only requested data is cached, and a TTL or explicit invalidation on write bounds staleness. Watch for cache stampedes on hot keys (use jittered TTLs or request coalescing) and for a cold cache after a Redis failover.",
     "example": "def get_product(pid):\n    cached = redis.get(f\"product:{pid}\")\n    if cached:\n        return json.loads(cached)          # cache hit\n    row = db.query(\"SELECT * FROM products WHERE id=%s\", pid)   # miss\n    redis.set(f\"product:{pid}\", json.dumps(row), ex=300)         # populate with TTL\n    return row",
+    "diagram": "sequenceDiagram\nparticipant App\nparticipant R as \"Redis\"\nparticipant DB\nApp->>R: GET user:42\nR-->>App: miss\nApp->>DB: SELECT user 42\nDB-->>App: row\nApp->>R: SET user:42 EX 300\nApp->>R: GET user:42 (next time)\nR-->>App: hit",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html",
     "tags": [
       "redis",
@@ -1742,6 +1810,7 @@
     "answer": 1,
     "explanation": "Without cluster mode a replication group is one shard: one primary for writes plus read replicas, limited by the memory of a single node. Cluster mode enabled spreads 16384 hash slots over shards; clients must be cluster-aware and use hash tags `{...}` for keys that need to live together.",
     "example": "aws elasticache create-replication-group --replication-group-id sessions \\\n  --replication-group-description \"sessions\" --engine redis \\\n  --cache-node-type cache.r7g.large --num-node-groups 3 --replicas-per-node-group 1 \\\n  --cluster-mode enabled\n# keys that must share a slot: user:{42}:cart and user:{42}:profile",
+    "diagram": "flowchart TD\nD[\"Cluster mode disabled\"] --> S[\"One shard: primary + replicas\"]\nS --> L[\"Limited by one node's memory\"]\nE[\"Cluster mode enabled\"] --> H[\"16384 hash slots split across shards\"]\nH --> S1[\"Shard 1 primary + replica\"]\nH --> S2[\"Shard 2 primary + replica\"]\nH --> T[\"Multi-key ops need same slot: hash tags {user}\"]",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Replication.Redis-RedisCluster.html",
     "tags": [
       "redis",
@@ -1770,6 +1839,7 @@
     "answer": 1,
     "explanation": "Target tracking works like a thermostat: you choose the metric and target, and Auto Scaling creates and manages the scale-out and scale-in alarms. Scale-in is deliberately slower to avoid flapping. Step scaling and scheduled scaling are the alternatives when you need explicit thresholds or known daily patterns.",
     "example": "aws autoscaling put-scaling-policy --auto-scaling-group-name workers \\\n  --policy-name cpu-50 --policy-type TargetTrackingScaling \\\n  --target-tracking-configuration '{\n    \"PredefinedMetricSpecification\": {\"PredefinedMetricType\": \"ASGAverageCPUUtilization\"},\n    \"TargetValue\": 50.0, \"DisableScaleIn\": false}'\n# ASG creates two CloudWatch alarms (AlarmHigh / AlarmLow) automatically",
+    "diagram": "flowchart TD\nM[\"Average CPU metric\"] --> T{\"vs target 50%\"}\nT -->|\"above\"| O[\"Scale out quickly\"]\nT -->|\"below\"| I[\"Scale in conservatively\"]\nT -->|\"near\"| H[\"Hold\"]\nO --> D[\"Adjust desired capacity\"]\nI --> D\nD --> A[\"Alarms created and managed by Auto Scaling\"]",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html",
     "tags": [
       "autoscaling",
@@ -1798,6 +1868,7 @@
     "answer": 0,
     "explanation": "A fresh instance runs hot on CPU while starting and fails load balancer health checks until the app is up. The warmup excludes it from aggregate metrics, and the grace period stops ASG from terminating it as unhealthy too early. Without them a group can oscillate: scale out, see high CPU from booting nodes, scale out again.",
     "example": "aws autoscaling update-auto-scaling-group --auto-scaling-group-name web-asg \\\n  --health-check-type ELB --health-check-grace-period 300 \\\n  --default-instance-warmup 180\n# new instances are excluded from CPU aggregation for 180s and\n# cannot be marked unhealthy by the ELB check for 300s",
+    "diagram": "stateDiagram-v2\n[*] --> Launching\nLaunching --> Warmup: instance boots, CPU high\nWarmup --> InService: warmup + grace period elapsed\nnote right of Warmup\nmetrics excluded from aggregate\nnot replaced as unhealthy yet\nend note\nInService --> Unhealthy: fails health check\nUnhealthy --> [*]: terminated and replaced",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html",
     "tags": [
       "autoscaling",
@@ -1826,6 +1897,7 @@
     "answer": 1,
     "explanation": "Queue depth alone does not account for how many workers are already draining it. Backlog per instance normalises the metric so target tracking can compute how many instances are needed: acceptable backlog = (acceptable latency) x (messages one instance processes per second). On Kubernetes, KEDA does the same for pods.",
     "example": "# backlog per instance = visible messages / running instances\nVIS=$(aws sqs get-queue-attributes --queue-url $Q --attribute-names ApproximateNumberOfMessagesVisible --query Attributes.ApproximateNumberOfMessagesVisible --output text)\nN=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names workers --query 'length(AutoScalingGroups[0].Instances)')\naws cloudwatch put-metric-data --namespace Workers --metric-name BacklogPerInstance --value $((VIS / N))",
+    "diagram": "flowchart LR\nQ[\"ApproximateNumberOfMessagesVisible\"] --> C[\"Custom metric: backlog per instance = visible / running\"]\nN[\"Running instances\"] --> C\nC --> T[\"Target tracking on acceptable backlog\"]\nL[\"latency target x msgs per instance per sec\"] --> T\nT --> ASG[\"Auto Scaling adjusts desired capacity\"]",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-using-sqs-queue.html",
     "tags": [
       "autoscaling",
@@ -1842,6 +1914,7 @@
     "answer": true,
     "explanation": "EC2 health checks only detect hardware or OS failure. With `HealthCheckType: ELB` the ASG also treats an instance that fails the target group's HTTP health check as unhealthy and terminates and replaces it, which catches hung application processes.",
     "example": "aws autoscaling update-auto-scaling-group --auto-scaling-group-name web-asg \\\n  --health-check-type ELB --health-check-grace-period 300\n# target group health check the ASG now honours\naws elbv2 modify-target-group --target-group-arn <tg> --health-check-path /healthz --unhealthy-threshold-count 3",
+    "diagram": "flowchart TD\nI[\"Instance\"] --> EC2[\"EC2 status checks: hardware, OS\"]\nI --> ELB[\"ALB target group HTTP health check: app\"]\nEC2 -->|\"fail\"| R[\"ASG replaces\"]\nELB -->|\"fail, only if HealthCheckType=ELB\"| R\nH[\"Hung app process, OS fine\"] --> ELB",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html",
     "tags": [
       "autoscaling",

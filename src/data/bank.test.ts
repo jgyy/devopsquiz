@@ -10,6 +10,7 @@ const good = {
   prompt: 'p',
   explanation: 'e',
   example: 'x',
+  diagram: 'flowchart LR\n  A["a"] --> B["b"]',
   answer: true,
 }
 

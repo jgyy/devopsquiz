@@ -18,6 +18,7 @@ const bank: Question[] = [
     answer: 0,
     explanation: 'docker ps lists running containers.',
     example: 'docker ps',
+    diagram: 'flowchart LR\n  A["a"] --> B["b"]',
   },
 ]
 

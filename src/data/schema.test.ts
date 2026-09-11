@@ -8,6 +8,7 @@ const base = {
   prompt: 'What does `docker ps` show?',
   explanation: 'It lists running containers.',
   example: 'docker ps  # running containers',
+  diagram: 'flowchart LR\n  A[docker ps] --> B[running containers]',
 }
 
 describe('questionSchema', () => {
@@ -18,6 +19,12 @@ describe('questionSchema', () => {
 
   it('rejects a single answer index out of range', () => {
     const q = { ...base, type: 'single', options: ['a', 'b'], answer: 2 }
+    expect(questionSchema.safeParse(q).success).toBe(false)
+  })
+
+  it('rejects a question without a diagram', () => {
+    const { diagram: _d, ...noDiagram } = base
+    const q = { ...noDiagram, type: 'boolean', answer: true }
     expect(questionSchema.safeParse(q).success).toBe(false)
   })
 

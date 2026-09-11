@@ -20,6 +20,7 @@
     "answer": 0,
     "explanation": "Once a secret is committed, it persists in git history. Deleting the file in a later commit does not remove it from history, so the only reliable fix is to rotate/invalidate the exposed secret and then clean the history.",
     "example": "# gitleaks finds the committed key even after the file was deleted\ngitleaks detect --source . --log-opts='--all'\n# Finding: AKIA... in config.py at commit 3f2a9c1\n# Fix: rotate the key with the provider, then rewrite history",
+    "diagram": "flowchart LR\n    A[\"Developer hardcodes API key\"] --> B[\"git commit and push\"]\n    B --> C[\"Key stored in repo history\"]\n    C --> D1[\"Visible to anyone with read access\"]\n    C --> D2[\"Leaks via CI logs, forks, backups\"]\n    E[\"Later commit deletes file\"] -.->|\"history still has it\"| C\n    C --> F[\"Fix: rotate key, then clean history\"]",
     "tags": [
       "secrets",
       "git"
@@ -34,6 +35,7 @@
     "answer": false,
     "explanation": "Git preserves full history by default. Removing a file in a new commit does not erase it from earlier commits, so the secret remains recoverable. The only dependable remedy is to rotate the exposed secret.",
     "example": "# The secret is still in history even after 'git rm' and a new commit\ngit log --all -p -S 'AKIA' -- config.py   # shows the commit that added the key\ngit show 3f2a9c1:config.py                 # prints the old file with the key\n# Remedy: rotate the key, then git filter-repo to purge history",
+    "diagram": "flowchart LR\n    C1[\"Commit 1: adds secret\"] --> C2[\"Commit 2: removes file\"]\n    C2 --> C3[\"Commit 3: HEAD\"]\n    C1 -.->|\"git show or git log -p\"| R[\"Secret still recoverable\"]\n    R --> X[\"Removing file does NOT purge history\"]\n    X --> Y[\"Rotate the secret immediately\"]",
     "tags": [
       "secrets",
       "git"
@@ -60,6 +62,7 @@
     "answer": 1,
     "explanation": "Least privilege limits the blast radius if an account, process, or credential is ever compromised, by ensuring it never has more access than its job requires.",
     "example": "# IAM policy that grants only read access to one bucket, nothing more\n{\n  \"Effect\": \"Allow\",\n  \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n  \"Resource\": [\"arn:aws:s3:::app-assets\", \"arn:aws:s3:::app-assets/*\"]\n}",
+    "diagram": "flowchart TD\n    T[\"Task: read one S3 bucket\"] --> Q{\"Grant which permissions?\"}\n    Q -->|\"AdministratorAccess\"| B[\"Broad access: huge blast radius if compromised\"]\n    Q -->|\"s3:GetObject on that bucket only\"| G[\"Least privilege: minimum needed\"]\n    G --> L[\"Compromise limited to one bucket\"]\n    G --> R[\"Review and remove unused rights regularly\"]",
     "tags": [
       "least-privilege",
       "iam"
@@ -86,6 +89,7 @@
     "answer": 2,
     "explanation": "Shift-left means catching issues as early as code is written or reviewed (e.g., in the IDE, pre-commit hooks, or pull requests) rather than only at release time, when defects are far more expensive to fix.",
     "example": "# .pre-commit-config.yaml: run secret and SAST checks before code is even committed\nrepos:\n  - repo: https://github.com/gitleaks/gitleaks\n    rev: v8.18.4\n    hooks: [{id: gitleaks}]\n  - repo: https://github.com/PyCQA/bandit\n    rev: 1.7.9\n    hooks: [{id: bandit}]",
+    "diagram": "flowchart LR\n    I[\"IDE and pre-commit hooks\"] --> P[\"Pull request: SAST, secret scan\"]\n    P --> B[\"Build: SCA, image scan\"]\n    B --> T[\"Test and staging: DAST\"]\n    T --> R[\"Release and production\"]\n    S[\"Shift security LEFT\"] -.->|\"move checks here\"| I\n    O[\"Old way: security only at release\"] -.-> R",
     "tags": [
       "shift-left",
       "sdlc"
@@ -100,6 +104,7 @@
     "answer": false,
     "explanation": "Shift-left is intended to reduce overall cost and risk: defects caught during coding or code review are far cheaper and faster to fix than the same defects found in production.",
     "example": "# Same SQL injection bug, different discovery points and cost\n# 1. IDE / pre-commit SAST warning  -> fixed in minutes by the author\n# 2. Pull request scan              -> fixed before merge\n# 3. Production incident            -> outage, forensics, patch, disclosure\n# Earlier detection is cheaper, not more expensive",
+    "diagram": "flowchart LR\n    A[\"Bug found while coding\"] -->|\"cost 1x\"| F[\"Cheap, fast fix\"]\n    B[\"Bug found in code review\"] -->|\"cost low\"| F\n    C[\"Bug found in testing\"] -->|\"cost higher\"| M[\"Rework, retest\"]\n    D1[\"Bug found in production\"] -->|\"cost highest\"| I[\"Incident, patch, breach risk\"]\n    S[\"Shift-left catches bugs earlier\"] --> A\n    S --> R[\"Total cost goes DOWN, not up\"]",
     "tags": [
       "shift-left",
       "sdlc"
@@ -126,6 +131,7 @@
     "answer": 3,
     "explanation": "SAST is a 'white-box' technique: it inspects the application's own code or compiled artifacts directly, without running the application, to find issues like injection flaws or insecure patterns.",
     "example": "# Semgrep scans source code without running the application\nsemgrep --config p/owasp-top-ten src/\n# src/db.py:42  python.lang.security.audit.formatted-sql-query\n#   Detected string formatting in a SQL query (possible injection)",
+    "diagram": "flowchart LR\n    S[\"Source code, bytecode, binaries\"] --> T[\"SAST scanner\"]\n    T --> N[\"No execution needed: white-box\"]\n    T --> F1[\"SQL injection pattern\"]\n    T --> F2[\"Insecure API usage\"]\n    T --> F3[\"Hardcoded secret\"]\n    F1 --> R[\"Findings in IDE or CI\"]\n    F2 --> R\n    F3 --> R",
     "tags": [
       "sast",
       "appsec"
@@ -152,6 +158,7 @@
     "answer": 0,
     "explanation": "DAST is a 'black-box' technique that exercises a deployed, running application (e.g., a web app) and observes its behavior and responses to find exploitable vulnerabilities.",
     "example": "# OWASP ZAP baseline scan probes a running staging site from the outside\ndocker run --rm -t ghcr.io/zaproxy/zaproxy:stable \\\n  zap-baseline.py -t https://staging.example.com -r zap-report.html\n# WARN: Missing Anti-clickjacking Header [10020] x 12",
+    "diagram": "sequenceDiagram\n    participant D as \"DAST scanner\"\n    participant A as \"Running application\"\n    Note over D: black-box, no source code needed\n    D->>A: Crawl pages and endpoints\n    D->>A: Send malicious payloads (XSS, SQLi)\n    A-->>D: Observe responses and behavior\n    D->>D: Report exploitable vulnerabilities",
     "tags": [
       "dast",
       "appsec"
@@ -178,6 +185,7 @@
     "answer": 1,
     "explanation": "SCA tools inventory the open-source and third-party components an application depends on and flag ones with known vulnerabilities (CVEs) or problematic licenses.",
     "example": "# Audit third-party dependencies for known CVEs and license issues\nnpm audit --audit-level=high\n# or, for any ecosystem:\ntrivy fs --scanners vuln,license --severity HIGH,CRITICAL .",
+    "diagram": "flowchart LR\n    M[\"Manifest: package.json, go.mod, pom.xml\"] --> S[\"SCA tool\"]\n    S --> I[\"Inventory of third-party components\"]\n    I --> V[\"Vulnerability DB: known CVEs\"]\n    I --> L[\"License check: GPL, AGPL risk\"]\n    V --> R[\"Report: upgrade lodash 4.17.15\"]\n    L --> R\n    N[\"Custom business logic\"] -.->|\"NOT covered by SCA\"| S",
     "tags": [
       "sca",
       "dependencies"
@@ -210,6 +218,7 @@
     ],
     "explanation": "SAST works on source/binaries without running the app; DAST needs a live, running target; SCA focuses on third-party/open-source dependency risk (known CVEs and licenses), not custom business logic — that distinction is exactly what SCA does not cover.",
     "example": "# Typical CI stages using all three techniques\nsast:  semgrep --config auto src/           # static, no runtime needed\nsca:   trivy fs --scanners vuln .           # known CVEs in dependencies\ndast:  zap-baseline.py -t https://staging.example.com   # needs a live target",
+    "diagram": "flowchart TD\n    Q{\"What are you scanning?\"} -->|\"Your own code, not running\"| SAST[\"SAST: static analysis, no deploy needed\"]\n    Q -->|\"A live running app from outside\"| DAST[\"DAST: requires running instance\"]\n    Q -->|\"Third-party dependencies\"| SCA[\"SCA: known CVEs in open-source libs\"]\n    SAST --> C[\"Complementary layers, use all three\"]\n    DAST --> C\n    SCA --> C",
     "tags": [
       "sast",
       "dast",
@@ -227,6 +236,7 @@
     ],
     "explanation": "An SBOM lists every component in a software artifact, similar to an ingredient list, so consumers can identify what they're running and check it against vulnerability databases.",
     "example": "# Generate an SBOM for a container image and list its components\nsyft packages nginx:1.27 -o cyclonedx-json > sbom.json\njq '.components[] | \"\\(.name)@\\(.version)\"' sbom.json | head",
+    "diagram": "flowchart LR\n    A[\"Software artifact\"] --> S[\"SBOM: Software Bill of Materials\"]\n    S --> C1[\"Component: openssl 3.0.2\"]\n    S --> C2[\"Component: log4j 2.14.1\"]\n    S --> C3[\"Component: alpine base 3.18\"]\n    C2 --> V[\"Match against vulnerability DB\"]\n    V --> R[\"Log4Shell affected: act now\"]",
     "pattern": "^software\\s+bill\\s+of\\s+materials$",
     "tags": [
       "sbom",
@@ -260,6 +270,7 @@
     ],
     "explanation": "CycloneDX, SPDX, and SWID (Software Identification tags) are recognized SBOM formats. A Dockerfile builds container images and an OpenAPI document describes an HTTP API — neither is an SBOM format.",
     "example": "# syft can emit an SBOM in the two most common formats\nsyft packages ./app -o spdx-json > sbom.spdx.json\nsyft packages ./app -o cyclonedx-json > sbom.cdx.json\n# grype can then scan either SBOM for known CVEs\ngrype sbom:sbom.spdx.json",
+    "diagram": "flowchart TD\n    S[\"SBOM standard formats\"] --> A[\"CycloneDX (OWASP)\"]\n    S --> B[\"SPDX (Linux Foundation, ISO)\"]\n    S --> C[\"SWID tags (ISO/IEC 19770-2)\"]\n    N[\"Not SBOM formats\"] --> D1[\"Dockerfile: builds images\"]\n    N --> D2[\"OpenAPI: describes HTTP APIs\"]",
     "tags": [
       "sbom",
       "supply-chain"
@@ -286,6 +297,7 @@
     "answer": 2,
     "explanation": "Image scanners inspect the layers of a container image and compare installed packages and libraries against vulnerability databases, surfacing known CVEs before the image ever runs.",
     "example": "# Scan an image for known CVEs before pushing or deploying it\ntrivy image --severity HIGH,CRITICAL --exit-code 1 myapp:1.4.2\n# Fails the pipeline if any HIGH or CRITICAL vulnerability is found",
+    "diagram": "flowchart LR\n    B[\"Build container image\"] --> S[\"Image scanner (Trivy, Grype)\"]\n    S --> L[\"Inspect each layer\"]\n    L --> P[\"OS packages and app libraries\"]\n    P --> V[\"Compare with CVE databases\"]\n    V -->|\"critical CVE found\"| F[\"Fail pipeline, fix base image\"]\n    V -->|\"clean\"| D1[\"Push and deploy\"]",
     "tags": [
       "containers",
       "image-scanning"
@@ -312,6 +324,7 @@
     "answer": 3,
     "explanation": "cosign lets teams sign artifacts (like container images) and later verify those signatures, giving consumers assurance about who published an artifact and that it hasn't been tampered with. It supports 'keyless' signing tied to an OIDC identity.",
     "example": "# Keyless signing: cosign uses your OIDC identity, no long-lived key\ncosign sign ghcr.io/acme/app@sha256:9f2e...\n# Verify before deploying\ncosign verify ghcr.io/acme/app@sha256:9f2e... \\\n  --certificate-identity=ci@acme.dev \\\n  --certificate-oidc-issuer=https://token.actions.githubusercontent.com",
+    "diagram": "sequenceDiagram\n    participant P as \"Publisher\"\n    participant C as \"cosign\"\n    participant R as \"Registry\"\n    participant V as \"Consumer\"\n    P->>C: cosign sign image@sha256\n    C->>R: Store signature next to image\n    V->>C: cosign verify image\n    C->>R: Fetch signature\n    C-->>V: Verified: who published it, untampered",
     "reference": "https://docs.sigstore.dev/",
     "tags": [
       "sigstore",
@@ -346,6 +359,7 @@
     ],
     "explanation": "Fulcio, Rekor, and cosign together make up Sigstore's keyless signing flow: Fulcio issues a short-lived cert bound to an OIDC identity, cosign uses it to sign, and Rekor timestamps the signing event in a public, tamper-evident log. kube-bench and Terraform are unrelated tools.",
     "example": "# Keyless flow behind 'cosign sign':\n# 1. cosign gets an OIDC token (e.g. from GitHub Actions)\n# 2. Fulcio issues a short-lived signing certificate for that identity\n# 3. cosign signs the artifact and uploads the signature\n# 4. Rekor records the signing event in its transparency log\nrekor-cli search --artifact app.tar.gz   # look up entries later",
+    "diagram": "sequenceDiagram\n    participant U as \"cosign CLI\"\n    participant O as \"OIDC provider\"\n    participant F as \"Fulcio CA\"\n    participant R as \"Rekor log\"\n    U->>O: Authenticate (GitHub, Google)\n    O-->>U: OIDC identity token\n    U->>F: Request cert for identity\n    F-->>U: Short-lived signing certificate\n    U->>U: Sign artifact, key discarded\n    U->>R: Record signature in transparency log\n    R-->>U: Timestamped, tamper-evident entry",
     "reference": "https://docs.sigstore.dev/",
     "tags": [
       "sigstore",
@@ -373,6 +387,7 @@
     "answer": 0,
     "explanation": "SLSA focuses on the integrity of the build process itself — proving what source and build steps produced an artifact and that it wasn't tampered with — which is a different concern from SBOM/SCA (what components are inside) or runtime monitoring.",
     "example": "# Excerpt of a SLSA v1 provenance attestation (in-toto statement)\n{\n  \"predicateType\": \"https://slsa.dev/provenance/v1\",\n  \"predicate\": {\n    \"buildDefinition\": {\"externalParameters\": {\"source\": \"git+https://github.com/acme/app@refs/tags/v1.4.2\"}},\n    \"runDetails\": {\"builder\": {\"id\": \"https://github.com/actions/runner\"}}\n  }\n}",
+    "diagram": "flowchart LR\n    S[\"Source repo at commit abc123\"] --> B[\"Build system: GitHub Actions\"]\n    B --> A[\"Artifact: image digest\"]\n    B --> P[\"SLSA provenance attestation\"]\n    P --> Q1[\"Which source?\"]\n    P --> Q2[\"Which builder?\"]\n    P --> Q3[\"Was the build tampered with?\"]\n    V[\"Consumer verifies build integrity\"] --> P\n    N[\"SBOM answers: what is inside\"] -.->|\"different concern\"| P",
     "reference": "https://slsa.dev/",
     "tags": [
       "slsa",
@@ -400,6 +415,7 @@
     "answer": 1,
     "explanation": "The OWASP Top 10 is a broadly referenced awareness document, periodically updated by the OWASP community, that highlights the categories of risk considered most critical for web applications at the time of publication.",
     "example": "# OWASP Top 10 (2021) category IDs, often used to label scanner rules\n# A01 Broken Access Control    A06 Vulnerable and Outdated Components\n# A02 Cryptographic Failures   A07 Identification and Auth Failures\n# A03 Injection                A08 Software and Data Integrity Failures\n# A05 Security Misconfiguration A10 SSRF\nsemgrep --config p/owasp-top-ten src/",
+    "diagram": "flowchart LR\n    O[\"OWASP community\"] --> T[\"OWASP Top 10 awareness document\"]\n    T --> U[\"Updated periodically: 2017, 2021\"]\n    T --> R[\"Ranks most critical web app risk categories\"]\n    R --> C1[\"Broken Access Control\"]\n    R --> C2[\"Injection\"]\n    R --> C3[\"Security Misconfiguration\"]\n    T -.->|\"not a certification or law\"| X[\"Guidance, not a standard body\"]",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp"
@@ -426,6 +442,7 @@
     "answer": 2,
     "explanation": "Injection covers cases where untrusted data is sent to an interpreter (SQL, OS shell, LDAP, etc.) as part of a command or query, letting an attacker alter its intended behavior.",
     "example": "# Injection-safe query: parameters are bound, never concatenated\ncursor.execute(\"SELECT * FROM users WHERE email = %s\", (email,))\n# Unsafe pattern that SAST flags:\n# cursor.execute(\"SELECT * FROM users WHERE email = '\" + email + \"'\")",
+    "diagram": "flowchart LR\n    U[\"Untrusted input: name' OR 1=1 --\"] --> A[\"Application builds query by concatenation\"]\n    A --> I[\"Interpreter: SQL, OS shell, LDAP\"]\n    I --> X[\"Command meaning altered by attacker\"]\n    O[\"OWASP category: Injection\"] -.-> X\n    F[\"Fix: parameterized queries, input validation\"] --> I",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp",
@@ -453,6 +470,7 @@
     "answer": 3,
     "explanation": "Broken Access Control covers enforcement failures around what an authenticated user is actually allowed to do or see, letting them escalate privileges or access resources they shouldn't.",
     "example": "# Enforce ownership on every request, not just in the UI\n@app.get(\"/orders/{order_id}\")\ndef get_order(order_id, user=Depends(current_user)):\n    order = db.get(Order, order_id)\n    if order.owner_id != user.id:\n        raise HTTPException(403)   # prevents IDOR / broken access control\n    return order",
+    "diagram": "flowchart LR\n    U[\"User A, logged in\"] --> R[\"GET /orders/1234 (belongs to User B)\"]\n    R --> C{\"Authorization check?\"}\n    C -->|\"missing or flawed\"| B[\"Broken Access Control: User A sees B's data\"]\n    C -->|\"enforced\"| D1[\"403 Forbidden\"]\n    B --> E[\"Also: privilege escalation, bypassing role checks\"]",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp",
@@ -480,6 +498,7 @@
     "answer": 0,
     "explanation": "TLS protects data in transit by encrypting it (confidentiality), detecting tampering (integrity), and typically authenticating at least the server via its certificate.",
     "example": "# Inspect the TLS handshake: certificate (authentication) and negotiated cipher\nopenssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\\n  | grep -E 'Protocol|Cipher|subject='\n# Protocol  : TLSv1.3\n# Cipher    : TLS_AES_256_GCM_SHA384",
+    "diagram": "flowchart LR\n    C[\"Client\"] -->|\"TLS session\"| S[\"Server\"]\n    T[\"TLS provides\"] --> E[\"Confidentiality: data encrypted\"]\n    T --> I[\"Integrity: tampering detected via MAC\"]\n    T --> A[\"Authentication: server cert verified\"]\n    E --> P[\"Protects data in transit\"]\n    I --> P\n    A --> P",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
     "tags": [
       "tls",
@@ -495,6 +514,7 @@
     "answer": true,
     "explanation": "Asymmetric operations are computationally expensive, so TLS uses them briefly to authenticate the server and establish a shared session key, then relies on fast symmetric encryption for the actual data transfer — a hybrid approach.",
     "example": "# TLS 1.3 handshake in brief\n# 1. ClientHello / ServerHello: ECDHE key exchange (asymmetric)\n# 2. Server certificate + signature: authenticates the server (asymmetric)\n# 3. Both sides derive the session key\n# 4. Application data encrypted with a symmetric AEAD cipher\nopenssl s_client -connect example.com:443 | grep Cipher\n# Cipher: TLS_AES_128_GCM_SHA256",
+    "diagram": "sequenceDiagram\n    participant C as \"Client\"\n    participant S as \"Server\"\n    Note over C,S: Handshake: asymmetric (slow, used briefly)\n    C->>S: ClientHello, key share\n    S-->>C: Certificate, key share, signature\n    C->>C: Verify cert, derive shared session key\n    Note over C,S: Data transfer: symmetric AES (fast)\n    C->>S: Encrypted application data\n    S-->>C: Encrypted application data",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
     "tags": [
       "tls",
@@ -523,6 +543,7 @@
     "answer": 1,
     "explanation": "A cryptographic hash is a one-way digest — you cannot feasibly recover the input from it. Encryption is deliberately reversible: anyone holding the correct key can decrypt the ciphertext back to plaintext.",
     "example": "# Hashing: one-way digest, no key, cannot be reversed\nsha256sum app.tar.gz          # verify integrity of a download\n# Encryption: reversible with the key\nage -r age1abc... -o secrets.env.age secrets.env\nage -d -i key.txt secrets.env.age > secrets.env",
+    "diagram": "flowchart LR\n    P1[\"password123\"] -->|\"SHA-256\"| H[\"Hash: ef92b7...\"]\n    H -.->|\"one-way, cannot reverse\"| X[\"No way back to input\"]\n    P2[\"Plaintext\"] -->|\"encrypt with key\"| C[\"Ciphertext\"]\n    C -->|\"decrypt with key\"| P3[\"Plaintext recovered\"]\n    H --> U1[\"Use: integrity, password storage\"]\n    C --> U2[\"Use: confidentiality\"]",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html",
     "tags": [
       "hashing",
@@ -538,6 +559,7 @@
     "answer": false,
     "explanation": "Base64 is a reversible encoding scheme for representing binary data as text. It uses no secret key, and anyone can decode it instantly, so it provides no confidentiality at all — it is not a substitute for encryption.",
     "example": "# Base64 is trivially reversible, so it hides nothing\necho -n 'password123' | base64      # cGFzc3dvcmQxMjM=\necho 'cGFzc3dvcmQxMjM=' | base64 -d # password123\n# Kubernetes Secrets are only base64-encoded; enable encryption at rest separately",
+    "diagram": "flowchart LR\n    S[\"secret: hunter2\"] -->|\"base64 encode\"| E[\"c2VjcmV0OiBodW50ZXIy\"]\n    E -->|\"base64 -d, no key needed\"| S2[\"secret: hunter2\"]\n    E --> N[\"No secret key: anyone can decode\"]\n    N --> X[\"Encoding is NOT encryption\"]\n    P[\"Plaintext\"] -->|\"AES with secret key\"| C[\"Ciphertext: needs key to read\"]",
     "tags": [
       "encoding",
       "encryption"
@@ -564,6 +586,7 @@
     "answer": 2,
     "explanation": "Symmetric algorithms like AES use a single shared secret key for both encryption and decryption, which makes them fast but requires securely distributing that key to every party who needs it.",
     "example": "# AES-256-GCM: the same key encrypts and decrypts\nopenssl rand -hex 32 > aes.key\nopenssl enc -aes-256-cbc -pbkdf2 -in db.sql -out db.sql.enc -pass file:aes.key\nopenssl enc -d -aes-256-cbc -pbkdf2 -in db.sql.enc -out db.sql -pass file:aes.key",
+    "diagram": "flowchart LR\n    K[\"ONE shared secret key\"] --> E[\"Encrypt\"]\n    K --> D1[\"Decrypt\"]\n    P[\"Plaintext\"] --> E\n    E --> C[\"Ciphertext\"]\n    C --> D1\n    D1 --> P2[\"Plaintext\"]\n    K -.->|\"challenge\"| S[\"Key must be securely shared with every party\"]",
     "tags": [
       "symmetric",
       "encryption"
@@ -590,6 +613,7 @@
     "answer": 3,
     "explanation": "RSA uses a mathematically linked public/private key pair — one key encrypts or verifies, the other decrypts or signs. AES and ChaCha20 are symmetric ciphers, and bcrypt is a password-hashing function, not an encryption algorithm.",
     "example": "# Generate an RSA key pair: private key stays secret, public key is shared\nopenssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out private.pem\nopenssl pkey -in private.pem -pubout -out public.pem\n# Sign with the private key, verify with the public key\nopenssl dgst -sha256 -sign private.pem -out release.sig release.tar.gz",
+    "diagram": "flowchart TD\n    A[\"Asymmetric: public/private key pair\"] --> RSA[\"RSA\"]\n    A --> ECC[\"ECDSA, Ed25519\"]\n    S[\"Symmetric: one shared key\"] --> AES[\"AES\"]\n    S --> CC[\"ChaCha20\"]\n    H[\"Password hashing, not encryption\"] --> B[\"bcrypt\"]\n    RSA --> U[\"Public key encrypts or verifies, private key decrypts or signs\"]",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/Public-key_cryptography",
     "tags": [
       "asymmetric",
@@ -617,6 +641,7 @@
     "answer": 0,
     "explanation": "SSH's security model depends on the private key never leaving your control. Only the public key should ever be placed on remote servers (in `authorized_keys`); sharing or exposing the private key breaks the whole trust model.",
     "example": "# Generate a passphrase-protected key pair, install only the public half\nssh-keygen -t ed25519 -C 'alice@laptop'\nchmod 600 ~/.ssh/id_ed25519            # private key: owner-only\nssh-copy-id -i ~/.ssh/id_ed25519.pub alice@server.example.com\n# ~/.ssh/authorized_keys on the server now holds the public key only",
+    "diagram": "flowchart LR\n    G[\"ssh-keygen\"] --> PRIV[\"Private key: id_ed25519\"]\n    G --> PUB[\"Public key: id_ed25519.pub\"]\n    PRIV --> L[\"Stays on your machine only, passphrase-protected\"]\n    PUB --> S[\"Copied to server ~/.ssh/authorized_keys\"]\n    S --> A[\"Server challenges, private key proves identity\"]\n    PRIV -.->|\"never share, email, or commit\"| X[\"Trust model broken if exposed\"]",
     "tags": [
       "ssh"
     ]
@@ -630,6 +655,7 @@
     "answer": true,
     "explanation": "Individual key pairs preserve an audit trail (each login is attributable to one person) and let you revoke a single compromised or departed user's access without having to rotate credentials for the whole team.",
     "example": "# One key per person; revoke a single user without touching anyone else\n# /home/deploy/.ssh/authorized_keys\nssh-ed25519 AAAAC3...alice alice@laptop\nssh-ed25519 AAAAC3...bob   bob@laptop\n# Alice leaves: delete only her line, Bob keeps working\nsed -i '/alice@laptop/d' /home/deploy/.ssh/authorized_keys",
+    "diagram": "flowchart TD\n    T[\"Shared team key\"] --> T1[\"Login not attributable to a person\"]\n    T --> T2[\"One person leaves: rotate for everyone\"]\n    I[\"Individual key pair per user\"] --> I1[\"Audit trail: each login maps to one person\"]\n    I --> I2[\"Revoke one key without affecting others\"]\n    I --> I3[\"Least privilege per user\"]",
     "tags": [
       "ssh"
     ]
@@ -655,6 +681,7 @@
     "answer": 1,
     "explanation": "MFA combines evidence from at least two distinct categories (something you know, have, or are) so that compromising just one factor, like a password, is not enough to authenticate as the user.",
     "example": "# Enable MFA for the AWS CLI: password (know) + TOTP code (have)\naws iam enable-mfa-device --user-name alice \\\n  --serial-number arn:aws:iam::123456789012:mfa/alice \\\n  --authentication-code1 123456 --authentication-code2 789012\n# Sessions now require: aws sts get-session-token --serial-number ... --token-code 654321",
+    "diagram": "sequenceDiagram\n    participant U as \"User\"\n    participant S as \"Service\"\n    U->>S: Username and password (something you know)\n    S-->>U: Prompt for second factor\n    U->>S: One-time code from authenticator (something you have)\n    S->>S: Both factors valid?\n    S-->>U: Access granted\n    Note over U,S: Stolen password alone is not enough",
     "tags": [
       "mfa",
       "authentication"
@@ -687,6 +714,7 @@
     ],
     "explanation": "The three classic authentication factor categories are knowledge ('something you know'), possession ('something you have'), and inherence ('something you are'). Using factors from two or more different categories is what makes authentication multi-factor.",
     "example": "# A typical MFA login combines two categories:\n#   password        -> something you know\n#   TOTP / YubiKey  -> something you have\n#   fingerprint     -> something you are\n# WebAuthn (FIDO2) registers a hardware authenticator as the possession factor\nnavigator.credentials.create({ publicKey: { ... } })",
+    "diagram": "flowchart TD\n    M[\"MFA: two or more DIFFERENT categories\"] --> K[\"Something you KNOW: password, PIN\"]\n    M --> H[\"Something you HAVE: hardware token, authenticator app\"]\n    M --> A[\"Something you ARE: fingerprint, face\"]\n    K --> E1[\"Password + OTP app = MFA\"]\n    H --> E1\n    K --> E2[\"Password + security question = same category, not MFA\"]",
     "tags": [
       "mfa",
       "authentication"
@@ -713,6 +741,7 @@
     "answer": 2,
     "explanation": "Even with strong safeguards, credentials can leak. Rotating them regularly (and immediately after suspected compromise) shrinks the amount of time a stolen credential stays valid and useful.",
     "example": "# Rotate a database password automatically with AWS Secrets Manager\naws secretsmanager rotate-secret --secret-id prod/db/app \\\n  --rotation-lambda-arn arn:aws:lambda:us-east-1:123456789012:function:rotate \\\n  --rotation-rules AutomaticallyAfterDays=30\n# A leaked password is useful to an attacker for at most 30 days",
+    "diagram": "flowchart LR\n    L[\"Credential leaks at day 3\"] --> W1[\"No rotation: usable for years\"]\n    L --> W2[\"Rotate every 30 days: usable until day 30\"]\n    L --> W3[\"Rotate on suspicion: usable minutes\"]\n    W1 --> R[\"Rotation shrinks the window an attacker can use it\"]\n    W2 --> R\n    W3 --> R",
     "tags": [
       "secrets",
       "rotation"
@@ -727,6 +756,7 @@
     "answer": true,
     "explanation": "Waiting for a scheduled rotation leaves a known-exposed credential usable by an attacker in the meantime. Suspected compromise should always trigger immediate rotation and, where possible, revocation of the old credential.",
     "example": "# Key spotted in a public repo: revoke and replace right now, not next month\naws iam create-access-key --user-name ci-deployer       # issue replacement\n# update the secret in the pipeline, then:\naws iam update-access-key --user-name ci-deployer --access-key-id AKIAOLD... --status Inactive\naws iam delete-access-key --user-name ci-deployer --access-key-id AKIAOLD...",
+    "diagram": "flowchart TD\n    S[\"Suspect API key exposed\"] --> Q{\"Wait for scheduled rotation?\"}\n    Q -->|\"No: rotate now\"| N[\"Issue new key, revoke old one\"]\n    N --> A[\"Attacker's copy is useless\"]\n    Q -->|\"Yes: wait until next month\"| W[\"Old key valid for weeks\"]\n    W --> B[\"Attacker uses it in the meantime\"]\n    N --> L[\"Then investigate logs for misuse\"]",
     "tags": [
       "secrets",
       "rotation"
@@ -753,6 +783,7 @@
     "answer": 3,
     "explanation": "Vault provides centralized secrets storage, fine-grained access control, encryption as a service, and the ability to generate dynamic, short-lived credentials on demand instead of relying on long-lived static secrets.",
     "example": "# Vault issues a short-lived Postgres credential on demand\nvault read database/creds/app-readonly\n# Key             Value\n# lease_id        database/creds/app-readonly/abc123\n# lease_duration  1h\n# username        v-token-app-read-x7k2\n# password        A1b2-...   (revoked automatically after 1h)",
+    "diagram": "flowchart LR\n    A[\"App or CI job\"] -->|\"authenticate\"| V[\"HashiCorp Vault\"]\n    V --> S[\"Central secrets storage (KV)\"]\n    V --> P[\"Policies: fine-grained access control\"]\n    V --> D1[\"Dynamic secrets engine\"]\n    V --> E[\"Encryption as a service (transit)\"]\n    D1 -->|\"short-lived DB creds\"| DB[\"Database\"]\n    A -.->|\"no static secrets in config\"| S",
     "reference": "https://developer.hashicorp.com/vault/docs/what-is-vault",
     "tags": [
       "vault",
@@ -771,6 +802,7 @@
     ],
     "explanation": "Dynamic secrets are created fresh for each consumer and have a limited lifetime (lease), so there is no long-lived static credential sitting around waiting to be leaked.",
     "example": "# Configure a dynamic-secrets role: every read creates a fresh, leased DB user\nvault write database/roles/app-readonly \\\n  db_name=postgres \\\n  creation_statements=\"CREATE ROLE \\\"{{name}}\\\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \\\"{{name}}\\\";\" \\\n  default_ttl=1h max_ttl=24h",
+    "diagram": "stateDiagram-v2\n    [*] --> Requested: app asks Vault for DB access\n    Requested --> Generated: Vault creates unique user and password\n    Generated --> Active: lease TTL 1h starts\n    Active --> Renewed: app renews before expiry\n    Renewed --> Active\n    Active --> Revoked: lease expires or is revoked\n    Revoked --> [*]: Vault deletes DB user",
     "pattern": "^dynamic\\s+secrets?$",
     "reference": "https://developer.hashicorp.com/vault/docs/secrets",
     "tags": [
@@ -799,6 +831,7 @@
     "answer": 0,
     "explanation": "Kubernetes RBAC lets you define `Role`/`ClusterRole` objects describing allowed actions on resources, then grant them to subjects via `RoleBinding`/`ClusterRoleBinding`, enabling least-privilege access to the API server.",
     "example": "# Role bundles permissions; RoleBinding grants it to a ServiceAccount\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata: {name: pod-reader, namespace: dev}\nrules:\n- {apiGroups: [\"\"], resources: [\"pods\"], verbs: [\"get\", \"list\", \"watch\"]}\n# kubectl create rolebinding ci-pod-reader --role=pod-reader --serviceaccount=dev:ci -n dev",
+    "diagram": "flowchart LR\n    R[\"Role: pod-reader\"] --> P[\"Rules: get, list pods in namespace dev\"]\n    RB[\"RoleBinding\"] --> R\n    RB --> S1[\"User: alice\"]\n    RB --> S2[\"Group: developers\"]\n    RB --> S3[\"ServiceAccount: ci-bot\"]\n    S1 -->|\"kubectl get pods -n dev\"| API[\"API server allows\"]\n    S1 -.->|\"kubectl delete pods\"| DEN[\"API server denies\"]",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
     "tags": [
       "kubernetes",
@@ -826,6 +859,7 @@
     "answer": 1,
     "explanation": "The three Pod Security Standards levels are Privileged (unrestricted), Baseline (blocks known privilege escalations), and Restricted (the most locked-down, following current hardening best practices like non-root execution and dropped capabilities).",
     "example": "# Enforce the restricted profile on a namespace via the built-in PodSecurity admission\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: payments\n  labels: {pod-security.kubernetes.io/enforce: restricted}\n# Pods running as root or with extra capabilities are now rejected",
+    "diagram": "flowchart TD\n    PSS[\"Pod Security Standards\"] --> P[\"Privileged: unrestricted, no policy\"]\n    PSS --> B[\"Baseline: blocks known privilege escalations\"]\n    PSS --> R[\"Restricted: most locked-down\"]\n    R --> R1[\"runAsNonRoot\"]\n    R --> R2[\"drop ALL capabilities\"]\n    R --> R3[\"no privilege escalation\"]\n    B -->|\"stricter\"| R",
     "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
     "tags": [
       "kubernetes",
@@ -841,6 +875,7 @@
     "answer": true,
     "explanation": "Kubernetes pod networking is flat and permissive by default. NetworkPolicy resources are additive and restrictive: once a policy selects a pod, that pod becomes default-deny for the traffic types the policy governs, assuming the CNI plugin enforces NetworkPolicy.",
     "example": "# Turn the default allow-all into default-deny for a namespace\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: default-deny-all, namespace: payments}\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n# Requires a CNI that enforces NetworkPolicy (Calico, Cilium, etc.)",
+    "diagram": "flowchart LR\n    A[\"Pod A (ns: frontend)\"] <-->|\"allowed by default\"| B[\"Pod B (ns: backend)\"]\n    B <-->|\"allowed by default\"| C[\"Pod C (ns: db)\"]\n    N[\"Apply NetworkPolicy selecting Pod C\"] --> D1[\"Pod C: default-deny for governed traffic\"]\n    D1 --> E[\"Only whitelisted sources reach C\"]\n    N -.->|\"needs CNI that enforces policy\"| CNI[\"Calico, Cilium\"]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
     "tags": [
       "kubernetes",
@@ -868,6 +903,7 @@
     "answer": 2,
     "explanation": "`runAsNonRoot` is a guardrail: Kubernetes refuses to start the container if it would run as UID 0, so that even if an attacker escapes the application, they don't land with root privileges inside the container.",
     "example": "# Kubelet refuses to start this container if the image runs as UID 0\ncontainers:\n- name: app\n  image: ghcr.io/acme/app:1.4.2\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 10001   # explicit non-root UID so the check can pass",
+    "diagram": "flowchart TD\n    P[\"Pod spec: runAsNonRoot: true\"] --> K[\"Kubelet checks container user\"]\n    K -->|\"UID 0 (root)\"| F[\"Container refuses to start: CreateContainerConfigError\"]\n    K -->|\"UID 1000\"| S[\"Container starts\"]\n    S --> B[\"Attacker escapes app: no root inside container\"]\n    F --> X[\"Fix: set runAsUser or USER in Dockerfile\"]",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
     "tags": [
       "kubernetes",
@@ -895,6 +931,7 @@
     "answer": 3,
     "explanation": "With a read-only root filesystem, an attacker who compromises the running process can't write new files or modify existing ones on the container's filesystem; any directory the app legitimately needs to write to should be mounted as a separate writable volume.",
     "example": "# Immutable root filesystem plus an explicit writable scratch volume\ncontainers:\n- name: app\n  securityContext: {readOnlyRootFilesystem: true}\n  volumeMounts: [{name: tmp, mountPath: /tmp}]\nvolumes:\n- {name: tmp, emptyDir: {}}",
+    "diagram": "flowchart LR\n    C[\"Container with readOnlyRootFilesystem: true\"] --> RF[\"Root filesystem: read-only\"]\n    A[\"Attacker compromises process\"] -->|\"write malware to /usr/bin\"| RF\n    RF --> D1[\"Write denied\"]\n    C --> V[\"emptyDir volume mounted at /tmp\"]\n    APP[\"App writes cache\"] --> V\n    V --> OK[\"Writable, isolated from binaries\"]",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
     "tags": [
       "kubernetes",
@@ -928,6 +965,7 @@
     ],
     "explanation": "Disallowing privilege escalation, dropping all Linux capabilities by default, and forcing non-root execution are core hardening controls. `privileged: true` and `hostNetwork: true` do the opposite — they widen the container's access to the host.",
     "example": "# securityContext that satisfies the 'restricted' Pod Security Standard\nsecurityContext:\n  runAsNonRoot: true\n  allowPrivilegeEscalation: false\n  capabilities:\n    drop: [\"ALL\"]\n  seccompProfile:\n    type: RuntimeDefault",
+    "diagram": "flowchart TD\n    R[\"Restricted PSS hardening\"] --> A[\"allowPrivilegeEscalation: false\"]\n    R --> B[\"capabilities.drop: ALL\"]\n    R --> C[\"runAsNonRoot: true\"]\n    W[\"Widens host access instead\"] --> D1[\"privileged: true\"]\n    W --> E[\"hostNetwork: true\"]\n    A --> S[\"Smaller blast radius on breakout\"]\n    B --> S\n    C --> S",
     "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
     "tags": [
       "kubernetes",
@@ -945,6 +983,7 @@
     ],
     "explanation": "CVE provides a standardized identifier and description for a publicly known vulnerability, so different tools, vendors, and researchers can all refer to the same issue unambiguously.",
     "example": "# Look up a CVE and check whether an image is affected\ntrivy image --severity CRITICAL log4j-demo:1.0\n# CVE-2021-44228  log4j-core  2.14.1  fixed in 2.15.0  (Log4Shell)\ncurl -s https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2021-44228 | jq '.vulnerabilities[0].cve.descriptions[0].value'",
+    "diagram": "flowchart LR\n    V[\"Vulnerability discovered in openssl\"] --> N[\"CNA assigns CVE-2024-3094\"]\n    N --> ID[\"Common Vulnerabilities and Exposures identifier\"]\n    ID --> T1[\"Scanner: Trivy\"]\n    ID --> T2[\"Vendor advisory\"]\n    ID --> T3[\"NVD entry with CVSS score\"]\n    T1 --> S[\"Everyone refers to the same issue unambiguously\"]\n    T2 --> S\n    T3 --> S",
     "pattern": "^common\\s+vulnerabilities\\s+and\\s+exposures$",
     "tags": [
       "cve"
@@ -971,6 +1010,7 @@
     "answer": 0,
     "explanation": "CVSS base scores range from 0.0 (no measurable severity) to 10.0 (most severe), and are typically mapped onto qualitative bands such as Low, Medium, High, and Critical.",
     "example": "# CVSS v3.1 base score from a vector string\n# CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H  -> 10.0 (Critical)\n# Qualitative bands: None 0.0 | Low 0.1-3.9 | Medium 4.0-6.9 | High 7.0-8.9 | Critical 9.0-10.0\ngrype myapp:1.4.2 --fail-on high   # gate on the severity band",
+    "diagram": "flowchart LR\n    S[\"CVSS base score: 0.0 to 10.0\"] --> N[\"0.0: None\"]\n    S --> L[\"0.1 to 3.9: Low\"]\n    S --> M[\"4.0 to 6.9: Medium\"]\n    S --> H[\"7.0 to 8.9: High\"]\n    S --> C[\"9.0 to 10.0: Critical\"]\n    C --> E[\"Example: Log4Shell scored 10.0\"]",
     "tags": [
       "cvss"
     ]
@@ -996,6 +1036,7 @@
     "answer": 1,
     "explanation": "Zero trust replaces implicit, location-based trust (e.g., 'inside the network = safe') with continuous, explicit verification of identity, device posture, and authorization for every request.",
     "example": "# Istio AuthorizationPolicy: every call must present a verified identity, even inside the mesh\napiVersion: security.istio.io/v1\nkind: AuthorizationPolicy\nmetadata: {name: orders-allow, namespace: shop}\nspec:\n  selector: {matchLabels: {app: orders}}\n  rules:\n  - from: [{source: {principals: [\"cluster.local/ns/shop/sa/checkout\"]}}]",
+    "diagram": "flowchart LR\n    R[\"Every request, any origin\"] --> V[\"Verify identity (user, workload)\"]\n    V --> D1[\"Check device posture and context\"]\n    D1 --> A[\"Authorize for this specific resource\"]\n    A -->|\"pass\"| G[\"Grant least-privilege access\"]\n    A -->|\"fail\"| X[\"Deny\"]\n    Z[\"Zero trust: never trust, always verify\"] -.-> R\n    O[\"Old model: inside network = trusted\"] -.->|\"rejected\"| Z",
     "tags": [
       "zero-trust"
     ]
@@ -1009,6 +1050,7 @@
     "answer": false,
     "explanation": "Zero trust explicitly rejects trust based on network location. Internal traffic must be authenticated and authorized just like external traffic — there is no automatically trusted 'inside'.",
     "example": "# Zero trust: internal service calls still need mTLS identity and authorization\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata: {name: default, namespace: shop}\nspec:\n  mtls:\n    mode: STRICT   # plaintext 'internal' traffic is rejected",
+    "diagram": "flowchart TD\n    E[\"External request\"] --> V[\"Authenticate and authorize\"]\n    I[\"Internal request (corporate LAN, VPN)\"] --> V\n    V -->|\"verified\"| A[\"Access granted\"]\n    V -->|\"not verified\"| D1[\"Denied\"]\n    N[\"Network location grants NO implicit trust\"] -.-> I\n    L[\"Lateral movement after one breach is contained\"] -.-> V",
     "tags": [
       "zero-trust"
     ]
@@ -1034,6 +1076,7 @@
     "answer": 2,
     "explanation": "A WAF sits in front of a web application and inspects incoming HTTP(S) requests, blocking or flagging traffic that matches known attack patterns before it ever reaches the application.",
     "example": "# Attach the AWS managed Core Rule Set (blocks common SQLi/XSS patterns) to an ALB\naws wafv2 create-web-acl --name app-waf --scope REGIONAL --default-action Allow={} \\\n  --rules file://crs-rule.json   # ManagedRuleGroupStatement: AWSManagedRulesCommonRuleSet\naws wafv2 associate-web-acl --web-acl-arn $ACL_ARN --resource-arn $ALB_ARN\n# Blocked requests show up as action=BLOCK in the WAF logs",
+    "diagram": "flowchart LR\n    U[\"Legitimate user request\"] --> W[\"WAF: inspects HTTP/HTTPS\"]\n    A[\"Attacker: ' OR 1=1 or script tag payload\"] --> W\n    W -->|\"matches SQLi or XSS rule\"| B[\"Blocked or flagged\"]\n    W -->|\"clean\"| APP[\"Web application\"]\n    W -.->|\"layer 7 only, not network firewall\"| N[\"Does not replace a network firewall\"]",
     "tags": [
       "waf"
     ]
@@ -1059,6 +1102,7 @@
     "answer": 3,
     "explanation": "DDoS attacks flood a target with traffic from numerous distributed sources simultaneously, exhausting network bandwidth, connection limits, or application resources so real users can't get through.",
     "example": "# Symptom of a volumetric DDoS in nginx access logs: huge request volume from many IPs\nawk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head\n# Mitigation: rate limit per client\nlimit_req_zone $binary_remote_addr zone=perip:10m rate=10r/s;",
+    "diagram": "flowchart LR\n    B1[\"Botnet host 1\"] --> T[\"Target server\"]\n    B2[\"Botnet host 2\"] --> T\n    B3[\"Botnet host N (thousands)\"] --> T\n    T --> E[\"Bandwidth, connections, CPU exhausted\"]\n    E --> X[\"Legitimate user cannot connect\"]\n    U[\"Legitimate user\"] -.->|\"timeout\"| T",
     "tags": [
       "ddos"
     ]
@@ -1090,6 +1134,7 @@
     ],
     "explanation": "Rate limiting, scrubbing/CDN absorption, and autoscaling all help a service withstand or deflect a flood of traffic. Disabling TLS or removing firewalls would weaken security without meaningfully helping against volumetric attacks.",
     "example": "# Layered DDoS mitigation\n# 1. Edge: anycast CDN / scrubbing (Cloudflare, AWS Shield Advanced) absorbs volumetric floods\n# 2. Per-client rate limiting at the proxy\nlimit_req_zone $binary_remote_addr zone=perip:10m rate=20r/s;\n# 3. Autoscale the backend to ride out what gets through\nkubectl autoscale deployment web --min=3 --max=30 --cpu-percent=60",
+    "diagram": "flowchart LR\n    F[\"DDoS flood\"] --> C[\"Anycast CDN or scrubbing service absorbs and filters\"]\n    C --> R[\"Rate limiting per client\"]\n    R --> S[\"Autoscaled backend absorbs remaining spikes\"]\n    S --> A[\"Service stays available\"]\n    X[\"Not mitigations: disable TLS, remove firewall\"] -.->|\"weakens security\"| F",
     "tags": [
       "ddos"
     ]
@@ -1115,6 +1160,7 @@
     "answer": 0,
     "explanation": "Audit logs create a tamper-evident record of security-relevant events (logins, permission changes, data access, etc.), which is essential for investigating incidents and demonstrating compliance.",
     "example": "# Kubernetes audit policy: record who changed Secrets and RBAC, with request bodies\napiVersion: audit.k8s.io/v1\nkind: Policy\nrules:\n- level: RequestResponse\n  resources:\n  - {group: \"\", resources: [\"secrets\"]}\n  - {group: rbac.authorization.k8s.io, resources: [\"rolebindings\", \"clusterrolebindings\"]}",
+    "diagram": "flowchart LR\n    E[\"Event: alice deleted prod-db at 14:02\"] --> L[\"Audit log (append-only, tamper-evident)\"]\n    L --> W[\"Who: alice\"]\n    L --> A[\"What: delete\"]\n    L --> R[\"Which resource: prod-db\"]\n    L --> T[\"When: timestamp\"]\n    L --> U1[\"Incident forensics\"]\n    L --> U2[\"Compliance evidence: SOC 2, PCI\"]",
     "tags": [
       "audit-logging"
     ]
@@ -1146,6 +1192,7 @@
     ],
     "explanation": "PCI DSS targets cardholder data protection, GDPR targets personal data privacy for EU individuals, and SOC 2 assesses trust-service controls like security and availability. HIPAA concerns health information privacy (not Kubernetes), and no compliance certification can guarantee zero vulnerabilities.",
     "example": "# Map controls to frameworks in a compliance-as-code check (e.g. Terraform + OPA)\ndeny[msg] {\n  input.resource_type == \"aws_s3_bucket\"\n  not input.server_side_encryption\n  msg := sprintf(\"%s: encryption at rest required (PCI DSS 3.4, SOC 2 CC6.1)\", [input.name])\n}",
+    "diagram": "flowchart TD\n    C[\"Compliance frameworks\"] --> P[\"PCI DSS: payment cardholder data\"]\n    C --> G[\"GDPR: personal data of EU individuals\"]\n    C --> S[\"SOC 2: service org controls, security and availability\"]\n    C --> H[\"HIPAA: health information privacy\"]\n    C -.->|\"none guarantee\"| Z[\"Zero vulnerabilities\"]",
     "tags": [
       "compliance"
     ]
@@ -1171,6 +1218,7 @@
     "answer": 1,
     "explanation": "Storing passwords in plaintext means a single database breach instantly compromises every user's credentials, with no additional work required by the attacker.",
     "example": "# Store only a salted, slow hash; verify by re-hashing the login attempt\nfrom argon2 import PasswordHasher\nph = PasswordHasher()\nstored = ph.hash(\"correct horse battery staple\")   # $argon2id$v=19$m=65536,t=3,p=4$...\nph.verify(stored, login_attempt)   # raises on mismatch",
+    "diagram": "flowchart LR\n    DB[\"Database breach\"] --> P[\"Plaintext passwords\"]\n    P --> A1[\"Instant account takeover, no cracking needed\"]\n    P --> A2[\"Password reuse: other services compromised too\"]\n    DB --> H[\"Salted slow hashes (bcrypt, Argon2)\"]\n    H --> S[\"Attacker must brute-force each hash slowly\"]",
     "tags": [
       "passwords"
     ]
@@ -1196,6 +1244,7 @@
     "answer": 2,
     "explanation": "General-purpose hashes like SHA-256 are built to be fast, which is exactly the wrong property for password storage — it lets attackers try billions of guesses per second. bcrypt and Argon2 are intentionally slow and configurable, and are used with salts to defeat precomputed rainbow tables.",
     "example": "# bcrypt cost factor makes each guess deliberately slow (~250 ms at cost 12)\nimport bcrypt\nhashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))\n# $2b$12$<22-char salt><31-char hash>  -- salt is embedded, per user\nbcrypt.checkpw(attempt.encode(), hashed)",
+    "diagram": "flowchart LR\n    F[\"Fast hash: SHA-256\"] --> B[\"Billions of guesses per second on GPU\"]\n    B --> C[\"Passwords cracked quickly\"]\n    S[\"bcrypt or Argon2\"] --> W[\"Tunable work factor: deliberately slow\"]\n    S --> SA[\"Per-user salt\"]\n    W --> D1[\"Brute force very expensive\"]\n    SA --> R[\"Rainbow tables useless\"]",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
     "tags": [
       "passwords",
@@ -1215,6 +1264,7 @@
     ],
     "explanation": "Argon2 (particularly the Argon2id variant) is the modern, competition-vetted choice for password hashing, alongside longstanding options like bcrypt and scrypt.",
     "example": "# Argon2id with OWASP-recommended minimum parameters\nfrom argon2 import PasswordHasher\nph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)  # 19 MiB\nprint(ph.hash(\"s3cret\"))\n# $argon2id$v=19$m=19456,t=2,p=1$...",
+    "diagram": "flowchart LR\n    PHC[\"Password Hashing Competition 2015\"] --> W[\"Winner: Argon2\"]\n    W --> I[\"Argon2i: side-channel resistant\"]\n    W --> D1[\"Argon2d: GPU resistant\"]\n    W --> ID[\"Argon2id: hybrid, recommended default\"]\n    ID --> P[\"Tunable memory, time, parallelism\"]\n    O[\"Older options still fine: bcrypt, scrypt\"] -.-> ID",
     "pattern": "^argon2(id)?$",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
     "tags": [
@@ -1243,6 +1293,7 @@
     "answer": 3,
     "explanation": "A compact JWT has three dot-separated segments: a header (algorithm/type metadata), a payload (the claims), and a signature that lets a verifier check the token's integrity.",
     "example": "# A JWT is header.payload.signature, each part base64url-encoded\nJWT='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSIsImV4cCI6MTc1MDAwMDAwMH0.sig...'\necho \"$JWT\" | cut -d. -f1 | base64 -d 2>/dev/null   # {\"alg\":\"HS256\",\"typ\":\"JWT\"}\necho \"$JWT\" | cut -d. -f2 | base64 -d 2>/dev/null   # {\"sub\":\"alice\",\"exp\":1750000000}",
+    "diagram": "flowchart LR\n    J[\"JWT: xxxxx.yyyyy.zzzzz\"] --> H[\"1. Header: alg HS256, typ JWT\"]\n    J --> P[\"2. Payload: claims like sub, exp\"]\n    J --> S[\"3. Signature: HMAC(header.payload, secret)\"]\n    H --> V[\"Verifier recomputes signature\"]\n    P --> V\n    S --> V\n    V --> R[\"Integrity confirmed\"]",
     "tags": [
       "jwt"
     ]
@@ -1256,6 +1307,7 @@
     "answer": false,
     "explanation": "The payload is only base64url-*encoded*, not encrypted — anyone holding the token can decode and read it. The signature only protects integrity, not confidentiality, so sensitive data shouldn't be placed in a plain JWT payload unless it is separately encrypted (e.g., using JWE).",
     "example": "# Anyone with the token can read the claims without any key\necho 'eyJzdWIiOiJhbGljZSIsInJvbGUiOiJhZG1pbiJ9' | base64 -d\n# {\"sub\":\"alice\",\"role\":\"admin\"}\n# The signature only proves integrity; use JWE if claims must stay confidential",
+    "diagram": "flowchart LR\n    T[\"Signed JWT (JWS)\"] --> P[\"Payload: base64url encoded\"]\n    P -->|\"base64 -d, no key\"| R[\"Anyone can read the claims\"]\n    T --> S[\"Signature: protects integrity only\"]\n    S -.->|\"does NOT hide content\"| R\n    N[\"Need confidentiality?\"] --> E[\"Use JWE (encrypted JWT)\"]",
     "tags": [
       "jwt"
     ]
@@ -1281,6 +1333,7 @@
     "answer": 0,
     "explanation": "Browsers enforce the same-origin policy by default. CORS is the opt-in, header-based protocol (e.g., `Access-Control-Allow-Origin`) that lets a server relax that restriction for specific origins it trusts.",
     "example": "# Server opts in to a specific trusted origin (nginx)\nadd_header Access-Control-Allow-Origin \"https://app.example.com\";\nadd_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\";\nadd_header Access-Control-Allow-Headers \"Authorization, Content-Type\";\n# Browser preflight: OPTIONS /api/orders  Origin: https://app.example.com",
+    "diagram": "sequenceDiagram\n    participant B as \"Browser at app.example.com\"\n    participant A as \"api.example.org\"\n    Note over B: same-origin policy blocks cross-origin reads by default\n    B->>A: OPTIONS preflight with Origin header\n    A-->>B: Access-Control-Allow-Origin: https://app.example.com\n    B->>A: GET /data\n    A-->>B: Response, browser allows JS to read it\n    Note over B,A: Server opts in to specific trusted origins",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
     "tags": [
       "cors"
@@ -1307,6 +1360,7 @@
     "answer": 1,
     "explanation": "CSRF exploits the browser's automatic inclusion of credentials (like session cookies) on requests: a malicious page can cause the victim's browser to submit a state-changing request to another site the victim is already authenticated to, without the victim's knowledge.",
     "example": "# Attack shape (defensive illustration): a hidden form on evil.example auto-submits to the bank\n# <form action=\"https://bank.example/transfer\" method=\"POST\"> ... </form>\n# The browser attaches the bank's session cookie automatically.\n# Defense: bank sets\nSet-Cookie: session=...; Secure; HttpOnly; SameSite=Lax\n# and requires a per-session CSRF token in every POST",
+    "diagram": "sequenceDiagram\n    participant V as \"Victim browser\"\n    participant E as \"evil.example\"\n    participant B as \"bank.example\"\n    Note over V,B: Victim already logged in, session cookie set\n    V->>E: Visit malicious page\n    E-->>V: Hidden form auto-submits to bank\n    V->>B: POST /transfer (cookie attached automatically)\n    B-->>V: Transfer executed as the victim",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
     "tags": [
       "csrf"
@@ -1339,6 +1393,7 @@
     ],
     "explanation": "CSRF tokens, the `SameSite` cookie attribute, and Origin/Referer validation are all standard, effective CSRF defenses. Disabling TLS removes an unrelated protection and weakens security, and lengthening cookie lifetime does nothing to stop CSRF.",
     "example": "# Django enables all three defenses with a few settings\nCSRF_COOKIE_SECURE = True\nSESSION_COOKIE_SAMESITE = \"Lax\"       # SameSite attribute\nCSRF_TRUSTED_ORIGINS = [\"https://app.example.com\"]   # Origin/Referer check\n# Template: <form method=\"post\">{% csrf_token %} ...   # synchronizer token",
+    "diagram": "flowchart TD\n    C[\"CSRF request from evil.example\"] --> M[\"Mitigations\"]\n    M --> T[\"Anti-CSRF synchronizer token required in form\"]\n    M --> S[\"Cookie SameSite=Lax or Strict: cookie not sent cross-site\"]\n    M --> O[\"Validate Origin or Referer header\"]\n    T --> X[\"Forged request rejected\"]\n    S --> X\n    O --> X",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
     "tags": [
       "csrf"
@@ -1356,6 +1411,7 @@
     ],
     "explanation": "The `Strict-Transport-Security` header (commonly abbreviated HSTS) tells a compliant browser to automatically upgrade future requests to that host to HTTPS, helping prevent protocol-downgrade and cookie-hijacking attacks.",
     "example": "# nginx: tell browsers to use HTTPS only for the next year, including subdomains\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;\n# Verify\ncurl -sI https://example.com | grep -i strict-transport",
+    "diagram": "sequenceDiagram\n    participant B as \"Browser\"\n    participant S as \"example.com\"\n    B->>S: First HTTPS visit\n    S-->>B: Strict-Transport-Security: max-age=31536000\n    B->>B: Remember: HTTPS only for this host\n    Note over B: User types http://example.com\n    B->>S: Auto-upgraded to https:// before sending\n    Note over B,S: Blocks downgrade and cookie hijack",
     "pattern": "^(strict-transport-security|hsts)$",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
     "tags": [
@@ -1384,6 +1440,7 @@
     "answer": 2,
     "explanation": "Without `nosniff`, some browsers try to guess a resource's type from its content rather than trusting the declared `Content-Type`, which attackers have abused to get a file treated as executable script; `nosniff` disables that guessing.",
     "example": "# Serve every response with nosniff so browsers honor the declared Content-Type\nadd_header X-Content-Type-Options \"nosniff\" always;\n# Without it, a user-uploaded 'image' containing JS might be executed as a script\ncurl -sI https://example.com | grep -i x-content-type",
+    "diagram": "flowchart LR\n    U[\"User uploads file declared as text/plain\"] --> S[\"Server: Content-Type: text/plain\"]\n    S --> B{\"Browser MIME sniffing?\"}\n    B -->|\"no nosniff header\"| G[\"Browser guesses: looks like JavaScript, executes it\"]\n    B -->|\"X-Content-Type-Options: nosniff\"| T[\"Browser trusts declared type, no execution\"]\n    G --> X[\"Content-type confusion attack\"]",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
     "tags": [
       "security-headers"
@@ -1416,6 +1473,7 @@
     ],
     "explanation": "CSP, HSTS, and X-Content-Type-Options are all security-focused response headers. `Content-Length` and `Accept-Language` are ordinary functional headers with no direct security purpose.",
     "example": "# Baseline security headers in nginx\nadd_header Content-Security-Policy \"default-src 'self'; object-src 'none'\" always;\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;\nadd_header X-Content-Type-Options \"nosniff\" always;\nadd_header Referrer-Policy \"strict-origin-when-cross-origin\" always;",
+    "diagram": "flowchart TD\n    H[\"Security response headers\"] --> CSP[\"Content-Security-Policy: limits script sources\"]\n    H --> HSTS[\"Strict-Transport-Security: HTTPS only\"]\n    H --> X[\"X-Content-Type-Options: nosniff\"]\n    F[\"Functional headers, no security role\"] --> CL[\"Content-Length\"]\n    F --> AL[\"Accept-Language\"]",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy",
     "tags": [
       "security-headers"
@@ -1442,6 +1500,7 @@
     "answer": 3,
     "explanation": "OPA is a standalone, general-purpose policy engine: you author policies once and evaluate them from many different enforcement points (Kubernetes via Gatekeeper, API gateways, CI pipelines, etc.), keeping policy logic out of application code.",
     "example": "# Gatekeeper (OPA) constraint: every pod image must come from the internal registry\napiVersion: constraints.gatekeeper.sh/v1beta1\nkind: K8sAllowedRepos\nmetadata: {name: internal-registry-only}\nspec:\n  match: {kinds: [{apiGroups: [\"\"], kinds: [\"Pod\"]}]}\n  parameters: {repos: [\"registry.acme.internal/\"]}",
+    "diagram": "flowchart LR\n    P[\"Policy as code (Rego)\"] --> OPA[\"Open Policy Agent\"]\n    K[\"Kubernetes admission (Gatekeeper)\"] -->|\"input JSON\"| OPA\n    G[\"API gateway authz\"] -->|\"input JSON\"| OPA\n    CI[\"CI/CD pipeline check\"] -->|\"input JSON\"| OPA\n    OPA -->|\"allow or deny decision\"| K\n    OPA --> G\n    OPA --> CI\n    OPA -.->|\"decoupled from app code\"| P",
     "tags": [
       "opa",
       "policy-as-code"
@@ -1458,6 +1517,7 @@
     ],
     "explanation": "Rego is OPA's purpose-built language for expressing policy rules that are evaluated against structured input data to produce an allow/deny (or other) decision.",
     "example": "# Rego policy: deny privileged containers at admission time\npackage kubernetes.admission\ndeny[msg] {\n  container := input.request.object.spec.containers[_]\n  container.securityContext.privileged == true\n  msg := sprintf(\"privileged container not allowed: %v\", [container.name])\n}\n# opa eval -d policy.rego -i pod.json 'data.kubernetes.admission.deny'",
+    "diagram": "flowchart LR\n    R[\"Rego policy: deny if not input.image starts with registry.corp\"] --> OPA[\"OPA evaluates\"]\n    I[\"Input JSON: pod spec\"] --> OPA\n    D1[\"Data: allowed registries\"] --> OPA\n    OPA --> O[\"Decision: allow or deny with message\"]\n    O --> K[\"Enforcement point: Gatekeeper, gateway, CI\"]",
     "pattern": "^rego$",
     "tags": [
       "opa",

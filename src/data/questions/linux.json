@@ -20,6 +20,7 @@
     "prompt": "Which directory in the Filesystem Hierarchy Standard (FHS) holds system configuration files?",
     "explanation": "`/etc` traditionally holds host-specific system configuration files. `/var` holds variable data like logs, `/opt` holds optional third-party software, and `/usr` holds user-space programs and libraries.",
     "example": "ls /etc\n# nginx/  ssh/  passwd  hosts  fstab  systemd/\ncat /etc/hostname   # system-wide config lives here",
+    "diagram": "flowchart TD\nR[\"/ (root)\"] --> E[\"/etc - host config files (sshd_config, fstab)\"]\nR --> V[\"/var - variable data (logs, spool)\"]\nR --> O[\"/opt - optional third-party software\"]\nR --> U[\"/usr - user-space programs and libraries\"]",
     "reference": "https://man7.org/linux/man-pages/man7/hier.7.html",
     "tags": [
       "filesystem-hierarchy"
@@ -36,6 +37,7 @@
     "prompt": "What single command changes the permissions of `script.sh` to read, write, and execute for the owner and read and execute for group and others (mode 755)?",
     "explanation": "`chmod 755 script.sh` sets rwx for the owner (7) and r-x for group and others (5 each), which is equivalent to `u=rwx,go=rx`.",
     "example": "chmod 755 script.sh\nls -l script.sh\n# -rwxr-xr-x 1 deploy deploy 120 Jan  1 10:00 script.sh",
+    "diagram": "flowchart LR\nC[\"chmod 755 script.sh\"] --> O[\"owner 7 = rwx\"]\nC --> G[\"group 5 = r-x\"]\nC --> W[\"others 5 = r-x\"]\nO --> S[\"symbolic: u=rwx,go=rx\"]\nG --> S\nW --> S",
     "reference": "https://man7.org/linux/man-pages/man1/chmod.1.html",
     "tags": [
       "permissions",
@@ -64,6 +66,7 @@
     "prompt": "Which command changes the owning user and group of `app.log` to `deploy` and `deploy` in one step?",
     "explanation": "`chown user:group file` changes both the owning user and group at once. `chmod` changes permission bits, `chgrp` only changes the group, and `usermod` modifies user accounts, not file ownership.",
     "example": "sudo chown deploy:deploy app.log\nls -l app.log\n# -rw-r--r-- 1 deploy deploy 4096 Jan  1 10:00 app.log",
+    "diagram": "flowchart LR\nF[\"app.log (owner root:root)\"] -->|\"chown deploy:deploy app.log\"| T[\"app.log (owner deploy:deploy)\"]\nM[\"chmod\"] -->|\"changes\"| P[\"permission bits only\"]\nG[\"chgrp\"] -->|\"changes\"| Q[\"group only\"]\nU[\"usermod\"] -->|\"changes\"| A[\"user accounts, not files\"]",
     "reference": "https://man7.org/linux/man-pages/man1/chown.1.html",
     "tags": [
       "permissions",
@@ -79,6 +82,7 @@
     "prompt": "The setuid bit on an executable file causes it to run with the privileges of the file's owner rather than the user who launched it.",
     "explanation": "When the setuid bit (shown as `s` in the owner execute position, e.g. `rwsr-xr-x`) is set on an executable, the process runs with the effective user ID of the file's owner, which is how tools like `passwd` can modify root-owned files.",
     "example": "ls -l /usr/bin/passwd\n# -rwsr-xr-x 1 root root ... /usr/bin/passwd\n# the 's' in the owner slot is setuid: passwd runs as root so it can edit /etc/shadow",
+    "diagram": "sequenceDiagram\nparticipant U as \"user alice (uid 1000)\"\nparticipant P as \"passwd binary (rwsr-xr-x, owner root)\"\nparticipant K as \"kernel\"\nparticipant S as \"/etc/shadow (root only)\"\nU->>P: run /usr/bin/passwd\nP->>K: exec with setuid bit\nK-->>P: effective UID = 0 (root)\nP->>S: write new hash\nS-->>U: password updated",
     "reference": "https://man7.org/linux/man-pages/man2/execve.2.html",
     "tags": [
       "permissions",
@@ -106,6 +110,7 @@
     "prompt": "A directory has permissions `rwxr-xr-t`. What does the trailing `t` represent?",
     "explanation": "A lowercase `t` in the others-execute position is the sticky bit; on a directory it means only the file's owner (or root) can delete or rename files within it, as used on `/tmp`. An uppercase `T` would mean sticky without execute for others.",
     "example": "ls -ld /tmp\n# drwxrwxrwt 10 root root 4096 Jan  1 10:00 /tmp\nchmod +t /srv/shared   # only a file's owner (or root) may delete files inside",
+    "diagram": "flowchart TD\nP[\"/tmp perms rwxr-xr-t\"] --> T[\"trailing t = sticky bit\"]\nT --> R[\"rule: only file owner or root may delete or rename files inside\"]\nR --> A[\"alice creates /tmp/a.txt\"]\nA --> B[\"bob tries rm /tmp/a.txt\"]\nB --> X[\"denied: not owner\"]\nA --> C[\"alice or root rm /tmp/a.txt\"]\nC --> Y[\"allowed\"]",
     "reference": "https://man7.org/linux/man-pages/man1/chmod.1.html",
     "tags": [
       "permissions",
@@ -133,6 +138,7 @@
     "prompt": "Which file lists the local user accounts on a Linux system, including UID, GID, home directory, and login shell?",
     "explanation": "`/etc/passwd` stores one line per user account with fields like username, UID, GID, home directory, and shell. `/etc/shadow` stores hashed passwords and aging data, and `/etc/group` defines groups.",
     "example": "grep '^deploy:' /etc/passwd\n# deploy:x:1001:1001:Deploy User:/home/deploy:/bin/bash\n#   name:pw:UID:GID:comment:home:shell",
+    "diagram": "flowchart LR\nP[\"/etc/passwd\"] --> L[\"alice:x:1001:1001:Alice:/home/alice:/bin/bash\"]\nL --> U[\"UID 1001\"]\nL --> G[\"GID 1001\"]\nL --> H[\"home /home/alice\"]\nL --> S[\"shell /bin/bash\"]\nSH[\"/etc/shadow\"] --> HP[\"hashed passwords and aging\"]\nGR[\"/etc/group\"] --> GD[\"group definitions\"]",
     "reference": "https://man7.org/linux/man-pages/man5/passwd.5.html",
     "tags": [
       "users",
@@ -160,6 +166,7 @@
     "prompt": "Which command adds the existing user `alice` to the supplementary group `docker` without removing her from her other groups?",
     "explanation": "`usermod -aG docker alice` appends (`-a`) the `docker` group to alice's supplementary groups. Using `-G` alone (without `-a`) would replace her entire supplementary group list, and `-g` changes only the primary group.",
     "example": "sudo usermod -aG docker alice\nid alice\n# uid=1002(alice) gid=1002(alice) groups=1002(alice),998(docker)",
+    "diagram": "flowchart TD\nS[\"alice groups: alice, sudo, adm\"] --> A[\"usermod -aG docker alice\"]\nA --> R1[\"alice, sudo, adm, docker (appended)\"]\nS --> B[\"usermod -G docker alice (no -a)\"]\nB --> R2[\"alice, docker (sudo and adm lost)\"]\nS --> C[\"usermod -g docker alice\"]\nC --> R3[\"primary group changed only\"]",
     "reference": "https://man7.org/linux/man-pages/man8/usermod.8.html",
     "tags": [
       "users",
@@ -175,6 +182,7 @@
     "prompt": "User account UID 0 is always the `root` (superuser) account on a standard Linux system.",
     "explanation": "UID 0 is reserved for the superuser; the kernel grants full privileges to any process running as UID 0 regardless of the account's name, but by convention that account is named `root`.",
     "example": "id -u root\n# 0\nsudo id -u   # 0 - commands run via sudo execute as UID 0",
+    "diagram": "flowchart LR\nP[\"process\"] --> K{\"kernel checks effective UID\"}\nK -->|\"UID 0\"| R[\"full privileges (superuser)\"]\nK -->|\"UID 1000\"| N[\"normal permission checks\"]\nR --> C[\"by convention the UID 0 account is named root\"]",
     "reference": "https://man7.org/linux/man-pages/man5/passwd.5.html",
     "tags": [
       "users"
@@ -201,6 +209,7 @@
     "prompt": "Which command sends SIGTERM (the default, graceful termination signal) to a process with PID 4821?",
     "explanation": "`kill` without a signal option sends SIGTERM (signal 15) by default, giving the process a chance to shut down gracefully. `kill -9` forces immediate SIGKILL termination instead.",
     "example": "kill 4821          # sends SIGTERM (15) so the process can clean up\nkill -TERM 4821    # explicit equivalent\nkill -9 4821       # SIGKILL, only if it ignores SIGTERM",
+    "diagram": "sequenceDiagram\nparticipant S as \"shell\"\nparticipant P as \"process PID 4821\"\nS->>P: kill 4821 (SIGTERM, signal 15)\nP->>P: run handler, flush, close files\nP-->>S: exits gracefully\nS->>P: kill -9 4821 (SIGKILL)\nNote over P: killed immediately, no cleanup",
     "reference": "https://man7.org/linux/man-pages/man1/kill.1.html",
     "tags": [
       "processes",
@@ -216,6 +225,7 @@
     "prompt": "A zombie process (state `Z` in `ps`) is still consuming CPU and memory like a normally running process.",
     "explanation": "A zombie process has already terminated and released its resources; only its process table entry (exit status) remains until the parent calls `wait()` to reap it. Zombies do not consume CPU.",
     "example": "ps -eo pid,ppid,stat,cmd | awk '$3 ~ /Z/'\n# 5120  5100 Z  [worker] <defunct>\n# a zombie has already exited; only its process-table entry remains until the parent calls wait()",
+    "diagram": "stateDiagram-v2\n[*] --> Running\nRunning --> Terminated: process exits\nTerminated --> Zombie: resources freed, exit status kept in process table\nZombie --> [*]: parent calls wait() and reaps it\nnote right of Zombie\n  shown as Z in ps\n  uses no CPU or memory\nend note",
     "reference": "https://man7.org/linux/man-pages/man2/wait.2.html",
     "tags": [
       "processes"
@@ -245,6 +255,7 @@
     "prompt": "Which of the following are valid ways to move a running foreground job to the background and keep it running in the current shell session? (Select all that apply.)",
     "explanation": "`Ctrl+Z` suspends the job (SIGTSTP) and `bg` resumes it in the background; starting with `&` backgrounds it immediately. `Ctrl+C` sends SIGINT, which typically terminates the process, and `disown` only detaches an already-running job from the shell's job table, it does not start or background anything.",
     "example": "./long-build.sh       # running in the foreground\n# press Ctrl+Z  ->  [1]+ Stopped ./long-build.sh\nbg                    # resumes job 1 in the background\njobs                  # [1]+ Running ./long-build.sh &",
+    "diagram": "flowchart TD\nF[\"foreground job running\"] -->|\"Ctrl+Z (SIGTSTP)\"| S[\"stopped\"]\nS -->|\"bg\"| B[\"running in background\"]\nC[\"cmd &\"] --> B\nF -->|\"Ctrl+C (SIGINT)\"| X[\"terminated, cannot fg\"]\nB -->|\"disown (optional)\"| D[\"detached from shell job table\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Job-Control-Basics.html",
     "tags": [
       "shell",
@@ -275,6 +286,7 @@
     "prompt": "Which of the following commands provide a live, continuously updating view of system resource or process usage (as opposed to a single static snapshot)?",
     "explanation": "`top` and `htop` continuously refresh their display of process and resource usage. `ps aux` is a one-time snapshot, and `uptime` only prints load averages once, not a continuously updating view.",
     "example": "top -d 2            # refreshes every 2 seconds; press q to quit\nhtop                # interactive, colour, scrollable; F9 to send signals\nps aux | head -5    # one-off snapshot, no refresh",
+    "diagram": "flowchart LR\nQ{\"need live refreshing view?\"} -->|\"yes\"| T[\"top\"]\nQ -->|\"yes\"| H[\"htop\"]\nQ -->|\"no, one snapshot\"| P[\"ps aux\"]\nQ -->|\"no, load averages once\"| U[\"uptime\"]\nT --> R[\"redraws every few seconds\"]\nH --> R",
     "reference": "https://man7.org/linux/man-pages/man1/top.1.html",
     "tags": [
       "processes"
@@ -301,6 +313,7 @@
     "prompt": "Which systemd command enables the `nginx.service` unit to start automatically at boot without starting it immediately?",
     "explanation": "`systemctl enable` creates the symlinks needed for the unit to start on boot but does not start it right now; `systemctl enable --now` would do both. `systemctl start` only starts it for the current session, and `mask` prevents it from starting at all.",
     "example": "sudo systemctl enable nginx\n# Created symlink /etc/systemd/system/multi-user.target.wants/nginx.service -> /lib/systemd/system/nginx.service\nsudo systemctl enable --now nginx   # enable AND start in one go",
+    "diagram": "flowchart LR\nE[\"systemctl enable nginx\"] --> L[\"creates symlink in multi-user.target.wants\"]\nL --> B[\"starts on next boot\"]\nS[\"systemctl start nginx\"] --> N[\"running now only\"]\nEN[\"systemctl enable --now nginx\"] --> B\nEN --> N\nM[\"systemctl mask nginx\"] --> X[\"cannot start at all\"]",
     "reference": "https://www.freedesktop.org/software/systemd/man/systemctl.html",
     "tags": [
       "systemd"
@@ -327,6 +340,7 @@
     "prompt": "Which command shows the current status (active/inactive, recent log lines, main PID) of the `sshd` systemd service?",
     "explanation": "`systemctl status <unit>` gives a human-readable summary including active state, main PID, and the most recent log lines. `systemctl show` dumps raw property key/value pairs instead of a summary.",
     "example": "systemctl status sshd\n# * ssh.service - OpenBSD Secure Shell server\n#    Active: active (running) since Mon 2024-01-01 09:00:00 UTC\n#  Main PID: 812 (sshd)\n# Jan 01 09:00:00 host sshd[812]: Server listening on 0.0.0.0 port 22.",
+    "diagram": "flowchart TD\nC[\"systemctl status sshd\"] --> A[\"Active: active (running) since ...\"]\nC --> P[\"Main PID: 812 (sshd)\"]\nC --> L[\"recent journal lines\"]\nC --> E[\"Loaded: enabled\"]\nS[\"systemctl show sshd\"] --> K[\"raw key=value property dump\"]",
     "reference": "https://www.freedesktop.org/software/systemd/man/systemctl.html",
     "tags": [
       "systemd"
@@ -343,6 +357,7 @@
     "prompt": "What `journalctl` command shows only the log entries for the `nginx.service` unit and follows new entries as they arrive, similar to `tail -f`?",
     "explanation": "`-u` (or `--unit`) filters the journal to a specific systemd unit, and `-f` (or `--follow`) streams new log entries as they are written, analogous to `tail -f`.",
     "example": "journalctl -u nginx.service -f\n# -- Logs begin at Mon 2024-01-01 --\n# Jan 01 10:00:01 web nginx[812]: 10.0.0.5 - GET /health 200\n# (waits and prints new lines as they arrive; Ctrl+C to stop)",
+    "diagram": "flowchart LR\nJ[\"journalctl -u nginx.service -f\"] --> U[\"-u filters to one systemd unit\"]\nJ --> F[\"-f follows new entries\"]\nU --> O[\"only nginx log lines\"]\nF --> O\nO --> T[\"streams like tail -f\"]",
     "reference": "https://www.freedesktop.org/software/systemd/man/journalctl.html",
     "tags": [
       "systemd",
@@ -371,6 +386,7 @@
     "prompt": "Which `journalctl` option limits output to entries logged since the last system boot?",
     "explanation": "`-b` (`--boot`) shows messages from a given boot, defaulting to the current one. `-k` shows only kernel messages, `-x` adds explanatory help text, and `-p` filters by priority level.",
     "example": "journalctl -b            # everything since the current boot\njournalctl -b -1         # the previous boot\njournalctl -b -p err     # combine: errors and worse since this boot",
+    "diagram": "flowchart LR\nJ[\"journalctl\"] -->|\"-b\"| B[\"entries since current boot\"]\nJ -->|\"-k\"| K[\"kernel messages only\"]\nJ -->|\"-x\"| X[\"adds explanatory help text\"]\nJ -->|\"-p err\"| P[\"filter by priority\"]\nB --> W[\"use -b -1 for the previous boot\"]",
     "reference": "https://www.freedesktop.org/software/systemd/man/journalctl.html",
     "tags": [
       "systemd",
@@ -398,6 +414,7 @@
     "prompt": "On Debian/Ubuntu, which command installs the package `curl` and its dependencies?",
     "explanation": "`apt install <package>` resolves dependencies and installs the requested package. `apt search` only looks up package names/descriptions, and `dpkg --list` lists already-installed packages.",
     "example": "sudo apt update\nsudo apt install -y curl     # -y answers yes to the confirmation prompt\ncurl --version",
+    "diagram": "flowchart LR\nA[\"apt install curl\"] --> R[\"resolve dependencies (libcurl4, ca-certificates)\"]\nR --> D[\"download .deb packages\"]\nD --> I[\"install via dpkg\"]\nS[\"apt search curl\"] --> L[\"only lists matching packages\"]\nQ[\"dpkg --list\"] --> N[\"shows installed packages\"]",
     "reference": "https://wiki.archlinux.org/title/APT",
     "tags": [
       "package-managers",
@@ -425,6 +442,7 @@
     "prompt": "On RHEL/Fedora-based systems, which command installs the `htop` package using the modern package manager?",
     "explanation": "`dnf install <package>` is the standard way to install a package with dependency resolution on Fedora/RHEL/CentOS Stream systems, `dnf` being the successor to `yum`. `apt-get` is Debian/Ubuntu's tool.",
     "example": "sudo dnf install -y htop\ndnf info htop          # show version and repo\nsudo dnf remove htop   # uninstall",
+    "diagram": "flowchart LR\nD[\"dnf install htop\"] --> R[\"resolve dependencies from repos\"]\nR --> I[\"install rpm packages\"]\nY[\"yum (older)\"] -->|\"succeeded by\"| D\nA[\"apt-get\"] --> X[\"Debian/Ubuntu only\"]\nS[\"dnf search htop\"] --> N[\"lookup only, no install\"]",
     "reference": "https://man7.org/linux/man-pages/man8/dnf.8.html",
     "tags": [
       "package-managers",
@@ -440,6 +458,7 @@
     "prompt": "The exit code `0` from a shell command conventionally means the command completed successfully.",
     "explanation": "By Unix convention, an exit status of 0 indicates success, while any non-zero value (1-255) indicates some form of failure or error condition.",
     "example": "ls /etc/hostname; echo $?\n# /etc/hostname\n# 0            <- success\nls /nope; echo $?\n# ls: cannot access '/nope': No such file or directory\n# 2            <- non-zero means failure",
+    "diagram": "flowchart LR\nC[\"command runs\"] --> E{\"exit status\"}\nE -->|\"0\"| S[\"success\"]\nE -->|\"1-255\"| F[\"failure or error\"]\nS --> N[\"cmd1 && cmd2 runs cmd2\"]\nF --> O[\"cmd1 || fallback runs fallback\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Exit-Status.html",
     "tags": [
       "shell",
@@ -467,6 +486,7 @@
     "prompt": "In bash, which variable holds the exit status of the most recently executed foreground command?",
     "explanation": "`$?` expands to the exit status of the last command executed. `$0` is the script/command name, `$#` is the argument count, and `$!` is the PID of the most recent background job.",
     "example": "grep -q 'ERROR' app.log\necho $?      # 0 if a match was found, 1 if not\nif [ $? -ne 0 ]; then echo 'no errors'; fi",
+    "diagram": "flowchart TD\nC[\"grep root /etc/passwd\"] --> E[\"echo $? prints 0 on match\"]\nV[\"$0\"] --> V1[\"script or command name\"]\nH[\"$#\"] --> H1[\"number of arguments\"]\nB[\"$!\"] --> B1[\"PID of last background job\"]\nQ[\"$?\"] --> Q1[\"exit status of last foreground command\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Special-Parameters.html",
     "tags": [
       "shell",
@@ -494,6 +514,7 @@
     "prompt": "In `command1 | command2`, what does the pipe (`|`) do?",
     "explanation": "A pipe connects the stdout of the command on its left to the stdin of the command on its right, letting data stream between processes without an intermediate file.",
     "example": "ps aux | grep nginx            # ps output becomes grep's stdin\ncat access.log | sort | uniq -c | sort -rn | head   # pipelines chain several filters",
+    "diagram": "flowchart LR\nA[\"ps aux\"] -->|\"stdout\"| P[\"pipe |\"]\nP -->|\"stdin\"| B[\"grep nginx\"]\nB -->|\"stdout\"| T[\"terminal\"]\nN[\"no intermediate file\"] --> P",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Pipelines.html",
     "tags": [
       "shell",
@@ -521,6 +542,7 @@
     "prompt": "What does the redirection `2>&1` do when placed after `command > output.log`, as in `command > output.log 2>&1`?",
     "explanation": "`2>&1` duplicates file descriptor 1's current target onto file descriptor 2. Because it comes after `> output.log`, stdout is already pointing at the file, so stderr is merged into the same file. Order matters here.",
     "example": "./deploy.sh > output.log 2>&1     # both stdout and stderr land in output.log\n./deploy.sh 2>&1 > output.log     # order matters: stderr still goes to the terminal here\n./deploy.sh &> output.log         # bash shorthand for the first form",
+    "diagram": "flowchart LR\nC[\"command > output.log 2>&1\"] --> S1[\"step 1: fd 1 (stdout) -> output.log\"]\nS1 --> S2[\"step 2: fd 2 (stderr) -> same target as fd 1\"]\nS2 --> F[\"output.log holds stdout and stderr\"]\nW[\"command 2>&1 > output.log\"] --> X[\"stderr -> terminal, only stdout -> file\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Redirections.html",
     "tags": [
       "shell",
@@ -539,6 +561,7 @@
     "prompt": "What command permanently sets the environment variable `NODE_ENV` to `production` for the current shell session only (not persisted across sessions)?",
     "explanation": "`export VAR=value` sets a shell variable and marks it for export to child processes' environments for the duration of the current session; it is not written to any config file.",
     "example": "export NODE_ENV=production\nnode -e 'console.log(process.env.NODE_ENV)'   # production\n# open a new terminal and the variable is gone; add the line to ~/.bashrc to persist it",
+    "diagram": "flowchart LR\nE[\"export NODE_ENV=production\"] --> S[\"current shell environment\"]\nS --> C[\"child processes (node app.js)\"]\nS -.->|\"not written to\"| F[\"~/.bashrc or /etc/environment\"]\nS -->|\"shell exits\"| G[\"variable gone\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Environment.html",
     "tags": [
       "shell",
@@ -555,6 +578,7 @@
     "prompt": "Environment variables set with `export` in a running shell are automatically visible to that shell's future child processes.",
     "explanation": "`export` marks a variable so it is copied into the environment block of any subsequently launched child process, whereas a non-exported shell variable stays local to the current shell.",
     "example": "export API_URL=https://api.example.com\nbash -c 'echo $API_URL'       # https://api.example.com (child sees it)\nLOCAL_ONLY=1\nbash -c 'echo ${LOCAL_ONLY:-unset}'   # unset (not exported)",
+    "diagram": "flowchart TD\nA[\"FOO=1 (plain shell variable)\"] --> S[\"current shell\"]\nB[\"export BAR=2\"] --> S\nS -->|\"fork and exec\"| C[\"child process env\"]\nC --> Y[\"BAR=2 visible\"]\nC --> N[\"FOO not present\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/Environment.html",
     "tags": [
       "shell",
@@ -582,6 +606,7 @@
     "prompt": "Which command searches recursively through the `/var/log` directory for lines containing the case-insensitive string \"error\"?",
     "explanation": "`grep -r` recurses into directories and `-i` makes the match case-insensitive, so `grep -r -i \"error\" /var/log` finds \"error\", \"Error\", \"ERROR\", etc. in all files under that tree.",
     "example": "grep -r -i \"error\" /var/log\n# /var/log/syslog:Jan  1 10:00:01 host app[42]: Error: disk full\ngrep -rin \"error\" /var/log/nginx/   # -n adds line numbers",
+    "diagram": "flowchart LR\nG[\"grep -r -i error /var/log\"] --> R[\"-r recurse into subdirectories\"]\nG --> I[\"-i ignore case\"]\nR --> F[\"/var/log/syslog, /var/log/nginx/error.log ...\"]\nI --> M[\"matches error, Error, ERROR\"]\nF --> O[\"file:line output\"]\nM --> O",
     "reference": "https://man7.org/linux/man-pages/man1/grep.1.html",
     "tags": [
       "grep",
@@ -599,6 +624,7 @@
     "prompt": "Using `sed`, what command replaces every occurrence of `foo` with `bar` in the file `config.txt`, editing the file in place?",
     "explanation": "`sed -i` edits the file in place, and the substitution command `s/foo/bar/g` replaces all (`g` = global) occurrences of `foo` with `bar` on each line.",
     "example": "sed -i 's/foo/bar/g' config.txt\n# -i edits in place, g replaces every match on each line\nsed -i.bak 's/foo/bar/g' config.txt   # also keep a config.txt.bak backup",
+    "diagram": "flowchart LR\nS[\"sed -i s/foo/bar/g config.txt\"] --> I[\"-i edit file in place\"]\nS --> C[\"s = substitute\"]\nS --> G[\"g = every occurrence per line\"]\nB[\"foo=1 foo=2\"] --> S\nS --> A[\"bar=1 bar=2\"]",
     "reference": "https://www.gnu.org/software/sed/manual/sed.html",
     "tags": [
       "sed",
@@ -627,6 +653,7 @@
     "prompt": "Given a CSV-like log line `2024-01-01 10:00:00,ERROR,disk full`, which `awk` command prints only the second comma-separated field (the severity level)?",
     "explanation": "`-F','` sets the field separator to a comma, and `$2` refers to the second field. Without `-F','`, awk would split on whitespace instead, giving the wrong field boundaries; `-f` (lowercase) is for supplying an awk script file, not a field separator.",
     "example": "awk -F',' '{print $2}' app.log\n# ERROR\nawk -F',' '$2==\"ERROR\" {print $3}' app.log   # print message for ERROR lines only",
+    "diagram": "flowchart LR\nL[\"2024-01-01 10:00:00,ERROR,disk full\"] --> A[\"awk -F, '{print $2}'\"]\nA --> F1[\"$1 = 2024-01-01 10:00:00\"]\nA --> F2[\"$2 = ERROR\"]\nA --> F3[\"$3 = disk full\"]\nW[\"without -F, split on whitespace: $2 = 10:00:00,ERROR,disk\"]",
     "reference": "https://www.gnu.org/software/gawk/manual/gawk.html",
     "tags": [
       "awk",
@@ -654,6 +681,7 @@
     "prompt": "What is the primary reason to use `find . -print0 | xargs -0 rm` instead of `find . | xargs rm` when deleting files whose names may contain spaces or newlines?",
     "explanation": "Plain newline-separated output breaks when filenames themselves contain spaces or newlines. `-print0` terminates each filename with a NUL byte (which cannot appear in a filename), and `xargs -0` splits input on NUL bytes, making the pipeline safe for arbitrary filenames.",
     "example": "touch 'my report.txt'\nfind . -name '*.txt' | xargs rm          # tries to rm 'my' and 'report.txt' - wrong\nfind . -name '*.txt' -print0 | xargs -0 rm   # NUL-delimited, handles the space safely",
+    "diagram": "flowchart TD\nF[\"file named my report.txt\"] --> N[\"find . (newline separated)\"]\nN --> X1[\"xargs rm sees my AND report.txt\"]\nX1 --> B[\"wrong files deleted\"]\nF --> Z[\"find . -print0 (NUL separated)\"]\nZ --> X2[\"xargs -0 rm sees my report.txt\"]\nX2 --> G[\"correct file deleted\"]",
     "reference": "https://man7.org/linux/man-pages/man1/xargs.1.html",
     "tags": [
       "find",
@@ -673,6 +701,7 @@
     "prompt": "What single `tar` command creates a gzip-compressed archive named `backup.tar.gz` containing the contents of the directory `site/`?",
     "explanation": "`-c` creates an archive, `-z` compresses with gzip, `-f` specifies the archive filename, and `-v` (optional) prints filenames as they are added. `tar -czf backup.tar.gz site/` archives the whole directory.",
     "example": "tar -czvf backup.tar.gz site/\n# c=create z=gzip v=verbose f=archive filename\ntar -tzf backup.tar.gz | head    # list contents\ntar -xzf backup.tar.gz -C /tmp   # extract elsewhere",
+    "diagram": "flowchart LR\nT[\"tar -czvf backup.tar.gz site/\"] --> C[\"-c create archive\"]\nT --> Z[\"-z gzip compress\"]\nT --> V[\"-v list files (optional)\"]\nT --> F[\"-f archive filename\"]\nS[\"site/ directory\"] --> T\nT --> O[\"backup.tar.gz\"]",
     "reference": "https://www.gnu.org/software/tar/manual/tar.html",
     "tags": [
       "tar"
@@ -704,6 +733,7 @@
     "prompt": "Which of the following `curl` options are commonly used when calling a REST API? (Select all that apply.)",
     "explanation": "`-X` sets the HTTP method, `-H` adds a header, and `-d` sends data as the request body (and implies POST if no method is set). `curl` has no `-p` ping mode; `-p` is used for FTP proxy tunneling in curl's option set.",
     "example": "curl -X POST https://api.example.com/items \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $TOKEN\" \\\n  -d '{\"key\":\"value\"}'\n# -X sets the method, -H adds headers, -d sends the body",
+    "diagram": "sequenceDiagram\nparticipant C as \"curl\"\nparticipant A as \"REST API\"\nC->>A: -X POST sets method\nC->>A: -H Content-Type application/json sets header\nC->>A: -d with JSON body sends data (implies POST)\nA-->>C: 201 Created JSON response\nNote over C: no -p ping mode exists",
     "reference": "https://man7.org/linux/man-pages/man1/curl.1.html",
     "tags": [
       "curl"
@@ -730,6 +760,7 @@
     "prompt": "Which curl flag follows HTTP redirects (3xx responses) automatically instead of just printing the redirect response?",
     "explanation": "`-L` (`--location`) tells curl to follow `Location` redirect responses. `-o` writes output to a file, `-I` fetches headers only, and `-s` runs silently without a progress meter.",
     "example": "curl -I http://example.com/old      # HTTP/1.1 301 Moved Permanently, Location: /new\ncurl -L http://example.com/old      # follows the 301 and prints the final page\ncurl -sL -o page.html https://example.com/old",
+    "diagram": "sequenceDiagram\nparticipant C as \"curl -L http://example.com\"\nparticipant S as \"server\"\nC->>S: GET /\nS-->>C: 301 Location https://example.com\nC->>S: GET https://example.com (followed by -L)\nS-->>C: 200 OK body\nNote over C: without -L curl stops at the 301",
     "reference": "https://man7.org/linux/man-pages/man1/curl.1.html",
     "tags": [
       "curl"
@@ -756,6 +787,7 @@
     "prompt": "Which file on the client side typically stores a user's private SSH key used for key-based authentication (default RSA key)?",
     "explanation": "`~/.ssh/id_rsa` is the default private key file and must be kept secret; `id_rsa.pub` is the matching public key that gets shared. `authorized_keys` lists public keys allowed to log in to that account, and `known_hosts` caches remote host keys.",
     "example": "ls -l ~/.ssh/\n# -rw------- 1 alice alice 2602 id_rsa       <- private key, keep 600\n# -rw-r--r-- 1 alice alice  570 id_rsa.pub   <- public key, copy to servers\nssh -i ~/.ssh/id_rsa alice@server",
+    "diagram": "flowchart LR\nK[\"ssh-keygen\"] --> P[\"~/.ssh/id_rsa (private, keep secret)\"]\nK --> Q[\"~/.ssh/id_rsa.pub (public, share)\"]\nQ -->|\"copied to server\"| A[\"~/.ssh/authorized_keys\"]\nS[\"server host key\"] -->|\"cached in\"| H[\"~/.ssh/known_hosts\"]\nP -->|\"proves identity\"| A",
     "reference": "https://man7.org/linux/man-pages/man1/ssh.1.html",
     "tags": [
       "ssh",
@@ -773,6 +805,7 @@
     "prompt": "What single `ssh-keygen` command generates a new ed25519 SSH key pair and stores it at `~/.ssh/deploy_key` (no passphrase prompt handling needed in the answer)?",
     "explanation": "`-t ed25519` selects the ed25519 key algorithm, and `-f` sets the output file path for the private key (with `.pub` appended for the public key).",
     "example": "ssh-keygen -t ed25519 -f ~/.ssh/deploy_key -C \"deploy@ci\"\n# creates ~/.ssh/deploy_key (private) and ~/.ssh/deploy_key.pub (public)\nssh-copy-id -i ~/.ssh/deploy_key.pub deploy@server",
+    "diagram": "flowchart LR\nC[\"ssh-keygen -t ed25519 -f ~/.ssh/deploy_key\"] --> T[\"-t ed25519 algorithm\"]\nC --> F[\"-f output path\"]\nF --> P[\"~/.ssh/deploy_key (private)\"]\nF --> Q[\"~/.ssh/deploy_key.pub (public)\"]\nQ --> S[\"add to server authorized_keys\"]",
     "reference": "https://man7.org/linux/man-pages/man1/ssh-keygen.1.html",
     "tags": [
       "ssh",
@@ -801,6 +834,7 @@
     "prompt": "Which command opens the current user's crontab file for editing?",
     "explanation": "`crontab -e` opens the invoking user's crontab in the default editor for editing. `crontab -l` only lists the current entries without editing, and there is no standalone `cron -e` command.",
     "example": "crontab -e            # opens your crontab in $EDITOR\n# 0 2 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1\ncrontab -l            # print it without editing",
+    "diagram": "flowchart LR\nE[\"crontab -e\"] --> O[\"opens user crontab in $EDITOR\"]\nO --> S[\"save and exit\"]\nS --> I[\"installed to /var/spool/cron\"]\nL[\"crontab -l\"] --> P[\"print entries only\"]\nR[\"crontab -r\"] --> X[\"remove crontab\"]",
     "reference": "https://man7.org/linux/man-pages/man1/crontab.1.html",
     "tags": [
       "cron"
@@ -827,6 +861,7 @@
     "prompt": "What schedule does the cron expression `*/15 * * * *` represent?",
     "explanation": "`*/15` in the minute field means \"every 15th minute\" (0, 15, 30, 45) within an hour that otherwise matches every hour, day, month, and weekday, so the job runs four times per hour, every day.",
     "example": "# min hour dom mon dow  command\n*/15 *    *   *   *    /usr/local/bin/healthcheck.sh\n# runs at :00, :15, :30, :45 of every hour, every day",
+    "diagram": "flowchart LR\nE[\"*/15 * * * *\"] --> M[\"minute: every 15th (0,15,30,45)\"]\nE --> H[\"hour: *\"]\nE --> D[\"day, month, weekday: *\"]\nM --> R[\"runs 4 times per hour\"]\nH --> R\nD --> A[\"all day, every day\"]\nR --> A",
     "reference": "https://man7.org/linux/man-pages/man5/crontab.5.html",
     "tags": [
       "cron"
@@ -853,6 +888,7 @@
     "prompt": "Which command shows disk space usage (used/available/percentage) for all mounted filesystems in human-readable form?",
     "explanation": "`df -h` reports free and used space per mounted filesystem in human-readable units (KB/MB/GB). `du` reports disk usage of files/directories rather than whole filesystems.",
     "example": "df -h\n# Filesystem      Size  Used Avail Use% Mounted on\n# /dev/nvme0n1p2  100G   62G   38G  62% /\n# /dev/sdb1       2.0T  1.5T  500G  75% /mnt/data\ndf -h /var    # a single mount point",
+    "diagram": "flowchart LR\nD[\"df -h\"] --> F[\"/dev/sda1 50G 32G 18G 64% /\"]\nD --> G[\"tmpfs 4G 0 4G 0% /tmp\"]\nF --> W[\"per mounted filesystem\"]\nU[\"du -sh\"] --> P[\"size of files under a path\"]\nL[\"lsblk\"] --> B[\"block device tree, no usage\"]",
     "reference": "https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html",
     "tags": [
       "disk",
@@ -880,6 +916,7 @@
     "prompt": "Which command reports the total disk space consumed by the directory `/var/log`, summarized as a single human-readable size?",
     "explanation": "`du -s` summarizes total size instead of listing every subdirectory, and `-h` makes the output human-readable (e.g. 1.2G). `df -h /var/log` would instead show the free/used space of the whole filesystem that directory lives on.",
     "example": "sudo du -sh /var/log\n# 1.2G    /var/log\nsudo du -h --max-depth=1 /var/log | sort -rh | head   # biggest subdirectories",
+    "diagram": "flowchart LR\nU[\"du -sh /var/log\"] --> S[\"-s summarize to one total\"]\nU --> H[\"-h human readable\"]\nS --> O[\"1.2G /var/log\"]\nH --> O\nD[\"df -h /var/log\"] --> X[\"free/used of whole filesystem holding /var/log\"]",
     "reference": "https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html",
     "tags": [
       "disk",
@@ -911,6 +948,7 @@
     "prompt": "Which of the following commands can be used to inspect information about block devices and partitions on a Linux system?",
     "explanation": "`lsblk` lists block devices in a tree, `blkid` shows device UUIDs and filesystem types, and `fdisk -l` lists partition tables. `lscpu` reports CPU architecture information, not block/partition information.",
     "example": "lsblk\n# NAME   SIZE TYPE MOUNTPOINT\n# sda    500G disk\n# +-sda1 512M part /boot\n# +-sda2 499G part /\nsudo blkid /dev/sda2   # UUID=\"...\" TYPE=\"ext4\"\nsudo fdisk -l /dev/sda",
+    "diagram": "flowchart TD\nQ[\"inspect block devices\"] --> L[\"lsblk: device tree sda, sda1, sdb\"]\nQ --> B[\"blkid: UUID and filesystem type\"]\nQ --> F[\"fdisk -l: partition tables\"]\nC[\"lscpu\"] --> X[\"CPU architecture info, not disks\"]",
     "reference": "https://man7.org/linux/man-pages/man8/lsblk.8.html",
     "tags": [
       "disk",
@@ -928,6 +966,7 @@
     "prompt": "What command mounts the block device `/dev/sdb1` at the existing directory `/mnt/data`?",
     "explanation": "`mount <device> <mountpoint>` attaches the filesystem on `/dev/sdb1` to the directory `/mnt/data`, making its contents accessible at that path.",
     "example": "sudo mkdir -p /mnt/data\nsudo mount /dev/sdb1 /mnt/data\ndf -h /mnt/data     # confirm it is mounted\nsudo umount /mnt/data",
+    "diagram": "flowchart LR\nD[\"/dev/sdb1 (ext4 filesystem)\"] -->|\"mount /dev/sdb1 /mnt/data\"| M[\"/mnt/data (existing directory)\"]\nM --> A[\"files now accessible at /mnt/data/...\"]\nA -->|\"umount /mnt/data\"| U[\"detached\"]\nF[\"/etc/fstab\"] -.->|\"persist across reboot\"| M",
     "reference": "https://man7.org/linux/man-pages/man8/mount.8.html",
     "tags": [
       "disk",
@@ -944,6 +983,7 @@
     "prompt": "A filesystem can report `df` usage at 100% even though `du` on its files shows less space used, if a large file was deleted while a process still holds it open.",
     "explanation": "Unix allows a file to be unlinked (removed from the directory) while a process keeps its file descriptor open; the inode and its data blocks are not actually freed until the last open reference closes, so `df` still counts that space as used even though `du` (which walks directory entries) no longer sees the file.",
     "example": "rm /var/log/huge.log           # df still shows 100% because a process holds the file open\nsudo lsof +L1 | grep deleted   # find processes with deleted-but-open files\n# app 812 root 4w REG 8,1 5368709120 0 /var/log/huge.log (deleted)\n: > /proc/812/fd/4             # truncate through the fd to free the space",
+    "diagram": "sequenceDiagram\nparticipant P as \"process (log writer)\"\nparticipant F as \"big.log inode\"\nparticipant D as \"directory entry\"\nP->>F: open big.log (fd held)\nNote over D: rm big.log unlinks directory entry\nNote over F: inode still open, blocks not freed\nNote over D: du walks entries: file not seen\nNote over F: df counts blocks: still 100%\nP->>F: close fd or restart\nNote over F: blocks freed, df drops",
     "reference": "https://man7.org/linux/man-pages/man2/unlink.2.html",
     "tags": [
       "disk",
@@ -971,6 +1011,7 @@
     "prompt": "Which modern command displays IP addresses and network interfaces, replacing the deprecated `ifconfig`?",
     "explanation": "`ip addr` (from the `iproute2` suite) shows interface addresses and is the modern replacement for `ifconfig`, which is deprecated on most current distributions.",
     "example": "ip addr show\n# 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n#     inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0\nip -br addr    # brief one-line-per-interface format",
+    "diagram": "flowchart LR\nO[\"ifconfig (deprecated net-tools)\"] -->|\"replaced by\"| N[\"ip addr (iproute2)\"]\nN --> E[\"eth0: inet 10.0.0.5/24\"]\nN --> L[\"lo: inet 127.0.0.1/8\"]\nS[\"ss\"] -->|\"replaces\"| T[\"netstat\"]\nR[\"ip route\"] -->|\"replaces\"| Q[\"route\"]",
     "reference": "https://man7.org/linux/man-pages/man8/ip.8.html",
     "tags": [
       "networking",
@@ -998,6 +1039,7 @@
     "prompt": "Which command lists all listening TCP sockets along with the process using each one (as the modern replacement for `netstat -tlnp`)?",
     "explanation": "`ss -tlnp` shows TCP (`-t`) listening (`-l`) sockets in numeric form (`-n`) with the owning process (`-p`). `ss` is the modern, faster replacement for `netstat` from the `iproute2` package.",
     "example": "sudo ss -tlnp\n# State  Recv-Q Send-Q Local Address:Port  Process\n# LISTEN 0      511    0.0.0.0:80          users:((\"nginx\",pid=812,fd=6))\n# t=tcp l=listening n=numeric p=process",
+    "diagram": "flowchart LR\nS[\"ss -tlnp\"] --> T[\"-t TCP\"]\nS --> L[\"-l listening only\"]\nS --> N[\"-n numeric ports\"]\nS --> P[\"-p owning process\"]\nT --> O[\"LISTEN 0.0.0.0:80 users:((nginx,pid=812))\"]\nL --> O\nN --> O\nP --> O",
     "reference": "https://man7.org/linux/man-pages/man8/ss.8.html",
     "tags": [
       "networking",
@@ -1025,6 +1067,7 @@
     "prompt": "Which command performs a DNS lookup and is generally preferred over the older `nslookup` for scripting and detailed output?",
     "explanation": "`dig` queries DNS servers and provides detailed, script-friendly output about records like A, MX, and NS. `whois` looks up domain registration data, not DNS resolution, and `traceroute` maps the network path to a host.",
     "example": "dig example.com A +short\n# 93.184.216.34\ndig @1.1.1.1 example.com MX     # query a specific resolver for MX records\ndig +trace example.com          # follow delegation from the root",
+    "diagram": "sequenceDiagram\nparticipant U as \"dig example.com\"\nparticipant R as \"resolver 8.8.8.8\"\nU->>R: query A example.com\nR-->>U: ANSWER example.com 300 IN A 93.184.216.34\nNote over U: script-friendly, +short option\nNote over U: whois = registration data, traceroute = network path",
     "reference": "https://man7.org/linux/man-pages/man1/dig.1.html",
     "tags": [
       "networking",
@@ -1052,6 +1095,7 @@
     "prompt": "On most Linux distributions using rsyslog, where are general system log messages traditionally written?",
     "explanation": "Debian/Ubuntu systems traditionally write general system messages to `/var/log/syslog`, while RHEL/CentOS-family systems use `/var/log/messages`. Many modern distributions now centralize logs in the systemd journal instead.",
     "example": "sudo tail -f /var/log/syslog      # Debian/Ubuntu\nsudo tail -f /var/log/messages    # RHEL/Fedora\ngrep '^\\*\\.\\*' /etc/rsyslog.conf   # rules that route messages to these files",
+    "diagram": "flowchart LR\nA[\"app or kernel\"] --> R[\"rsyslog daemon\"]\nR -->|\"Debian/Ubuntu\"| S[\"/var/log/syslog\"]\nR -->|\"RHEL/CentOS\"| M[\"/var/log/messages\"]\nA --> J[\"systemd journal (journalctl)\"]\nJ -.->|\"forwarded on many systems\"| R",
     "reference": "https://wiki.archlinux.org/title/Systemd/Journal",
     "tags": [
       "logs"
@@ -1078,6 +1122,7 @@
     "prompt": "By Unix convention, which file descriptor number is standard error (stderr)?",
     "explanation": "File descriptor 0 is standard input (stdin), 1 is standard output (stdout), and 2 is standard error (stderr). These are opened automatically for nearly every process.",
     "example": "ls /nope 2> errors.txt        # descriptor 2 is stderr\ncat errors.txt\n# ls: cannot access '/nope': No such file or directory\necho 'warning' >&2            # write to stderr from a script",
+    "diagram": "flowchart LR\nP[\"process\"] -->|\"fd 0 stdin\"| I[\"keyboard or pipe\"]\nP -->|\"fd 1 stdout\"| O[\"terminal or > file\"]\nP -->|\"fd 2 stderr\"| E[\"terminal or 2> file\"]\nE --> X[\"2>/dev/null hides errors only\"]",
     "reference": "https://man7.org/linux/man-pages/man3/stdin.3.html",
     "tags": [
       "file-descriptors"
@@ -1104,6 +1149,7 @@
     "prompt": "What can you find by inspecting the symlinks under `/proc/<pid>/fd/`?",
     "explanation": "`/proc/<pid>/fd/` contains one symlink per open file descriptor, pointing at the file, socket, or pipe it references, which is useful for debugging leaked file handles. Command-line arguments live in `/proc/<pid>/cmdline` and environment variables in `/proc/<pid>/environ`.",
     "example": "ls -l /proc/812/fd\n# lrwx------ 0 -> /dev/null\n# l-wx------ 1 -> /var/log/app.log\n# lrwx------ 6 -> socket:[38211]\n# lr-x------ 9 -> /data/huge.bin (deleted)",
+    "diagram": "flowchart TD\nP[\"/proc/4821/\"] --> FD[\"fd/ symlinks: open file descriptors\"]\nFD --> F0[\"0 -> /dev/pts/1\"]\nFD --> F1[\"1 -> /var/log/app.log\"]\nFD --> F5[\"5 -> socket:[12345]\"]\nP --> C[\"cmdline: startup arguments\"]\nP --> E[\"environ: environment variables\"]",
     "reference": "https://man7.org/linux/man-pages/man5/proc.5.html",
     "tags": [
       "proc",
@@ -1135,6 +1181,7 @@
     "prompt": "Which of the following can be used to find information about the currently running Linux kernel?",
     "explanation": "`uname -r` prints the kernel release, `uname -a` includes it along with other system info, and `/proc/version` exposes the running kernel's version string. `lscpu` reports CPU architecture details, not kernel version.",
     "example": "uname -r\n# 6.8.0-45-generic\nuname -a\n# Linux web01 6.8.0-45-generic #45-Ubuntu SMP ... x86_64 GNU/Linux\ncat /proc/version",
+    "diagram": "flowchart TD\nQ[\"running kernel version?\"] --> R[\"uname -r -> 6.8.0-45-generic\"]\nQ --> A[\"uname -a -> kernel plus hostname, arch\"]\nQ --> V[\"cat /proc/version -> full build string\"]\nL[\"lscpu\"] --> X[\"CPU model and cores, not kernel\"]",
     "reference": "https://man7.org/linux/man-pages/man1/uname.1.html",
     "tags": [
       "kernel"
@@ -1161,6 +1208,7 @@
     "prompt": "What is the purpose of swap space on a Linux system?",
     "explanation": "Swap space (a partition or swap file) lets the kernel move less-used memory pages out of RAM to disk, freeing physical memory for active processes at the cost of slower access if those pages are needed again.",
     "example": "free -h\n#        total  used  free  shared  buff/cache  available\n# Mem:    7.7G  6.9G  200M    50M        600M        400M\n# Swap:   2.0G  1.1G  900M   <- pages evicted to disk under RAM pressure\nswapon --show",
+    "diagram": "flowchart LR\nR[\"physical RAM\"] -->|\"pressure: RAM nearly full\"| K[\"kernel\"]\nK -->|\"swap out least-used pages\"| S[\"swap partition or file on disk\"]\nS -->|\"page needed again: swap in (slow)\"| R\nA[\"active processes\"] --> R",
     "reference": "https://wiki.archlinux.org/title/Swap",
     "tags": [
       "swap",
@@ -1192,6 +1240,7 @@
     "prompt": "Which of the following commands can show current physical memory and/or swap usage?",
     "explanation": "`free -h`, `/proc/meminfo`, and `top`'s header all report memory and swap usage. `df -h` reports filesystem disk space, which is unrelated to memory usage.",
     "example": "free -h                       # Mem and Swap rows\ngrep -E 'MemAvailable|SwapFree' /proc/meminfo\n# MemAvailable:    410240 kB\n# SwapFree:        921600 kB\ntop                           # header shows MiB Mem / MiB Swap",
+    "diagram": "flowchart TD\nQ[\"memory and swap usage\"] --> F[\"free -h: Mem and Swap rows\"]\nQ --> M[\"cat /proc/meminfo: MemTotal, MemAvailable, SwapFree\"]\nQ --> T[\"top header: MiB Mem and MiB Swap\"]\nD[\"df -h\"] --> X[\"filesystem disk space, not memory\"]",
     "reference": "https://man7.org/linux/man-pages/man1/free.1.html",
     "tags": [
       "swap",
@@ -1207,6 +1256,7 @@
     "prompt": "An inode stores a file's actual filename as one of its fields.",
     "explanation": "An inode stores metadata about a file (permissions, owner, size, timestamps, and pointers to data blocks) but not the filename itself; the mapping from filename to inode number is kept in the containing directory's entries.",
     "example": "ls -i notes.txt\n# 1310722 notes.txt      <- the directory entry maps the name to inode 1310722\nstat notes.txt          # inode data: size, mode, owner, timestamps, link count (no name)",
+    "diagram": "flowchart LR\nDIR[\"directory entry\"] --> N[\"filename report.txt -> inode 1234\"]\nN --> I[\"inode 1234\"]\nI --> P[\"permissions, owner, size\"]\nI --> T[\"timestamps\"]\nI --> B[\"data block pointers\"]\nI -.->|\"does not contain\"| X[\"filename\"]",
     "reference": "https://man7.org/linux/man-pages/man7/inode.7.html",
     "tags": [
       "inodes",
@@ -1238,6 +1288,7 @@
     "prompt": "Which of the following statements about hard links and symbolic (soft) links are true? (Select all that apply.)",
     "explanation": "Hard links point to the same inode, so the data survives as long as any hard link remains, and the link count is decremented rather than the data deleted. Symlinks store a path and can cross filesystem boundaries. Plain `ln` refuses to hard-link directories by default (to prevent filesystem tree corruption), so that statement is false.",
     "example": "echo hi > a.txt\nln a.txt b.txt          # hard link: same inode\nln -s a.txt c.txt       # symlink: separate inode pointing at the name\nls -li a.txt b.txt c.txt\nrm a.txt; cat b.txt     # hi (data survives); cat c.txt -> No such file",
+    "diagram": "flowchart TD\nI[\"inode 1234 + data\"] --- A[\"file.txt (hard link)\"]\nI --- B[\"backup.txt (hard link, same inode)\"]\nS[\"link.txt (symlink)\"] -->|\"stores path string\"| A\nS -.->|\"may cross filesystems\"| O[\"/mnt/other/file\"]\nA -->|\"rm file.txt\"| R[\"data survives via backup.txt\"]\nD[\"ln dir hardlink\"] --> X[\"refused for directories\"]",
     "reference": "https://man7.org/linux/man-pages/man1/ln.1.html",
     "tags": [
       "symlinks",
@@ -1253,6 +1304,7 @@
     "prompt": "If you remove the original target file of a symbolic link, the symlink itself is automatically deleted too.",
     "explanation": "A symlink is just a special file containing a path string; removing the target leaves the symlink in place but \"dangling\" (broken), pointing to a path that no longer resolves to anything.",
     "example": "ln -s /etc/nginx/sites-available/app /etc/nginx/sites-enabled/app\nrm /etc/nginx/sites-available/app\nls -l /etc/nginx/sites-enabled/app\n# lrwxrwxrwx ... app -> /etc/nginx/sites-available/app   (dangling link remains)",
+    "diagram": "stateDiagram-v2\n[*] --> Valid: ln -s target.txt link.txt\nValid --> Dangling: rm target.txt\nDangling --> Valid: recreate target.txt\nDangling --> [*]: rm link.txt\nnote right of Dangling\n  link.txt still exists\n  path no longer resolves\nend note",
     "reference": "https://man7.org/linux/man-pages/man7/symlink.7.html",
     "tags": [
       "symlinks"
@@ -1279,6 +1331,7 @@
     "prompt": "In the `vi`/`vim` editor, which key press switches from normal mode into insert mode so you can start typing text?",
     "explanation": "Pressing `i` in normal mode enters insert mode at the cursor. `Esc` returns to normal mode from insert mode, `:` starts a command-line ex command, and `v` starts visual (selection) mode.",
     "example": "vim deploy.sh\n# press i        -> '-- INSERT --' appears at the bottom, type your text\n# press Esc      -> back to normal mode\n# type :wq Enter -> save and quit",
+    "diagram": "stateDiagram-v2\n[*] --> Normal\nNormal --> Insert: i\nInsert --> Normal: Esc\nNormal --> Visual: v\nVisual --> Normal: Esc\nNormal --> CommandLine: colon\nCommandLine --> Normal: Enter",
     "reference": "https://www.gnu.org/software/bash/",
     "tags": [
       "text-editors",
@@ -1306,6 +1359,7 @@
     "prompt": "In `vim`, which command (typed in normal mode after `:`) saves the current file and exits the editor?",
     "explanation": "`:wq` writes (saves) the buffer to disk and then quits. `:q!` discards changes and quits without saving, and `:e!` reloads the file, discarding unsaved edits.",
     "example": "vim /etc/hosts\n# ... make edits in insert mode, press Esc ...\n:wq        # write the file and quit\n# :q! would discard changes; :x also saves and quits",
+    "diagram": "flowchart LR\nN[\"normal mode, type :\"] --> W[\":wq\"]\nW --> S[\"write buffer to disk\"]\nS --> Q[\"quit vim\"]\nN --> F[\":q!\"]\nF --> X[\"discard changes and quit\"]\nN --> E[\":e!\"]\nE --> R[\"reload file, discard edits\"]",
     "reference": "https://wiki.archlinux.org/title/Vim",
     "tags": [
       "text-editors",
@@ -1333,6 +1387,7 @@
     "prompt": "In the `nano` editor, which keyboard shortcut is displayed in the footer to exit the editor?",
     "explanation": "`nano` shows `^X` (Ctrl+X) as the shortcut to exit, prompting to save changes if the buffer was modified. `Ctrl+Z` typically suspends the process to the background in a terminal rather than exiting nano cleanly.",
     "example": "nano /etc/hosts\n# footer shows: ^X Exit  ^O Write Out  ^W Where Is\n# press Ctrl+X -> 'Save modified buffer?' -> Y -> Enter to confirm the filename",
+    "diagram": "flowchart LR\nE[\"editing in nano\"] -->|\"Ctrl+X (shown as ^X)\"| P{\"buffer modified?\"}\nP -->|\"yes\"| S[\"Save modified buffer? Y/N\"]\nS --> F[\"confirm filename, Enter\"]\nF --> X[\"exit\"]\nP -->|\"no\"| X\nZ[\"Ctrl+Z\"] --> B[\"suspends nano to background\"]",
     "reference": "https://www.nano-editor.org/dist/latest/nano.html",
     "tags": [
       "text-editors",
@@ -1360,6 +1415,7 @@
     "prompt": "A process is stopped and won't respond to SIGTERM or normal signals because it is in uninterruptible sleep. What state does `ps` show for this, and what commonly causes it?",
     "explanation": "State `D` (uninterruptible sleep) usually means the process is waiting on kernel-level I/O, such as a slow disk or unresponsive NFS mount, and will not respond to signals until that I/O completes. `Z` is a zombie, `T` is stopped/traced, and `R` is running or runnable.",
     "example": "ps -eo pid,stat,wchan:20,cmd | grep ' D'\n# 4410 D  nfs_wait_bit   cp /mnt/nfs/big.iso /data/\n# process is waiting on a stuck NFS read; kill -9 will not take effect until the I/O completes\ncat /proc/4410/stack   # kernel stack shows where it is blocked",
+    "diagram": "stateDiagram-v2\nR: R running or runnable\nS: S interruptible sleep\nD: D uninterruptible sleep (disk or NFS I/O)\nT: T stopped by SIGSTOP\nZ: Z zombie\nR --> D: blocks on slow I/O\nD --> R: I/O completes\nD --> D: SIGTERM ignored until I/O done\nR --> S: waits on event\nR --> T: SIGSTOP\nR --> Z: exits unreaped",
     "reference": "https://man7.org/linux/man-pages/man1/ps.1.html",
     "tags": [
       "processes"
@@ -1386,6 +1442,7 @@
     "prompt": "A deploy script runs `umask 027` before creating new files. What permission bits will a newly created regular file get (before any explicit chmod)?",
     "explanation": "Files start from a base of 666; applying umask 027 removes write for group and read/write/execute for others: 666 & ~027 = 640 (rw-r-----). A umask of 027 is a common tightening to keep new files unreadable by \"others\".",
     "example": "umask 027\ntouch report.txt; mkdir out\nls -ld report.txt out\n# -rw-r-----  report.txt   (666 & ~027 = 640)\n# drwxr-x---  out          (777 & ~027 = 750)",
+    "diagram": "flowchart LR\nB[\"new file base 666 (rw-rw-rw-)\"] --> M[\"umask 027 removes bits\"]\nM --> O[\"owner: 6 minus 0 = 6 (rw-)\"]\nM --> G[\"group: 6 minus 2 = 4 (r--)\"]\nM --> W[\"others: 6 minus 7 = 0 (---)\"]\nO --> R[\"result 640\"]\nG --> R\nW --> R",
     "reference": "https://man7.org/linux/man-pages/man2/umask.2.html",
     "tags": [
       "umask",
@@ -1417,6 +1474,7 @@
     "prompt": "Which of the following are valid ways to check whether the previous command in a bash script succeeded? (Select all that apply.)",
     "explanation": "`$?` holds the last exit status, `if command; then` evaluates the command's exit status directly, and `set -e` makes the whole script abort on the first failing command. `$0` holds the script or command name, unrelated to exit status.",
     "example": "#!/usr/bin/env bash\nset -e                     # abort on any non-zero exit\ncp app.conf /etc/app/\nif systemctl restart app; then echo restarted; else echo failed; fi\nrsync -a build/ web:/srv/\nif [ $? -ne 0 ]; then echo 'sync failed'; exit 1; fi",
+    "diagram": "flowchart TD\nC[\"run command\"] --> A[\"check $? right after\"]\nC --> B[\"if command; then ... fi branches on status\"]\nC --> E[\"set -e aborts script on non-zero\"]\nA --> S{\"status 0?\"}\nB --> S\nE --> S\nS -->|\"yes\"| OK[\"continue\"]\nS -->|\"no\"| F[\"handle failure\"]\nZ[\"$0\"] --> X[\"script name, not status\"]",
     "reference": "https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html",
     "tags": [
       "shell",

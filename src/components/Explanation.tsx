@@ -1,4 +1,5 @@
 import type { Question } from '../data/schema'
+import Diagram from './Diagram'
 import Prompt from './Prompt'
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 
 /**
  * Post-answer teaching block: the explanation, one note per option saying what it is and
- * why it is (or isn't) correct, a worked example, and the reference link. Shown whether the
+ * why it is (or isn't) correct, a Mermaid diagram, a worked example, and the reference link. Shown whether the
  * user answered correctly or not, so every distractor gets explained.
  */
 export default function Explanation({ question: q, className }: Props) {
@@ -41,6 +42,9 @@ export default function Explanation({ question: q, className }: Props) {
           </ul>
         </>
       )}
+
+      <h4>Diagram</h4>
+      <Diagram source={q.diagram} />
 
       <h4>Example</h4>
       <pre className="example">

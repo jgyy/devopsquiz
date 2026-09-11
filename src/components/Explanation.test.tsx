@@ -14,6 +14,7 @@ const q: Question = {
   answer: 0,
   explanation: 'docker ps lists running containers.',
   example: 'docker ps\n# CONTAINER ID   IMAGE ...',
+  diagram: 'flowchart LR\n  A[docker ps] --> B[running containers]',
   reference: 'https://docs.docker.com/',
 }
 
@@ -27,6 +28,12 @@ describe('Explanation', () => {
     expect(screen.getByText('Example')).toBeInTheDocument()
     expect(screen.getByText(/CONTAINER ID/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Reference/ })).toHaveAttribute('href', 'https://docs.docker.com/')
+  })
+
+  it('renders a diagram section for every question', () => {
+    render(<Explanation question={q} />)
+    expect(screen.getByText('Diagram')).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: 'Diagram' })).toBeInTheDocument()
   })
 
   it('marks correct and incorrect options', () => {
