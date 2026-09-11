@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Question } from '../data/schema'
 import { SessionProvider, useSession, type QuizSettings } from '../session/SessionContext'
 import Quiz from './Quiz'
+
+vi.mock('../components/Terminal', () => ({ default: () => <div>TERMINAL PANEL</div> }))
 
 const bank: Question[] = [
   {
@@ -42,6 +44,21 @@ function renderQuiz(mode: 'practice' | 'exam', extra: Partial<QuizSettings> = {}
 }
 
 describe('Quiz page', () => {
+  it('practice mode can open and hide the terminal without unmounting it', async () => {
+    const user = userEvent.setup()
+    renderQuiz('practice')
+    expect(screen.queryByText('TERMINAL PANEL')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open terminal' }))
+    expect(await screen.findByText('TERMINAL PANEL')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Hide terminal' }))
+    expect(screen.getByText('TERMINAL PANEL')).not.toBeVisible()
+  })
+
+  it('exam mode has no terminal toggle', () => {
+    renderQuiz('exam', { timeLimitSec: 600 })
+    expect(screen.queryByRole('button', { name: /terminal/i })).not.toBeInTheDocument()
+  })
+
   it('practice mode shows feedback and explanation after submit', async () => {
     const user = userEvent.setup()
     renderQuiz('practice')

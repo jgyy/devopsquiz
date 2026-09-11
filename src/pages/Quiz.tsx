@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import Explanation from '../components/Explanation'
 import Prompt from '../components/Prompt'
@@ -8,11 +8,15 @@ import Timer from '../components/Timer'
 import { gradeAnswer, isAnswered } from '../lib/grade'
 import { useSession } from '../session/SessionContext'
 
+const Terminal = lazy(() => import('../components/Terminal'))
+
 export default function Quiz() {
   const { session, answer, finish } = useSession()
   const navigate = useNavigate()
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalMounted, setTerminalMounted] = useState(false)
 
   const done = useCallback(() => {
     finish()
@@ -39,6 +43,11 @@ export default function Quiz() {
     else setIndex(index + 1)
   }
 
+  function toggleTerminal() {
+    setTerminalMounted(true)
+    setTerminalOpen((o) => !o)
+  }
+
   return (
     <div className="quiz">
       <div className="quiz-head">
@@ -54,6 +63,21 @@ export default function Quiz() {
       </div>
 
       <QuestionCard prepared={prepared} value={current} onChange={(a) => answer(q.id, a)} revealed={revealed} />
+
+      {!isExam && (
+        <div className="terminal-toggle">
+          <button className="link" onClick={toggleTerminal} aria-expanded={terminalOpen}>
+            {terminalOpen ? 'Hide terminal' : 'Open terminal'}
+          </button>
+          {terminalMounted && (
+            <div hidden={!terminalOpen}>
+              <Suspense fallback={<p className="muted small">Loading terminal…</p>}>
+                <Terminal />
+              </Suspense>
+            </div>
+          )}
+        </div>
+      )}
 
       {revealed && (
         <div className={'card feedback ' + (gradeAnswer(q, current ?? null) ? 'ok' : 'bad')}>
