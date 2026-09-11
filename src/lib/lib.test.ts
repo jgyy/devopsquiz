@@ -4,7 +4,7 @@ import { gradeAnswer, isAnswered } from './grade'
 import { mulberry32 } from './rng'
 import { summarize } from './score'
 import { filterQuestions, sampleQuestions, shuffleOptions } from './select'
-import { clearHistory, HISTORY_KEY, loadHistory, saveAttempt, type AttemptRecord } from './storage'
+import { clearHistory, HISTORY_KEY, loadHistory, loadPrefs, PREFS_KEY, saveAttempt, savePrefs, type AttemptRecord, type QuizPrefs } from './storage'
 
 const mk = (over: Partial<Question> & Pick<Question, 'id' | 'type'>): Question =>
   ({
@@ -136,5 +136,26 @@ describe('storage', () => {
     saveAttempt(rec)
     clearHistory()
     expect(loadHistory()).toEqual([])
+  })
+})
+
+describe('prefs', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('returns null when nothing is saved', () => {
+    expect(loadPrefs()).toBeNull()
+  })
+  it('round-trips setup choices', () => {
+    const prefs: QuizPrefs = { domains: ['docker', 'git'], difficulties: ['hard'], count: 'all', mode: 'exam', minutes: 15 }
+    savePrefs(prefs)
+    expect(loadPrefs()).toEqual(prefs)
+  })
+  it('drops unknown domains and difficulties and rejects bad shapes', () => {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ domains: ['docker', 'cobol'], difficulties: ['easy', 'insane'], count: 20, mode: 'practice', minutes: '' }))
+    expect(loadPrefs()).toEqual({ domains: ['docker'], difficulties: ['easy'], count: 20, mode: 'practice', minutes: '' })
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ domains: 'docker', mode: 'nope' }))
+    expect(loadPrefs()).toBeNull()
+    localStorage.setItem(PREFS_KEY, '{not json')
+    expect(loadPrefs()).toBeNull()
   })
 })

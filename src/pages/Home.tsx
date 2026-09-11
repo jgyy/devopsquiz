@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DIFFICULTIES, DOMAINS, type Difficulty, type Domain } from '../data/domains'
 import { QUESTIONS } from '../data'
 import { filterQuestions } from '../lib/select'
+import { loadPrefs, savePrefs } from '../lib/storage'
 import { useSession, type Mode } from '../session/SessionContext'
 
 const COUNTS = [10, 20, 40] as const
@@ -10,11 +11,17 @@ const COUNTS = [10, 20, 40] as const
 export default function Home() {
   const navigate = useNavigate()
   const { start } = useSession()
-  const [domains, setDomains] = useState<Domain[]>(DOMAINS.map((d) => d.id))
-  const [difficulties, setDifficulties] = useState<Difficulty[]>([...DIFFICULTIES])
-  const [count, setCount] = useState<number | 'all'>(20)
-  const [mode, setMode] = useState<Mode>('practice')
-  const [minutes, setMinutes] = useState<number | ''>('')
+  // Restore the last setup choices so a returning user does not have to re-pick them.
+  const [saved] = useState(loadPrefs)
+  const [domains, setDomains] = useState<Domain[]>(saved?.domains ?? DOMAINS.map((d) => d.id))
+  const [difficulties, setDifficulties] = useState<Difficulty[]>(saved?.difficulties ?? [...DIFFICULTIES])
+  const [count, setCount] = useState<number | 'all'>(saved?.count ?? 20)
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? 'practice')
+  const [minutes, setMinutes] = useState<number | ''>(saved?.minutes ?? '')
+
+  useEffect(() => {
+    savePrefs({ domains, difficulties, count, mode, minutes })
+  }, [domains, difficulties, count, mode, minutes])
 
   const perDomain = useMemo(() => {
     const m: Record<string, number> = {}
