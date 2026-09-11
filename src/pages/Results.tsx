@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import Explanation from '../components/Explanation'
 import Prompt from '../components/Prompt'
 import { correctLabel, userLabel } from '../lib/labels'
 import { DOMAINS } from '../data/domains'
@@ -146,12 +147,7 @@ export default function Results() {
                 <span className="muted">Correct:</span> <Prompt text={correctLabel(q)} as="span" />
               </p>
             )}
-            <Prompt text={q.explanation} className="explanation" />
-            {q.reference && (
-              <a href={q.reference} target="_blank" rel="noreferrer">
-                Reference ↗
-              </a>
-            )}
+            <Explanation question={q} className="explanation" />
           </li>
         ))}
       </ol>

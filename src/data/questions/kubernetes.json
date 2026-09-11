@@ -11,8 +11,15 @@
       "A Node",
       "A Deployment"
     ],
+    "optionNotes": [
+      "A Pod is the atomic scheduling unit in Kubernetes: one or more containers sharing network and storage, placed together on a node, which makes it the correct answer.",
+      "A container is what actually runs your process, but Kubernetes never schedules a bare container; it must be wrapped in a Pod.",
+      "A Node is a worker machine (VM or physical) that hosts Pods; it is infrastructure, not a deployable unit.",
+      "A Deployment is a higher-level controller that manages ReplicaSets and Pods with rolling updates; it is built on top of Pods rather than being the smallest unit."
+    ],
     "answer": 0,
     "explanation": "A Pod is the smallest deployable unit in Kubernetes; it wraps one or more containers that share network and storage. Containers cannot be scheduled directly, and Nodes and Deployments are higher-level concepts.",
+    "example": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.27   # one Pod wrapping one container\nkubectl get pods",
     "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
     "tags": [
       "pods",
@@ -27,6 +34,7 @@
     "prompt": "Containers that belong to the same Pod share the same network namespace, so they can reach each other over `localhost`.",
     "answer": true,
     "explanation": "All containers in a Pod share the Pod's network namespace (and IP address), so they communicate via `localhost`, and they can optionally share storage through mounted volumes.",
+    "example": "# sidecar reaching the app container in the same Pod\nkubectl exec web -c sidecar -- curl -s http://localhost:8080/healthz",
     "reference": "https://kubernetes.io/docs/concepts/workloads/pods/",
     "tags": [
       "pods",
@@ -45,8 +53,15 @@
       "To store configuration data for Pods",
       "To schedule Pods onto specific nodes"
     ],
+    "optionNotes": [
+      "Maintaining a stable count of identical Pods, creating or deleting them to match `replicas`, is exactly what a ReplicaSet controller does.",
+      "Exposing Pods as a stable network endpoint is the role of a `Service`, not a ReplicaSet.",
+      "Storing configuration data for Pods is what a `ConfigMap` (or `Secret`) does.",
+      "Placing Pods on specific nodes is done by the scheduler using `nodeSelector`, affinity, and taints; a ReplicaSet only controls how many Pods exist."
+    ],
     "answer": 0,
     "explanation": "A ReplicaSet's purpose is to maintain a stable set of replica Pods running at any given time, creating or removing Pods as needed to match the desired count.",
+    "example": "apiVersion: apps/v1\nkind: ReplicaSet\nmetadata:\n  name: web-rs\nspec:\n  replicas: 3   # controller keeps exactly 3 matching Pods\n  selector:\n    matchLabels: {app: web}\n  template:\n    metadata: {labels: {app: web}}\n    spec:\n      containers: [{name: web, image: nginx}]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/",
     "tags": [
       "replicaset"
@@ -64,8 +79,15 @@
       "It allows Pods to run without a container image",
       "It replaces the need for a scheduler"
     ],
+    "optionNotes": [
+      "A Deployment creates and manages ReplicaSets for each revision, giving you rolling updates, pause/resume, rollback, and revision history that a raw ReplicaSet lacks.",
+      "A Deployment still uses ReplicaSets under the hood (one per revision); it does not eliminate them.",
+      "Every container in a Pod template needs an image regardless of which controller owns it; Deployments do not change that.",
+      "Deployments create Pods but placement is still done by `kube-scheduler`; no workload controller replaces the scheduler."
+    ],
     "answer": 0,
     "explanation": "A Deployment manages ReplicaSets for you and adds features like declarative rolling updates, pausing/resuming rollouts, and rolling back to a previous revision — capabilities a bare ReplicaSet does not provide on its own.",
+    "example": "kubectl create deployment web --image=nginx:1.26 --replicas=3\nkubectl set image deployment/web nginx=nginx:1.27   # rolling update\nkubectl rollout history deployment/web              # revision list\nkubectl rollout undo deployment/web                 # roll back",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -84,8 +106,15 @@
       "web-pod1, web-pod2, web-pod3",
       "Randomly generated names, just like a ReplicaSet"
     ],
+    "optionNotes": [
+      "StatefulSets append a stable zero-based ordinal to the set name, so three replicas are `web-0`, `web-1`, `web-2`, and each keeps its name across rescheduling.",
+      "Letter suffixes are not used by any Kubernetes workload controller.",
+      "A `-pod` infix is not part of any built-in naming scheme.",
+      "Random hash suffixes such as `web-7d9f8b6c5-x2k9q` are how ReplicaSet and Deployment Pods are named; StatefulSets deliberately avoid this to give stable identity."
+    ],
     "answer": 0,
     "explanation": "StatefulSet Pods get a sticky, unique ordinal index appended to the StatefulSet name, producing predictable names such as `web-0`, `web-1`, `web-2`, which persist across rescheduling.",
+    "example": "kubectl get pods -l app=web\n# NAME    READY   STATUS    RESTARTS   AGE\n# web-0   1/1     Running   0          2m\n# web-1   1/1     Running   0          2m\n# web-2   1/1     Running   0          1m",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
     "tags": [
       "statefulset"
@@ -99,6 +128,7 @@
     "prompt": "A StatefulSet must be paired with a headless Service (`clusterIP: None`) to provide the stable network identity for its Pods.",
     "answer": true,
     "explanation": "StatefulSets rely on a governing headless Service to give each Pod a stable, predictable DNS name (for example `web-0.web.default.svc.cluster.local`); without it, the Pods lack this stable network identity.",
+    "example": "apiVersion: v1\nkind: Service\nmetadata:\n  name: web\nspec:\n  clusterIP: None      # headless: gives web-0.web, web-1.web DNS names\n  selector: {app: web}\n  ports: [{port: 80}]\n---\nkind: StatefulSet\nspec:\n  serviceName: web     # references the headless Service",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
     "tags": [
       "statefulset",
@@ -117,8 +147,15 @@
       "That Pods are automatically scaled based on CPU usage",
       "That a Pod restarts every time it completes successfully"
     ],
+    "optionNotes": [
+      "A DaemonSet's whole purpose is one Pod per node (optionally filtered with `nodeSelector` or affinity), which suits log shippers, CNI agents, and monitoring exporters.",
+      "Running exactly one Pod cluster-wide is what a Deployment with `replicas: 1` or a leader-elected controller does, not a DaemonSet.",
+      "Scaling on CPU usage is the job of a `HorizontalPodAutoscaler`, not a DaemonSet.",
+      "Restarting a Pod after a successful completion is not a DaemonSet behaviour; DaemonSet Pods are long-running and use `restartPolicy: Always`."
+    ],
     "answer": 0,
     "explanation": "A DaemonSet ensures that all (or some, via node selectors/affinity) nodes run a copy of a Pod — commonly used for node-level agents like log collectors or monitoring daemons.",
+    "example": "apiVersion: apps/v1\nkind: DaemonSet\nmetadata:\n  name: node-exporter\nspec:\n  selector: {matchLabels: {app: node-exporter}}\n  template:\n    metadata: {labels: {app: node-exporter}}\n    spec:\n      containers: [{name: exporter, image: prom/node-exporter}]\n# one Pod lands on every node, including new ones",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/",
     "tags": [
       "daemonset"
@@ -136,8 +173,15 @@
       "It keeps a Pod running forever, restarting it with `restartPolicy: Always`",
       "It exposes a stable virtual IP for a set of Pods"
     ],
+    "optionNotes": [
+      "A Job runs Pods to completion and counts successes; since its Pods must be able to exit, the template only accepts `restartPolicy: OnFailure` or `Never`.",
+      "Running on a recurring schedule is the role of a `CronJob`, which creates Jobs on a cron expression.",
+      "Keeping a Pod running forever with `restartPolicy: Always` describes a Deployment or ReplicaSet workload, not a Job.",
+      "Exposing a stable virtual IP for Pods is what a `Service` does; a Job has nothing to do with networking."
+    ],
     "answer": 0,
     "explanation": "A Job creates Pods and tracks successful completions; because a Job's Pods are expected to terminate, the Pod template cannot use `restartPolicy: Always` — only `OnFailure` or `Never` are allowed. Running Pods on a repeating schedule is instead the job of a CronJob.",
+    "example": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: db-migrate\nspec:\n  completions: 1\n  backoffLimit: 3\n  template:\n    spec:\n      restartPolicy: OnFailure   # Always is rejected for a Job\n      containers: [{name: migrate, image: app:1.2, command: [\"./migrate\"]}]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/job/",
     "tags": [
       "job"
@@ -153,6 +197,7 @@
       "0 0 * * *"
     ],
     "explanation": "CronJob schedules use the standard crontab format `minute hour day-of-month month day-of-week`. `0 0 * * *` means minute 0, hour 0, every day, every month, every weekday — i.e. midnight daily.",
+    "example": "apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: nightly-backup\nspec:\n  schedule: \"0 0 * * *\"   # minute hour dom month dow -> 00:00 daily\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          restartPolicy: OnFailure\n          containers: [{name: backup, image: backup:1.0}]",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/",
     "tags": [
       "cronjob",
@@ -172,8 +217,15 @@
       "LoadBalancer",
       "ExternalName"
     ],
+    "optionNotes": [
+      "A Service with no `type` field gets `ClusterIP`, an internal virtual IP reachable only inside the cluster, which is the default.",
+      "`NodePort` exposes the Service on a static port on every node's IP; it must be requested explicitly.",
+      "`LoadBalancer` asks a cloud provider to provision an external load balancer; it is never the default.",
+      "`ExternalName` maps the Service name to an external DNS name via a CNAME record and must be set explicitly."
+    ],
     "answer": 0,
     "explanation": "`ClusterIP` is the default Service type; it exposes the Service on an internal IP reachable only from within the cluster.",
+    "example": "kubectl expose deployment web --port=80   # no --type given\nkubectl get svc web\n# NAME   TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)\n# web    ClusterIP   10.96.12.34    <none>        80/TCP",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service"
@@ -191,8 +243,15 @@
       "8000-9000",
       "20000-30000"
     ],
+    "optionNotes": [
+      "Kubernetes reserves 30000-32767 by default for NodePort allocation on every node, configurable via the API server flag `--service-node-port-range`.",
+      "1024-2048 is not a Kubernetes range; ports this low would clash with system services on nodes.",
+      "8000-9000 is a typical application port range, not the NodePort allocation range.",
+      "20000-30000 is not the default; the range starts at 30000, not ends there."
+    ],
     "answer": 0,
     "explanation": "Unless the API server's `--service-node-port-range` flag is changed, NodePort Services are assigned a port from the default range 30000-32767 on every node.",
+    "example": "kubectl expose deployment web --port=80 --type=NodePort\nkubectl get svc web\n# PORT(S): 80:31457/TCP   <- auto-assigned from 30000-32767\n# override range on the API server: --service-node-port-range=30000-32767",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -213,6 +272,14 @@
       "Ingress",
       "Gateway"
     ],
+    "optionNotes": [
+      "`ClusterIP` is the default Service type, providing an internal virtual IP.",
+      "`NodePort` is a valid type that opens a port on every node and forwards to the Service.",
+      "`LoadBalancer` is a valid type that requests an external load balancer from the cloud provider.",
+      "`ExternalName` is a valid type that returns a CNAME to an external hostname instead of proxying traffic.",
+      "`Ingress` is a separate API resource (networking.k8s.io) for HTTP routing rules, not a value of a Service's `type`.",
+      "`Gateway` belongs to the Gateway API, a separate set of CRDs for traffic routing; it is not a Service type."
+    ],
     "answer": [
       0,
       1,
@@ -220,6 +287,7 @@
       3
     ],
     "explanation": "The four built-in Service types are `ClusterIP`, `NodePort`, `LoadBalancer`, and `ExternalName`. `Ingress` and `Gateway` are separate API objects for routing HTTP(S) traffic, not Service types.",
+    "example": "kubectl create service clusterip api --tcp=80:8080\nkubectl create service nodeport api-np --tcp=80:8080\nkubectl create service loadbalancer api-lb --tcp=80:8080\nkubectl create service externalname db --external-name=db.example.com",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -238,8 +306,15 @@
       "The Service creation is rejected by the API server",
       "The Service silently becomes a ClusterIP Service"
     ],
+    "optionNotes": [
+      "With no controller able to provision a load balancer, the `EXTERNAL-IP` column stays `<pending>` forever, but the Service still has its ClusterIP and NodePort and works through those.",
+      "kube-proxy programs iptables/IPVS rules for Services; it does not provision load balancers, software or otherwise.",
+      "The API server accepts any valid Service type; it does not know or care whether a load-balancer integration exists.",
+      "The type is not changed silently; it stays `LoadBalancer` and simply never gets an external address."
+    ],
     "answer": 0,
     "explanation": "Without a controller that can provision an external load balancer, a `LoadBalancer` Service simply never gets an external IP assigned (it stays `<pending>`), while still receiving the NodePort and ClusterIP allocations a LoadBalancer Service also gets.",
+    "example": "kubectl expose deployment web --port=80 --type=LoadBalancer\nkubectl get svc web\n# NAME  TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)\n# web   LoadBalancer   10.96.5.10    <pending>     80:31022/TCP\n# still reachable at <node-ip>:31022 like a NodePort",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -258,8 +333,15 @@
       "The Service is assigned a new random internal IP on every query",
       "All traffic to the Service is dropped until an Ingress is created"
     ],
+    "optionNotes": [
+      "A headless Service has no virtual IP, so CoreDNS answers with the backing Pod IPs (A records, plus per-Pod hostnames for StatefulSets), letting clients pick endpoints themselves.",
+      "The Service still exists and still tracks endpoints; only the cluster-IP load balancing layer is skipped.",
+      "No IP is assigned at all, random or otherwise; `clusterIP: None` is a stable declaration.",
+      "Ingress is unrelated to headless Services; traffic is not dropped."
+    ],
     "answer": 0,
     "explanation": "A headless Service has no cluster IP; DNS lookups for it return the set of individual Pod IPs (or per-Pod DNS records for a StatefulSet) instead of load-balancing through a single virtual IP, letting clients discover and connect to individual Pods directly.",
+    "example": "kubectl run -it --rm dns --image=busybox -- nslookup web\n# Name: web.default.svc.cluster.local\n# Address 1: 10.244.1.5 web-0.web.default.svc.cluster.local\n# Address 2: 10.244.2.7 web-1.web.default.svc.cluster.local",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/service/",
     "tags": [
       "service",
@@ -279,8 +361,15 @@
       "To assign static IP addresses to Pods",
       "To restrict network traffic between Pods"
     ],
+    "optionNotes": [
+      "Ingress declares host- and path-based HTTP(S) routing from outside the cluster to Services, and can reference a TLS Secret for termination, which matches its purpose exactly.",
+      "TLS certificates are stored in `kubernetes.io/tls` Secrets; an Ingress only references them.",
+      "Pod IPs are allocated by the CNI plugin; Ingress does not manage addressing.",
+      "Restricting traffic between Pods is the job of `NetworkPolicy`, not Ingress."
+    ],
     "answer": 0,
     "explanation": "Ingress defines rules for routing external HTTP/HTTPS traffic to internal Services, typically based on hostname and URL path, and can also terminate TLS.",
+    "example": "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: web\nspec:\n  ingressClassName: nginx\n  rules:\n  - host: shop.example.com\n    http:\n      paths:\n      - path: /api\n        pathType: Prefix\n        backend: {service: {name: api, port: {number: 80}}}",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress/",
     "tags": [
       "ingress"
@@ -294,6 +383,7 @@
     "prompt": "Creating an `Ingress` resource has no routing effect unless an Ingress controller is also running in the cluster to implement it.",
     "answer": true,
     "explanation": "Kubernetes does not ship a built-in Ingress controller; the Ingress resource is just a set of rules, and an Ingress controller (for example ingress-nginx or a cloud provider's controller) must be deployed to actually watch and fulfil those rules.",
+    "example": "helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace\nkubectl get ingressclass   # nginx now exists; Ingress rules get an ADDRESS\nkubectl get ingress web    # ADDRESS column stays empty with no controller",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/",
     "tags": [
       "ingress",
@@ -312,8 +402,15 @@
       "Defining RBAC permissions for a namespace",
       "Persisting data across Pod restarts like a database"
     ],
+    "optionNotes": [
+      "ConfigMaps hold plain, non-secret key-value configuration that Pods read as env vars, args, or mounted files, which is their intended use.",
+      "Certificates and passwords belong in a `Secret`, which has type-specific handling and can be encrypted at rest; ConfigMaps are stored in clear text.",
+      "RBAC permissions are defined with `Role`/`ClusterRole` and bindings, not ConfigMaps.",
+      "Durable data across restarts is provided by PersistentVolumes; a ConfigMap is limited to 1 MiB and is not a database."
+    ],
     "answer": 0,
     "explanation": "ConfigMaps hold non-sensitive configuration data (such as settings, file contents, or CLI arguments) that can be injected into Pods as environment variables, command-line arguments, or mounted files. Sensitive data belongs in a `Secret` instead.",
+    "example": "kubectl create configmap app-config --from-literal=LOG_LEVEL=info --from-file=app.properties\n# consume in a Pod:\nenvFrom:\n- configMapRef:\n    name: app-config",
     "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
     "tags": [
       "configmap"
@@ -327,6 +424,7 @@
     "prompt": "By default, Kubernetes `Secret` values are only base64-encoded, not encrypted, when stored in etcd.",
     "answer": true,
     "explanation": "Base64 is an encoding, not encryption — anyone with API or etcd access can trivially decode it. Encryption at rest requires explicitly configuring an `EncryptionConfiguration` (for example with a KMS provider) for the API server.",
+    "example": "kubectl create secret generic db --from-literal=password=hunter2\nkubectl get secret db -o jsonpath='{.data.password}' | base64 -d\n# hunter2   <- trivially decoded, no encryption involved",
     "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
     "tags": [
       "secret",
@@ -346,12 +444,20 @@
       "As the container's base image",
       "As the Pod's `restartPolicy`"
     ],
+    "optionNotes": [
+      "`valueFrom.configMapKeyRef` injects a single key as one environment variable and is a standard consumption method.",
+      "`envFrom` with `configMapRef` imports every key in the ConfigMap as an environment variable in one go.",
+      "Mounting a ConfigMap as a volume exposes each key as a file, useful for config files that are updated in place.",
+      "A container image comes from a registry via the `image` field; ConfigMaps cannot supply image contents.",
+      "`restartPolicy` is a fixed Pod spec field, not something that can be sourced from a ConfigMap."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "ConfigMap data can populate individual environment variables, be bulk-imported with `envFrom`, or be mounted as files in a volume. A ConfigMap cannot supply a container image or a `restartPolicy`.",
+    "example": "env:\n- name: LOG_LEVEL\n  valueFrom:\n    configMapKeyRef: {name: app-config, key: LOG_LEVEL}\nenvFrom:\n- configMapRef: {name: app-config}\nvolumes:\n- name: cfg\n  configMap: {name: app-config}   # mounted as files",
     "reference": "https://kubernetes.io/docs/concepts/configuration/configmap/",
     "tags": [
       "configmap"
@@ -369,8 +475,15 @@
       "Opaque",
       "kubernetes.io/service-account-token"
     ],
+    "optionNotes": [
+      "`kubernetes.io/dockerconfigjson` wraps a `.dockerconfigjson` file with registry credentials and is what `imagePullSecrets` expects.",
+      "`kubernetes.io/tls` holds a `tls.crt` and `tls.key` pair for Ingress or server TLS, not registry logins.",
+      "`Opaque` is the generic, unstructured Secret type; it can hold anything but has no special handling for image pulls.",
+      "`kubernetes.io/service-account-token` stores a ServiceAccount's API token for in-cluster authentication, unrelated to registries."
+    ],
     "answer": 0,
     "explanation": "`kubernetes.io/dockerconfigjson` stores a Docker config file used for authenticating to private registries, referenced from a Pod via `imagePullSecrets`. `kubernetes.io/tls` holds certificate/key pairs, `Opaque` is the generic default type, and `kubernetes.io/service-account-token` holds a ServiceAccount's token.",
+    "example": "kubectl create secret docker-registry regcred \\\n  --docker-server=ghcr.io --docker-username=me --docker-password=$TOKEN\n# type: kubernetes.io/dockerconfigjson\nspec:\n  imagePullSecrets:\n  - name: regcred",
     "reference": "https://kubernetes.io/docs/concepts/configuration/secret/",
     "tags": [
       "secret",
@@ -389,8 +502,15 @@
       "A snapshot of an existing volume",
       "A StorageClass definition"
     ],
+    "optionNotes": [
+      "A PVC is the namespaced request for storage of a size, access mode, and class, and the control plane binds it to a suitable PersistentVolume.",
+      "A physical disk on a node is represented by a `PersistentVolume` (or a hostPath/local volume), not by the claim.",
+      "A snapshot is a `VolumeSnapshot` object from the CSI snapshot API, distinct from a PVC.",
+      "A `StorageClass` describes how to provision volumes; a PVC merely references one by name."
+    ],
     "answer": 0,
     "explanation": "A PVC is a request for storage made by a user (or Pod); Kubernetes binds it to a `PersistentVolume` that satisfies its size, access mode, and (optionally) StorageClass requirements.",
+    "example": "apiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data\nspec:\n  accessModes: [ReadWriteOnce]\n  storageClassName: gp3\n  resources:\n    requests:\n      storage: 20Gi   # request; a PV that satisfies it gets bound",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pvc",
@@ -409,8 +529,15 @@
       "To limit the number of Pods per node",
       "To define network policies for storage traffic"
     ],
+    "optionNotes": [
+      "A StorageClass names a provisioner and parameters so a matching PVC automatically triggers creation of a PersistentVolume, which is dynamic provisioning.",
+      "Encryption is a provisioner-specific parameter some classes support; it is not what a StorageClass fundamentally does.",
+      "Pods per node is a kubelet setting (`--max-pods`), unrelated to storage classes.",
+      "Network policies for traffic are `NetworkPolicy` objects; StorageClass has no networking role."
+    ],
     "answer": 0,
     "explanation": "A StorageClass describes a 'class' of storage (provisioner, parameters, reclaim policy) that lets the cluster automatically (dynamically) provision a PersistentVolume when a matching PVC is created, instead of requiring an administrator to pre-create volumes.",
+    "example": "apiVersion: storage.k8s.io/v1\nkind: StorageClass\nmetadata:\n  name: gp3\nprovisioner: ebs.csi.aws.com\nparameters:\n  type: gp3\nreclaimPolicy: Delete\nvolumeBindingMode: WaitForFirstConsumer   # PVC using gp3 triggers a new EBS volume",
     "reference": "https://kubernetes.io/docs/concepts/storage/storage-classes/",
     "tags": [
       "storageclass",
@@ -425,6 +552,7 @@
     "prompt": "A `PersistentVolume` is a cluster-scoped resource (not namespaced), while a `PersistentVolumeClaim` that uses it is namespaced.",
     "answer": true,
     "explanation": "PersistentVolumes are cluster-level resources like Nodes, visible cluster-wide, whereas PersistentVolumeClaims live in a namespace and can only be used by Pods in that same namespace.",
+    "example": "kubectl get pv                 # no namespace: cluster-scoped\nkubectl get pvc -n payments    # namespaced\nkubectl api-resources --namespaced=false | grep persistentvolumes",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pv",
@@ -445,6 +573,13 @@
       "ReadWriteOncePod",
       "ReadWriteAny"
     ],
+    "optionNotes": [
+      "`ReadWriteOnce` (RWO) allows read-write mounting by a single node, the most common mode for block storage.",
+      "`ReadOnlyMany` (ROX) allows many nodes to mount the volume read-only.",
+      "`ReadWriteMany` (RWX) allows many nodes to mount read-write, typical for NFS or CephFS.",
+      "`ReadWriteOncePod` (RWOP) restricts read-write access to a single Pod across the whole cluster and is GA since Kubernetes 1.29.",
+      "`ReadWriteAny` does not exist in the Kubernetes API and would be rejected on validation."
+    ],
     "answer": [
       0,
       1,
@@ -452,6 +587,7 @@
       3
     ],
     "explanation": "Kubernetes defines `ReadWriteOnce` (read-write by a single node), `ReadOnlyMany`, `ReadWriteMany`, and the newer `ReadWriteOncePod` (read-write by a single Pod cluster-wide). `ReadWriteAny` is not a real access mode.",
+    "example": "spec:\n  accessModes:\n  - ReadWriteOncePod   # RWOP: single Pod cluster-wide\n# kubectl get pv shows short forms: RWO, ROX, RWX, RWOP",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "pv",
@@ -470,8 +606,15 @@
       "To define network firewall rules between Pods",
       "To limit which container images can be pulled"
     ],
+    "optionNotes": [
+      "Namespaces partition one cluster into logical scopes for names, quotas, and RBAC, which is their core function.",
+      "Physical separation onto different hardware would be separate clusters or node pools; namespaces are purely logical.",
+      "Firewall-style rules between Pods come from `NetworkPolicy`; a namespace alone does not isolate traffic.",
+      "Restricting pullable images is done with admission controllers or policy engines such as Kyverno, not namespaces."
+    ],
     "answer": 0,
     "explanation": "Namespaces divide a single cluster into multiple virtual clusters, scoping resource names and letting teams or environments share a cluster without name collisions. They do not provide network isolation by themselves.",
+    "example": "kubectl create namespace staging\nkubectl run web --image=nginx -n staging\nkubectl run web --image=nginx -n prod     # same name, no collision\nkubectl config set-context --current --namespace=staging",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
     "tags": [
       "namespace"
@@ -487,6 +630,7 @@
       "default"
     ],
     "explanation": "Kubernetes provides an initial namespace called `default` for objects that don't specify one.",
+    "example": "kubectl run web --image=nginx      # no -n flag\nkubectl get pod web -n default     # it landed here\nkubectl config view --minify | grep namespace   # empty means default",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
     "tags": [
       "namespace"
@@ -505,8 +649,15 @@
       "A `Role` controls network access, while a `ClusterRole` controls storage access",
       "There is no real difference; they are aliases for the same object"
     ],
+    "optionNotes": [
+      "A `Role` is namespaced and its rules apply only there, while a `ClusterRole` is cluster-scoped, can cover cluster-scoped resources like nodes, and can be reused via RoleBindings in many namespaces.",
+      "Both kinds can be bound to users, groups, or ServiceAccounts; subject type does not distinguish them.",
+      "Neither object is about network or storage; both define API verbs on resources.",
+      "They are distinct kinds with different scope, not aliases."
+    ],
     "answer": 0,
     "explanation": "A `Role` is namespaced and its rules only apply within that namespace, whereas a `ClusterRole` is a cluster-scoped resource that can grant access to cluster-scoped resources or be reused across multiple namespaces.",
+    "example": "kubectl create role pod-reader --verb=get,list --resource=pods -n dev\nkubectl create clusterrole node-reader --verb=get,list --resource=nodes\n# Nodes are cluster-scoped, so only a ClusterRole can grant access to them",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
     "tags": [
       "rbac",
@@ -525,8 +676,15 @@
       "A `LimitRange` and a `ResourceQuota` are two names for the same object",
       "A `LimitRange` restricts the number of Secrets, while `ResourceQuota` restricts CPU only"
     ],
+    "optionNotes": [
+      "`LimitRange` applies per-object defaults, minimums, and maximums, while `ResourceQuota` caps the aggregate for the namespace, which is the correct distinction.",
+      "Both objects are namespaced; neither is cluster-wide.",
+      "They are separate API kinds with different semantics, not synonyms.",
+      "`ResourceQuota` can count Secrets, ConfigMaps, PVCs, and more; `LimitRange` is about compute and storage sizes, not object counts."
+    ],
     "answer": 0,
     "explanation": "`LimitRange` constrains individual Pods/containers (for example default requests/limits, or min/max), while `ResourceQuota` constrains the sum total of resources (CPU, memory, object counts, and so on) consumed by everything in a namespace.",
+    "example": "kind: LimitRange\nspec:\n  limits:\n  - type: Container\n    default: {cpu: 500m, memory: 256Mi}     # per-container defaults\n---\nkind: ResourceQuota\nspec:\n  hard:\n    requests.cpu: \"10\"\n    pods: \"50\"                              # namespace-wide totals",
     "reference": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
     "tags": [
       "rbac",
@@ -546,8 +704,15 @@
       "To store a Pod's environment variables",
       "To define which node a Pod should run on"
     ],
+    "optionNotes": [
+      "A ServiceAccount is the in-cluster identity for Pod processes, with a projected token used to authenticate to the API server, which is exactly its purpose.",
+      "Human `kubectl` users authenticate via certificates, OIDC, or cloud IAM; Kubernetes has no user objects and ServiceAccounts are not meant for people.",
+      "Environment variables live in the Pod spec, ConfigMaps, or Secrets, not in a ServiceAccount.",
+      "Node placement is controlled by `nodeSelector`, affinity, and taints; ServiceAccounts play no role."
+    ],
     "answer": 0,
     "explanation": "ServiceAccounts give an identity to processes running in Pods so they can authenticate API requests; they are distinct from the user accounts humans use to access the cluster.",
+    "example": "kubectl create serviceaccount ci-runner\nspec:\n  serviceAccountName: ci-runner   # token projected into the Pod\n# inside the Pod:\ncurl -H \"Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://kubernetes.default/api",
     "reference": "https://kubernetes.io/docs/concepts/security/service-accounts/",
     "tags": [
       "rbac",
@@ -565,6 +730,7 @@
       "kubectl auth can-i"
     ],
     "explanation": "`kubectl auth can-i <verb> <resource>` queries the API server's authorization layer (via a SelfSubjectAccessReview) to report whether the acting identity is permitted to perform that action.",
+    "example": "kubectl auth can-i create pods --namespace dev\n# yes\nkubectl auth can-i delete nodes --as=system:serviceaccount:dev:ci-runner\n# no\nkubectl auth can-i --list -n dev   # everything the current identity may do",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/authorization/",
     "tags": [
       "rbac",
@@ -584,8 +750,15 @@
       "The container is removed from Service endpoints but left running",
       "Nothing happens; liveness probes are only used for monitoring dashboards"
     ],
+    "optionNotes": [
+      "When the failure threshold is reached the kubelet kills the container and restarts it per `restartPolicy`, which is the defined liveness behaviour.",
+      "The Pod object is not deleted or rescheduled; only the container inside it is restarted on the same node.",
+      "Removing a Pod from Service endpoints without a restart is what a failing readiness probe does.",
+      "Probes drive kubelet actions directly; they are not passive monitoring hints."
+    ],
     "answer": 0,
     "explanation": "A failing liveness probe tells the kubelet the container is unhealthy, so it kills the container and restarts it (subject to the Pod's `restartPolicy`). This differs from a readiness probe, which only affects Service endpoint membership.",
+    "example": "livenessProbe:\n  httpGet: {path: /healthz, port: 8080}\n  periodSeconds: 10\n  failureThreshold: 3   # 3 misses -> kubelet restarts the container\n# kubectl get pod shows RESTARTS climbing and describe shows 'Liveness probe failed'",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes",
@@ -604,8 +777,15 @@
       "The Pod is deleted and a new one is scheduled",
       "The Node is cordoned and marked unschedulable"
     ],
+    "optionNotes": [
+      "A failed readiness probe marks the container not ready, so the endpoints controller drops the Pod IP from Services; the process keeps running untouched.",
+      "Restarting the container is the consequence of a failed liveness probe, not a readiness probe.",
+      "Pods are not deleted or rescheduled by readiness failures.",
+      "Node cordoning is an administrative action (`kubectl cordon`) and is never triggered by a Pod probe."
+    ],
     "answer": 0,
     "explanation": "A failing readiness probe only removes the Pod from Service endpoints (so it stops receiving traffic) — the container keeps running and is not restarted, unlike a failing liveness probe.",
+    "example": "readinessProbe:\n  httpGet: {path: /ready, port: 8080}\n  periodSeconds: 5\n# while failing:\nkubectl get endpoints web   # Pod IP missing from the list\nkubectl get pod web-0       # READY 0/1 but STATUS Running, RESTARTS unchanged",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes",
@@ -625,6 +805,13 @@
       "`grpc`",
       "`ping`"
     ],
+    "optionNotes": [
+      "`httpGet` issues an HTTP GET and treats 2xx/3xx as success; it is the most common probe handler.",
+      "`tcpSocket` succeeds if a TCP connection to the port can be opened, useful for non-HTTP services.",
+      "`exec` runs a command inside the container and treats exit code 0 as success.",
+      "`grpc` calls the gRPC Health Checking Protocol on the given port and is GA since Kubernetes 1.27.",
+      "`ping` (ICMP) is not a supported probe handler; there is no such field in the Probe spec."
+    ],
     "answer": [
       0,
       1,
@@ -632,6 +819,7 @@
       3
     ],
     "explanation": "Kubernetes probes can be implemented as an HTTP GET request (`httpGet`), a TCP connection check (`tcpSocket`), an in-container command (`exec`), or a gRPC health check (`grpc`). There is no built-in `ping` probe mechanism.",
+    "example": "livenessProbe:\n  exec: {command: [cat, /tmp/healthy]}\nreadinessProbe:\n  tcpSocket: {port: 5432}\nstartupProbe:\n  httpGet: {path: /started, port: 8080}\n# grpc: {port: 9090} is also valid (GA in 1.27)",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
     "tags": [
       "probes"
@@ -649,8 +837,15 @@
       "The node's total memory only",
       "The Pod's `priorityClassName`"
     ],
+    "optionNotes": [
+      "The scheduler's NodeResourcesFit filter sums container `requests` and compares them to node allocatable capacity, so requests drive placement.",
+      "`limits` are enforced by the kubelet and cgroups at runtime and do not participate in the capacity check.",
+      "Memory is only one of several resources considered; CPU, ephemeral storage, and extended resources all count.",
+      "`priorityClassName` affects ordering and preemption, not whether a node has room for the Pod."
+    ],
     "answer": 0,
     "explanation": "The scheduler filters nodes based on whether they have enough allocatable capacity to satisfy the sum of a Pod's container `requests`; `limits` only bound runtime usage and are not used for the scheduling capacity check.",
+    "example": "resources:\n  requests: {cpu: 500m, memory: 256Mi}   # scheduler sums these vs node allocatable\n  limits:   {cpu: \"1\",  memory: 512Mi}   # runtime cap only\nkubectl describe node worker-1 | grep -A5 'Allocated resources'",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "scheduling",
@@ -669,8 +864,15 @@
       "Exceeding the memory limit throttles the container, while exceeding the CPU limit kills it",
       "Neither has any effect unless a `LimitRange` is also defined"
     ],
+    "optionNotes": [
+      "Memory overuse triggers the kernel OOM killer and an `OOMKilled` termination, while CPU overuse is throttled by the CFS quota with no kill, which is the correct contrast.",
+      "CPU limits never kill a container; they only slow it down.",
+      "This reverses reality: memory cannot be throttled because it is not compressible, and CPU is never a kill trigger.",
+      "Container limits are enforced whenever set on the container; a `LimitRange` only supplies defaults and bounds."
+    ],
     "answer": 0,
     "explanation": "Memory is not compressible: a container that exceeds its memory limit is terminated by the kernel's OOM killer. CPU is compressible: a container that exceeds its CPU limit is simply throttled (slowed down) via CFS quotas, not killed.",
+    "example": "kubectl get pod api-0\n# STATUS: OOMKilled  RESTARTS: 4   <- exceeded memory limit\nkubectl describe pod api-0 | grep -i 'Last State' -A3\n# CPU over limit only shows up as throttling:\ncat /sys/fs/cgroup/cpu.stat | grep nr_throttled",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "resources",
@@ -690,12 +892,20 @@
       "Reserved",
       "Priority"
     ],
+    "optionNotes": [
+      "`Guaranteed` is assigned when every container has requests equal to limits for CPU and memory, giving it the last-evicted priority.",
+      "`Burstable` is assigned when at least one request or limit is set but the Guaranteed condition is not met.",
+      "`BestEffort` is assigned when no container declares any requests or limits, making it first in line for eviction.",
+      "`Reserved` is not a QoS class; it is not a value the kubelet ever writes to `status.qosClass`.",
+      "`Priority` refers to `PriorityClass` objects used for scheduling and preemption, a different mechanism from QoS."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Kubernetes assigns every Pod one of three QoS classes based on its requests/limits: `Guaranteed` (requests equal limits for every container), `Burstable` (at least one request set, but not Guaranteed), or `BestEffort` (no requests or limits set at all). `Reserved` and `Priority` are not QoS classes.",
+    "example": "kubectl get pod web-0 -o jsonpath='{.status.qosClass}'\n# Guaranteed   <- requests == limits for every container\n# Burstable    <- some requests set, not all equal to limits\n# BestEffort   <- no requests or limits at all",
     "reference": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
     "tags": [
       "qos",
@@ -714,8 +924,15 @@
       "Add a `taint` to the Pod",
       "Set the container's `resources.requests.disktype`"
     ],
+    "optionNotes": [
+      "`nodeSelector` is the simplest constraint: a map of labels a node must carry for the Pod to be scheduled there.",
+      "`priorityClassName` references a PriorityClass for preemption ordering and has nothing to do with node labels.",
+      "Taints are applied to nodes, not Pods; Pods declare tolerations, and even those do not attract Pods to a node.",
+      "`resources.requests` only accept quantities of compute resources; `disktype` is not a resource name."
+    ],
     "answer": 0,
     "explanation": "`nodeSelector` is the simplest form of node selection constraint: the Pod is only scheduled onto nodes carrying all of the specified labels. Node affinity offers a more expressive alternative for complex rules.",
+    "example": "kubectl label node worker-2 disktype=ssd\napiVersion: v1\nkind: Pod\nspec:\n  nodeSelector:\n    disktype: ssd   # only nodes with this label are eligible\n  containers: [{name: db, image: postgres:16}]",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
     "tags": [
       "scheduling",
@@ -734,8 +951,15 @@
       "The Pod is evicted immediately if the node's labels ever change",
       "The rule only applies while the Pod is being deleted"
     ],
+    "optionNotes": [
+      "The suffix means the rule is checked only when the Pod is scheduled; later label changes on the node do not evict the running Pod.",
+      "The `required` prefix makes the rule mandatory at scheduling time; it is far from ignored.",
+      "Immediate eviction on label change would be `RequiredDuringExecution`, which is not implemented for node affinity.",
+      "Affinity rules concern placement, not deletion; they have no meaning during Pod deletion."
+    ],
     "answer": 0,
     "explanation": "`IgnoredDuringExecution` means the affinity rule is only enforced at scheduling time; Kubernetes does not continuously re-evaluate it, so a running Pod stays on its node even if the node's labels later change and no longer satisfy the rule.",
+    "example": "affinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n      - matchExpressions:\n        - {key: zone, operator: In, values: [eu-west-1a]}\n# kubectl label node worker-1 zone=eu-west-1b --overwrite  -> Pod keeps running",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
     "tags": [
       "scheduling",
@@ -755,12 +979,20 @@
       "NoAdmit",
       "BlockSchedule"
     ],
+    "optionNotes": [
+      "`NoSchedule` prevents new Pods without a matching toleration from being scheduled onto the node.",
+      "`PreferNoSchedule` is a soft version: the scheduler avoids the node when possible but may still use it.",
+      "`NoExecute` both blocks scheduling and evicts already-running Pods that do not tolerate the taint.",
+      "`NoAdmit` is not a taint effect; admission is a separate API server concept.",
+      "`BlockSchedule` does not exist; validation rejects any effect outside the three real values."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "A taint's effect must be one of `NoSchedule` (don't schedule non-tolerating Pods), `PreferNoSchedule` (try to avoid it), or `NoExecute` (also evict already-running non-tolerating Pods). `NoAdmit` and `BlockSchedule` are not real taint effects.",
+    "example": "kubectl taint nodes gpu-1 gpu=true:NoSchedule\nkubectl taint nodes gpu-1 gpu=true:NoExecute     # evicts non-tolerating Pods\ntolerations:\n- {key: gpu, operator: Equal, value: \"true\", effect: NoSchedule}",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/",
     "tags": [
       "scheduling",
@@ -779,8 +1011,15 @@
       "Automatically adds more nodes to the cluster",
       "Automatically resizes Persistent Volumes"
     ],
+    "optionNotes": [
+      "An HPA adjusts the `replicas` of a Deployment, ReplicaSet, or StatefulSet to hold observed metrics near a target, which is horizontal scaling.",
+      "Growing a container's own CPU and memory is vertical scaling, done by the `VerticalPodAutoscaler`, not HPA.",
+      "Adding nodes is the job of the Cluster Autoscaler or Karpenter.",
+      "Volume expansion is a CSI/StorageClass feature triggered by editing the PVC, unrelated to HPA."
+    ],
     "answer": 0,
     "explanation": "An HPA watches metrics (CPU/memory utilization, or custom/external metrics) and scales the number of replicas of a target Deployment, ReplicaSet, or StatefulSet up or down to meet a target value. Adding nodes is instead the job of a cluster autoscaler.",
+    "example": "kubectl autoscale deployment web --cpu-percent=70 --min=2 --max=10\nkubectl get hpa web\n# NAME  REFERENCE        TARGETS   MINPODS  MAXPODS  REPLICAS\n# web   Deployment/web   45%/70%   2        10       3",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "hpa",
@@ -795,6 +1034,7 @@
     "prompt": "For a `HorizontalPodAutoscaler` to scale based on CPU or memory utilization, the metrics-server (or an equivalent metrics API) must be installed in the cluster.",
     "answer": true,
     "explanation": "The HPA controller reads resource metrics from the `metrics.k8s.io` API, which is served by metrics-server (or a compatible implementation); without it, CPU/memory-based autoscaling has no data to act on.",
+    "example": "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml\nkubectl top pods            # works once metrics-server serves metrics.k8s.io\nkubectl get hpa             # TARGETS shows <unknown> without it",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "hpa",
@@ -813,8 +1053,15 @@
       "BlueGreen",
       "Canary"
     ],
+    "optionNotes": [
+      "`RollingUpdate` is what the API server defaults `spec.strategy.type` to, with 25% `maxSurge` and `maxUnavailable`.",
+      "`Recreate` kills all old Pods before creating new ones and must be set explicitly.",
+      "`BlueGreen` is a deployment pattern implemented with two Deployments and a Service switch or tools like Argo Rollouts, not a built-in strategy value.",
+      "`Canary` is likewise a pattern (weighted traffic to a small new set) provided by service meshes or Argo Rollouts, not a Deployment strategy type."
+    ],
     "answer": 0,
     "explanation": "`RollingUpdate` is the default Deployment strategy: old Pods are gradually replaced by new ones. `Recreate` must be explicitly set, and `BlueGreen`/`Canary` are not built-in Deployment strategies (they are patterns you implement yourself or via other tooling).",
+    "example": "kubectl get deployment web -o jsonpath='{.spec.strategy}'\n# {\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"}\n# defaults filled in by the API server when strategy was omitted",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -833,8 +1080,15 @@
       "The maximum time in seconds a rollout is allowed to run",
       "The maximum number of ReplicaSets kept in revision history"
     ],
+    "optionNotes": [
+      "`maxUnavailable` bounds how many replicas may be unready and `maxSurge` how many extra may be created, together shaping the rollout, which is correct.",
+      "Container restart counts are not limited by any Deployment field; `backoffLimit` exists only on Jobs.",
+      "Rollout time is bounded by `progressDeadlineSeconds`, a different field.",
+      "Retained ReplicaSet revisions are controlled by `revisionHistoryLimit`, not these fields."
+    ],
     "answer": 0,
     "explanation": "`maxUnavailable` caps how many Pods can be down at once during the rollout, and `maxSurge` caps how many extra Pods beyond the desired replica count can be created temporarily, together controlling the rollout's speed versus availability trade-off.",
+    "example": "spec:\n  replicas: 4\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 1   # at most 3 of 4 down... never fewer than 3 ready\n      maxSurge: 2         # up to 6 Pods exist during the rollout",
     "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
     "tags": [
       "deployment",
@@ -851,6 +1105,7 @@
       "kubectl logs web-1"
     ],
     "explanation": "`kubectl logs <pod-name>` prints the logs of a Pod's (default) container; add `-f` to stream them continuously, or `-c <container>` to pick a specific container in a multi-container Pod.",
+    "example": "kubectl logs web-1\nkubectl logs -f web-1                 # follow\nkubectl logs web-1 -c sidecar --since=10m\nkubectl logs web-1 --previous         # last crashed container",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -868,6 +1123,7 @@
       "kubectl apply -f app.yaml"
     ],
     "explanation": "`kubectl apply -f <file>` declaratively creates resources that don't yet exist and updates ones that do, reconciling the cluster state with what's defined in the manifest.",
+    "example": "kubectl apply -f app.yaml\n# deployment.apps/web created\nkubectl apply -f app.yaml             # rerun after editing the file\n# deployment.apps/web configured\nkubectl apply -f ./manifests/ -R      # whole directory",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -887,8 +1143,15 @@
       "`describe` deletes the resource after printing it, unlike `get`",
       "`get` shows recent events, while `describe` never does"
     ],
+    "optionNotes": [
+      "`describe` assembles a verbose report including conditions, volumes, and the Events for the object, whereas `get` prints a terse table row by default, which is the real distinction.",
+      "They are different subcommands with different output; `get -o yaml` is closer to raw, but still not the same as `describe`.",
+      "No read-only kubectl verb deletes anything; `describe` is purely informational.",
+      "The reverse is true: `describe` shows Events, `get` does not (you need `kubectl get events` for that)."
+    ],
     "answer": 0,
     "explanation": "`kubectl get` is meant for quick, scriptable summaries (often one line per object), while `kubectl describe` gives a verbose, human-focused view of a single object, including its recent Events — very useful for debugging.",
+    "example": "kubectl get pod web-0\n# NAME    READY   STATUS    RESTARTS   AGE\n# web-0   0/1     Pending   0          3m\nkubectl describe pod web-0 | tail -5\n# Events: Warning FailedScheduling  0/3 nodes are available: 3 Insufficient cpu.",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl"
@@ -906,8 +1169,15 @@
       "Pauses the current rollout without changing any existing Pods",
       "Scales the `web` Deployment down to zero replicas"
     ],
+    "optionNotes": [
+      "`rollout undo` swaps the Deployment's Pod template back to the previous revision, scaling up that old ReplicaSet in a rolling fashion.",
+      "Deleting a Deployment is done with `kubectl delete deployment web`, not a rollout subcommand.",
+      "Pausing a rollout is `kubectl rollout pause`, a different verb.",
+      "Scaling to zero is `kubectl scale deployment/web --replicas=0`; undo never changes the replica count."
+    ],
     "answer": 0,
     "explanation": "`kubectl rollout undo` rolls a Deployment back to its previous revision (or a specific one with `--to-revision`), using the revision history retained by the Deployment's ReplicaSets.",
+    "example": "kubectl set image deployment/web app=app:2.0   # bad release\nkubectl rollout history deployment/web\nkubectl rollout undo deployment/web             # back to app:1.9\nkubectl rollout undo deployment/web --to-revision=2",
     "reference": "https://kubernetes.io/docs/reference/kubectl/cheatsheet/",
     "tags": [
       "kubectl",
@@ -926,8 +1196,15 @@
       "kube-scheduler",
       "kubelet"
     ],
+    "optionNotes": [
+      "kube-apiserver serves the REST API, performs authn/authz/admission, and is the sole writer to etcd, making it the hub every component talks to.",
+      "etcd is the key-value datastore behind the API server; clients never talk to it directly.",
+      "kube-scheduler is an API client that watches for unscheduled Pods and writes bindings; it exposes no cluster API.",
+      "kubelet is the per-node agent that runs Pods; it consumes the API rather than exposing it to other components."
+    ],
     "answer": 0,
     "explanation": "kube-apiserver is the front end of the control plane; it validates and processes REST requests and is the only component that talks directly to etcd, with every other component and client communicating through it.",
+    "example": "kubectl get --raw /healthz          # talks straight to kube-apiserver\nkubectl -n kube-system get pods -l component=kube-apiserver\n# every controller, scheduler, kubelet, and kubectl call goes through this endpoint",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane",
@@ -942,6 +1219,7 @@
     "prompt": "`etcd` is the consistent, highly-available key-value store that holds all of a Kubernetes cluster's persistent state.",
     "answer": true,
     "explanation": "etcd is the cluster's single source of truth, storing the entire cluster state (objects, configuration, and status); only kube-apiserver talks to it directly.",
+    "example": "ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \\\n  --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=... --key=... \\\n  get /registry/pods/default/web-0 --keys-only   # every object lives under /registry\netcdctl snapshot save backup.db",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane",
@@ -962,6 +1240,14 @@
       "kubelet",
       "kube-proxy"
     ],
+    "optionNotes": [
+      "kube-apiserver is the control-plane front end that serves the API.",
+      "etcd is the control plane's persistent datastore for all cluster state.",
+      "kube-scheduler is the control-plane process that assigns unscheduled Pods to nodes.",
+      "kube-controller-manager runs the built-in controllers (Deployment, ReplicaSet, Node, Job, etc.) as part of the control plane.",
+      "kubelet is the node agent that runs on every worker to manage Pods; it is a node component, not part of the control plane.",
+      "kube-proxy runs on every node to implement Service networking rules; it is a node component."
+    ],
     "answer": [
       0,
       1,
@@ -969,6 +1255,7 @@
       3
     ],
     "explanation": "kube-apiserver, etcd, kube-scheduler, and kube-controller-manager (plus, in cloud environments, cloud-controller-manager) make up the control plane. `kubelet` and `kube-proxy` are node components that run on every worker (and typically control-plane) node instead.",
+    "example": "kubectl -n kube-system get pods\n# etcd-cp1                       1/1  Running\n# kube-apiserver-cp1             1/1  Running\n# kube-controller-manager-cp1    1/1  Running\n# kube-scheduler-cp1             1/1  Running\n# kube-proxy-xxxxx (DaemonSet)   1/1  Running   <- node component",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "control-plane"
@@ -987,12 +1274,20 @@
       "kube-scheduler",
       "etcd (as the cluster's primary datastore)"
     ],
+    "optionNotes": [
+      "kubelet runs on every node, registers it, and starts and monitors the Pods scheduled there.",
+      "kube-proxy runs on every node (usually as a DaemonSet) to program iptables/IPVS rules for Services.",
+      "A CRI-compatible runtime such as containerd or CRI-O must be present on every node for the kubelet to run containers.",
+      "kube-scheduler runs only on control-plane nodes; workers do not host a scheduler.",
+      "The cluster's etcd runs on control-plane or dedicated nodes, never as a per-worker agent."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Every node runs a `kubelet` (manages Pods on that node), `kube-proxy` (maintains network rules for Services), and a container runtime. `kube-scheduler` and the cluster's primary `etcd` datastore are control-plane components, not per-node agents.",
+    "example": "ssh worker-1\nsystemctl status kubelet containerd     # both run as host services\ncrictl ps                                # containers via the CRI runtime\nkubectl -n kube-system get ds kube-proxy # one kube-proxy Pod per node",
     "reference": "https://kubernetes.io/docs/concepts/overview/components/",
     "tags": [
       "node-components",
@@ -1012,8 +1307,15 @@
       "All Pods on a node share a single IP address and are distinguished by port",
       "Pod-to-Pod traffic is routed through the API server"
     ],
+    "optionNotes": [
+      "The Kubernetes network model mandates a unique IP per Pod with NAT-free reachability across nodes, which the CNI plugin implements.",
+      "Services are a convenience for stable addressing and load balancing; direct Pod-to-Pod IP traffic is always allowed by the model.",
+      "Port-based multiplexing on a shared node IP describes Docker's default bridge, not Kubernetes, where each Pod has its own IP.",
+      "The API server carries control-plane traffic only; data-plane packets never pass through it."
+    ],
     "answer": 0,
     "explanation": "Kubernetes requires a 'flat' network model where every Pod gets its own unique IP address and can communicate with any other Pod's IP across nodes without NAT, which is what CNI plugins implement.",
+    "example": "kubectl get pods -o wide\n# web-0  10.244.1.5  worker-1\n# web-1  10.244.2.9  worker-2\nkubectl exec web-0 -- curl -s http://10.244.2.9:8080   # direct, no NAT",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/",
     "tags": [
       "networking",
@@ -1032,8 +1334,15 @@
       "It authenticates users against the API server",
       "It schedules Pods onto nodes based on resource requests"
     ],
+    "optionNotes": [
+      "The CNI plugin allocates Pod IPs and wires up routes or overlays so the flat, NAT-free Pod network exists, which is exactly its role.",
+      "Building and pushing images is done by tools like Docker, Buildah, or Kaniko outside the cluster's networking layer.",
+      "Authentication is handled by the API server's authenticators (certs, tokens, OIDC), not by CNI.",
+      "Scheduling Pods by resource requests is kube-scheduler's responsibility."
+    ],
     "answer": 0,
     "explanation": "Kubernetes itself does not implement Pod networking; it delegates that to a CNI plugin (for example Calico, Cilium, or Flannel), which is responsible for assigning Pod IPs and setting up routing so the required flat network model is realized.",
+    "example": "ls /etc/cni/net.d/            # 10-calico.conflist installed by the CNI plugin\nkubectl -n kube-system get ds  # calico-node / cilium / kube-flannel DaemonSet\n# nodes stay NotReady ('cni plugin not initialized') until a CNI is installed",
     "reference": "https://kubernetes.io/docs/concepts/cluster-administration/networking/",
     "tags": [
       "networking",
@@ -1048,6 +1357,7 @@
     "prompt": "CoreDNS is the default cluster add-on that provides DNS-based service discovery for Services and Pods in a Kubernetes cluster.",
     "answer": true,
     "explanation": "CoreDNS runs as Pods inside the cluster and serves DNS records (for example `my-svc.my-namespace.svc.cluster.local`) so that workloads can discover Services and Pods by name instead of hardcoding IPs. It replaced kube-dns as the default in modern Kubernetes.",
+    "example": "kubectl -n kube-system get deploy coredns\nkubectl run -it --rm t --image=busybox -- nslookup api.payments.svc.cluster.local\n# resolves to the Service's ClusterIP",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/",
     "tags": [
       "networking",
@@ -1063,6 +1373,7 @@
     "prompt": "If no `NetworkPolicy` objects exist in a namespace, Kubernetes' default behavior is to allow all pod-to-pod network traffic.",
     "answer": true,
     "explanation": "Kubernetes networking is non-isolating by default: traffic is unrestricted unless a `NetworkPolicy` selects the Pod, at which point that Pod's traffic becomes restricted to what the policy (or policies) allow. Enforcement additionally requires a CNI plugin that supports NetworkPolicy.",
+    "example": "kubectl get networkpolicy -n shop   # No resources found -> everything allowed\n# lock it down with a default-deny policy:\nkind: NetworkPolicy\nmetadata: {name: default-deny, namespace: shop}\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
     "tags": [
       "networking",
@@ -1081,8 +1392,15 @@
       "A YAML file listing a cluster's nodes",
       "A built-in Kubernetes object for defining RBAC rules"
     ],
+    "optionNotes": [
+      "A chart is a versioned bundle of templated manifests plus `Chart.yaml` and `values.yaml`, installed as one release, which is the definition.",
+      "Dashboards for metrics are tools like Grafana or the Kubernetes Dashboard; Helm does not visualise anything.",
+      "Node lists come from `kubectl get nodes`; a chart is not an inventory file.",
+      "RBAC rules are `Role`/`ClusterRole` objects; a chart may template them but is not itself a Kubernetes object."
+    ],
     "answer": 0,
     "explanation": "A Helm chart is a package format bundling Kubernetes manifest templates plus metadata and default configuration, letting you install, upgrade, and version an application as a single release.",
+    "example": "helm repo add bitnami https://charts.bitnami.com/bitnami\nhelm install cache bitnami/redis --set architecture=standalone\nhelm list   # cache  deployed  redis-19.x\n# chart layout: Chart.yaml, values.yaml, templates/*.yaml",
     "reference": "https://helm.sh/docs/topics/charts/",
     "tags": [
       "helm",
@@ -1101,8 +1419,15 @@
       "It stores the chart's release history",
       "It defines the RBAC Role bound to the chart's ServiceAccount"
     ],
+    "optionNotes": [
+      "`values.yaml` provides the defaults that templates reference via `.Values`, overridable with `--set` or `-f`, which is its role.",
+      "Supported API versions are discovered from the cluster (`.Capabilities.APIVersions`), not listed in values.",
+      "Release history is stored by Helm as Secrets in the cluster and shown with `helm history`, not kept in the chart.",
+      "RBAC objects live in `templates/`; values may parameterise them but the file does not define a Role."
+    ],
     "answer": 0,
     "explanation": "`values.yaml` holds the default parameters referenced by a chart's templates (for example `{{ .Values.replicaCount }}`); users can override them with `--set` or a custom values file on `helm install`/`helm upgrade`.",
+    "example": "# values.yaml\nreplicaCount: 2\nimage:\n  tag: 1.27\n# templates/deployment.yaml\nreplicas: {{ .Values.replicaCount }}\nhelm upgrade --install web ./chart --set replicaCount=5 -f prod-values.yaml",
     "reference": "https://helm.sh/docs/chart_template_guide/values_files/",
     "tags": [
       "helm",
@@ -1117,6 +1442,7 @@
     "prompt": "Helm 3 removed the server-side component called Tiller that Helm 2 required to be installed in the cluster.",
     "answer": true,
     "explanation": "Helm 2 needed a cluster-side component, Tiller, which raised security concerns due to its broad permissions. Helm 3 removed Tiller entirely, so the Helm client talks directly to the Kubernetes API server using the user's own credentials and RBAC.",
+    "example": "helm version   # v3.x: no Tiller Pod to install\nkubectl -n kube-system get deploy tiller-deploy   # NotFound on Helm 3 clusters\nhelm install web ./chart   # uses your kubeconfig identity and RBAC directly",
     "reference": "https://helm.sh/docs/intro/using_helm/",
     "tags": [
       "helm",
@@ -1135,8 +1461,15 @@
       "They are two names for the same object",
       "A CRD is only used by Helm, a CR is only used by operators"
     ],
+    "optionNotes": [
+      "The CRD extends the API with a new kind and schema; each object of that kind you then create is a CR, which is the correct relationship.",
+      "This is backwards: the CRD carries the schema, the CR is the instance.",
+      "They are different objects: one is `apiextensions.k8s.io/CustomResourceDefinition`, the other is your custom kind.",
+      "Both Helm charts and operators can create and manage CRDs and CRs; usage is not split by tool."
+    ],
     "answer": 0,
     "explanation": "The CRD registers a new resource type with the API server, including its OpenAPI schema and versions. Once the CRD exists, users create CRs of that kind just like built-in objects such as Deployments.",
+    "example": "kubectl get crd databases.example.com      # the type definition\nkubectl get databases.example.com -A       # instances (CRs) of that type\napiVersion: example.com/v1\nkind: Database\nmetadata: {name: orders}\nspec: {engine: postgres, size: 20Gi}",
     "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/",
     "tags": [
       "crd",
@@ -1153,6 +1486,7 @@
       "etcd"
     ],
     "explanation": "All cluster state, including custom resources, is persisted by the kube-apiserver into etcd. Controllers never write to etcd directly; they always go through the API server.",
+    "example": "kubectl apply -f database-orders.yaml\n# kube-apiserver validates against the CRD schema, then writes:\n#   /registry/example.com/databases/default/orders   in etcd\netcdctl get /registry/example.com/databases --prefix --keys-only",
     "reference": "https://kubernetes.io/docs/concepts/architecture/#etcd",
     "tags": [
       "crd",
@@ -1173,8 +1507,15 @@
       "The kubelet on every node creates the resource locally",
       "Nothing happens until a user runs `kubectl rollout`"
     ],
+    "optionNotes": [
+      "etcd is a passive key-value store; it never interprets or executes the objects it holds.",
+      "The API server's watch stream delivers the ADDED/MODIFIED event to the operator's informer, whose reconcile loop then creates the real resources, which is the correct flow.",
+      "kubelets only act on Pods bound to their node; they have no concept of arbitrary custom kinds.",
+      "`kubectl rollout` applies to Deployments, StatefulSets, and DaemonSets; controllers react to CRs automatically without user commands."
+    ],
     "answer": 1,
     "explanation": "Storing a CR by itself does nothing. The API server's watch mechanism delivers an ADDED/MODIFIED event to any client watching that kind. An operator's informer receives it, enqueues the object key, and the reconcile loop turns the desired state into real resources.",
+    "example": "kubectl get databases.example.com orders -w   # client watch like an operator's\n# operator log:\n# INFO Reconciling Database default/orders\n# INFO Created StatefulSet orders-postgres\nkubectl get sts orders-postgres",
     "reference": "https://kubernetes.io/docs/concepts/extend-kubernetes/operator/",
     "tags": [
       "crd",
@@ -1195,6 +1536,13 @@
       "The API server itself creates the Pods on the nodes",
       "Controllers (Deployment, ReplicaSet) watching the API react to the change and create or update child objects"
     ],
+    "optionNotes": [
+      "Client-side apply does a three-way merge using the last-applied annotation, and server-side apply tracks field ownership via managers; either way kubectl prepares a patch.",
+      "Every request passes through authentication, authorization, then mutating and validating admission (including webhooks) before it is accepted.",
+      "The API server validates the object against its OpenAPI schema and persists it in etcd.",
+      "The API server never creates Pods itself; workload controllers, the scheduler, and kubelets do that asynchronously.",
+      "The Deployment controller creates a ReplicaSet and the ReplicaSet controller creates Pods in reaction to watch events."
+    ],
     "answer": [
       0,
       1,
@@ -1202,6 +1550,7 @@
       4
     ],
     "explanation": "The request flow is client-side diff or server-side apply, then authn/authz, admission, validation, and persistence in etcd. Pods are not created by the API server; the Deployment controller creates a ReplicaSet, the ReplicaSet controller creates Pods, the scheduler binds them to nodes, and the kubelet runs them.",
+    "example": "kubectl apply -f deploy.yaml --server-side --field-manager=ci -v=8\n# I0911 PATCH https://api:6443/apis/apps/v1/namespaces/default/deployments/web?fieldManager=ci\n# -> authn/authz -> admission webhooks -> validation -> etcd\nkubectl get rs,pods -l app=web   # created afterwards by controllers",
     "reference": "https://kubernetes.io/docs/reference/using-api/server-side-apply/",
     "tags": [
       "kubectl",
@@ -1221,8 +1570,15 @@
       "It executes shell scripts embedded in the resource manifest",
       "It only reacts to `kubectl` commands, not to changes made by other clients"
     ],
+    "optionNotes": [
+      "Controllers do not poll etcd, and never access it directly; they rely on API server watches, with only an occasional resync.",
+      "Watching the API, diffing spec against observed state, and acting to converge is the control-loop pattern all controllers and operators share.",
+      "Manifests are declarative data with no embedded executable scripts.",
+      "Controllers react to any change in the API regardless of who made it: kubectl, another controller, or a GitOps agent."
+    ],
     "answer": 1,
     "explanation": "A controller is a control loop: watch resources, observe the current state, compute the difference from the desired state, and act (create, update, delete) to close the gap. An operator is a controller that encodes operational knowledge for a specific application, usually driven by CRDs.",
+    "example": "for {\n  obj := <-informer.Events()          // watch via API server\n  desired := obj.Spec.Replicas\n  actual := countPods(obj)\n  if actual < desired { createPod(obj) }\n  if actual > desired { deletePod(obj) }\n}",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1241,8 +1597,15 @@
       "The API server's mechanism for compacting etcd history",
       "The kubelet's loop for restarting crashed containers"
     ],
+    "optionNotes": [
+      "Retrying a failed apply is a client concern; reconciliation is a server-side controller pattern.",
+      "Reading desired state, observing actual state, acting to close the gap, and re-running on every change is precisely the reconciliation loop.",
+      "etcd compaction is a datastore maintenance operation, unrelated to controllers.",
+      "The kubelet's container restart handling is one specific loop, but the general term refers to controllers converging any object toward its spec."
+    ],
     "answer": 1,
     "explanation": "Reconciliation is level-triggered rather than edge-triggered: the reconciler is given only an object key and must re-read current state and drive toward the spec regardless of which event woke it. This is why it tolerates missed or duplicated events.",
+    "example": "func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {\n    var db examplev1.Database\n    if err := r.Get(ctx, req.NamespacedName, &db); err != nil { ... }\n    // observe actual state, create/update children, update status\n    return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil\n}",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1261,8 +1624,15 @@
       "`spec` is stored in etcd; `status` is only kept in memory",
       "They are interchangeable and both are written by the user"
     ],
+    "optionNotes": [
+      "Users write intent into `spec` and controllers report observations into `status`, which is the conventional split.",
+      "Reversed: `spec` is what users edit; `status` is generally treated as controller-owned.",
+      "Both `spec` and `status` are persisted in etcd as part of the same object.",
+      "They have distinct roles and separate write paths (the `/status` subresource), so they are not interchangeable."
+    ],
     "answer": 0,
     "explanation": "The user declares intent in `spec`. Controllers report what they observed or achieved in `status`, typically via the `/status` subresource so that spec and status updates have separate RBAC and do not clobber each other.",
+    "example": "kubectl get deploy web -o yaml | yq '.spec.replicas, .status.readyReplicas'\n# 3   <- what you asked for\n# 2   <- what the controller currently observes\nkubectl patch deploy web --subresource=status --type=merge -p '{\"status\":{...}}'",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/#object-spec-and-status",
     "tags": [
       "spec",
@@ -1282,8 +1652,15 @@
       "It uses an informer that opens a watch on the resource via the API server, keeps a local cache, and enqueues the object key into a work queue on events",
       "It tails the API server's audit log"
     ],
+    "optionNotes": [
+      "Polling `kubectl` output is slow, brittle, and not how any real controller works.",
+      "etcd has no webhook mechanism and is never contacted by operators.",
+      "An informer performs a list-then-watch against the API server, maintains an indexed local cache, and pushes object keys onto a work queue, which is the standard client-go pattern.",
+      "Audit logs are for security review and may not even be enabled; they are not an event source for controllers."
+    ],
     "answer": 2,
     "explanation": "client-go informers do an initial list followed by a long-running watch. Events update a local indexed cache and trigger handlers that enqueue keys; worker goroutines pop keys and call reconcile. controller-runtime wraps this pattern.",
+    "example": "informer := factory.Example().V1().Databases().Informer()\ninformer.AddEventHandler(cache.ResourceEventHandlerFuncs{\n    AddFunc:    func(o interface{}) { queue.Add(keyOf(o)) },\n    UpdateFunc: func(_, n interface{}) { queue.Add(keyOf(n)) },\n})\n// LIST once, then WATCH; workers pop keys and call reconcile",
     "reference": "https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes",
     "tags": [
       "operators",
@@ -1303,8 +1680,15 @@
       "Because Go does not support retries",
       "Because etcd only stores each object once"
     ],
+    "optionNotes": [
+      "Resyncs, coalesced events, error retries, and restarts all re-invoke reconcile for the same key, so it must observe and only fix differences rather than blindly create, which is the reason.",
+      "The API server accepts duplicate requests; a second create simply fails with AlreadyExists, which is why the controller must handle it.",
+      "Go supports retries fine; the requirement comes from the controller pattern, not the language.",
+      "etcd storing one object per key is true but irrelevant to why reconcile logic must be repeatable."
+    ],
     "answer": 0,
     "explanation": "Reconcile is triggered by many sources and events can be coalesced or replayed. An idempotent reconcile checks current state and only acts on the difference, so repeated runs converge to the same result instead of, for example, creating a second Deployment.",
+    "example": "// idempotent: look before you create\nvar sts appsv1.StatefulSet\nerr := r.Get(ctx, types.NamespacedName{Name: db.Name, Namespace: db.Namespace}, &sts)\nif apierrors.IsNotFound(err) {\n    return r.Create(ctx, buildStatefulSet(&db))\n}\nreturn r.Update(ctx, mergeDesired(&sts, &db))   // safe to run 100 times",
     "reference": "https://kubernetes.io/docs/concepts/architecture/controller/",
     "tags": [
       "controllers",
@@ -1323,8 +1707,15 @@
       "The last container in a Pod to be started",
       "A validating webhook that runs at the end of the admission chain"
     ],
+    "optionNotes": [
+      "Post-Pod log collection is not a Kubernetes feature; kubelet log handling is unrelated to finalizers.",
+      "A finalizer is a string in `metadata.finalizers` that keeps the object around after delete until a controller removes it, which is correct.",
+      "Container start order is governed by init containers and sidecars, not finalizers.",
+      "Validating webhooks run at admission time on every request, a different phase from deletion."
+    ],
     "answer": 1,
     "explanation": "When an object with finalizers is deleted, the API server sets `metadata.deletionTimestamp` instead of removing it. The controller sees this, cleans up external resources (cloud disks, DNS records), then removes its finalizer; once the list is empty the object is garbage collected.",
+    "example": "metadata:\n  finalizers:\n  - example.com/cleanup-cloud-disk\nkubectl delete database orders   # sets deletionTimestamp, object remains\n# controller deletes the disk, then:\ncontrollerutil.RemoveFinalizer(&db, \"example.com/cleanup-cloud-disk\"); r.Update(ctx, &db)",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
     "tags": [
       "finalizers",
@@ -1343,8 +1734,15 @@
       "A finalizer cascades deletion to children; an ownerReference blocks deletion",
       "ownerReferences apply only to Pods; finalizers apply only to CRs"
     ],
+    "optionNotes": [
+      "ownerReferences let the garbage collector cascade deletion to dependents, while finalizers hold an object in Terminating until cleanup completes, which is the correct distinction.",
+      "They are separate fields with separate controllers (garbage collector vs. the owning operator).",
+      "Reversed: cascading is done via ownerReferences; blocking is done via finalizers.",
+      "Both mechanisms work on any Kubernetes object, built-in or custom."
+    ],
     "answer": 0,
     "explanation": "ownerReferences describe the parent/child graph used for cascading (background or foreground) deletion of in-cluster objects. Finalizers are for cleanup the garbage collector cannot do itself, such as deleting resources outside the cluster. Operators often use both: children carry an ownerReference to the CR, and the CR carries a finalizer for external cleanup.",
+    "example": "# child created by the operator\nmetadata:\n  ownerReferences:\n  - apiVersion: example.com/v1\n    kind: Database\n    name: orders\n    uid: 5f1c...\n    controller: true   # GC deletes this child when Database orders goes away\n# the CR itself carries finalizers: [example.com/cleanup-cloud-disk]",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/",
     "tags": [
       "finalizers",
@@ -1365,6 +1763,13 @@
       "Write directly to etcd for performance",
       "Register the controller with `Owns()`/`Watches()` so changes to child resources also trigger reconcile"
     ],
+    "optionNotes": [
+      "Kubebuilder and Operator SDK scaffold the API types, controller, manager `main.go`, RBAC, and Makefile on top of controller-runtime; this is the standard starting point.",
+      "Spec/Status structs with `+kubebuilder` markers feed `controller-gen`, which emits the CRD manifests and `zz_generated.deepcopy.go`.",
+      "`Reconcile(ctx, req)` fetches the object by namespaced name, ensures owned resources exist, writes status, and returns a `ctrl.Result` (optionally with requeue).",
+      "Writing to etcd directly bypasses authentication, admission, validation, and RBAC; operators only ever use the API server.",
+      "`Owns()` and `Watches()` register secondary watches so a change to a child StatefulSet or Service re-triggers reconcile of its owner."
+    ],
     "answer": [
       0,
       1,
@@ -1372,6 +1777,7 @@
       4
     ],
     "explanation": "Kubebuilder and Operator SDK sit on controller-runtime, which provides the manager, cached client, informers, work queue and leader election. Reconcile receives only a namespaced name and must re-read state. Writing to etcd directly bypasses validation, admission and RBAC and is never done.",
+    "example": "kubebuilder init --domain example.com --repo github.com/acme/db-operator\nkubebuilder create api --group example --version v1 --kind Database\nmake manifests generate   # controller-gen -> CRD YAML + deepcopy\n# in SetupWithManager:\nctrl.NewControllerManagedBy(mgr).For(&examplev1.Database{}).Owns(&appsv1.StatefulSet{}).Complete(r)",
     "reference": "https://book.kubebuilder.io/",
     "tags": [
       "operators",
@@ -1394,6 +1800,14 @@
       "create and patch on `events` so it can emit Kubernetes Events for troubleshooting",
       "update on the custom resource itself if it adds or removes finalizers"
     ],
+    "optionNotes": [
+      "get, list, and watch on the CR are required for the informer to populate its cache and react to changes.",
+      "Writing observed state requires update or patch on the `/status` subresource, which has its own RBAC rule.",
+      "Managing child objects such as Deployments, StatefulSets, and Services requires create, update, and delete on those kinds.",
+      "cluster-admin grants everything and violates least privilege; well-built operators enumerate only the kinds and verbs they touch.",
+      "Emitting Kubernetes Events for troubleshooting needs create and patch on `events` in the core group.",
+      "Adding or removing finalizers modifies `metadata` on the CR itself, which needs update or patch on the main resource."
+    ],
     "answer": [
       0,
       1,
@@ -1402,6 +1816,7 @@
       5
     ],
     "explanation": "Follow least privilege: only the verbs and kinds the controller actually touches. Kubebuilder generates the ClusterRole from `+kubebuilder:rbac` markers. If leader election is enabled it also needs access to `leases` in coordination.k8s.io. cluster-admin is a common but poor shortcut.",
+    "example": "// +kubebuilder:rbac:groups=example.com,resources=databases,verbs=get;list;watch;update;patch\n// +kubebuilder:rbac:groups=example.com,resources=databases/status,verbs=get;update;patch\n// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete\n// +kubebuilder:rbac:groups=\"\",resources=events,verbs=create;patch\nmake manifests   # regenerates config/rbac/role.yaml",
     "reference": "https://book.kubebuilder.io/reference/markers/rbac",
     "tags": [
       "operators",
@@ -1420,8 +1835,15 @@
       "Sleep inside Reconcile until the external API recovers",
       "Ignore the error, since the next resync will fix it"
     ],
+    "optionNotes": [
+      "Returning a non-nil error lets the work queue's rate limiter re-enqueue the key with capped exponential backoff, which is the idiomatic retry.",
+      "Crashing the process restarts every reconcile, drops the cache, and disrupts all other objects for one transient failure.",
+      "Sleeping inside Reconcile blocks a worker goroutine and starves other keys; use `RequeueAfter` instead.",
+      "The default resync is roughly 10 hours and is not a reliable retry mechanism."
+    ],
     "answer": 0,
     "explanation": "Returning an error triggers the work queue's rate limiter (exponential backoff, capped). For expected waits such as polling a slow resource, return `ctrl.Result{RequeueAfter: d}` with nil error. Blocking inside Reconcile starves other keys, and the default resync period is too coarse to rely on.",
+    "example": "if err := external.Provision(ctx, db); err != nil {\n    return ctrl.Result{}, err              // re-enqueued with exponential backoff\n}\nif !external.Ready(ctx, db) {\n    return ctrl.Result{RequeueAfter: 30 * time.Second}, nil   // expected wait\n}\nreturn ctrl.Result{}, nil",
     "reference": "https://book.kubebuilder.io/reference/reconcile",
     "tags": [
       "operators",
@@ -1441,8 +1863,15 @@
       "Delete all CRs, change the version string, and recreate them",
       "Versions cannot coexist; only one version may ever be defined"
     ],
+    "optionNotes": [
+      "Two CRDs with different kinds would be different APIs entirely; clients could not treat them as versions of one resource.",
+      "A single CRD lists multiple served versions with one storage version, and a conversion strategy (`None` or `Webhook`) translates between them, which is the supported approach.",
+      "Deleting all CRs to change a version string loses user data and offers no compatibility window.",
+      "Kubernetes explicitly supports multiple coexisting versions in `spec.versions`."
+    ],
     "answer": 1,
     "explanation": "A CRD can serve several versions concurrently. Objects are persisted in the storage version; the API server converts on read/write using the conversion strategy. When the schemas differ, a conversion webhook implements the mapping. After migrating stored objects you can drop the old version from `served` and `storedVersions`.",
+    "example": "spec:\n  versions:\n  - name: v1alpha1\n    served: true\n    storage: false\n  - name: v1\n    served: true\n    storage: true      # exactly one storage version\n  conversion:\n    strategy: Webhook  # or None when schemas are identical\n    webhook: {clientConfig: {service: {name: db-webhook, namespace: ops, path: /convert}}}",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/",
     "tags": [
       "crd",
@@ -1463,6 +1892,13 @@
       "Check whether a ResourceQuota or LimitRange in the namespace is blocking the pod",
       "Restart the kubelet on every node, since Pending is always a kubelet problem"
     ],
+    "optionNotes": [
+      "The Events section of `describe` carries the scheduler's exact reason (`Insufficient cpu`, affinity mismatch, taints), making it the first thing to read.",
+      "A Pod whose PVC is unbound stays Pending until a volume is provisioned or bound, so checking `kubectl get pvc` is a valid step.",
+      "Taints without matching tolerations, or unsatisfied `nodeSelector`/affinity rules, remove every candidate node and leave the Pod Pending.",
+      "A `ResourceQuota` at its limit causes Pod creation to be rejected, and a `LimitRange` can reject Pods outside its bounds, both worth checking.",
+      "Pending is a scheduling-phase state; kubelets have not been involved yet, so restarting them on every node is disruptive and pointless."
+    ],
     "answer": [
       0,
       1,
@@ -1470,6 +1906,7 @@
       3
     ],
     "explanation": "Pending means the scheduler has not bound the pod to a node (or the image pull has not started). The Events in `describe` almost always name the reason: insufficient resources, taints, affinity, unbound PVC, or quota. If the cluster is simply full, the Cluster Autoscaler or Karpenter logs show whether a node is being added. Restarting kubelets does not help a scheduling problem.",
+    "example": "kubectl describe pod api-7c9d -n shop | sed -n '/Events/,$p'\n# Warning  FailedScheduling  0/5 nodes are available: 2 node(s) had untolerated taint, 3 Insufficient memory.\nkubectl get pvc -n shop           # STATUS Pending means storage is the blocker\nkubectl describe quota -n shop    # check used vs hard",
     "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/",
     "tags": [
       "troubleshooting",
@@ -1490,6 +1927,13 @@
       "Check NetworkPolicies that may be denying ingress to the pod",
       "Delete the Service and recreate it with a NodePort, since ClusterIP Services are unreliable"
     ],
+    "optionNotes": [
+      "If Endpoints/EndpointSlices are empty, either the selector does not match the Pod labels or the Pod is not Ready; this is the single most common cause.",
+      "A Service whose `targetPort` does not match the container's listening port forwards to nothing, so verifying port mapping is essential.",
+      "Curling the Pod IP directly from another Pod isolates whether the app itself responds, separating app bugs from Service/DNS issues.",
+      "A NetworkPolicy selecting the Pod without an allowing ingress rule silently drops traffic, so listing policies is a legitimate check.",
+      "ClusterIP Services are reliable; switching to NodePort changes exposure, not endpoint selection, port mapping, or policy, so it does not address the problem."
+    ],
     "answer": [
       0,
       1,
@@ -1497,6 +1941,7 @@
       3
     ],
     "explanation": "Work from the inside out: is the app listening on the expected port, does the pod pass readiness so it is in the Endpoints, does the Service map the right ports, does DNS resolve the Service name, and is a NetworkPolicy blocking traffic. Changing Service type does not address any of these.",
+    "example": "kubectl get endpoints api -n shop\n# NAME  ENDPOINTS\n# api   <none>          <- selector mismatch or readiness failing\nkubectl get svc api -o yaml | grep -E 'port|targetPort'\nkubectl exec -n shop debug -- curl -s http://10.244.3.8:8080/healthz   # bypass the Service\nkubectl get networkpolicy -n shop",
     "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/",
     "tags": [
       "troubleshooting",
@@ -1515,6 +1960,7 @@
       "kubectl drain"
     ],
     "explanation": "`kubectl drain` marks the node unschedulable and evicts pods using the Eviction API, which honours PodDisruptionBudgets. You typically add `--ignore-daemonsets` and `--delete-emptydir-data`. After maintenance, `kubectl uncordon` makes the node schedulable again.",
+    "example": "kubectl cordon worker-3\nkubectl drain worker-3 --ignore-daemonsets --delete-emptydir-data\n# evicting pod shop/api-7c9d ... respects PodDisruptionBudgets\n# ... do maintenance ...\nkubectl uncordon worker-3",
     "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
     "tags": [
       "nodes",
@@ -1535,8 +1981,15 @@
       "Delete all pods on the node with `--force --grace-period=0`, then reboot",
       "Scale every Deployment to zero, reboot, then scale back up"
     ],
+    "optionNotes": [
+      "Powering off skips graceful termination and PDBs; Pods only get rescheduled after the node is marked NotReady and the eviction timeout passes, causing an outage.",
+      "PDBs plus cordon, drain, maintain, uncordon is the documented safe sequence that keeps enough replicas available throughout.",
+      "Force-deleting with zero grace period bypasses preStop hooks, SIGTERM handling, and PDBs.",
+      "Scaling every Deployment to zero takes the whole cluster's workloads down, the opposite of minimal disruption."
+    ],
     "answer": 1,
     "explanation": "Cordon stops new pods landing on the node, drain evicts existing ones gracefully while PDBs prevent taking too many replicas of a service down at once, and uncordon returns the node to service. Force-deleting pods or powering off bypasses graceful termination and PDBs.",
+    "example": "kubectl get pdb -A                         # confirm budgets exist\nkubectl cordon worker-3\nkubectl drain worker-3 --ignore-daemonsets --delete-emptydir-data --timeout=300s\nsudo apt upgrade && sudo reboot            # on the node\nkubectl uncordon worker-3",
     "reference": "https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/",
     "tags": [
       "nodes",
@@ -1556,8 +2009,15 @@
       "The kubelet copies data between nodes whenever a pod is rescheduled",
       "Only StatefulSets can use storage; Deployments are always stateless"
     ],
+    "optionNotes": [
+      "A container's writable layer is ephemeral and discarded on restart; nothing is preserved without a volume.",
+      "PVC request, StorageClass with a CSI driver provisioning a PV, binding, and mounting into the Pod is the complete persistent storage flow.",
+      "The kubelet does not copy data between nodes; the CSI driver detaches and reattaches network-backed volumes, or the Pod is pinned by topology.",
+      "Deployments can use PVCs as well; StatefulSets simply add per-replica `volumeClaimTemplates`."
+    ],
     "answer": 1,
     "explanation": "PVCs are the pod's request for storage; PVs are the actual volumes. With dynamic provisioning the StorageClass names a CSI driver (for example EBS on EKS) that creates the backing disk. Access modes (RWO, RWX) and the volume binding mode (for example `WaitForFirstConsumer`) determine which nodes can mount it.",
+    "example": "kind: PersistentVolumeClaim\nmetadata: {name: pgdata}\nspec:\n  storageClassName: gp3          # CSI driver ebs.csi.aws.com\n  accessModes: [ReadWriteOnce]\n  resources: {requests: {storage: 50Gi}}\n---\nvolumes:\n- name: data\n  persistentVolumeClaim: {claimName: pgdata}   # mounted into the Pod",
     "reference": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/",
     "tags": [
       "storage",
@@ -1578,8 +2038,15 @@
       "EKS ignores RBAC; permissions come only from IAM policies",
       "Users log in with a username and password stored in a Secret"
     ],
+    "optionNotes": [
+      "Sharing one kubeconfig removes accountability and audit trails and is not how EKS access is designed.",
+      "EKS authenticates via IAM tokens, maps IAM principals to Kubernetes groups through access entries or `aws-auth`, and then applies RBAC; this layered model is correct.",
+      "IAM policies alone cannot express Kubernetes verbs and resources; RBAC inside the cluster is always enforced.",
+      "Kubernetes has no built-in username/password user store, and Secrets are not used for API authentication of humans."
+    ],
     "answer": 1,
     "explanation": "Authentication is IAM: `aws eks get-token` produces a token the API server verifies. Authorization is two layers: the IAM-to-Kubernetes identity mapping (access entries with access policies, or aws-auth), then normal RBAC inside the cluster. Workloads use IRSA or Pod Identity to get IAM permissions.",
+    "example": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:role/ci-deployer --kubernetes-groups deployers\nkubectl create rolebinding deployers --clusterrole=edit --group=deployers -n shop\naws eks update-kubeconfig --name prod   # kubeconfig uses aws eks get-token",
     "reference": "https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html",
     "tags": [
       "eks",
@@ -1600,6 +2067,13 @@
       "Use rolling or surge node-group upgrades that add new nodes before draining old ones, and upgrade cluster add-ons (CNI, CoreDNS, kube-proxy) to compatible versions",
       "Upgrade several minor versions in one jump to reduce the number of maintenance windows"
     ],
+    "optionNotes": [
+      "Control plane first, then nodes, keeps kubelets no newer than the API server and within the supported skew, which is required.",
+      "Removed APIs (for example `policy/v1beta1` PodSecurityPolicy) break manifests after upgrade, so scanning with Pluto or `kubectl-convert` beforehand is standard practice.",
+      "PDBs and multiple replicas spread across nodes ensure drains during node upgrades never take a service fully down.",
+      "Surge upgrades bring new nodes up before draining old ones, and add-ons like CNI, CoreDNS, and kube-proxy must be moved to versions compatible with the new control plane.",
+      "Kubernetes supports upgrading one minor version at a time; jumping several versions is unsupported and can corrupt state or break components."
+    ],
     "answer": [
       0,
       1,
@@ -1607,6 +2081,7 @@
       3
     ],
     "explanation": "Kubernetes only supports upgrading one minor version at a time, and the API server must be newer than or equal to kubelets. Test in a non-production cluster first, watch for API removals, and rely on PDBs and surge capacity so drains are graceful. Skipping minor versions is unsupported.",
+    "example": "kubectl version                          # note server vs kubelet skew\npluto detect-all-in-cluster -o wide      # find deprecated APIs first\naws eks update-cluster-version --name prod --kubernetes-version 1.31\naws eks update-nodegroup-version --cluster-name prod --nodegroup-name workers   # surge rolling\naws eks update-addon --cluster-name prod --addon-name coredns --addon-version v1.11.3-eksbuild.1",
     "reference": "https://kubernetes.io/releases/version-skew-policy/",
     "tags": [
       "upgrades",
@@ -1627,6 +2102,13 @@
       "Compile the operator binary for a single architecture only, since all clusters run amd64",
       "Set an explicit `kubeVersion` constraint in `Chart.yaml` and test the chart against each supported version"
     ],
+    "optionNotes": [
+      "Exposing StorageClass, ingress class, domains, and IAM role ARNs as Helm values lets the same chart deploy on any cluster without edits.",
+      "Shipping CRDs in `crds/` (or a dedicated chart) and coding against stable built-in API versions avoids breakage across Kubernetes releases.",
+      "Reading the namespace from the Downward API and honouring `WATCH_NAMESPACE` lets the operator run cluster-wide or namespaced as each cluster needs.",
+      "Many clusters run arm64 nodes (Graviton, Ampere); a single-architecture image will fail to schedule there, so multi-arch builds are needed for portability.",
+      "A `kubeVersion` constraint in `Chart.yaml` makes Helm refuse unsupported clusters, and testing against each supported version catches API drift early."
+    ],
     "answer": [
       0,
       1,
@@ -1634,6 +2116,7 @@
       4
     ],
     "explanation": "Portability means parameterising anything that differs by cluster, avoiding dependence on provider-specific defaults, building multi-arch images (arm64 nodes are common), and declaring which Kubernetes versions the chart and operator support. Helm's `crds/` directory installs CRDs before templates are rendered but does not upgrade them, so document or automate CRD upgrades.",
+    "example": "# Chart.yaml\nkubeVersion: \">=1.27.0-0\"\n# values.yaml\nstorageClassName: \"\"          # empty -> cluster default\ningressClassName: nginx\n# crds/databases.yaml installed before templates\ndocker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/acme/db-operator:1.4 --push .",
     "reference": "https://helm.sh/docs/chart_best_practices/custom_resource_definitions/",
     "tags": [
       "helm",
@@ -1650,6 +2133,7 @@
     "prompt": "Deleting a CustomResourceDefinition also deletes every Custom Resource of that kind in the cluster.",
     "answer": true,
     "explanation": "Removing a CRD removes the API type, and the API server garbage-collects all objects of that kind. If those CRs carry finalizers whose controller is already gone, the CRD deletion hangs until the finalizers are removed manually.",
+    "example": "kubectl get databases.example.com -A   # 12 objects\nkubectl delete crd databases.example.com\n# all 12 Database objects are garbage-collected with the CRD\n# hangs if any CR still carries a finalizer with no controller to clear it",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#delete-a-customresourcedefinition",
     "tags": [
       "crd",
@@ -1664,6 +2148,7 @@
     "prompt": "When the `status` subresource is enabled on a CRD, an update to the main resource endpoint ignores changes to `.status`, and an update to `/status` ignores changes to `.spec`.",
     "answer": true,
     "explanation": "Enabling `subresources.status` splits the object: PUT/PATCH on the resource only persists spec and metadata, while PUT/PATCH on `/status` only persists status. This prevents controllers and users from overwriting each other and allows separate RBAC rules for each.",
+    "example": "spec:\n  versions:\n  - name: v1\n    subresources:\n      status: {}\n# with status enabled:\nkubectl patch database orders --type=merge -p '{\"status\":{\"phase\":\"Ready\"}}'           # ignored\nkubectl patch database orders --subresource=status --type=merge -p '{\"status\":{\"phase\":\"Ready\"}}'  # persisted",
     "reference": "https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource",
     "tags": [
       "crd",
@@ -1683,8 +2168,15 @@
       "It is the etcd revision number of the object",
       "It is the number of child objects the controller owns"
     ],
+    "optionNotes": [
+      "Reconcile counts are not tracked by this field; generation only increments on spec changes, not on every loop.",
+      "Copying `metadata.generation` into `status.observedGeneration` tells clients whether the status reflects the current spec, which is the field's defined purpose.",
+      "The etcd revision is exposed as `metadata.resourceVersion`, a different field that changes on any write including status.",
+      "Child object counts belong in application-specific status fields such as `readyReplicas`, not `observedGeneration`."
+    ],
     "answer": 1,
     "explanation": "`metadata.generation` increments on every spec change. A controller copies it into `status.observedGeneration` after reconciling. If they differ, the status is stale and the controller has not yet processed the latest spec, which is how tools like `kubectl rollout status` decide whether to keep waiting.",
+    "example": "kubectl get deploy web -o jsonpath='{.metadata.generation} {.status.observedGeneration}'\n# 7 6   <- controller has not yet processed the latest spec change\n# in a custom controller after reconciling:\ndb.Status.ObservedGeneration = db.Generation\nr.Status().Update(ctx, &db)",
     "reference": "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/#DeploymentStatus",
     "tags": [
       "status",
@@ -1704,8 +2196,15 @@
       "The pods are missing a livenessProbe; add one",
       "The Cluster Autoscaler has scaled down too aggressively; disable it"
     ],
+    "optionNotes": [
+      "DiskPressure comes from the kubelet's nodefs/imagefs thresholds; full root volumes from images, logs, or emptyDir are the usual cause, and pruning, log rotation, ephemeral-storage limits, and bigger disks are the matching fixes.",
+      "etcd space problems surface as API server write errors (`mvcc: database space exceeded`), not as a node condition.",
+      "Liveness probes affect container restarts and have no relation to node disk usage.",
+      "The Cluster Autoscaler removes underutilised nodes; it does not fill a node's disk."
+    ],
     "answer": 0,
     "explanation": "DiskPressure means the kubelet's eviction thresholds for `nodefs` or `imagefs` were crossed. Typical culprits are image bloat, application logs written to the node, or emptyDir volumes. `kubectl describe node` and `df` on the node confirm it; ephemeral-storage limits let the kubelet evict the offending pod rather than random ones.",
+    "example": "kubectl describe node ip-10-0-1-23 | grep -A3 DiskPressure\n# on the node:\ndf -h /var/lib/containerd /var/log\ncrictl rmi --prune                       # remove unused images\n# in the Pod spec:\nresources: {limits: {ephemeral-storage: 2Gi}}",
     "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/",
     "tags": [
       "troubleshooting",
@@ -1726,8 +2225,15 @@
       "Increase the number of replicas so each pod gets less traffic",
       "Set `restartPolicy: Never`"
     ],
+    "optionNotes": [
+      "OOM kills come from the kernel cgroup limit, not from the liveness probe; removing the probe changes nothing about memory.",
+      "Measuring real usage and then fixing the leak or right-sizing the limit addresses the cause of the kill, which is correct.",
+      "More replicas only help if memory scales with per-Pod traffic; a leak or an oversized baseline will OOM regardless of replica count.",
+      "`restartPolicy: Never` (not even allowed on a Deployment) would leave the container dead instead of fixing why it dies."
+    ],
     "answer": 1,
     "explanation": "OOMKilled means the container exceeded its cgroup memory limit and the kernel killed it. The fix is right-sizing the limit or fixing the application's memory growth. Removing probes or changing restart policy just hides the failure; more replicas only helps if memory scales with traffic.",
+    "example": "kubectl get pod api-5f6d -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'\n# OOMKilled\nkubectl top pod api-5f6d            # actual working set vs limit\nkubectl set resources deploy/api --limits=memory=1Gi --requests=memory=768Mi",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/",
     "tags": [
       "troubleshooting",
@@ -1747,8 +2253,15 @@
       "They are the same component configured differently",
       "HPA only works with StatefulSets"
     ],
+    "optionNotes": [
+      "HPA scales replica counts from metrics, while the Cluster Autoscaler or Karpenter scales node capacity in response to unschedulable Pods and consolidates idle nodes; this is the correct division.",
+      "Reversed: HPA never touches nodes and node autoscalers never create Pods.",
+      "They are separate components with different APIs and targets, not one component with two configurations.",
+      "HPA targets any scalable resource with a `/scale` subresource, including Deployments, ReplicaSets, and StatefulSets."
+    ],
     "answer": 0,
     "explanation": "Autoscaling in Kubernetes has two layers. HPA (and KEDA for event-driven sources like SQS queue depth) scales workloads. When new pods go Pending for lack of capacity, the node autoscaler provisions nodes; when nodes are mostly empty it consolidates them. VPA is a third option that adjusts requests instead of replica count.",
+    "example": "kubectl autoscale deploy api --cpu-percent=60 --min=3 --max=30   # HPA: pods\n# Karpenter NodePool: nodes appear when pods go Pending\nkubectl get nodeclaims\nkubectl get events --field-selector reason=TriggeredScaleUp   # Cluster Autoscaler",
     "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
     "tags": [
       "autoscaling",
@@ -1768,8 +2281,15 @@
       "The pod's grace period is set too high",
       "The CRD has multiple versions defined"
     ],
+    "optionNotes": [
+      "etcd compaction is background history trimming and never blocks object deletion.",
+      "A non-empty `metadata.finalizers` list with `deletionTimestamp` set keeps the object in Terminating until its controller removes the finalizer; if that controller is down, it hangs, which is the correct diagnosis.",
+      "Grace periods apply to Pod termination, not to custom resources.",
+      "Multiple served versions on a CRD do not affect deletion of its objects."
+    ],
     "answer": 1,
     "explanation": "An object with `deletionTimestamp` set and a non-empty `metadata.finalizers` list is not removed until each finalizer is cleared. If the operator that owns the finalizer is down, the object hangs. Restore the operator, or as a last resort patch the finalizers away after doing the cleanup manually.",
+    "example": "kubectl get database orders -o jsonpath='{.metadata.deletionTimestamp} {.metadata.finalizers}'\n# 2026-09-11T08:12:00Z [example.com/cleanup-cloud-disk]\nkubectl -n ops get pods -l app=db-operator   # operator missing or CrashLoopBackOff\n# last resort after manual cleanup:\nkubectl patch database orders -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge",
     "reference": "https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/",
     "tags": [
       "finalizers",

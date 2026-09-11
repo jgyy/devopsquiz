@@ -115,3 +115,16 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
 .review { list-style: none; padding: 0; }
 .review .card.ok { border-left: 4px solid var(--ok); } .review .card.bad { border-left: 4px solid var(--bad); }
 .review .explanation { color: var(--muted); font-size: 0.95rem; }
+
+.explain h4 { margin: 0.9rem 0 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.option-notes { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+.option-notes li { display: grid; grid-template-columns: 1.25rem 1fr; gap: 0.5rem; padding: 0.5rem 0.7rem; border-radius: var(--radius); background: var(--panel-2); border-left: 3px solid var(--border); font-size: 0.93rem; }
+.option-notes li.correct { border-left-color: var(--ok); }
+.option-notes li.wrong { border-left-color: var(--bad); }
+.option-notes .mark { font-weight: 700; text-align: center; }
+.option-notes li.correct .mark { color: var(--ok); }
+.option-notes li.wrong .mark { color: var(--bad); }
+.option-notes .note { color: var(--muted); }
+.option-notes .note code, .option-notes .label code { font-size: 0.9em; }
+.example { margin: 0; padding: 0.7rem 0.9rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.88rem; line-height: 1.45; white-space: pre-wrap; overflow-x: auto; }
+.explain .reference { display: inline-block; margin-top: 0.6rem; }

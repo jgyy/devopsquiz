@@ -11,8 +11,15 @@
       "The linter will fail the build",
       "The build will run slightly slower"
     ],
+    "optionNotes": [
+      "Git keeps every committed blob in history, so the key stays recoverable by anyone who can read the repo (or its forks, CI logs, and backups) even after a later deletion; this is the real risk.",
+      "A short API key adds a negligible number of bytes to the repository; disk usage is not a security concern here.",
+      "Linters check code style and common bugs; most do not detect secrets, and even a lint failure would not be the security risk itself.",
+      "Build time is unaffected by the presence of a string literal in source; it is unrelated to the exposure of the secret."
+    ],
     "answer": 0,
     "explanation": "Once a secret is committed, it persists in git history. Deleting the file in a later commit does not remove it from history, so the only reliable fix is to rotate/invalidate the exposed secret and then clean the history.",
+    "example": "# gitleaks finds the committed key even after the file was deleted\ngitleaks detect --source . --log-opts='--all'\n# Finding: AKIA... in config.py at commit 3f2a9c1\n# Fix: rotate the key with the provider, then rewrite history",
     "tags": [
       "secrets",
       "git"
@@ -26,6 +33,7 @@
     "prompt": "If a secret is accidentally committed to git and then removed in a later commit, it is no longer accessible to anyone who has already cloned the repository or who inspects its history.",
     "answer": false,
     "explanation": "Git preserves full history by default. Removing a file in a new commit does not erase it from earlier commits, so the secret remains recoverable. The only dependable remedy is to rotate the exposed secret.",
+    "example": "# The secret is still in history even after 'git rm' and a new commit\ngit log --all -p -S 'AKIA' -- config.py   # shows the commit that added the key\ngit show 3f2a9c1:config.py                 # prints the old file with the key\n# Remedy: rotate the key, then git filter-repo to purge history",
     "tags": [
       "secrets",
       "git"
@@ -43,8 +51,15 @@
       "Privileges only need to be reviewed once, when an account is created",
       "All applications should share a single, highly privileged service account"
     ],
+    "optionNotes": [
+      "Defaulting everyone to administrator maximizes blast radius when any account is compromised; it is the opposite of least privilege.",
+      "Granting only the minimum permissions a user or workload needs, and nothing beyond it, is the definition of the principle of least privilege.",
+      "Least privilege requires ongoing review because job roles and needs change; a one-time review at account creation lets permissions accumulate over time.",
+      "A single shared, highly privileged service account removes attribution and gives every application far more access than it needs."
+    ],
     "answer": 1,
     "explanation": "Least privilege limits the blast radius if an account, process, or credential is ever compromised, by ensuring it never has more access than its job requires.",
+    "example": "# IAM policy that grants only read access to one bucket, nothing more\n{\n  \"Effect\": \"Allow\",\n  \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n  \"Resource\": [\"arn:aws:s3:::app-assets\", \"arn:aws:s3:::app-assets/*\"]\n}",
     "tags": [
       "least-privilege",
       "iam"
@@ -62,8 +77,15 @@
       "Moving security testing, reviews, and controls earlier into the development lifecycle instead of only at the end",
       "Moving all responsibility for security onto the operations team"
     ],
+    "optionNotes": [
+      "Deferring scans until after production deployment is the extreme of shifting right; issues are found last and cost the most to fix.",
+      "Shift-left is about the position of security activities in the delivery timeline, not the physical seating of a security team.",
+      "Moving security testing, reviews, and controls earlier in the lifecycle, such as into the IDE, pre-commit hooks, and pull requests, is exactly what shift-left security means.",
+      "Shift-left spreads security responsibility across developers and the whole team; it does not hand it all to operations."
+    ],
     "answer": 2,
     "explanation": "Shift-left means catching issues as early as code is written or reviewed (e.g., in the IDE, pre-commit hooks, or pull requests) rather than only at release time, when defects are far more expensive to fix.",
+    "example": "# .pre-commit-config.yaml: run secret and SAST checks before code is even committed\nrepos:\n  - repo: https://github.com/gitleaks/gitleaks\n    rev: v8.18.4\n    hooks: [{id: gitleaks}]\n  - repo: https://github.com/PyCQA/bandit\n    rev: 1.7.9\n    hooks: [{id: bandit}]",
     "tags": [
       "shift-left",
       "sdlc"
@@ -77,6 +99,7 @@
     "prompt": "Shifting security left generally increases the total cost of fixing vulnerabilities because it requires more tooling earlier in the pipeline.",
     "answer": false,
     "explanation": "Shift-left is intended to reduce overall cost and risk: defects caught during coding or code review are far cheaper and faster to fix than the same defects found in production.",
+    "example": "# Same SQL injection bug, different discovery points and cost\n# 1. IDE / pre-commit SAST warning  -> fixed in minutes by the author\n# 2. Pull request scan              -> fixed before merge\n# 3. Production incident            -> outage, forensics, patch, disclosure\n# Earlier detection is cheaper, not more expensive",
     "tags": [
       "shift-left",
       "sdlc"
@@ -94,8 +117,15 @@
       "It analyzes a running application by sending it crafted HTTP requests, like an external attacker would",
       "It analyzes source code, bytecode, or binaries for vulnerabilities without executing the application"
     ],
+    "optionNotes": [
+      "Checking third-party dependencies for known CVEs describes Software Composition Analysis (SCA), not SAST.",
+      "Benchmarking under simulated load is performance or load testing, which is not a security testing technique at all.",
+      "Sending crafted HTTP requests to a running application is Dynamic Application Security Testing (DAST), the black-box counterpart of SAST.",
+      "Analyzing source code, bytecode, or binaries for vulnerabilities without executing the program is precisely what SAST does."
+    ],
     "answer": 3,
     "explanation": "SAST is a 'white-box' technique: it inspects the application's own code or compiled artifacts directly, without running the application, to find issues like injection flaws or insecure patterns.",
+    "example": "# Semgrep scans source code without running the application\nsemgrep --config p/owasp-top-ten src/\n# src/db.py:42  python.lang.security.audit.formatted-sql-query\n#   Detected string formatting in a SQL query (possible injection)",
     "tags": [
       "sast",
       "appsec"
@@ -113,8 +143,15 @@
       "It reviews source code line by line before the application is compiled or built",
       "It generates a Software Bill of Materials listing every dependency"
     ],
+    "optionNotes": [
+      "Probing a deployed, running application from the outside without source access is the defining characteristic of DAST.",
+      "Signing container images to verify provenance is the job of tools like `cosign`, not a testing technique.",
+      "Reviewing source code before compilation describes SAST, the static, white-box approach.",
+      "Generating a Software Bill of Materials is done by SBOM tools such as `syft`, not by DAST."
+    ],
     "answer": 0,
     "explanation": "DAST is a 'black-box' technique that exercises a deployed, running application (e.g., a web app) and observes its behavior and responses to find exploitable vulnerabilities.",
+    "example": "# OWASP ZAP baseline scan probes a running staging site from the outside\ndocker run --rm -t ghcr.io/zaproxy/zaproxy:stable \\\n  zap-baseline.py -t https://staging.example.com -r zap-report.html\n# WARN: Missing Anti-clickjacking Header [10020] x 12",
     "tags": [
       "dast",
       "appsec"
@@ -132,8 +169,15 @@
       "To measure the percentage of code covered by unit tests",
       "To automatically reformat source code to a consistent style"
     ],
+    "optionNotes": [
+      "Encrypting data at rest is handled by database or storage-layer encryption features, not by SCA tools.",
+      "Inventorying open-source and third-party dependencies and flagging known vulnerabilities (CVEs) and license problems is the core purpose of SCA.",
+      "Measuring unit test coverage is done by coverage tools such as `coverage.py` or `istanbul`, which have no security focus.",
+      "Reformatting code to a consistent style is the job of formatters like `prettier` or `black`, not of SCA."
+    ],
     "answer": 1,
     "explanation": "SCA tools inventory the open-source and third-party components an application depends on and flag ones with known vulnerabilities (CVEs) or problematic licenses.",
+    "example": "# Audit third-party dependencies for known CVEs and license issues\nnpm audit --audit-level=high\n# or, for any ecosystem:\ntrivy fs --scanners vuln,license --severity HIGH,CRITICAL .",
     "tags": [
       "sca",
       "dependencies"
@@ -152,12 +196,20 @@
       "SCA helps detect known vulnerable versions of open-source libraries",
       "DAST can only be performed by reading source code, never against a running service"
     ],
+    "optionNotes": [
+      "SAST inspects code or compiled artifacts directly, so it needs no deployed or running instance of the application.",
+      "DAST sends real requests to a live application and observes its responses, so a running instance is required.",
+      "SCA looks at third-party and open-source components, not at an application's own custom business logic; design flaws there are found by SAST, manual review, or threat modeling.",
+      "Matching the versions of open-source libraries in use against vulnerability databases is the main job of SCA.",
+      "DAST is a black-box technique that works against a running service and does not need source code at all, so this claim reverses how DAST works."
+    ],
     "answer": [
       0,
       1,
       3
     ],
-    "explanation": "SAST works on source/binaries without running the app; DAST needs a live, running target; SCA focuses on third-party/open-source dependency risk (known CVEs and licenses), not custom business logic \u2014 that distinction is exactly what SCA does not cover.",
+    "explanation": "SAST works on source/binaries without running the app; DAST needs a live, running target; SCA focuses on third-party/open-source dependency risk (known CVEs and licenses), not custom business logic — that distinction is exactly what SCA does not cover.",
+    "example": "# Typical CI stages using all three techniques\nsast:  semgrep --config auto src/           # static, no runtime needed\nsca:   trivy fs --scanners vuln .           # known CVEs in dependencies\ndast:  zap-baseline.py -t https://staging.example.com   # needs a live target",
     "tags": [
       "sast",
       "dast",
@@ -169,11 +221,12 @@
     "domain": "security",
     "difficulty": "medium",
     "type": "fill",
-    "prompt": "What does the acronym `SBOM` \u2014 a formal inventory of the components, libraries, and dependencies that make up a piece of software \u2014 stand for?",
+    "prompt": "What does the acronym `SBOM` — a formal inventory of the components, libraries, and dependencies that make up a piece of software — stand for?",
     "answer": [
       "Software Bill of Materials"
     ],
     "explanation": "An SBOM lists every component in a software artifact, similar to an ingredient list, so consumers can identify what they're running and check it against vulnerability databases.",
+    "example": "# Generate an SBOM for a container image and list its components\nsyft packages nginx:1.27 -o cyclonedx-json > sbom.json\njq '.components[] | \"\\(.name)@\\(.version)\"' sbom.json | head",
     "pattern": "^software\\s+bill\\s+of\\s+materials$",
     "tags": [
       "sbom",
@@ -193,12 +246,20 @@
       "OpenAPI",
       "SWID"
     ],
+    "optionNotes": [
+      "CycloneDX is an OWASP-originated SBOM standard with JSON and XML representations, widely used by security tooling.",
+      "SPDX (Software Package Data Exchange) is a Linux Foundation and ISO standard for SBOMs and license data.",
+      "A Dockerfile is a build recipe for container images; it describes build steps, not an inventory of installed components.",
+      "OpenAPI is a specification for describing HTTP APIs and their endpoints, not a software component inventory.",
+      "SWID (Software Identification) tags are an ISO/IEC 19770-2 format that NTIA recognizes as an SBOM format alongside SPDX and CycloneDX."
+    ],
     "answer": [
       0,
       1,
       4
     ],
-    "explanation": "CycloneDX, SPDX, and SWID (Software Identification tags) are recognized SBOM formats. A Dockerfile builds container images and an OpenAPI document describes an HTTP API \u2014 neither is an SBOM format.",
+    "explanation": "CycloneDX, SPDX, and SWID (Software Identification tags) are recognized SBOM formats. A Dockerfile builds container images and an OpenAPI document describes an HTTP API — neither is an SBOM format.",
+    "example": "# syft can emit an SBOM in the two most common formats\nsyft packages ./app -o spdx-json > sbom.spdx.json\nsyft packages ./app -o cyclonedx-json > sbom.cdx.json\n# grype can then scan either SBOM for known CVEs\ngrype sbom:sbom.spdx.json",
     "tags": [
       "sbom",
       "supply-chain"
@@ -216,8 +277,15 @@
       "To detect known vulnerabilities (CVEs) in the OS packages and libraries baked into the image",
       "To improve the container's startup time"
     ],
+    "optionNotes": [
+      "Reducing image size is done through slim base images and multi-stage builds; a vulnerability scan does not shrink the image.",
+      "Scanners do not emit Kubernetes manifests; tools like Helm or Kustomize generate those.",
+      "Comparing the OS packages and libraries inside each image layer against vulnerability databases to surface known CVEs is the purpose of image scanning.",
+      "Startup time depends on image size and application initialization; scanning has no effect on it."
+    ],
     "answer": 2,
     "explanation": "Image scanners inspect the layers of a container image and compare installed packages and libraries against vulnerability databases, surfacing known CVEs before the image ever runs.",
+    "example": "# Scan an image for known CVEs before pushing or deploying it\ntrivy image --severity HIGH,CRITICAL --exit-code 1 myapp:1.4.2\n# Fails the pipeline if any HIGH or CRITICAL vulnerability is found",
     "tags": [
       "containers",
       "image-scanning"
@@ -235,8 +303,15 @@
       "It compiles a Dockerfile into an OCI-compliant image",
       "It signs and verifies container images and other software artifacts, optionally without needing to manage long-lived private keys"
     ],
+    "optionNotes": [
+      "Generating `NetworkPolicy` objects from traffic captures is something tools like Cilium's editor or `netfetch` attempt; it is unrelated to cosign.",
+      "Scanning images for outdated packages is the domain of vulnerability scanners such as Trivy or Grype, not cosign.",
+      "Compiling a Dockerfile into an OCI image is done by `docker build`, `buildah`, or `kaniko`; cosign works on images after they are built.",
+      "Signing and verifying container images and other artifacts, including keyless signing bound to an OIDC identity, is exactly what cosign does."
+    ],
     "answer": 3,
     "explanation": "cosign lets teams sign artifacts (like container images) and later verify those signatures, giving consumers assurance about who published an artifact and that it hasn't been tampered with. It supports 'keyless' signing tied to an OIDC identity.",
+    "example": "# Keyless signing: cosign uses your OIDC identity, no long-lived key\ncosign sign ghcr.io/acme/app@sha256:9f2e...\n# Verify before deploying\ncosign verify ghcr.io/acme/app@sha256:9f2e... \\\n  --certificate-identity=ci@acme.dev \\\n  --certificate-oidc-issuer=https://token.actions.githubusercontent.com",
     "reference": "https://docs.sigstore.dev/",
     "tags": [
       "sigstore",
@@ -251,11 +326,18 @@
     "type": "multi",
     "prompt": "Which of the following are components of the Sigstore project's keyless-signing ecosystem?",
     "options": [
-      "Fulcio \u2014 a certificate authority that issues short-lived certificates tied to an OIDC identity",
-      "Rekor \u2014 a public transparency log that records signing events",
-      "cosign \u2014 the CLI used to sign and verify artifacts",
-      "kube-bench \u2014 a CIS Kubernetes benchmark scanner",
-      "Terraform \u2014 an infrastructure-as-code provisioning tool"
+      "Fulcio — a certificate authority that issues short-lived certificates tied to an OIDC identity",
+      "Rekor — a public transparency log that records signing events",
+      "cosign — the CLI used to sign and verify artifacts",
+      "kube-bench — a CIS Kubernetes benchmark scanner",
+      "Terraform — an infrastructure-as-code provisioning tool"
+    ],
+    "optionNotes": [
+      "Fulcio is Sigstore's certificate authority; it exchanges an OIDC token for a short-lived code-signing certificate, which is the foundation of keyless signing.",
+      "Rekor is Sigstore's append-only public transparency log that records signatures and attestations so they can be audited later.",
+      "cosign is the Sigstore CLI that performs signing and verification of images and other artifacts, using Fulcio and Rekor in keyless mode.",
+      "kube-bench audits a Kubernetes cluster against the CIS benchmark; it is a hardening checker, not part of Sigstore.",
+      "Terraform is HashiCorp's infrastructure-as-code tool for provisioning cloud resources and has nothing to do with artifact signing."
     ],
     "answer": [
       0,
@@ -263,6 +345,7 @@
       2
     ],
     "explanation": "Fulcio, Rekor, and cosign together make up Sigstore's keyless signing flow: Fulcio issues a short-lived cert bound to an OIDC identity, cosign uses it to sign, and Rekor timestamps the signing event in a public, tamper-evident log. kube-bench and Terraform are unrelated tools.",
+    "example": "# Keyless flow behind 'cosign sign':\n# 1. cosign gets an OIDC token (e.g. from GitHub Actions)\n# 2. Fulcio issues a short-lived signing certificate for that identity\n# 3. cosign signs the artifact and uploads the signature\n# 4. Rekor records the signing event in its transparency log\nrekor-cli search --artifact app.tar.gz   # look up entries later",
     "reference": "https://docs.sigstore.dev/",
     "tags": [
       "sigstore",
@@ -276,13 +359,20 @@
     "type": "single",
     "prompt": "SLSA (Supply-chain Levels for Software Artifacts) provenance attestations are primarily intended to help answer which question about a software artifact?",
     "options": [
-      "How the artifact was built, from what source, and by which build system \u2014 i.e., build integrity",
+      "How the artifact was built, from what source, and by which build system — i.e., build integrity",
       "Which team should be billed for the artifact's cloud usage",
       "Which known CVEs affect the artifact's dependencies",
       "How much memory the artifact consumes at runtime"
     ],
+    "optionNotes": [
+      "Provenance records which source, build steps, and builder produced an artifact, letting consumers verify build integrity; this is the question SLSA is designed to answer.",
+      "Cost allocation and billing are handled by cloud tagging and FinOps tooling, not by provenance attestations.",
+      "Listing known CVEs in dependencies is the job of SBOMs and SCA scanners, a separate supply-chain concern from build integrity.",
+      "Runtime memory consumption is observed with monitoring and profiling tools; it has nothing to do with how the artifact was built."
+    ],
     "answer": 0,
-    "explanation": "SLSA focuses on the integrity of the build process itself \u2014 proving what source and build steps produced an artifact and that it wasn't tampered with \u2014 which is a different concern from SBOM/SCA (what components are inside) or runtime monitoring.",
+    "explanation": "SLSA focuses on the integrity of the build process itself — proving what source and build steps produced an artifact and that it wasn't tampered with — which is a different concern from SBOM/SCA (what components are inside) or runtime monitoring.",
+    "example": "# Excerpt of a SLSA v1 provenance attestation (in-toto statement)\n{\n  \"predicateType\": \"https://slsa.dev/provenance/v1\",\n  \"predicate\": {\n    \"buildDefinition\": {\"externalParameters\": {\"source\": \"git+https://github.com/acme/app@refs/tags/v1.4.2\"}},\n    \"runDetails\": {\"builder\": {\"id\": \"https://github.com/actions/runner\"}}\n  }\n}",
     "reference": "https://slsa.dev/",
     "tags": [
       "slsa",
@@ -301,8 +391,15 @@
       "A built-in Kubernetes admission controller",
       "A list of the ten most popular JavaScript frameworks"
     ],
+    "optionNotes": [
+      "The OWASP Top 10 is freely available awareness material, not a certification exam; pentester certifications include OSCP and GPEN.",
+      "A periodically updated, community-driven awareness document that ranks the most critical web application risk categories is what the OWASP Top 10 is.",
+      "Kubernetes admission controllers are components of the API server such as `PodSecurity` or `ValidatingAdmissionWebhook`; OWASP Top 10 is unrelated to them.",
+      "The document ranks security risk categories, not JavaScript frameworks or any other popularity list."
+    ],
     "answer": 1,
     "explanation": "The OWASP Top 10 is a broadly referenced awareness document, periodically updated by the OWASP community, that highlights the categories of risk considered most critical for web applications at the time of publication.",
+    "example": "# OWASP Top 10 (2021) category IDs, often used to label scanner rules\n# A01 Broken Access Control    A06 Vulnerable and Outdated Components\n# A02 Cryptographic Failures   A07 Identification and Auth Failures\n# A03 Injection                A08 Software and Data Integrity Failures\n# A05 Security Misconfiguration A10 SSRF\nsemgrep --config p/owasp-top-ten src/",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp"
@@ -320,8 +417,15 @@
       "Injection",
       "Security Misconfiguration"
     ],
+    "optionNotes": [
+      "Cryptographic Failures (A02) covers weak or missing encryption and poor key management, not interpreter abuse via untrusted input.",
+      "Server-Side Request Forgery (A10) is when an attacker makes the server issue requests to unintended destinations; it is not about commands or queries being altered.",
+      "Injection (A03) is the category for SQL, OS command, LDAP, and similar flaws where untrusted data is interpreted as part of a command or query.",
+      "Security Misconfiguration (A05) covers insecure defaults, open cloud storage, verbose errors, and similar setup problems, not injection."
+    ],
     "answer": 2,
     "explanation": "Injection covers cases where untrusted data is sent to an interpreter (SQL, OS shell, LDAP, etc.) as part of a command or query, letting an attacker alter its intended behavior.",
+    "example": "# Injection-safe query: parameters are bound, never concatenated\ncursor.execute(\"SELECT * FROM users WHERE email = %s\", (email,))\n# Unsafe pattern that SAST flags:\n# cursor.execute(\"SELECT * FROM users WHERE email = '\" + email + \"'\")",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp",
@@ -340,8 +444,15 @@
       "Storing passwords with a fast, unsalted hash",
       "Failures that let users act outside their intended permissions, such as viewing another user's data or bypassing authorization checks"
     ],
+    "optionNotes": [
+      "Leaking stack traces to users is an information-disclosure issue typically classed under Security Misconfiguration.",
+      "Outdated TLS cipher suites fall under Cryptographic Failures, since they weaken encryption of data in transit.",
+      "Fast, unsalted password hashing is a Cryptographic Failures problem related to insecure credential storage.",
+      "Letting users act outside their intended permissions, such as viewing another user's records or bypassing authorization checks, is what Broken Access Control (A01) describes."
+    ],
     "answer": 3,
     "explanation": "Broken Access Control covers enforcement failures around what an authenticated user is actually allowed to do or see, letting them escalate privileges or access resources they shouldn't.",
+    "example": "# Enforce ownership on every request, not just in the UI\n@app.get(\"/orders/{order_id}\")\ndef get_order(order_id, user=Depends(current_user)):\n    order = db.get(Order, order_id)\n    if order.owner_id != user.id:\n        raise HTTPException(403)   # prevents IDOR / broken access control\n    return order",
     "reference": "https://owasp.org/www-project-top-ten/",
     "tags": [
       "owasp",
@@ -360,8 +471,15 @@
       "Compression of HTTP response bodies only",
       "Faster DNS resolution for the destination host"
     ],
+    "optionNotes": [
+      "Confidentiality through encryption, integrity through MACs or AEAD, and authentication of at least the server via certificates are the three core guarantees TLS provides.",
+      "Load balancing is done by load balancers and reverse proxies; TLS can be terminated there, but it does not distribute traffic itself.",
+      "TLS does not compress HTTP bodies; HTTP-level compression (gzip, brotli) is separate, and TLS-level compression was removed because of the CRIME attack.",
+      "DNS resolution happens before the TLS connection begins and is not accelerated by TLS; DNS-over-TLS protects DNS queries but is a different protocol."
+    ],
     "answer": 0,
     "explanation": "TLS protects data in transit by encrypting it (confidentiality), detecting tampering (integrity), and typically authenticating at least the server via its certificate.",
+    "example": "# Inspect the TLS handshake: certificate (authentication) and negotiated cipher\nopenssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \\\n  | grep -E 'Protocol|Cipher|subject='\n# Protocol  : TLSv1.3\n# Cipher    : TLS_AES_256_GCM_SHA384",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
     "tags": [
       "tls",
@@ -375,7 +493,8 @@
     "type": "boolean",
     "prompt": "A typical TLS connection uses asymmetric cryptography during the handshake (for authentication and key exchange) and then switches to a symmetric cipher, such as AES, to encrypt the bulk of the session's data.",
     "answer": true,
-    "explanation": "Asymmetric operations are computationally expensive, so TLS uses them briefly to authenticate the server and establish a shared session key, then relies on fast symmetric encryption for the actual data transfer \u2014 a hybrid approach.",
+    "explanation": "Asymmetric operations are computationally expensive, so TLS uses them briefly to authenticate the server and establish a shared session key, then relies on fast symmetric encryption for the actual data transfer — a hybrid approach.",
+    "example": "# TLS 1.3 handshake in brief\n# 1. ClientHello / ServerHello: ECDHE key exchange (asymmetric)\n# 2. Server certificate + signature: authenticates the server (asymmetric)\n# 3. Both sides derive the session key\n# 4. Application data encrypted with a symmetric AEAD cipher\nopenssl s_client -connect example.com:443 | grep Cipher\n# Cipher: TLS_AES_128_GCM_SHA256",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/TLS",
     "tags": [
       "tls",
@@ -395,8 +514,15 @@
       "Hashing requires a secret key to compute, just like encryption",
       "Hashing always produces output the same length as its input"
     ],
+    "optionNotes": [
+      "Encryption is used for data at rest, data in transit, backups, and much more; and passwords should be hashed rather than encrypted.",
+      "A cryptographic hash is a one-way digest that cannot feasibly be inverted, whereas encryption is designed to be reversed with the right key; that is the key distinction.",
+      "Plain hashes such as SHA-256 need no secret key; a keyed variant (HMAC) exists, but hashing in general is unkeyed, unlike encryption.",
+      "Hash functions produce a fixed-length digest regardless of input size, for example 256 bits for SHA-256."
+    ],
     "answer": 1,
-    "explanation": "A cryptographic hash is a one-way digest \u2014 you cannot feasibly recover the input from it. Encryption is deliberately reversible: anyone holding the correct key can decrypt the ciphertext back to plaintext.",
+    "explanation": "A cryptographic hash is a one-way digest — you cannot feasibly recover the input from it. Encryption is deliberately reversible: anyone holding the correct key can decrypt the ciphertext back to plaintext.",
+    "example": "# Hashing: one-way digest, no key, cannot be reversed\nsha256sum app.tar.gz          # verify integrity of a download\n# Encryption: reversible with the key\nage -r age1abc... -o secrets.env.age secrets.env\nage -d -i key.txt secrets.env.age > secrets.env",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html",
     "tags": [
       "hashing",
@@ -410,7 +536,8 @@
     "type": "boolean",
     "prompt": "Base64 encoding provides meaningful confidentiality for sensitive data, comparable to encryption.",
     "answer": false,
-    "explanation": "Base64 is a reversible encoding scheme for representing binary data as text. It uses no secret key, and anyone can decode it instantly, so it provides no confidentiality at all \u2014 it is not a substitute for encryption.",
+    "explanation": "Base64 is a reversible encoding scheme for representing binary data as text. It uses no secret key, and anyone can decode it instantly, so it provides no confidentiality at all — it is not a substitute for encryption.",
+    "example": "# Base64 is trivially reversible, so it hides nothing\necho -n 'password123' | base64      # cGFzc3dvcmQxMjM=\necho 'cGFzc3dvcmQxMjM=' | base64 -d # password123\n# Kubernetes Secrets are only base64-encoded; enable encryption at rest separately",
     "tags": [
       "encoding",
       "encryption"
@@ -428,8 +555,15 @@
       "One shared key is used for both encrypting and decrypting",
       "Two independent keys: one public, one private"
     ],
+    "optionNotes": [
+      "Using a fresh unrelated key for every byte describes a one-time pad, which is impractical and not how symmetric ciphers like AES operate.",
+      "Every cipher requires a key; keyless transformations such as base64 are encodings, not encryption.",
+      "Symmetric algorithms such as AES and ChaCha20 use a single shared secret key for both encryption and decryption.",
+      "A public/private key pair is the hallmark of asymmetric cryptography such as RSA or ECDSA, not symmetric encryption."
+    ],
     "answer": 2,
     "explanation": "Symmetric algorithms like AES use a single shared secret key for both encryption and decryption, which makes them fast but requires securely distributing that key to every party who needs it.",
+    "example": "# AES-256-GCM: the same key encrypts and decrypts\nopenssl rand -hex 32 > aes.key\nopenssl enc -aes-256-cbc -pbkdf2 -in db.sql -out db.sql.enc -pass file:aes.key\nopenssl enc -d -aes-256-cbc -pbkdf2 -in db.sql.enc -out db.sql -pass file:aes.key",
     "tags": [
       "symmetric",
       "encryption"
@@ -447,8 +581,15 @@
       "ChaCha20",
       "RSA"
     ],
+    "optionNotes": [
+      "bcrypt is a deliberately slow password-hashing function based on Blowfish; it is not an encryption algorithm at all.",
+      "AES (Advanced Encryption Standard) is a symmetric block cipher that uses one shared key for encryption and decryption.",
+      "ChaCha20 is a symmetric stream cipher, usually paired with Poly1305 for authenticated encryption; it does not use a key pair.",
+      "RSA uses a mathematically linked public/private key pair for encryption and digital signatures, making it an asymmetric algorithm."
+    ],
     "answer": 3,
-    "explanation": "RSA uses a mathematically linked public/private key pair \u2014 one key encrypts or verifies, the other decrypts or signs. AES and ChaCha20 are symmetric ciphers, and bcrypt is a password-hashing function, not an encryption algorithm.",
+    "explanation": "RSA uses a mathematically linked public/private key pair — one key encrypts or verifies, the other decrypts or signs. AES and ChaCha20 are symmetric ciphers, and bcrypt is a password-hashing function, not an encryption algorithm.",
+    "example": "# Generate an RSA key pair: private key stays secret, public key is shared\nopenssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out private.pem\nopenssl pkey -in private.pem -pubout -out public.pem\n# Sign with the private key, verify with the public key\nopenssl dgst -sha256 -sign private.pem -out release.sig release.tar.gz",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/Public-key_cryptography",
     "tags": [
       "asymmetric",
@@ -467,8 +608,15 @@
       "Reusing one passphrase-less private key across every server and every teammate",
       "Emailing your private key to teammates so they can log in as you when you're on leave"
     ],
+    "optionNotes": [
+      "Keeping the private key secret and distributing only the public key to servers is the whole basis of SSH public-key authentication.",
+      "Committing a private key to a repository exposes it to everyone with repo access and to git history forever; backups should use an encrypted password manager or vault.",
+      "Reusing a single passphrase-less key across all servers and people means one leak compromises everything and removes any audit trail.",
+      "Sending a private key by email exposes it in transit and in mailboxes and lets others impersonate you; delegated access should be granted with the colleague's own key."
+    ],
     "answer": 0,
     "explanation": "SSH's security model depends on the private key never leaving your control. Only the public key should ever be placed on remote servers (in `authorized_keys`); sharing or exposing the private key breaks the whole trust model.",
+    "example": "# Generate a passphrase-protected key pair, install only the public half\nssh-keygen -t ed25519 -C 'alice@laptop'\nchmod 600 ~/.ssh/id_ed25519            # private key: owner-only\nssh-copy-id -i ~/.ssh/id_ed25519.pub alice@server.example.com\n# ~/.ssh/authorized_keys on the server now holds the public key only",
     "tags": [
       "ssh"
     ]
@@ -481,6 +629,7 @@
     "prompt": "Best practice is for each individual user to have their own personal SSH key pair, rather than an entire team sharing a single private key.",
     "answer": true,
     "explanation": "Individual key pairs preserve an audit trail (each login is attributable to one person) and let you revoke a single compromised or departed user's access without having to rotate credentials for the whole team.",
+    "example": "# One key per person; revoke a single user without touching anyone else\n# /home/deploy/.ssh/authorized_keys\nssh-ed25519 AAAAC3...alice alice@laptop\nssh-ed25519 AAAAC3...bob   bob@laptop\n# Alice leaves: delete only her line, Bob keeps working\nsed -i '/alice@laptop/d' /home/deploy/.ssh/authorized_keys",
     "tags": [
       "ssh"
     ]
@@ -493,12 +642,19 @@
     "prompt": "What is multi-factor authentication (MFA)?",
     "options": [
       "Logging in from several devices at the same time",
-      "Requiring two or more independent forms of evidence from different factor categories \u2014 such as a password plus a one-time code \u2014 to verify identity",
+      "Requiring two or more independent forms of evidence from different factor categories — such as a password plus a one-time code — to verify identity",
       "Changing your password several times throughout the year",
       "Requiring an unusually long single password"
     ],
+    "optionNotes": [
+      "Logging in from several devices simultaneously concerns session management and has nothing to do with proving identity with multiple factors.",
+      "Requiring two or more independent factors from different categories, such as a password plus a one-time code, is the definition of MFA.",
+      "Changing a password frequently is a rotation policy; it is still a single knowledge factor.",
+      "A very long password is still one factor (something you know); length strengthens it but does not make it multi-factor."
+    ],
     "answer": 1,
     "explanation": "MFA combines evidence from at least two distinct categories (something you know, have, or are) so that compromising just one factor, like a password, is not enough to authenticate as the user.",
+    "example": "# Enable MFA for the AWS CLI: password (know) + TOTP code (have)\naws iam enable-mfa-device --user-name alice \\\n  --serial-number arn:aws:iam::123456789012:mfa/alice \\\n  --authentication-code1 123456 --authentication-code2 789012\n# Sessions now require: aws sts get-session-token --serial-number ... --token-code 654321",
     "tags": [
       "mfa",
       "authentication"
@@ -517,12 +673,20 @@
       "Something you bought (e.g., the price of your laptop)",
       "Somewhere you registered an email address"
     ],
+    "optionNotes": [
+      "Knowledge factors such as passwords, PINs, and security answers make up the 'something you know' category.",
+      "Possession factors such as hardware security keys, smart cards, and authenticator apps make up the 'something you have' category.",
+      "Inherence factors such as fingerprints, face, or iris scans make up the 'something you are' category.",
+      "Purchase price of a device is not evidence of identity and is not a recognized authentication factor category.",
+      "Having registered an email address is an account attribute, not a factor category; an emailed code is a weak form of possession, but registration itself proves nothing."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "The three classic authentication factor categories are knowledge ('something you know'), possession ('something you have'), and inherence ('something you are'). Using factors from two or more different categories is what makes authentication multi-factor.",
+    "example": "# A typical MFA login combines two categories:\n#   password        -> something you know\n#   TOTP / YubiKey  -> something you have\n#   fingerprint     -> something you are\n# WebAuthn (FIDO2) registers a hardware authenticator as the possession factor\nnavigator.credentials.create({ publicKey: { ... } })",
     "tags": [
       "mfa",
       "authentication"
@@ -540,8 +704,15 @@
       "It limits the window of time during which a leaked or stolen credential remains useful to an attacker",
       "It removes the need for any access control checks"
     ],
+    "optionNotes": [
+      "Rotation produces new random values regularly, which makes credentials harder, not easier, for humans to memorize; they should live in a secrets manager.",
+      "No programming language has syntax that requires rotating credentials; rotation is an operational security practice.",
+      "Regular rotation bounds how long a leaked or stolen credential remains valid, limiting the damage an attacker can do with it.",
+      "Rotation does not replace authorization; access control checks are still needed for every request."
+    ],
     "answer": 2,
     "explanation": "Even with strong safeguards, credentials can leak. Rotating them regularly (and immediately after suspected compromise) shrinks the amount of time a stolen credential stays valid and useful.",
+    "example": "# Rotate a database password automatically with AWS Secrets Manager\naws secretsmanager rotate-secret --secret-id prod/db/app \\\n  --rotation-lambda-arn arn:aws:lambda:us-east-1:123456789012:function:rotate \\\n  --rotation-rules AutomaticallyAfterDays=30\n# A leaked password is useful to an attacker for at most 30 days",
     "tags": [
       "secrets",
       "rotation"
@@ -555,6 +726,7 @@
     "prompt": "If you strongly suspect a credential, such as a cloud API key, has been exposed, you should rotate it immediately rather than waiting for its next scheduled rotation.",
     "answer": true,
     "explanation": "Waiting for a scheduled rotation leaves a known-exposed credential usable by an attacker in the meantime. Suspected compromise should always trigger immediate rotation and, where possible, revocation of the old credential.",
+    "example": "# Key spotted in a public repo: revoke and replace right now, not next month\naws iam create-access-key --user-name ci-deployer       # issue replacement\n# update the secret in the pipeline, then:\naws iam update-access-key --user-name ci-deployer --access-key-id AKIAOLD... --status Inactive\naws iam delete-access-key --user-name ci-deployer --access-key-id AKIAOLD...",
     "tags": [
       "secrets",
       "rotation"
@@ -572,8 +744,15 @@
       "It is a container orchestration platform, similar to Kubernetes",
       "It centrally stores and controls access to secrets, and can dynamically generate short-lived credentials such as database passwords or API keys"
     ],
+    "optionNotes": [
+      "CI/CD execution engines are tools like Jenkins, GitLab CI, or GitHub Actions; Vault is often called from pipelines but does not run them.",
+      "Authoritative DNS is served by software like BIND, CoreDNS, or Route 53, not by Vault.",
+      "Container orchestration is Kubernetes' role; Vault integrates with Kubernetes for auth and secret injection but does not schedule containers.",
+      "Centralized secrets storage with access policies, encryption as a service, and dynamic short-lived credentials is the primary purpose of HashiCorp Vault."
+    ],
     "answer": 3,
     "explanation": "Vault provides centralized secrets storage, fine-grained access control, encryption as a service, and the ability to generate dynamic, short-lived credentials on demand instead of relying on long-lived static secrets.",
+    "example": "# Vault issues a short-lived Postgres credential on demand\nvault read database/creds/app-readonly\n# Key             Value\n# lease_id        database/creds/app-readonly/abc123\n# lease_duration  1h\n# username        v-token-app-read-x7k2\n# password        A1b2-...   (revoked automatically after 1h)",
     "reference": "https://developer.hashicorp.com/vault/docs/what-is-vault",
     "tags": [
       "vault",
@@ -591,6 +770,7 @@
       "dynamic secret"
     ],
     "explanation": "Dynamic secrets are created fresh for each consumer and have a limited lifetime (lease), so there is no long-lived static credential sitting around waiting to be leaked.",
+    "example": "# Configure a dynamic-secrets role: every read creates a fresh, leased DB user\nvault write database/roles/app-readonly \\\n  db_name=postgres \\\n  creation_statements=\"CREATE ROLE \\\"{{name}}\\\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \\\"{{name}}\\\";\" \\\n  default_ttl=1h max_ttl=24h",
     "pattern": "^dynamic\\s+secrets?$",
     "reference": "https://developer.hashicorp.com/vault/docs/secrets",
     "tags": [
@@ -610,8 +790,15 @@
       "Encrypt all traffic between pods on the cluster network",
       "Schedule pods onto specific nodes based on labels"
     ],
+    "optionNotes": [
+      "Defining `Role`/`ClusterRole` objects that bundle verbs on resources and binding them to users, groups, or service accounts through `RoleBinding`/`ClusterRoleBinding` is what Kubernetes RBAC does.",
+      "Scaling pods on CPU usage is the job of the HorizontalPodAutoscaler, not RBAC.",
+      "Encrypting pod-to-pod traffic is provided by a service mesh (mTLS) or a CNI such as Cilium with WireGuard, not by RBAC.",
+      "Placing pods on labeled nodes uses `nodeSelector`, node affinity, or taints and tolerations; RBAC controls API access, not scheduling."
+    ],
     "answer": 0,
     "explanation": "Kubernetes RBAC lets you define `Role`/`ClusterRole` objects describing allowed actions on resources, then grant them to subjects via `RoleBinding`/`ClusterRoleBinding`, enabling least-privilege access to the API server.",
+    "example": "# Role bundles permissions; RoleBinding grants it to a ServiceAccount\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata: {name: pod-reader, namespace: dev}\nrules:\n- {apiGroups: [\"\"], resources: [\"pods\"], verbs: [\"get\", \"list\", \"watch\"]}\n# kubectl create rolebinding ci-pod-reader --role=pod-reader --serviceaccount=dev:ci -n dev",
     "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
     "tags": [
       "kubernetes",
@@ -630,8 +817,15 @@
       "Permissive",
       "Privileged"
     ],
+    "optionNotes": [
+      "Baseline is the middle level; it blocks known privilege escalations such as privileged containers and host namespaces but still allows root users.",
+      "Restricted is the most locked-down level, requiring non-root execution, dropped capabilities, `allowPrivilegeEscalation: false`, and a seccomp profile.",
+      "Permissive is not one of the Pod Security Standards levels; the three defined levels are Privileged, Baseline, and Restricted.",
+      "Privileged is the least restrictive level, allowing essentially anything and intended for trusted system workloads."
+    ],
     "answer": 1,
     "explanation": "The three Pod Security Standards levels are Privileged (unrestricted), Baseline (blocks known privilege escalations), and Restricted (the most locked-down, following current hardening best practices like non-root execution and dropped capabilities).",
+    "example": "# Enforce the restricted profile on a namespace via the built-in PodSecurity admission\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: payments\n  labels: {pod-security.kubernetes.io/enforce: restricted}\n# Pods running as root or with extra capabilities are now rejected",
     "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
     "tags": [
       "kubernetes",
@@ -646,6 +840,7 @@
     "prompt": "By default, if no `NetworkPolicy` objects are defined in a Kubernetes cluster, all pods can communicate with all other pods without restriction.",
     "answer": true,
     "explanation": "Kubernetes pod networking is flat and permissive by default. NetworkPolicy resources are additive and restrictive: once a policy selects a pod, that pod becomes default-deny for the traffic types the policy governs, assuming the CNI plugin enforces NetworkPolicy.",
+    "example": "# Turn the default allow-all into default-deny for a namespace\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: default-deny-all, namespace: payments}\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n# Requires a CNI that enforces NetworkPolicy (Calico, Cilium, etc.)",
     "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
     "tags": [
       "kubernetes",
@@ -664,8 +859,15 @@
       "It causes the container to fail to start if it is configured to run as the root user (UID 0), reducing the impact of a potential container breakout",
       "It encrypts the container's root filesystem at rest"
     ],
+    "optionNotes": [
+      "Patching image vulnerabilities requires rebuilding the image with updated packages; no securityContext field does that.",
+      "Adding Linux capabilities is done with `securityContext.capabilities.add`; `runAsNonRoot` restricts rather than grants.",
+      "With `runAsNonRoot: true` the kubelet validates the effective UID and refuses to start a container that would run as UID 0, limiting damage from a breakout.",
+      "Filesystem encryption at rest is a node or storage-class concern (for example encrypted EBS volumes); it is not controlled by `runAsNonRoot`."
+    ],
     "answer": 2,
     "explanation": "`runAsNonRoot` is a guardrail: Kubernetes refuses to start the container if it would run as UID 0, so that even if an attacker escapes the application, they don't land with root privileges inside the container.",
+    "example": "# Kubelet refuses to start this container if the image runs as UID 0\ncontainers:\n- name: app\n  image: ghcr.io/acme/app:1.4.2\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 10001   # explicit non-root UID so the check can pass",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
     "tags": [
       "kubernetes",
@@ -684,8 +886,15 @@
       "It automatically provisions a persistent volume for the pod",
       "It prevents the container's root filesystem from being written to at runtime, making it harder for an attacker to tamper with binaries or drop malware"
     ],
+    "optionNotes": [
+      "Image size is fixed at build time; a runtime mount flag does not change the bytes on disk or in the registry.",
+      "Network access is governed by `NetworkPolicy` and the CNI; `readOnlyRootFilesystem` has no effect on networking.",
+      "Persistent volumes are provisioned through `PersistentVolumeClaim` objects and storage classes, not through this security setting.",
+      "Mounting the container root filesystem read-only prevents a compromised process from writing files or modifying binaries, which is the hardening goal of this setting."
+    ],
     "answer": 3,
     "explanation": "With a read-only root filesystem, an attacker who compromises the running process can't write new files or modify existing ones on the container's filesystem; any directory the app legitimately needs to write to should be mounted as a separate writable volume.",
+    "example": "# Immutable root filesystem plus an explicit writable scratch volume\ncontainers:\n- name: app\n  securityContext: {readOnlyRootFilesystem: true}\n  volumeMounts: [{name: tmp, mountPath: /tmp}]\nvolumes:\n- {name: tmp, emptyDir: {}}",
     "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
     "tags": [
       "kubernetes",
@@ -705,12 +914,20 @@
       "`runAsNonRoot: true`",
       "`hostNetwork: true`"
     ],
+    "optionNotes": [
+      "Setting `allowPrivilegeEscalation: false` sets the no_new_privs flag so a process cannot gain more privileges than its parent (for example via setuid binaries); the restricted profile requires it.",
+      "Dropping all Linux capabilities with `capabilities.drop: [\"ALL\"]` removes kernel privileges the workload does not need and is required by the restricted profile (only `NET_BIND_SERVICE` may be added back).",
+      "A privileged container gets nearly all host capabilities and device access, effectively equal to root on the node; every Pod Security Standard except Privileged forbids it.",
+      "Requiring a non-root UID with `runAsNonRoot: true` is one of the restricted profile's mandatory controls.",
+      "Sharing the host's network namespace via `hostNetwork: true` exposes host interfaces and bypasses NetworkPolicy; it is forbidden even at the Baseline level."
+    ],
     "answer": [
       0,
       1,
       3
     ],
-    "explanation": "Disallowing privilege escalation, dropping all Linux capabilities by default, and forcing non-root execution are core hardening controls. `privileged: true` and `hostNetwork: true` do the opposite \u2014 they widen the container's access to the host.",
+    "explanation": "Disallowing privilege escalation, dropping all Linux capabilities by default, and forcing non-root execution are core hardening controls. `privileged: true` and `hostNetwork: true` do the opposite — they widen the container's access to the host.",
+    "example": "# securityContext that satisfies the 'restricted' Pod Security Standard\nsecurityContext:\n  runAsNonRoot: true\n  allowPrivilegeEscalation: false\n  capabilities:\n    drop: [\"ALL\"]\n  seccompProfile:\n    type: RuntimeDefault",
     "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
     "tags": [
       "kubernetes",
@@ -727,6 +944,7 @@
       "Common Vulnerabilities and Exposures"
     ],
     "explanation": "CVE provides a standardized identifier and description for a publicly known vulnerability, so different tools, vendors, and researchers can all refer to the same issue unambiguously.",
+    "example": "# Look up a CVE and check whether an image is affected\ntrivy image --severity CRITICAL log4j-demo:1.0\n# CVE-2021-44228  log4j-core  2.14.1  fixed in 2.15.0  (Log4Shell)\ncurl -s https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2021-44228 | jq '.vulnerabilities[0].cve.descriptions[0].value'",
     "pattern": "^common\\s+vulnerabilities\\s+and\\s+exposures$",
     "tags": [
       "cve"
@@ -744,8 +962,15 @@
       "-1.0 to 1.0",
       "0 to 5"
     ],
+    "optionNotes": [
+      "CVSS base scores run from 0.0 to 10.0, with 9.0 and above mapped to the Critical band.",
+      "A 1 to 100 range resembles the EPSS percentage or some vendor risk scores, but it is not the CVSS scale.",
+      "Negative-to-positive ranges are not used by CVSS; no vulnerability scoring system reports negative severity.",
+      "A 0 to 5 range is not CVSS; it resembles star ratings or some internal risk matrices."
+    ],
     "answer": 0,
     "explanation": "CVSS base scores range from 0.0 (no measurable severity) to 10.0 (most severe), and are typically mapped onto qualitative bands such as Low, Medium, High, and Critical.",
+    "example": "# CVSS v3.1 base score from a vector string\n# CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H  -> 10.0 (Critical)\n# Qualitative bands: None 0.0 | Low 0.1-3.9 | Medium 4.0-6.9 | High 7.0-8.9 | Critical 9.0-10.0\ngrype myapp:1.4.2 --fail-on high   # gate on the severity band",
     "tags": [
       "cvss"
     ]
@@ -762,8 +987,15 @@
       "Trust is granted permanently to a user once they complete MFA at login",
       "Trust any device or user automatically once they are inside the corporate network perimeter"
     ],
+    "optionNotes": [
+      "Relying on a perimeter firewall alone is the castle-and-moat model that zero trust was created to replace.",
+      "'Never trust, always verify' with explicit authentication and authorization of every request based on identity and context, regardless of network location, is the core of zero trust.",
+      "Zero trust favors continuous, per-request evaluation; a permanent grant after a single MFA prompt contradicts that.",
+      "Automatically trusting anything inside the corporate network is exactly the implicit, location-based trust that zero trust rejects."
+    ],
     "answer": 1,
     "explanation": "Zero trust replaces implicit, location-based trust (e.g., 'inside the network = safe') with continuous, explicit verification of identity, device posture, and authorization for every request.",
+    "example": "# Istio AuthorizationPolicy: every call must present a verified identity, even inside the mesh\napiVersion: security.istio.io/v1\nkind: AuthorizationPolicy\nmetadata: {name: orders-allow, namespace: shop}\nspec:\n  selector: {matchLabels: {app: orders}}\n  rules:\n  - from: [{source: {principals: [\"cluster.local/ns/shop/sa/checkout\"]}}]",
     "tags": [
       "zero-trust"
     ]
@@ -775,7 +1007,8 @@
     "type": "boolean",
     "prompt": "A zero trust architecture assumes that traffic originating from inside the corporate network is inherently more trustworthy than traffic from outside it.",
     "answer": false,
-    "explanation": "Zero trust explicitly rejects trust based on network location. Internal traffic must be authenticated and authorized just like external traffic \u2014 there is no automatically trusted 'inside'.",
+    "explanation": "Zero trust explicitly rejects trust based on network location. Internal traffic must be authenticated and authorized just like external traffic — there is no automatically trusted 'inside'.",
+    "example": "# Zero trust: internal service calls still need mTLS identity and authorization\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata: {name: default, namespace: shop}\nspec:\n  mtls:\n    mode: STRICT   # plaintext 'internal' traffic is rejected",
     "tags": [
       "zero-trust"
     ]
@@ -792,8 +1025,15 @@
       "It monitors and filters HTTP/HTTPS traffic to a web application to block common attacks such as SQL injection and cross-site scripting",
       "It compiles application source code for deployment"
     ],
+    "optionNotes": [
+      "Encrypting backups is done by the backup tooling or storage service with KMS keys; a WAF never touches stored data.",
+      "DNS records are managed by DNS services such as Route 53 or Cloud DNS, which are separate from web application firewalls.",
+      "Inspecting HTTP(S) requests in front of a web application and blocking those matching attack patterns such as SQL injection or XSS is the primary function of a WAF.",
+      "Compiling source code is a build-system task; a WAF operates on live traffic, not on code."
+    ],
     "answer": 2,
     "explanation": "A WAF sits in front of a web application and inspects incoming HTTP(S) requests, blocking or flagging traffic that matches known attack patterns before it ever reaches the application.",
+    "example": "# Attach the AWS managed Core Rule Set (blocks common SQLi/XSS patterns) to an ALB\naws wafv2 create-web-acl --name app-waf --scope REGIONAL --default-action Allow={} \\\n  --rules file://crs-rule.json   # ManagedRuleGroupStatement: AWSManagedRulesCommonRuleSet\naws wafv2 associate-web-acl --web-acl-arn $ACL_ARN --resource-arn $ALB_ARN\n# Blocked requests show up as action=BLOCK in the WAF logs",
     "tags": [
       "waf"
     ]
@@ -810,8 +1050,15 @@
       "An attacker exploiting a SQL injection flaw to read data out of a database",
       "Traffic generated from many distributed sources overwhelms a target's resources or bandwidth so legitimate users can no longer access it"
     ],
+    "optionNotes": [
+      "Forging a signature to get a malicious image trusted is a supply-chain integrity attack, not a denial of service.",
+      "Repeated password guessing against one account is a brute-force or credential-stuffing attack.",
+      "Reading data through a SQL injection flaw is an injection attack aimed at confidentiality, not availability.",
+      "Overwhelming a target's bandwidth or resources with traffic from many distributed sources so legitimate users are locked out is the definition of a DDoS attack."
+    ],
     "answer": 3,
     "explanation": "DDoS attacks flood a target with traffic from numerous distributed sources simultaneously, exhausting network bandwidth, connection limits, or application resources so real users can't get through.",
+    "example": "# Symptom of a volumetric DDoS in nginx access logs: huge request volume from many IPs\nawk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head\n# Mitigation: rate limit per client\nlimit_req_zone $binary_remote_addr zone=perip:10m rate=10r/s;",
     "tags": [
       "ddos"
     ]
@@ -829,12 +1076,20 @@
       "Disabling TLS to reduce server processing overhead",
       "Removing all firewalls to maximize throughput"
     ],
+    "optionNotes": [
+      "Per-client rate limiting caps how many requests any one source can make, blunting application-layer floods and abusive clients.",
+      "Anycast CDNs and scrubbing centers spread and filter attack traffic across many global points of presence before it reaches the origin.",
+      "Autoscaling adds backend capacity during a surge, helping the service stay available while other controls filter the flood.",
+      "Disabling TLS would expose users to interception and does not stop a volumetric flood; TLS termination at the edge is the standard approach.",
+      "Removing firewalls eliminates a filtering layer and would let more attack traffic through, worsening rather than mitigating the attack."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Rate limiting, scrubbing/CDN absorption, and autoscaling all help a service withstand or deflect a flood of traffic. Disabling TLS or removing firewalls would weaken security without meaningfully helping against volumetric attacks.",
+    "example": "# Layered DDoS mitigation\n# 1. Edge: anycast CDN / scrubbing (Cloudflare, AWS Shield Advanced) absorbs volumetric floods\n# 2. Per-client rate limiting at the proxy\nlimit_req_zone $binary_remote_addr zone=perip:10m rate=20r/s;\n# 3. Autoscale the backend to ride out what gets through\nkubectl autoscale deployment web --min=3 --max=30 --cpu-percent=60",
     "tags": [
       "ddos"
     ]
@@ -851,8 +1106,15 @@
       "To reduce cloud storage costs",
       "To improve application response times"
     ],
+    "optionNotes": [
+      "Recording who performed which action on which resource and when, to support accountability, incident forensics, and compliance evidence, is the purpose of audit logging.",
+      "Audit logs are a record, not a remediation engine; fixing vulnerabilities requires patching or configuration changes.",
+      "Audit logs add storage volume and usually cost money to retain; they do not reduce cloud storage costs.",
+      "Writing audit events adds a small overhead; it never speeds up application responses."
+    ],
     "answer": 0,
     "explanation": "Audit logs create a tamper-evident record of security-relevant events (logins, permission changes, data access, etc.), which is essential for investigating incidents and demonstrating compliance.",
+    "example": "# Kubernetes audit policy: record who changed Secrets and RBAC, with request bodies\napiVersion: audit.k8s.io/v1\nkind: Policy\nrules:\n- level: RequestResponse\n  resources:\n  - {group: \"\", resources: [\"secrets\"]}\n  - {group: rbac.authorization.k8s.io, resources: [\"rolebindings\", \"clusterrolebindings\"]}",
     "tags": [
       "audit-logging"
     ]
@@ -870,12 +1132,20 @@
       "SOC 2 reports evaluate a service organization's controls around criteria such as security and availability",
       "Passing a compliance audit guarantees an application has zero vulnerabilities"
     ],
+    "optionNotes": [
+      "PCI DSS (Payment Card Industry Data Security Standard) sets requirements for any organization that stores, processes, or transmits cardholder data.",
+      "GDPR (General Data Protection Regulation) is the EU law governing the processing and privacy of personal data of individuals in the EU.",
+      "HIPAA is a US law protecting the privacy and security of health information; Kubernetes hardening benchmarks come from CIS, not HIPAA.",
+      "SOC 2 reports assess a service organization's controls against the Trust Services Criteria: security, availability, processing integrity, confidentiality, and privacy.",
+      "An audit shows that defined controls were in place at a point in time; it cannot prove the absence of vulnerabilities in code."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "PCI DSS targets cardholder data protection, GDPR targets personal data privacy for EU individuals, and SOC 2 assesses trust-service controls like security and availability. HIPAA concerns health information privacy (not Kubernetes), and no compliance certification can guarantee zero vulnerabilities.",
+    "example": "# Map controls to frameworks in a compliance-as-code check (e.g. Terraform + OPA)\ndeny[msg] {\n  input.resource_type == \"aws_s3_bucket\"\n  not input.server_side_encryption\n  msg := sprintf(\"%s: encryption at rest required (PCI DSS 3.4, SOC 2 CC6.1)\", [input.name])\n}",
     "tags": [
       "compliance"
     ]
@@ -888,12 +1158,19 @@
     "prompt": "Why should application passwords never be stored in plaintext in a database?",
     "options": [
       "Plaintext values take up noticeably more disk space",
-      "If the database is ever breached, plaintext passwords are immediately usable by an attacker to access accounts \u2014 and, due to password reuse, potentially other services too",
+      "If the database is ever breached, plaintext passwords are immediately usable by an attacker to access accounts — and, due to password reuse, potentially other services too",
       "Plaintext passwords cannot be checked against a login form",
       "Most databases technically cannot store text values"
     ],
+    "optionNotes": [
+      "Password strings are tiny; disk usage is irrelevant to the decision, and hashes are often longer than the plaintext anyway.",
+      "A breach of a plaintext password table gives the attacker every account instantly, and reused passwords let them pivot to other services; that is why plaintext storage is unacceptable.",
+      "Plaintext passwords can trivially be compared to a login form value; the problem is that they should not exist to be compared.",
+      "Databases store text perfectly well; the constraint is a security requirement, not a technical limitation."
+    ],
     "answer": 1,
     "explanation": "Storing passwords in plaintext means a single database breach instantly compromises every user's credentials, with no additional work required by the attacker.",
+    "example": "# Store only a salted, slow hash; verify by re-hashing the login attempt\nfrom argon2 import PasswordHasher\nph = PasswordHasher()\nstored = ph.hash(\"correct horse battery staple\")   # $argon2id$v=19$m=65536,t=3,p=4$...\nph.verify(stored, login_attempt)   # raises on mismatch",
     "tags": [
       "passwords"
     ]
@@ -910,8 +1187,15 @@
       "They are deliberately slow and tunable (a configurable work factor) and are designed to be used with a per-user salt, which makes large-scale brute-force and rainbow-table attacks far more expensive",
       "They run faster than SHA-256, so logins feel snappier"
     ],
+    "optionNotes": [
+      "Salts are still essential with bcrypt and Argon2; both generate and embed a per-user salt automatically rather than eliminating the need for one.",
+      "Digest length is not the point; a bcrypt string is 60 characters and Argon2 output is configurable, and neither shortness nor length improves password security by itself.",
+      "A tunable, intentionally slow work factor plus per-user salts is what makes bcrypt and Argon2 resistant to large-scale brute force and rainbow tables, and is why they are preferred.",
+      "They are intentionally slower than SHA-256; the small login delay is the price of making offline cracking expensive."
+    ],
     "answer": 2,
-    "explanation": "General-purpose hashes like SHA-256 are built to be fast, which is exactly the wrong property for password storage \u2014 it lets attackers try billions of guesses per second. bcrypt and Argon2 are intentionally slow and configurable, and are used with salts to defeat precomputed rainbow tables.",
+    "explanation": "General-purpose hashes like SHA-256 are built to be fast, which is exactly the wrong property for password storage — it lets attackers try billions of guesses per second. bcrypt and Argon2 are intentionally slow and configurable, and are used with salts to defeat precomputed rainbow tables.",
+    "example": "# bcrypt cost factor makes each guess deliberately slow (~250 ms at cost 12)\nimport bcrypt\nhashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))\n# $2b$12$<22-char salt><31-char hash>  -- salt is embedded, per user\nbcrypt.checkpw(attempt.encode(), hashed)",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
     "tags": [
       "passwords",
@@ -930,6 +1214,7 @@
       "Argon2id"
     ],
     "explanation": "Argon2 (particularly the Argon2id variant) is the modern, competition-vetted choice for password hashing, alongside longstanding options like bcrypt and scrypt.",
+    "example": "# Argon2id with OWASP-recommended minimum parameters\nfrom argon2 import PasswordHasher\nph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)  # 19 MiB\nprint(ph.hash(\"s3cret\"))\n# $argon2id$v=19$m=19456,t=2,p=1$...",
     "pattern": "^argon2(id)?$",
     "reference": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
     "tags": [
@@ -949,8 +1234,15 @@
       "subject.issuer.audience",
       "header.payload.signature"
     ],
+    "optionNotes": [
+      "Key, certificate, and chain are components of a TLS/X.509 setup, not the segments of a JWT.",
+      "Request, response, and status are HTTP concepts and have no relation to the structure of a token.",
+      "`sub`, `iss`, and `aud` are registered claim names that live inside the payload; they are not the three top-level segments.",
+      "Header (algorithm and type), payload (claims), and signature (integrity check over the first two) are the three dot-separated parts of a compact JWT."
+    ],
     "answer": 3,
     "explanation": "A compact JWT has three dot-separated segments: a header (algorithm/type metadata), a payload (the claims), and a signature that lets a verifier check the token's integrity.",
+    "example": "# A JWT is header.payload.signature, each part base64url-encoded\nJWT='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSIsImV4cCI6MTc1MDAwMDAwMH0.sig...'\necho \"$JWT\" | cut -d. -f1 | base64 -d 2>/dev/null   # {\"alg\":\"HS256\",\"typ\":\"JWT\"}\necho \"$JWT\" | cut -d. -f2 | base64 -d 2>/dev/null   # {\"sub\":\"alice\",\"exp\":1750000000}",
     "tags": [
       "jwt"
     ]
@@ -962,7 +1254,8 @@
     "type": "boolean",
     "prompt": "By default, the payload (claims) of a standard signed JWT (JWS) is encrypted and unreadable to anyone who does not hold the signing key.",
     "answer": false,
-    "explanation": "The payload is only base64url-*encoded*, not encrypted \u2014 anyone holding the token can decode and read it. The signature only protects integrity, not confidentiality, so sensitive data shouldn't be placed in a plain JWT payload unless it is separately encrypted (e.g., using JWE).",
+    "explanation": "The payload is only base64url-*encoded*, not encrypted — anyone holding the token can decode and read it. The signature only protects integrity, not confidentiality, so sensitive data shouldn't be placed in a plain JWT payload unless it is separately encrypted (e.g., using JWE).",
+    "example": "# Anyone with the token can read the claims without any key\necho 'eyJzdWIiOiJhbGljZSIsInJvbGUiOiJhZG1pbiJ9' | base64 -d\n# {\"sub\":\"alice\",\"role\":\"admin\"}\n# The signature only proves integrity; use JWE if claims must stay confidential",
     "tags": [
       "jwt"
     ]
@@ -979,8 +1272,15 @@
       "It replaces the need for authentication tokens entirely",
       "It encrypts traffic exchanged between two different origins"
     ],
+    "optionNotes": [
+      "A browser-enforced, header-based protocol that lets a server explicitly allow specific foreign origins, relaxing the same-origin policy, is exactly what CORS is.",
+      "The same-origin policy is what restricts cross-origin reads by default; CORS is the mechanism to selectively permit them, not to block everything.",
+      "CORS only governs which origins a browser may read responses from; requests still need normal authentication such as tokens or cookies.",
+      "Encryption of traffic is provided by TLS; CORS headers are plain metadata about permitted origins and do not encrypt anything."
+    ],
     "answer": 0,
     "explanation": "Browsers enforce the same-origin policy by default. CORS is the opt-in, header-based protocol (e.g., `Access-Control-Allow-Origin`) that lets a server relax that restriction for specific origins it trusts.",
+    "example": "# Server opts in to a specific trusted origin (nginx)\nadd_header Access-Control-Allow-Origin \"https://app.example.com\";\nadd_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\";\nadd_header Access-Control-Allow-Headers \"Authorization, Content-Type\";\n# Browser preflight: OPTIONS /api/orders  Origin: https://app.example.com",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
     "tags": [
       "cors"
@@ -998,8 +1298,15 @@
       "An attacker floods a server with traffic to exhaust its resources",
       "An attacker repeatedly guesses a user's password through a login form"
     ],
+    "optionNotes": [
+      "Injecting JavaScript that runs in other users' browsers is Cross-Site Scripting (XSS), a different attack class.",
+      "Tricking an authenticated victim's browser into sending a state-changing request the victim did not intend, relying on automatically attached cookies, is the definition of CSRF.",
+      "Flooding a server to exhaust resources is a denial-of-service attack.",
+      "Repeated password guessing through a login form is a brute-force attack, not request forgery."
+    ],
     "answer": 1,
     "explanation": "CSRF exploits the browser's automatic inclusion of credentials (like session cookies) on requests: a malicious page can cause the victim's browser to submit a state-changing request to another site the victim is already authenticated to, without the victim's knowledge.",
+    "example": "# Attack shape (defensive illustration): a hidden form on evil.example auto-submits to the bank\n# <form action=\"https://bank.example/transfer\" method=\"POST\"> ... </form>\n# The browser attaches the bank's session cookie automatically.\n# Defense: bank sets\nSet-Cookie: session=...; Secure; HttpOnly; SameSite=Lax\n# and requires a per-session CSRF token in every POST",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
     "tags": [
       "csrf"
@@ -1018,12 +1325,20 @@
       "Validating the `Origin` or `Referer` header on sensitive requests",
       "Increasing the session cookie's expiration time to 30 days"
     ],
+    "optionNotes": [
+      "Synchronizer tokens are unpredictable per-session values that a forging site cannot know, so requests without a valid token are rejected.",
+      "The `SameSite` cookie attribute set to `Lax` or `Strict` tells browsers not to attach the cookie on most or all cross-site requests, removing the ambient credential CSRF relies on.",
+      "Disabling TLS removes transport protection and does nothing to stop forged requests; it weakens security overall.",
+      "Checking the `Origin` or `Referer` header lets the server reject state-changing requests that originate from an unexpected site.",
+      "A longer cookie lifetime keeps the session valid longer, which if anything widens the window for CSRF rather than mitigating it."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "CSRF tokens, the `SameSite` cookie attribute, and Origin/Referer validation are all standard, effective CSRF defenses. Disabling TLS removes an unrelated protection and weakens security, and lengthening cookie lifetime does nothing to stop CSRF.",
+    "example": "# Django enables all three defenses with a few settings\nCSRF_COOKIE_SECURE = True\nSESSION_COOKIE_SAMESITE = \"Lax\"       # SameSite attribute\nCSRF_TRUSTED_ORIGINS = [\"https://app.example.com\"]   # Origin/Referer check\n# Template: <form method=\"post\">{% csrf_token %} ...   # synchronizer token",
     "reference": "https://developer.mozilla.org/en-US/docs/Glossary/CSRF",
     "tags": [
       "csrf"
@@ -1040,6 +1355,7 @@
       "HSTS"
     ],
     "explanation": "The `Strict-Transport-Security` header (commonly abbreviated HSTS) tells a compliant browser to automatically upgrade future requests to that host to HTTPS, helping prevent protocol-downgrade and cookie-hijacking attacks.",
+    "example": "# nginx: tell browsers to use HTTPS only for the next year, including subdomains\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;\n# Verify\ncurl -sI https://example.com | grep -i strict-transport",
     "pattern": "^(strict-transport-security|hsts)$",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
     "tags": [
@@ -1059,8 +1375,15 @@
       "Browsers from MIME-sniffing a response into a different content type than the server declared, which can prevent certain content-type-confusion attacks",
       "Cookies from ever being sent on cross-site requests"
     ],
+    "optionNotes": [
+      "Rendering on mobile browsers is unaffected; this header has nothing to do with device or viewport handling.",
+      "Server-side request logging is configured in the web server; a response header sent to clients does not control it.",
+      "Telling browsers not to MIME-sniff and to honor the declared `Content-Type` is exactly what `nosniff` does, blocking content-type confusion tricks.",
+      "Restricting cookies on cross-site requests is done with the `SameSite` cookie attribute, not with `X-Content-Type-Options`."
+    ],
     "answer": 2,
     "explanation": "Without `nosniff`, some browsers try to guess a resource's type from its content rather than trusting the declared `Content-Type`, which attackers have abused to get a file treated as executable script; `nosniff` disables that guessing.",
+    "example": "# Serve every response with nosniff so browsers honor the declared Content-Type\nadd_header X-Content-Type-Options \"nosniff\" always;\n# Without it, a user-uploaded 'image' containing JS might be executed as a script\ncurl -sI https://example.com | grep -i x-content-type",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
     "tags": [
       "security-headers"
@@ -1079,12 +1402,20 @@
       "`Content-Length`",
       "`Accept-Language`"
     ],
+    "optionNotes": [
+      "`Content-Security-Policy` restricts which sources scripts, styles, and other resources may load from, which is a primary defense against XSS.",
+      "`Strict-Transport-Security` (HSTS) forces browsers to use HTTPS for the host, defeating protocol downgrade and cookie-stripping attacks.",
+      "`X-Content-Type-Options: nosniff` stops browsers from guessing a different MIME type than the one declared, preventing content-type confusion.",
+      "`Content-Length` simply states the size of the response body in bytes and has no security role.",
+      "`Accept-Language` is a request header the browser sends to indicate preferred languages; it is not a response header and has no security purpose."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "CSP, HSTS, and X-Content-Type-Options are all security-focused response headers. `Content-Length` and `Accept-Language` are ordinary functional headers with no direct security purpose.",
+    "example": "# Baseline security headers in nginx\nadd_header Content-Security-Policy \"default-src 'self'; object-src 'none'\" always;\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;\nadd_header X-Content-Type-Options \"nosniff\" always;\nadd_header Referrer-Policy \"strict-origin-when-cross-origin\" always;",
     "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy",
     "tags": [
       "security-headers"
@@ -1100,10 +1431,17 @@
       "It is a secrets manager comparable to Vault",
       "It is a certificate authority that issues TLS certificates",
       "It is a container runtime, similar to containerd",
-      "It is a general-purpose policy engine that lets teams define and enforce policies as code \u2014 for example, Kubernetes admission control, service authorization, or CI/CD checks \u2014 decoupled from the services that enforce them"
+      "It is a general-purpose policy engine that lets teams define and enforce policies as code — for example, Kubernetes admission control, service authorization, or CI/CD checks — decoupled from the services that enforce them"
+    ],
+    "optionNotes": [
+      "Secrets management is Vault's domain; OPA stores and evaluates policy, not credentials.",
+      "Issuing TLS certificates is what a CA such as cert-manager with Let's Encrypt or Fulcio does; OPA makes allow/deny decisions.",
+      "Container runtimes such as containerd or CRI-O execute containers; OPA does not run workloads.",
+      "A general-purpose policy engine that evaluates policy-as-code from many enforcement points (Kubernetes admission via Gatekeeper, API gateways, CI checks) while staying decoupled from the services is exactly what OPA is."
     ],
     "answer": 3,
     "explanation": "OPA is a standalone, general-purpose policy engine: you author policies once and evaluate them from many different enforcement points (Kubernetes via Gatekeeper, API gateways, CI pipelines, etc.), keeping policy logic out of application code.",
+    "example": "# Gatekeeper (OPA) constraint: every pod image must come from the internal registry\napiVersion: constraints.gatekeeper.sh/v1beta1\nkind: K8sAllowedRepos\nmetadata: {name: internal-registry-only}\nspec:\n  match: {kinds: [{apiGroups: [\"\"], kinds: [\"Pod\"]}]}\n  parameters: {repos: [\"registry.acme.internal/\"]}",
     "tags": [
       "opa",
       "policy-as-code"
@@ -1119,6 +1457,7 @@
       "Rego"
     ],
     "explanation": "Rego is OPA's purpose-built language for expressing policy rules that are evaluated against structured input data to produce an allow/deny (or other) decision.",
+    "example": "# Rego policy: deny privileged containers at admission time\npackage kubernetes.admission\ndeny[msg] {\n  container := input.request.object.spec.containers[_]\n  container.securityContext.privileged == true\n  msg := sprintf(\"privileged container not allowed: %v\", [container.name])\n}\n# opa eval -d policy.rego -i pod.json 'data.kubernetes.admission.deny'",
     "pattern": "^rego$",
     "tags": [
       "opa",

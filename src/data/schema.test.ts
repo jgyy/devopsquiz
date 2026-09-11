@@ -7,11 +7,12 @@ const base = {
   difficulty: 'easy',
   prompt: 'What does `docker ps` show?',
   explanation: 'It lists running containers.',
+  example: 'docker ps  # running containers',
 }
 
 describe('questionSchema', () => {
   it('accepts a valid single-choice question', () => {
-    const q = { ...base, type: 'single', options: ['a', 'b', 'c'], answer: 1 }
+    const q = { ...base, type: 'single', options: ['a', 'b', 'c'], optionNotes: ['na', 'nb', 'nc'], answer: 1 }
     expect(questionSchema.safeParse(q).success).toBe(true)
   })
 
@@ -31,7 +32,7 @@ describe('questionSchema', () => {
   })
 
   it('accepts a multi question with sorted answers', () => {
-    const q = { ...base, type: 'multi', options: ['a', 'b', 'c'], answer: [0, 2] }
+    const q = { ...base, type: 'multi', options: ['a', 'b', 'c'], optionNotes: ['na', 'nb', 'nc'], answer: [0, 2] }
     expect(questionSchema.safeParse(q).success).toBe(true)
   })
 
@@ -45,6 +46,24 @@ describe('questionSchema', () => {
   it('rejects a fill question with an invalid regex pattern', () => {
     const q = { ...base, type: 'fill', answer: ['x'], pattern: '(' }
     expect(questionSchema.safeParse(q).success).toBe(false)
+  })
+
+  it('rejects a question without an example', () => {
+    const { example: _drop, ...noExample } = base
+    void _drop
+    expect(questionSchema.safeParse({ ...noExample, type: 'boolean', answer: true }).success).toBe(false)
+  })
+
+  it('accepts optionNotes with one note per option', () => {
+    const q = { ...base, type: 'single', options: ['a', 'b'], optionNotes: ['about a', 'about b'], answer: 0 }
+    expect(questionSchema.safeParse(q).success).toBe(true)
+  })
+
+  it('rejects optionNotes whose length differs from options', () => {
+    const q = { ...base, type: 'multi', options: ['a', 'b', 'c'], optionNotes: ['about a'], answer: [0] }
+    const r = questionSchema.safeParse(q)
+    expect(r.success).toBe(false)
+    if (!r.success) expect(r.error.issues[0].path).toEqual(['optionNotes'])
   })
 
   it('rejects an id that does not match the domain prefix', () => {

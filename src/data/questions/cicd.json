@@ -6,11 +6,18 @@
     "type": "single",
     "prompt": "What does the `CI` in CI/CD stand for?",
     "explanation": "CI stands for Continuous Integration, the practice of frequently merging code changes into a shared repository where they are automatically built and tested.",
+    "example": "# .github/workflows/ci.yml - integrate every push\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm ci && npm test  # build + test each merge",
     "options": [
       "Continuous Integration",
       "Continuous Installation",
       "Code Inspection",
       "Continuous Improvement"
+    ],
+    "optionNotes": [
+      "Continuous Integration is the practice of merging changes into a shared branch frequently and automatically building and testing each one; this is what CI means.",
+      "Continuous Installation is not an industry term; installing software continuously has nothing to do with the CI acronym.",
+      "Code Inspection is a manual or automated review activity that may run inside a CI pipeline, but it is not what the acronym stands for.",
+      "Continuous Improvement is a Lean/Kaizen management concept about iteratively refining processes; it is not the CI in CI/CD."
     ],
     "answer": 0,
     "tags": [
@@ -24,11 +31,18 @@
     "type": "single",
     "prompt": "Which statement best describes Continuous Delivery?",
     "explanation": "Continuous Delivery means every change that passes automated tests is automatically prepared for a release, but a human still decides when to actually push it to production.",
+    "example": "# GitLab CI: build is always releasable, prod needs a click\ndeploy_prod:\n  stage: deploy\n  script: ./deploy.sh production\n  when: manual  # human approves the release\n  only: [main]",
     "options": [
       "Every change that passes the pipeline is automatically released to production with no human involvement",
       "Every change that passes automated tests is kept in a releasable state, with production release requiring manual approval",
       "Code is only merged to the main branch once a month",
       "Developers manually test every change before committing it"
+    ],
+    "optionNotes": [
+      "Fully automatic release of every passing change with no human gate is Continuous Deployment, not Continuous Delivery.",
+      "Keeping every passing change in a releasable state while a human decides when to push to production is exactly the definition of Continuous Delivery.",
+      "Merging to main only monthly is the opposite of continuous practice; Continuous Delivery relies on frequent integration.",
+      "Manual testing of every change before committing describes a slow, pre-CI workflow and is unrelated to Continuous Delivery."
     ],
     "answer": 1,
     "tags": [
@@ -42,11 +56,18 @@
     "type": "single",
     "prompt": "What is the key difference between Continuous Delivery and Continuous Deployment?",
     "explanation": "In Continuous Delivery a human approves the final push to production, whereas Continuous Deployment removes that manual gate so every change that passes the pipeline is released automatically.",
+    "example": "# Continuous Delivery: manual gate before prod\ndeploy_prod:\n  when: manual\n\n# Continuous Deployment: no gate, auto-runs on main\ndeploy_prod:\n  rules:\n    - if: $CI_COMMIT_BRANCH == \"main\"",
     "options": [
       "Continuous Deployment requires manual approval before release; Continuous Delivery does not",
       "There is no real difference; the terms are interchangeable",
       "Continuous Delivery ends with a releasable build awaiting manual approval; Continuous Deployment automatically releases every passing change to production",
       "Continuous Delivery only applies to mobile apps"
+    ],
+    "optionNotes": [
+      "This reverses the two terms; it is Continuous Delivery that keeps the manual approval, while Continuous Deployment removes it.",
+      "The terms are related but not interchangeable; the presence or absence of a manual production gate is a real, meaningful distinction.",
+      "Continuous Delivery produces a releasable build awaiting a human decision, while Continuous Deployment automatically ships every passing change; this is the correct distinction.",
+      "Continuous Delivery is a general software delivery practice applicable to web services, libraries, mobile apps, and more; it is not mobile-specific."
     ],
     "answer": 2,
     "tags": [
@@ -60,6 +81,7 @@
     "type": "boolean",
     "prompt": "Continuous Deployment requires a human to manually approve every release before it reaches production.",
     "explanation": "That describes Continuous Delivery. Continuous Deployment goes a step further and automatically deploys every change that passes the pipeline, without manual approval.",
+    "example": "# Continuous Deployment: main -> production automatically\non:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./deploy.sh production  # no approval step",
     "answer": false,
     "tags": [
       "concepts"
@@ -72,11 +94,18 @@
     "type": "single",
     "prompt": "In a CI/CD pipeline, what does a `stage` typically represent?",
     "explanation": "A stage is a logical grouping of jobs (for example `build`, `test`, `deploy`) that usually run in a defined order, with jobs inside a stage often running in parallel.",
+    "example": "# .gitlab-ci.yml - three stages, jobs grouped by stage\nstages: [build, test, deploy]\n\ncompile:\n  stage: build\n  script: make\nunit:\n  stage: test\n  script: make test\nlint:\n  stage: test  # runs in parallel with unit\n  script: make lint",
     "options": [
       "A single shell command",
       "A logical group of related jobs, such as build, test, or deploy",
       "A container image used only for testing",
       "A Git branch name"
+    ],
+    "optionNotes": [
+      "A single shell command is a step (or a script line inside a job), which is a much smaller unit than a stage.",
+      "A stage is a logical grouping of related jobs such as build, test, or deploy, executed in a defined order; this is the correct definition.",
+      "A container image is the execution environment a job runs in (for example `image: node:20`), not a grouping of jobs.",
+      "A Git branch name is source-control metadata that may be used in trigger rules; it does not define pipeline structure."
     ],
     "answer": 1,
     "tags": [
@@ -90,11 +119,18 @@
     "type": "single",
     "prompt": "In most CI/CD systems (e.g. GitHub Actions, GitLab CI), what is the smallest individually executable unit inside a job?",
     "explanation": "A job is made up of one or more steps, and each step runs a single command or action; steps are the smallest unit of execution within a job.",
+    "example": "jobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:                         # each entry is one step\n      - uses: actions/checkout@v4\n      - run: npm ci\n      - run: npm test",
     "options": [
       "A workflow",
       "A stage",
       "A step",
       "A pipeline"
+    ],
+    "optionNotes": [
+      "A workflow is the top-level automated process that contains one or more jobs; it is the largest unit, not the smallest.",
+      "A stage groups jobs together and orders them; it sits above jobs, not inside them.",
+      "A step is a single command or action executed inside a job and is the smallest individually executable unit; this is correct.",
+      "A pipeline is the whole run of stages and jobs from trigger to completion; it is the outermost unit."
     ],
     "answer": 2,
     "tags": [
@@ -108,6 +144,7 @@
     "type": "fill",
     "prompt": "In a GitHub Actions workflow YAML file, which top-level key defines the events that trigger the workflow to run?",
     "explanation": "The `on` key lists the events (such as `push`, `pull_request`, or `schedule`) that cause the workflow to run.",
+    "example": "on:\n  push:\n    branches: [main]\n  pull_request:\n  schedule:\n    - cron: '0 2 * * *'  # nightly at 02:00 UTC",
     "answer": [
       "on"
     ],
@@ -123,11 +160,18 @@
     "type": "single",
     "prompt": "Where must GitHub Actions workflow YAML files be located in a repository to be picked up automatically?",
     "explanation": "GitHub Actions looks for workflow definitions in the `.github/workflows/` directory at the root of the repository.",
+    "example": "$ ls .github/workflows/\nci.yml  release.yml\n# any *.yml or *.yaml here is auto-registered as a workflow",
     "options": [
       ".github/workflows/",
       ".ci/pipelines/",
       "workflows/",
       ".github/actions/"
+    ],
+    "optionNotes": [
+      "The `.github/workflows/` directory at the repository root is where GitHub Actions discovers workflow files automatically; this is the correct location.",
+      "`.ci/pipelines/` is not a directory GitHub Actions scans; workflows placed there are ignored.",
+      "A top-level `workflows/` folder without the `.github` prefix is not recognized by GitHub Actions.",
+      "`.github/actions/` is a conventional place to store local composite or Docker actions referenced via `uses: ./.github/actions/name`, but workflow files there are not run."
     ],
     "answer": 0,
     "reference": "https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows",
@@ -142,6 +186,7 @@
     "type": "fill",
     "prompt": "In a GitHub Actions job, which key specifies the type of runner/machine the job executes on (e.g. `ubuntu-latest`)?",
     "explanation": "The `runs-on` key selects the runner environment, such as `ubuntu-latest`, `windows-latest`, or a self-hosted runner label.",
+    "example": "jobs:\n  build:\n    runs-on: ubuntu-latest      # GitHub-hosted runner\n  windows-build:\n    runs-on: windows-latest\n  on-prem:\n    runs-on: [self-hosted, linux, x64]  # label set",
     "answer": [
       "runs-on",
       "runs on"
@@ -159,12 +204,20 @@
     "type": "multi",
     "prompt": "Which of the following are valid `on:` event triggers for a GitHub Actions workflow?",
     "explanation": "`push`, `pull_request`, `workflow_dispatch`, and `schedule` are all valid GitHub Actions events. `compile` is not a recognized workflow trigger.",
+    "example": "on:\n  push:\n  pull_request:\n    types: [opened, synchronize]\n  workflow_dispatch:    # manual 'Run workflow' button\n  schedule:\n    - cron: '0 6 * * 1'",
     "options": [
       "push",
       "pull_request",
       "workflow_dispatch",
       "schedule",
       "compile"
+    ],
+    "optionNotes": [
+      "The `push` event fires when commits or tags are pushed to the repository and is one of the most common workflow triggers.",
+      "The `pull_request` event fires on pull request activity such as opened, synchronize, or closed, and is a valid trigger.",
+      "The `workflow_dispatch` event enables manual runs from the Actions UI or API, optionally with input parameters, and is valid.",
+      "The `schedule` event runs the workflow on a POSIX cron expression at a fixed time and is a valid trigger.",
+      "There is no `compile` event in GitHub Actions; compiling is something a step does with `run`, not a repository event that starts a workflow."
     ],
     "answer": [
       0,
@@ -184,11 +237,18 @@
     "type": "single",
     "prompt": "In a GitHub Actions step, what does the `uses` key specify?",
     "explanation": "The `uses` key tells the step to run a reusable action, such as `actions/checkout@v4`, instead of running a shell command directly.",
+    "example": "steps:\n  - uses: actions/checkout@v4          # reusable action, pinned to v4\n  - uses: actions/setup-node@v4\n    with:\n      node-version: 20\n  - run: npm test                      # plain shell command instead",
     "options": [
       "A reusable action to run, referenced by repository and version",
       "The shell command to execute",
       "The name of the job's runner",
       "The secret to inject into the environment"
+    ],
+    "optionNotes": [
+      "The `uses` key references a reusable action by repository (or Docker image or local path) plus a version ref, such as `actions/checkout@v4`; this is its purpose.",
+      "Shell commands are executed with the `run` key, not `uses`; a step has one or the other.",
+      "The runner machine is chosen at the job level with `runs-on`, not in a step.",
+      "Secrets are injected via the `env` key or `with` inputs using `${{ secrets.NAME }}`; `uses` does not handle secrets."
     ],
     "answer": 0,
     "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions",
@@ -203,11 +263,18 @@
     "type": "single",
     "prompt": "What is the purpose of a `strategy.matrix` block in a GitHub Actions job?",
     "explanation": "A build matrix runs the same job multiple times with different combinations of variables (e.g. OS versions, language versions), letting you test across many configurations without duplicating job definitions.",
+    "example": "jobs:\n  test:\n    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest]\n        node: [18, 20, 22]   # 2 x 3 = 6 parallel jobs\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}",
     "options": [
       "It encrypts secrets used by the job",
       "It runs the job once, then caches the result for all future runs",
       "It automatically generates a matrix of dependencies to install",
       "It runs multiple copies of a job in parallel with different variable combinations, such as OS or language versions"
+    ],
+    "optionNotes": [
+      "Secrets are encrypted by GitHub when stored in repository or environment settings; `strategy.matrix` has nothing to do with encryption.",
+      "Caching results across runs is done with `actions/cache`; a matrix expands a job into multiple runs rather than caching one.",
+      "The matrix does not discover dependencies; you list the variable values yourself and the runner expands them.",
+      "A matrix strategy expands a single job definition into multiple parallel jobs, one per combination of variables like OS or language version; this is correct."
     ],
     "answer": 3,
     "reference": "https://docs.github.com/en/actions/using-jobs/using-a-build-matrix-for-your-jobs",
@@ -222,6 +289,7 @@
     "type": "boolean",
     "prompt": "GitHub Actions automatically masks the value of a secret if it appears in workflow log output.",
     "explanation": "GitHub Actions registers secret values and redacts them from logs, replacing occurrences with `***`, though this masking is not a guarantee against every possible leak (e.g. secrets can still leak if transformed before printing).",
+    "example": "steps:\n  - run: echo \"token=${{ secrets.API_TOKEN }}\"\n# log output shows:  token=***\n# but this can leak (transformed value):\n  - run: echo \"${{ secrets.API_TOKEN }}\" | base64",
     "answer": true,
     "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions",
     "tags": [
@@ -236,6 +304,7 @@
     "type": "fill",
     "prompt": "In a GitHub Actions workflow, what expression syntax is used to reference a repository secret named `API_KEY`?",
     "explanation": "Secrets are accessed through the `secrets` context using `${{ secrets.API_KEY }}`.",
+    "example": "steps:\n  - name: Call API\n    env:\n      API_KEY: ${{ secrets.API_KEY }}  # injected as env var\n    run: curl -H \"Authorization: Bearer $API_KEY\" https://api.example.com",
     "answer": [
       "${{ secrets.API_KEY }}",
       "secrets.API_KEY"
@@ -254,11 +323,18 @@
     "type": "single",
     "prompt": "To let a GitHub Actions workflow authenticate to a cloud provider using OpenID Connect (OIDC) instead of a long-lived secret, which job-level permission must be granted?",
     "explanation": "OIDC-based cloud authentication requires the workflow to request an OIDC token, which is granted with the `id-token: write` permission; the cloud provider then exchanges that short-lived token for temporary credentials.",
+    "example": "jobs:\n  deploy:\n    permissions:\n      id-token: write   # allow requesting the OIDC JWT\n      contents: read\n    steps:\n      - uses: aws-actions/configure-aws-credentials@v4\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-deploy\n          aws-region: us-east-1",
     "options": [
       "contents: write",
       "id-token: write",
       "actions: write",
       "packages: write"
+    ],
+    "optionNotes": [
+      "The `contents: write` permission lets the job push commits or create releases via the GITHUB_TOKEN; it does not enable OIDC token issuance.",
+      "The `id-token: write` permission allows the job to request a short-lived OIDC JWT from GitHub, which the cloud provider exchanges for temporary credentials; this is the required permission.",
+      "The `actions: write` permission controls managing workflow runs and caches through the API; it is unrelated to OIDC federation.",
+      "The `packages: write` permission grants publishing to GitHub Packages or GHCR; it does not issue identity tokens."
     ],
     "answer": 1,
     "reference": "https://docs.github.com/en/actions/security-guides/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
@@ -275,6 +351,7 @@
     "type": "fill",
     "prompt": "Which official GitHub Actions action is commonly used to cache dependencies (such as npm or Maven packages) between workflow runs?",
     "explanation": "`actions/cache` saves and restores files such as dependency directories, keyed by a cache key, to speed up subsequent workflow runs.",
+    "example": "- uses: actions/cache@v4\n  with:\n    path: ~/.npm\n    key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}\n    restore-keys: npm-${{ runner.os }}-",
     "answer": [
       "actions/cache"
     ],
@@ -292,11 +369,18 @@
     "type": "single",
     "prompt": "Which GitHub Actions action is used to upload build outputs so they can be downloaded after a workflow run or used by a later job?",
     "explanation": "`actions/upload-artifact` publishes files as a workflow artifact, which can then be downloaded from the run summary or fetched by another job with `actions/download-artifact`.",
+    "example": "- uses: actions/upload-artifact@v4\n  with:\n    name: dist\n    path: build/\n# in a later job:\n- uses: actions/download-artifact@v4\n  with:\n    name: dist",
     "options": [
       "actions/cache",
       "actions/upload-artifact",
       "actions/checkout",
       "actions/setup-node"
+    ],
+    "optionNotes": [
+      "`actions/cache` stores and restores dependency directories between runs to save time; caches are best-effort and not meant for passing build outputs.",
+      "`actions/upload-artifact` uploads files as a named workflow artifact that can be downloaded from the run page or by another job with `actions/download-artifact`; this is correct.",
+      "`actions/checkout` clones the repository into the runner workspace so later steps can use the source; it does not upload anything.",
+      "`actions/setup-node` installs a requested Node.js version onto the runner and optionally configures package caching; it is not for artifacts."
     ],
     "answer": 1,
     "reference": "https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts",
@@ -312,6 +396,7 @@
     "type": "fill",
     "prompt": "What is the default filename GitLab looks for at the root of a repository to define a CI/CD pipeline?",
     "explanation": "GitLab CI/CD reads pipeline definitions from `.gitlab-ci.yml` in the repository root by default (a different path can be configured).",
+    "example": "$ cat .gitlab-ci.yml\nstages: [test]\nunit:\n  stage: test\n  image: python:3.12\n  script: pytest",
     "answer": [
       ".gitlab-ci.yml"
     ],
@@ -328,11 +413,18 @@
     "type": "single",
     "prompt": "In `.gitlab-ci.yml`, what does the top-level `stages` keyword control?",
     "explanation": "The `stages` keyword lists the pipeline stages and the order they execute in; jobs assigned to the same stage run in parallel, and the pipeline moves to the next stage only once the current one completes.",
+    "example": "stages:\n  - build\n  - test\n  - deploy    # runs only after all test jobs succeed\n\nbuild_job:\n  stage: build\n  script: make\ndeploy_job:\n  stage: deploy\n  script: ./deploy.sh",
     "options": [
       "The list of Docker images available to jobs",
       "The order in which pipeline stages execute",
       "The branches allowed to trigger a pipeline",
       "The list of environment variables shared across jobs"
+    ],
+    "optionNotes": [
+      "Docker images are selected per job or globally with the `image` keyword, not with `stages`.",
+      "The `stages` list defines which stages exist and the sequential order in which they execute; this is its purpose.",
+      "Branch filtering is done per job with `rules`, `only`, or `except`; `stages` does not restrict triggers.",
+      "Shared environment variables are declared under the top-level `variables` keyword, not `stages`."
     ],
     "answer": 1,
     "reference": "https://docs.gitlab.com/ee/ci/pipelines/",
@@ -347,11 +439,18 @@
     "type": "single",
     "prompt": "What is the role of a GitLab Runner?",
     "explanation": "A GitLab Runner is the agent process that picks up jobs from GitLab CI/CD and executes them, reporting results back to GitLab.",
+    "example": "# register a runner on a build machine\n$ sudo gitlab-runner register --url https://gitlab.example.com \\\n    --token glrt-xxxx --executor docker --docker-image alpine:3\n$ sudo gitlab-runner run   # polls GitLab for jobs and executes them",
     "options": [
       "It stores GitLab's Git repositories",
       "It executes the jobs defined in a pipeline and reports results back to GitLab",
       "It is GitLab's built-in issue tracker",
       "It only renders the GitLab web UI"
+    ],
+    "optionNotes": [
+      "Git repositories are stored by the GitLab server itself (Gitaly); a runner only clones them temporarily to run jobs.",
+      "A GitLab Runner is the agent that polls GitLab for pending CI jobs, executes them with an executor such as shell or Docker, and reports logs and status back; this is correct.",
+      "Issue tracking is a feature of the GitLab application, not something the runner binary does.",
+      "The web UI is served by the GitLab Rails application; runners have no role in rendering it."
     ],
     "answer": 1,
     "reference": "https://docs.gitlab.com/ee/ci/runners/",
@@ -366,6 +465,7 @@
     "type": "boolean",
     "prompt": "In GitLab CI/CD, jobs assigned to the same stage run in parallel by default.",
     "explanation": "Jobs within the same stage have no dependency on each other by default, so GitLab CI/CD runs them concurrently (subject to available runners).",
+    "example": "stages: [test]\n\nunit_tests:\n  stage: test\n  script: pytest\nlint:\n  stage: test     # both jobs start concurrently\n  script: ruff check .\n# pipeline graph shows unit_tests and lint side by side",
     "answer": true,
     "reference": "https://docs.gitlab.com/ee/ci/pipelines/",
     "tags": [
@@ -379,11 +479,18 @@
     "type": "single",
     "prompt": "What is the main advantage of GitLab CI/CD's `rules` keyword over the older `only`/`except` keywords?",
     "explanation": "`rules` evaluates an ordered list of conditions (based on variables, changes, pipeline source, etc.) and lets you also control the job's behaviour, such as `when: manual` or `allow_failure`, offering far more flexibility than the simpler `only`/`except` filters.",
+    "example": "deploy:\n  script: ./deploy.sh\n  rules:\n    - if: $CI_PIPELINE_SOURCE == \"merge_request_event\"\n      when: never\n    - if: $CI_COMMIT_BRANCH == \"main\"\n      when: manual\n      allow_failure: false\n    - changes: [\"infra/**\"]",
     "options": [
       "`rules` runs faster because it skips YAML parsing",
       "`rules` can only be used with Docker executors",
       "`rules` supports ordered, more expressive conditions and can set job behaviour like `when` or `allow_failure`",
       "`rules` is required for every job, while `only`/`except` is optional"
+    ],
+    "optionNotes": [
+      "`rules` does not change YAML parsing speed; the pipeline YAML is fully parsed regardless of which keyword you use.",
+      "`rules` is a job configuration keyword that works with any executor (shell, Docker, Kubernetes); executors are a runner concern.",
+      "`rules` is evaluated as an ordered list of `if`, `changes`, and `exists` conditions and can set `when`, `allow_failure`, and `variables` on the job, giving far more expressive control; this is the advantage.",
+      "`rules` is optional; `only`/`except` still work (though deprecated), and a job with neither simply runs on every pipeline."
     ],
     "answer": 2,
     "reference": "https://docs.gitlab.com/ee/ci/yaml/#rules",
@@ -398,11 +505,18 @@
     "type": "single",
     "prompt": "What is a `Jenkinsfile`?",
     "explanation": "A Jenkinsfile is a text file, checked into source control, that defines a Jenkins Pipeline as code using either Declarative or Scripted syntax.",
+    "example": "// Jenkinsfile at repo root (Declarative)\npipeline {\n  agent any\n  stages {\n    stage('Build') { steps { sh 'make' } }\n    stage('Test')  { steps { sh 'make test' } }\n  }\n}",
     "options": [
       "A Jenkins server configuration file for plugins",
       "A text file that defines a Jenkins Pipeline as code, stored in source control",
       "A log file produced after every Jenkins build",
       "A Java class that implements a custom Jenkins plugin"
+    ],
+    "optionNotes": [
+      "Jenkins server and plugin configuration lives in `config.xml` files or Configuration-as-Code (JCasC) YAML, not in a Jenkinsfile.",
+      "A Jenkinsfile is a text file committed to the repository that defines the pipeline as code in Declarative or Scripted syntax; this is correct.",
+      "Build logs are stored per run under the Jenkins home directory and shown in the console output; they are not called Jenkinsfiles.",
+      "Jenkins plugins are packaged as `.hpi` files built from Java or Groovy source; a Jenkinsfile is not a plugin class."
     ],
     "answer": 1,
     "reference": "https://www.jenkins.io/doc/book/pipeline/jenkinsfile/",
@@ -417,11 +531,18 @@
     "type": "single",
     "prompt": "What is the main difference between Declarative and Scripted Jenkins Pipeline syntax?",
     "explanation": "Declarative Pipeline uses a structured, opinionated syntax (a `pipeline { }` block with predefined sections) that is easier to read and validate, while Scripted Pipeline is written as arbitrary Groovy code inside a `node { }` block, offering more flexibility but less structure.",
+    "example": "// Declarative: fixed structure\npipeline {\n  agent any\n  stages { stage('Build') { steps { sh 'make' } } }\n}\n\n// Scripted: free-form Groovy\nnode {\n  stage('Build') { if (env.BRANCH_NAME == 'main') { sh 'make' } }\n}",
     "options": [
       "Declarative pipelines cannot run on agents, only Scripted pipelines can",
       "Scripted pipelines cannot use plugins",
       "Declarative uses a structured, predefined syntax; Scripted is written as flexible Groovy code",
       "There is no difference; both compile to the same YAML"
+    ],
+    "optionNotes": [
+      "Declarative pipelines run on agents via the `agent` directive; both syntaxes can target agents.",
+      "Scripted pipelines can call any pipeline step provided by plugins, just like Declarative; plugin access is not a differentiator.",
+      "Declarative uses a structured `pipeline { }` block with predefined sections and validation, while Scripted is arbitrary Groovy inside `node { }`; this is the real difference.",
+      "Jenkins pipelines are Groovy-based, not YAML, and the two syntaxes are genuinely different in structure and flexibility."
     ],
     "answer": 2,
     "reference": "https://www.jenkins.io/doc/book/pipeline/syntax/",
@@ -436,11 +557,18 @@
     "type": "single",
     "prompt": "In Jenkins, what does an `agent` (also called a node) provide?",
     "explanation": "An agent is a machine (or container) that connects to the Jenkins controller and executes pipeline steps, allowing work to be distributed across multiple machines.",
+    "example": "pipeline {\n  agent { label 'linux && docker' }   // run on a matching node\n  stages {\n    stage('Build') {\n      agent { docker { image 'maven:3.9' } }  // per-stage container agent\n      steps { sh 'mvn -B package' }\n    }\n  }\n}",
     "options": [
       "A machine that executes pipeline steps on behalf of the Jenkins controller",
       "A plugin that formats console output",
       "A YAML file describing environment variables",
       "The main Jenkins web dashboard"
+    ],
+    "optionNotes": [
+      "An agent (node) is a machine or container connected to the Jenkins controller that executes the pipeline's steps, allowing work to be distributed; this is correct.",
+      "Console output formatting is handled by plugins such as AnsiColor or Timestamper, not by agents.",
+      "Environment variables in a pipeline are set with the `environment { }` directive or `withEnv`; an agent is not a YAML file.",
+      "The web dashboard is served by the Jenkins controller; agents typically have no UI at all."
     ],
     "answer": 0,
     "reference": "https://www.jenkins.io/doc/book/pipeline/",
@@ -455,6 +583,7 @@
     "type": "boolean",
     "prompt": "Jenkins Pipelines can only be written using Declarative syntax; Scripted syntax was removed in recent Jenkins versions.",
     "explanation": "Both Declarative and Scripted syntax remain supported in Jenkins Pipeline; Declarative is simply the newer, more structured and recommended style for most use cases.",
+    "example": "// Both styles still work in current Jenkins\n// Scripted:\nnode('linux') {\n  checkout scm\n  sh './gradlew build'\n}\n// Declarative can also embed Scripted via script { } blocks",
     "answer": false,
     "reference": "https://www.jenkins.io/doc/book/pipeline/syntax/",
     "tags": [
@@ -468,11 +597,18 @@
     "type": "single",
     "prompt": "What is the primary purpose of caching in a CI/CD pipeline?",
     "explanation": "Caching stores files (such as installed dependencies) between pipeline runs so subsequent runs can reuse them instead of re-downloading or rebuilding from scratch, which speeds up the pipeline.",
+    "example": "# GitLab CI: reuse node_modules between pipelines\ntest:\n  image: node:20\n  cache:\n    key:\n      files: [package-lock.json]\n    paths: [node_modules/]\n  script:\n    - npm ci --prefer-offline   # hits cache instead of network\n    - npm test",
     "options": [
       "To permanently store the final release artifact",
       "To reuse previously downloaded or built files across pipeline runs and speed them up",
       "To encrypt secrets used during the build",
       "To replace the need for automated tests"
+    ],
+    "optionNotes": [
+      "Permanent storage of release outputs is the job of artifacts or an artifact repository; caches are best-effort and can be evicted.",
+      "Caching reuses previously downloaded or built files (like dependency directories) across runs so pipelines finish faster; this is the primary purpose.",
+      "Secrets are protected by the platform's secret store and log masking; caching plays no part in encryption.",
+      "Automated tests verify correctness; a cache only speeds up the steps around them and cannot replace them."
     ],
     "answer": 1,
     "tags": [
@@ -486,11 +622,18 @@
     "type": "multi",
     "prompt": "Which of the following are valid reasons to cache dependencies in a CI/CD pipeline?",
     "explanation": "Caching reduces build time and network/bandwidth usage. It does not guarantee bit-for-bit identical output on every run (a cache can go stale or be invalidated) and it is not a substitute for storing release artifacts.",
+    "example": "# before caching: npm ci downloads ~200MB each run (~90s)\n# after caching ~/.npm keyed on the lockfile: ~15s\n- uses: actions/cache@v4\n  with:\n    path: ~/.npm\n    key: npm-${{ hashFiles('**/package-lock.json') }}",
     "options": [
       "Faster builds by avoiding repeated downloads",
       "Reduced network usage and lower cost",
       "Guarantees the exact same build output on every run",
       "Fewer redundant installation steps across pipeline runs"
+    ],
+    "optionNotes": [
+      "Reusing cached dependencies removes repeated downloads, which is the main reason pipelines get faster with caching.",
+      "Fewer downloads mean less egress and registry traffic, which reduces both network usage and cost for hosted runners.",
+      "A cache can be stale, partially restored, or missing, so it cannot guarantee identical output; reproducibility comes from lockfiles and pinned versions, not the cache.",
+      "With a restored cache, install steps are largely no-ops, cutting redundant installation work across runs."
     ],
     "answer": [
       0,
@@ -508,11 +651,18 @@
     "type": "single",
     "prompt": "What is a recommended best practice when choosing a cache key for dependency caching in CI/CD?",
     "explanation": "Including a hash of the lockfile (e.g. `package-lock.json` or `yarn.lock`) in the cache key ensures the cache is automatically invalidated whenever dependencies change, avoiding stale or incorrect caches.",
+    "example": "- uses: actions/cache@v4\n  with:\n    path: ~/.cache/pip\n    key: pip-${{ runner.os }}-${{ hashFiles('requirements.lock') }}\n    restore-keys: pip-${{ runner.os }}-   # fallback prefix match",
     "options": [
       "Use a constant cache key that never changes, so the cache is always reused",
       "Include a hash of the dependency lockfile in the key so the cache invalidates when dependencies change",
       "Use the current timestamp as the key so a new cache is created on every run",
       "Store the cache key inside the secret store"
+    ],
+    "optionNotes": [
+      "A constant key never invalidates, so the cache keeps serving old dependencies after the lockfile changes, causing stale or wrong builds.",
+      "Hashing the lockfile into the key means any dependency change produces a new key and a fresh cache, while unchanged deps hit the cache; this is the best practice.",
+      "A timestamp key changes on every run, so there is never a cache hit and caching becomes pointless.",
+      "A cache key is not sensitive; storing it in a secret store adds no security and makes the key opaque and harder to manage."
     ],
     "answer": 1,
     "reference": "https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows",
@@ -527,11 +677,18 @@
     "type": "single",
     "prompt": "What is the key difference between a pipeline `artifact` and a pipeline `cache`?",
     "explanation": "Artifacts are the output of a job (such as a compiled binary or test report) that are meant to be kept, passed to later stages, or downloaded; caches exist purely to speed up future runs by reusing intermediate files like dependencies, and are not guaranteed to persist or represent a release output.",
+    "example": "build:\n  script: npm ci && npm run build\n  cache:\n    paths: [node_modules/]       # speed-up only, may be evicted\n  artifacts:\n    paths: [dist/]               # kept, passed to deploy job\n    expire_in: 1 week",
     "options": [
       "They are the same thing, just named differently by different tools",
       "Artifacts are outputs meant to be kept or passed between jobs; caches are reusable intermediate files meant only to speed up future runs",
       "Caches can only contain Docker images, while artifacts can contain any file",
       "Artifacts are always deleted at the end of a pipeline, while caches are permanent"
+    ],
+    "optionNotes": [
+      "Artifacts and caches have distinct semantics in GitHub Actions, GitLab CI, and other tools; they are not simply different names for one feature.",
+      "Artifacts are job outputs meant to be retained, downloaded, or handed to later jobs, while caches are intermediate files used only to speed up future runs; this is the correct distinction.",
+      "Caches hold arbitrary files such as dependency directories, not only Docker images; Docker layers are typically cached via registry or buildx, not the CI cache.",
+      "Artifacts are retained according to a configurable expiry, and caches are not permanent; they can be evicted or invalidated at any time."
     ],
     "answer": 1,
     "tags": [
@@ -546,6 +703,7 @@
     "type": "boolean",
     "prompt": "It is a security best practice to store API keys and passwords directly as plain text inside a pipeline's YAML configuration file.",
     "explanation": "Secrets should never be committed as plain text in pipeline configuration; they should be stored in a dedicated secret manager or the CI/CD platform's encrypted secrets store and injected at runtime.",
+    "example": "# BAD: committed to git\nenv:\n  AWS_SECRET_ACCESS_KEY: wJalrXUtnFEMI/K7MDENG/bPxRfiCY\n\n# GOOD: injected from the platform secret store\nenv:\n  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}",
     "answer": false,
     "tags": [
       "security",
@@ -559,11 +717,18 @@
     "type": "single",
     "prompt": "Which approach best reflects good secret management practice in a CI/CD pipeline?",
     "explanation": "Secrets should be stored in a dedicated, encrypted secret store (such as the CI platform's built-in secrets, or an external manager like Vault), scoped narrowly to the jobs/environments that need them, and rotated periodically.",
+    "example": "# GitLab: protected + masked variable scoped to production\n$ glab variable set DEPLOY_TOKEN --masked --protected \\\n    --scope production --value \"$TOKEN\"\n# rotate on a schedule and update the variable, never the YAML",
     "options": [
       "Store secrets in an environment variable set inside the Dockerfile and commit it",
       "Share a single long-lived admin credential across every pipeline and repository for convenience",
       "Store secrets in the CI/CD platform's encrypted secret store, scoped to only the jobs and environments that need them, and rotate them regularly",
       "Print secret values to the build log so engineers can verify they were loaded correctly"
+    ],
+    "optionNotes": [
+      "Baking secrets into a Dockerfile `ENV` and committing it exposes them in git history and in every image layer, which is a serious anti-pattern.",
+      "A single shared long-lived admin credential maximizes blast radius and violates least privilege; one leak compromises everything.",
+      "Using the platform's encrypted secret store, scoping secrets to only the jobs and environments that need them, and rotating regularly is the recommended practice.",
+      "Printing secrets to build logs exposes them to anyone who can view the run and defeats log masking; verification should use redacted checks instead."
     ],
     "answer": 2,
     "tags": [
@@ -578,11 +743,18 @@
     "type": "multi",
     "prompt": "Which of the following reflect the principle of least privilege when configuring credentials for a CI/CD pipeline?",
     "explanation": "Least privilege means scoping credentials as narrowly as possible: limit tokens to the specific repositories/resources and actions they need, prefer short-lived OIDC-issued credentials over long-lived static secrets, and grant elevated access only for the job or stage that requires it. Sharing one broad admin credential across all pipelines violates least privilege.",
+    "example": "jobs:\n  deploy:\n    environment: production   # deploy secrets exist only here\n    permissions:\n      contents: read\n      id-token: write          # short-lived OIDC creds\n    steps:\n      - uses: aws-actions/configure-aws-credentials@v4\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/deploy-only",
     "options": [
       "Scope access tokens to only the repositories and permissions a job actually needs",
       "Prefer short-lived OIDC tokens over long-lived static cloud credentials",
       "Grant deploy credentials only to the job/environment that performs the deployment, not every job",
       "Use a single organization-wide admin token for all pipelines so nothing ever breaks"
+    ],
+    "optionNotes": [
+      "Restricting tokens to the specific repositories and permissions a job needs limits what a compromised job can do, which is the core of least privilege.",
+      "Short-lived OIDC-issued credentials expire within minutes and require no stored secret, reducing exposure compared to static long-lived keys.",
+      "Making deploy credentials available only to the deploying job or environment keeps build and test jobs from ever holding production access.",
+      "One organization-wide admin token for everything is the opposite of least privilege; convenience here means any leak grants full access everywhere."
     ],
     "answer": [
       0,
@@ -602,12 +774,20 @@
     "type": "multi",
     "prompt": "Which of the following are common ways to trigger a CI/CD pipeline run?",
     "explanation": "Pipelines are commonly triggered by a push to a branch, opening/updating a pull or merge request, a scheduled (cron-like) timer, or a manual click in the CI/CD UI. There is no standard trigger based on a code review comment alone.",
+    "example": "on:\n  push:\n    branches: [main]          # push trigger\n  pull_request:               # PR opened/updated\n  schedule:\n    - cron: '0 3 * * *'       # nightly timer\n  workflow_dispatch:          # manual UI button",
     "options": [
       "A push to a branch",
       "Opening or updating a pull/merge request",
       "A scheduled cron-style timer",
       "Manually clicking 'run pipeline' in the CI/CD UI",
       "A teammate leaving a code review comment"
+    ],
+    "optionNotes": [
+      "A branch push is the most common trigger, mapped to `push` in GitHub Actions or a push pipeline in GitLab.",
+      "Pull or merge request events (`pull_request`, `merge_request_event`) trigger validation pipelines for proposed changes.",
+      "Scheduled cron-style triggers (`schedule`, GitLab pipeline schedules) run pipelines at fixed times for nightly builds or drift checks.",
+      "Manual triggers such as `workflow_dispatch` or GitLab's Run pipeline button let a person start a run on demand.",
+      "A review comment by itself is not a standard pipeline trigger; while bots can be built to react to `issue_comment` events, this is a custom integration rather than a common trigger."
     ],
     "answer": [
       0,
@@ -626,11 +806,18 @@
     "type": "single",
     "prompt": "What best describes trunk-based development?",
     "explanation": "Trunk-based development is a branching strategy where developers integrate small, frequent changes directly into a shared main branch (the trunk), avoiding long-lived feature branches and relying on techniques like feature flags to keep unfinished work out of the way.",
+    "example": "# trunk-based: tiny branch, merged same day\n$ git switch -c fix-typo main\n$ git commit -am \"Fix typo in banner\"\n$ git push -u origin fix-typo   # open PR, CI green, merge within hours\n$ git switch main && git pull   # trunk moves many times a day",
     "options": [
       "A strategy where every feature is developed on its own long-lived branch and merged only at release time",
       "A strategy where developers commit small changes directly (or via very short-lived branches) to a shared main branch multiple times a day",
       "A strategy that forbids any automated testing before merging",
       "A branching model used exclusively with Subversion, not Git"
+    ],
+    "optionNotes": [
+      "Long-lived feature branches merged only at release time describe GitFlow-style development and cause painful integration, the opposite of trunk-based.",
+      "Committing small changes directly or via very short-lived branches to a shared main branch many times a day is the definition of trunk-based development.",
+      "Trunk-based development depends heavily on automated tests to keep the trunk green; it does not forbid them.",
+      "Trunk-based development is a version-control-agnostic strategy widely used with Git; it is not tied to Subversion."
     ],
     "answer": 1,
     "tags": [
@@ -645,6 +832,7 @@
     "type": "boolean",
     "prompt": "Trunk-based development commonly relies on feature flags to hide incomplete or in-progress work rather than isolating it on a long-lived branch.",
     "explanation": "Because changes are merged to the trunk frequently and in small increments, feature flags let teams merge unfinished functionality safely, keeping it disabled until it's ready to release.",
+    "example": "# merged to main while still incomplete, hidden behind a flag\nif feature_flags.enabled(\"new-checkout\", user):\n    return render_new_checkout()\nreturn render_legacy_checkout()  # default until flag flips",
     "answer": true,
     "tags": [
       "branching",
@@ -659,12 +847,20 @@
     "type": "multi",
     "prompt": "Which of the following are branch types used in the GitFlow branching model?",
     "explanation": "GitFlow defines long-lived `develop` and `main`/`master` branches plus supporting branches: `feature`, `release`, and `hotfix`. `trunk` is not a GitFlow branch type; it is the term used in trunk-based development.",
+    "example": "$ git flow init\n$ git flow feature start login-page   # feature/login-page from develop\n$ git flow release start 1.4.0        # release/1.4.0 from develop\n$ git flow hotfix start 1.3.1         # hotfix/1.3.1 from main",
     "options": [
       "develop",
       "feature",
       "release",
       "hotfix",
       "trunk"
+    ],
+    "optionNotes": [
+      "`develop` is GitFlow's long-lived integration branch where features are merged before a release is cut.",
+      "`feature` branches are GitFlow's short-to-medium-lived branches created from `develop` for individual pieces of work.",
+      "`release` branches are cut from `develop` to stabilize a version before merging into `main` and back into `develop`.",
+      "`hotfix` branches are created from `main` to patch production urgently and are merged into both `main` and `develop`.",
+      "`trunk` is the name for the single shared main branch in trunk-based development; GitFlow uses `main`/`master` and does not define a trunk branch."
     ],
     "answer": [
       0,
@@ -684,11 +880,18 @@
     "type": "single",
     "prompt": "What is a blue-green deployment?",
     "explanation": "Blue-green deployment runs two identical production environments; traffic is routed to one (e.g. blue) while the new version is deployed to the other (green), then traffic is switched over once the new version is verified.",
+    "example": "# blue is live; deploy v2 to green, then flip the LB\n$ kubectl apply -f deploy-green-v2.yaml\n$ kubectl patch service web -p '{\"spec\":{\"selector\":{\"color\":\"green\"}}}'\n# rollback = patch selector back to blue",
     "options": [
       "Deploying to two separate identical environments and switching traffic from the old one to the new one once it's verified",
       "Gradually shifting a small percentage of traffic to the new version over time",
       "Replacing instances one at a time while the rest keep serving traffic",
       "Deploying directly to production with no testing beforehand"
+    ],
+    "optionNotes": [
+      "Running two identical environments and switching traffic from the old to the new once verified is the definition of blue-green deployment.",
+      "Gradually shifting a small percentage of traffic to the new version is a canary deployment, not blue-green.",
+      "Replacing instances one at a time while the rest serve traffic is a rolling deployment.",
+      "Deploying straight to production without testing is not a deployment strategy at all; blue-green specifically allows verification before cutover."
     ],
     "answer": 0,
     "tags": [
@@ -702,11 +905,18 @@
     "type": "single",
     "prompt": "What is a canary deployment?",
     "explanation": "A canary deployment releases a new version to a small subset of users or servers first, monitors it for problems, and then gradually increases the rollout to the rest of the fleet if it looks healthy.",
+    "example": "# Argo Rollouts canary steps\nstrategy:\n  canary:\n    steps:\n      - setWeight: 5      # 5% of traffic to new version\n      - pause: {duration: 10m}\n      - setWeight: 25\n      - pause: {duration: 10m}\n      - setWeight: 100",
     "options": [
       "Deploying the new version to 100% of servers at once, with no gradual rollout",
       "Releasing a new version to a small subset of traffic first, then gradually increasing rollout based on observed health",
       "Running two full production environments simultaneously at all times",
       "Deploying only during a scheduled maintenance window once a quarter"
+    ],
+    "optionNotes": [
+      "Deploying to 100% of servers at once is a big-bang or recreate deployment with no gradual rollout.",
+      "Releasing to a small subset of traffic first, watching health signals, and expanding the rollout progressively is exactly a canary deployment.",
+      "Maintaining two full production environments simultaneously describes blue-green deployment.",
+      "Deploying only in a quarterly maintenance window is a release cadence policy, not a canary strategy."
     ],
     "answer": 1,
     "tags": [
@@ -720,11 +930,18 @@
     "type": "multi",
     "prompt": "Which of the following statements about rolling deployments are true?",
     "explanation": "A rolling deployment gradually replaces old instances with new ones (often one batch at a time) so the service stays available throughout, and it can typically be paused or aborted mid-rollout if problems appear. It does not require maintaining two full parallel environments the way blue-green does, and it does not shift all traffic to the new version instantly.",
+    "example": "# Kubernetes Deployment: rolling update, batch of 25%\nstrategy:\n  type: RollingUpdate\n  rollingUpdate:\n    maxSurge: 25%\n    maxUnavailable: 0\n# pause / undo mid-rollout:\n$ kubectl rollout pause deploy/web\n$ kubectl rollout undo deploy/web",
     "options": [
       "Old instances are replaced with new ones gradually, batch by batch",
       "The rollout can typically be paused or rolled back partway through",
       "It requires maintaining two complete, separate production environments like blue-green",
       "All traffic switches to the new version instantly with no gradual transition"
+    ],
+    "optionNotes": [
+      "Rolling deployments replace old instances with new ones incrementally, batch by batch, so the service stays available throughout.",
+      "Because the rollout progresses in batches, it can be paused or reverted midway, for example with `kubectl rollout pause` or `rollout undo`.",
+      "Two complete parallel environments are a requirement of blue-green, not rolling; rolling updates in place within one environment.",
+      "An instant switch of all traffic describes a blue-green cutover; rolling deployments transition gradually as batches are replaced."
     ],
     "answer": [
       0,
@@ -741,11 +958,18 @@
     "type": "multi",
     "prompt": "Which of the following are true about blue-green deployments?",
     "explanation": "Blue-green deployments allow near-instant rollback by routing traffic back to the previously live environment, and they achieve a effectively zero-downtime cutover. Because two full environments exist simultaneously, they typically require double the infrastructure during the switch. Gradually shifting a percentage of traffic over time describes canary deployment, not blue-green.",
+    "example": "# AWS: two target groups, one listener rule\n$ aws elbv2 modify-listener --listener-arn $LISTENER \\\n    --default-actions Type=forward,TargetGroupArn=$GREEN_TG\n# rollback in seconds:\n$ aws elbv2 modify-listener --listener-arn $LISTENER \\\n    --default-actions Type=forward,TargetGroupArn=$BLUE_TG",
     "options": [
       "Rollback can be near-instant by switching the router/load balancer back to the previous environment",
       "It typically requires running double the infrastructure while both environments exist",
       "It enables a zero-downtime cutover between versions",
       "It works by gradually shifting an increasing percentage of traffic to the new version over hours or days"
+    ],
+    "optionNotes": [
+      "Because the previous environment stays running, rollback is just re-pointing the router or load balancer, which takes seconds.",
+      "Both environments run at full capacity during the switch window, so blue-green typically costs roughly double the infrastructure temporarily.",
+      "Switching the router from one healthy environment to another lets users move between versions with effectively zero downtime.",
+      "Gradually increasing the percentage of traffic over hours or days is the canary strategy; blue-green performs an all-at-once cutover."
     ],
     "answer": [
       0,
@@ -763,11 +987,18 @@
     "type": "single",
     "prompt": "What is the main purpose of a feature flag (feature toggle) in software delivery?",
     "explanation": "A feature flag lets teams turn a feature on or off at runtime without deploying new code, which enables merging unfinished work safely, gradual rollouts, and quick disabling of a problematic feature.",
+    "example": "# LaunchDarkly-style flag check; flipping the flag needs no deploy\nif ld_client.variation(\"new-search\", user, False):\n    results = new_search(query)\nelse:\n    results = legacy_search(query)",
     "options": [
       "To permanently disable old, deprecated code paths",
       "To enable or disable a feature at runtime without requiring a new deployment",
       "To flag which files changed in the last commit",
       "To mark which tests are allowed to fail"
+    ],
+    "optionNotes": [
+      "Permanently removing deprecated code is done by deleting it; a flag is a runtime switch, and leaving flags around forever is considered debt.",
+      "Enabling or disabling functionality at runtime without a new deployment is the core purpose of a feature flag.",
+      "Which files changed in a commit is shown by `git diff --stat` or `git show`; that has nothing to do with feature toggles.",
+      "Tests allowed to fail are configured in the CI tool (for example GitLab's `allow_failure`); feature flags do not control test policy."
     ],
     "answer": 1,
     "tags": [
@@ -781,6 +1012,7 @@
     "type": "boolean",
     "prompt": "Feature flags allow a team to decouple deploying code (shipping it to production) from releasing it (making it visible/active for users).",
     "explanation": "Because a flagged feature can be deployed while turned off, teams can deploy code at any time and separately decide, later, when to flip the flag and make it visible to users.",
+    "example": "# Monday: deploy build 512 with flag off (users see nothing new)\n$ ./deploy.sh build-512\n# Thursday: release without deploying anything\n$ flagctl enable new-dashboard --rollout 100",
     "answer": true,
     "tags": [
       "feature-flags"
@@ -793,11 +1025,18 @@
     "type": "single",
     "prompt": "In a blue-green deployment setup, what is typically the fastest way to roll back a bad release?",
     "explanation": "Since the previous version is still fully running in the other environment, rollback is as fast as switching the router/load balancer back to it, avoiding the need to rebuild or redeploy anything.",
+    "example": "# nginx upstream switch; green is broken, blue still running\n$ sed -i 's/server green:8080/server blue:8080/' /etc/nginx/conf.d/app.conf\n$ nginx -s reload   # traffic back on blue in seconds",
     "options": [
       "Redeploy the previous version's artifact from scratch",
       "Switch the router or load balancer back to point at the previous (still-running) environment",
       "Manually patch the broken code directly in production",
       "Wait for the next scheduled deployment window"
+    ],
+    "optionNotes": [
+      "Redeploying the previous artifact from scratch works but takes a full build/deploy cycle, far slower than a traffic switch.",
+      "Switching the router or load balancer back to the still-running previous environment is the fastest rollback and the whole point of keeping blue alive.",
+      "Hot-patching production by hand is risky, unrepeatable, and bypasses the pipeline; it is never the recommended rollback path.",
+      "Waiting for the next scheduled window leaves users on a broken release and ignores the instant rollback blue-green provides."
     ],
     "answer": 1,
     "tags": [
@@ -812,11 +1051,18 @@
     "type": "single",
     "prompt": "In the testing pyramid, which layer typically has the largest number of tests and runs fastest?",
     "explanation": "Unit tests sit at the base of the testing pyramid: they are numerous, fast, and cheap to run, which is why CI pipelines usually run them first and most frequently.",
+    "example": "# thousands of unit tests finish in seconds\n$ pytest tests/unit -q\n1842 passed in 6.31s\n# vs a handful of E2E tests taking minutes\n$ npx playwright test e2e/\n12 passed (4m 12s)",
     "options": [
       "End-to-end (UI) tests",
       "Manual exploratory tests",
       "Unit tests",
       "Integration tests"
+    ],
+    "optionNotes": [
+      "End-to-end UI tests sit at the top of the pyramid; they are few, slow, and brittle because they drive the whole system.",
+      "Manual exploratory testing is human-driven and not automated at all, so it is the slowest and least numerous activity.",
+      "Unit tests form the wide base of the pyramid: they are the most numerous, run in milliseconds, and give the fastest feedback.",
+      "Integration tests occupy the middle layer with fewer, slower tests than unit tests because they exercise real components together."
     ],
     "answer": 2,
     "tags": [
@@ -830,11 +1076,18 @@
     "type": "single",
     "prompt": "In the testing pyramid, which layer typically has the fewest tests and is the slowest and most expensive to run?",
     "explanation": "End-to-end (UI/system) tests sit at the top of the pyramid; there should be relatively few of them because they are slow, brittle, and expensive compared to unit or integration tests.",
+    "example": "# E2E suite: few tests, real browser, real services, slow\n$ npx cypress run --spec 'cypress/e2e/checkout.cy.js'\n  Running: checkout.cy.js  (1 of 1)\n  3 passing (2m 48s)",
     "options": [
       "Unit tests",
       "End-to-end (UI/system) tests",
       "Static analysis checks",
       "Linting"
+    ],
+    "optionNotes": [
+      "Unit tests are the fastest and most numerous layer at the base of the pyramid.",
+      "End-to-end (UI/system) tests are at the narrow top: few in number, slow, expensive, and prone to flakiness; this is correct.",
+      "Static analysis checks are fast, run without executing code, and are not a test-pyramid layer at all.",
+      "Linting is a near-instant style and error check that usually runs before any tests; it is not slow or expensive."
     ],
     "answer": 1,
     "tags": [
@@ -848,11 +1101,18 @@
     "type": "multi",
     "prompt": "Which of the following are typically run early in a CI pipeline because they are fast and give quick feedback?",
     "explanation": "Linting, static analysis, and unit tests are fast and cheap, so they are usually run first to fail quickly on obvious problems. Full end-to-end/UI test suites are slow and expensive, so they usually run later, only after cheaper checks pass.",
+    "example": "stages: [lint, test, e2e]\nlint:\n  stage: lint\n  script: [ruff check ., mypy src/]   # seconds\nunit:\n  stage: test\n  script: pytest tests/unit           # < 1 min\ne2e:\n  stage: e2e                         # only after the fast checks pass\n  script: pytest tests/e2e",
     "options": [
       "Linting",
       "Static analysis",
       "Unit tests",
       "Full end-to-end UI test suite"
+    ],
+    "optionNotes": [
+      "Linting catches style and obvious errors in seconds, so it is a natural first gate in a pipeline.",
+      "Static analysis (type checkers, SAST tools) runs without executing code and gives fast feedback early.",
+      "Unit tests are quick and isolated, so running them early fails fast on broken logic before expensive stages.",
+      "A full end-to-end UI suite is slow and resource-heavy, so it is normally deferred until cheaper checks have passed."
     ],
     "answer": [
       0,
@@ -870,11 +1130,18 @@
     "type": "single",
     "prompt": "What does 'shift-left testing' mean in a CI/CD context?",
     "explanation": "Shift-left testing means moving quality activities (testing, security scanning, code review) earlier in the development process, ideally into the CI pipeline on every commit, rather than only testing right before release.",
+    "example": "# security + tests on every commit, not at release time\non: [push, pull_request]\njobs:\n  checks:\n    steps:\n      - run: npm audit --audit-level=high\n      - uses: github/codeql-action/analyze@v3\n      - run: npm test",
     "options": [
       "Running all tests only after deployment to production",
       "Moving testing and quality checks earlier in the development lifecycle, such as running them on every commit",
       "Testing exclusively on the left-most environment in a multi-region setup",
       "Skipping automated tests in favor of manual QA at the end"
+    ],
+    "optionNotes": [
+      "Testing only after production deployment is the extreme of shifting right; it discovers problems as late as possible.",
+      "Moving testing, security scanning, and quality checks earlier in the lifecycle, ideally on every commit in CI, is what shift-left means.",
+      "Shift-left is about time in the lifecycle, not geography or the position of an environment in a region diagram.",
+      "Replacing automated tests with end-stage manual QA delays feedback and is the opposite of shifting left."
     ],
     "answer": 1,
     "tags": [
@@ -889,11 +1156,18 @@
     "type": "single",
     "prompt": "Which of the following is NOT one of the four key DORA (DevOps Research and Assessment) metrics?",
     "explanation": "The four DORA metrics are deployment frequency, lead time for changes, change failure rate, and time to restore service (previously called MTTR). Number of open pull requests is not one of them.",
+    "example": "# DORA snapshot for a team (last 30 days)\nDeployment frequency : 14 deploys/day\nLead time for changes: 3.5 hours\nChange failure rate  : 4%\nTime to restore      : 22 minutes",
     "options": [
       "Deployment frequency",
       "Lead time for changes",
       "Change failure rate",
       "Number of open pull requests"
+    ],
+    "optionNotes": [
+      "Deployment frequency, how often code reaches production, is one of the four key DORA metrics.",
+      "Lead time for changes, from commit to running in production, is one of the four DORA metrics.",
+      "Change failure rate, the share of deployments causing incidents or rollbacks, is one of the four DORA metrics.",
+      "The number of open pull requests is a workflow backlog indicator but is not a DORA metric; the fourth metric is time to restore service."
     ],
     "answer": 3,
     "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
@@ -908,11 +1182,18 @@
     "type": "single",
     "prompt": "In DORA metrics, what does 'deployment frequency' measure?",
     "explanation": "Deployment frequency measures how often an organization successfully releases to production; elite performers tend to deploy on demand, often multiple times per day.",
+    "example": "# count production deploys per day from a deploy log\n$ grep 'env=production status=success' deploys.log \\\n    | cut -d' ' -f1 | sort | uniq -c\n  12 2026-09-08\n   9 2026-09-09\n  15 2026-09-10",
     "options": [
       "How many developers are on the team",
       "How often code is successfully deployed to production",
       "How many bugs are found in QA",
       "How long the CI pipeline takes to run"
+    ],
+    "optionNotes": [
+      "Team size is an organizational measure that DORA metrics deliberately ignore in favor of delivery outcomes.",
+      "Deployment frequency measures how often successful deployments to production occur; this is the correct definition.",
+      "Bugs found in QA is a quality-process metric, not one of the four DORA measures.",
+      "Pipeline duration contributes to lead time for changes but is not what deployment frequency measures."
     ],
     "answer": 1,
     "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
@@ -927,11 +1208,18 @@
     "type": "single",
     "prompt": "In DORA metrics, what does 'time to restore service' (formerly MTTR) measure?",
     "explanation": "Time to restore service measures how long it typically takes to recover from a failure or incident in production, such as an outage caused by a bad deployment.",
+    "example": "# incident timeline\n14:02 alert: 5xx rate > 10% after deploy v2.3.1\n14:05 on-call acknowledges\n14:17 kubectl rollout undo deploy/api\n14:24 error rate back to baseline\n# time to restore = 22 minutes",
     "options": [
       "How long it takes to write a new feature",
       "How long it takes to restore service after a failure or incident in production",
       "How long code review takes on average",
       "How long a deployment pipeline takes to run end to end"
+    ],
+    "optionNotes": [
+      "How long a feature takes to write is development effort, which none of the DORA metrics measure directly.",
+      "Time to restore service measures how long it takes to recover from a production failure or incident; this is correct.",
+      "Code review duration is a component of lead time for changes, not time to restore service.",
+      "End-to-end pipeline duration feeds into lead time for changes, not recovery time."
     ],
     "answer": 1,
     "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
@@ -946,6 +1234,7 @@
     "type": "boolean",
     "prompt": "According to DORA research, elite-performing software delivery teams typically deploy to production on demand, often multiple times per day.",
     "explanation": "DORA's State of DevOps research consistently finds that elite performers deploy far more frequently than low performers, often multiple times per day, while maintaining low change failure rates and fast recovery times.",
+    "example": "# elite team: every merged PR ships to production\non:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    steps:\n      - run: ./deploy.sh production   # runs 10-20 times per day",
     "answer": true,
     "reference": "https://dora.dev/",
     "tags": [
@@ -959,6 +1248,7 @@
     "type": "fill",
     "prompt": "Semantic Versioning defines a version number in the format MAJOR.MINOR.PATCH. What is the term for a version increment that changes only the third number, e.g. going from 1.2.3 to 1.2.4?",
     "explanation": "That is called a PATCH release, reserved for backward-compatible bug fixes that don't change the public API.",
+    "example": "$ npm version patch    # 1.2.3 -> 1.2.4, bug fix only\nv1.2.4\n$ git push --follow-tags",
     "answer": [
       "patch"
     ],
@@ -974,11 +1264,18 @@
     "type": "single",
     "prompt": "Under Semantic Versioning (MAJOR.MINOR.PATCH), when should the MAJOR version be incremented?",
     "explanation": "The MAJOR version increments when you make incompatible, breaking API changes; MINOR is for backward-compatible new functionality, and PATCH is for backward-compatible bug fixes.",
+    "example": "# removing a public function is a breaking change\n$ npm version major   # 1.9.2 -> 2.0.0\n# CHANGELOG: BREAKING: removed deprecated client.connectSync()",
     "options": [
       "When you fix a bug without changing the API",
       "When you add a backward-compatible new feature",
       "When you make an incompatible, breaking change to the public API",
       "Every time a new commit is pushed to main"
+    ],
+    "optionNotes": [
+      "A bug fix with no API change is a PATCH increment, such as 1.2.3 to 1.2.4.",
+      "A backward-compatible new feature is a MINOR increment, such as 1.2.3 to 1.3.0.",
+      "An incompatible, breaking change to the public API requires a MAJOR increment; this is the correct rule.",
+      "Bumping MAJOR on every commit ignores SemVer semantics entirely; commits to main are tracked by SHA, not by version."
     ],
     "answer": 2,
     "tags": [
@@ -992,11 +1289,18 @@
     "type": "single",
     "prompt": "Under Semantic Versioning (MAJOR.MINOR.PATCH), when should the MINOR version be incremented?",
     "explanation": "MINOR is incremented when backward-compatible functionality is added; it should not break existing consumers of the API.",
+    "example": "# added an optional parameter, existing callers unaffected\n$ npm version minor   # 1.2.4 -> 1.3.0\n# CHANGELOG: Added: export to CSV option on reports",
     "options": [
       "When you add functionality in a backward-compatible manner",
       "When you make a breaking API change",
       "When you fix a typo in the documentation only",
       "Whenever the build number changes"
+    ],
+    "optionNotes": [
+      "Adding functionality in a backward-compatible way is exactly when MINOR is incremented under SemVer.",
+      "A breaking API change requires a MAJOR increment, not MINOR.",
+      "A documentation-only typo fix is at most a PATCH change and often warrants no version bump at all.",
+      "Build numbers are separate metadata (SemVer allows `+build` suffixes) and do not drive the MINOR number."
     ],
     "answer": 0,
     "tags": [
@@ -1010,6 +1314,7 @@
     "type": "boolean",
     "prompt": "In Semantic Versioning, incrementing the PATCH number (e.g. 1.2.3 to 1.2.4) signals a breaking, backward-incompatible change.",
     "explanation": "Patch releases are reserved for backward-compatible bug fixes. Breaking changes require a MAJOR version increment instead.",
+    "example": "# 1.2.3 -> 1.2.4: safe to pin with a caret/tilde range\n\"dependencies\": {\n  \"left-pad\": \"~1.2.3\"   # accepts 1.2.4, never 1.3.0 or 2.0.0\n}",
     "answer": false,
     "tags": [
       "semver"
@@ -1022,11 +1327,18 @@
     "type": "single",
     "prompt": "What best describes the GitOps approach to deployment?",
     "explanation": "GitOps uses a Git repository as the single source of truth for declarative infrastructure and application configuration; an automated controller continuously reconciles the live system state to match what's declared in Git, rather than engineers running ad-hoc deploy commands.",
+    "example": "# desired state lives in Git; controller reconciles the cluster\n$ git commit -am \"Bump api image to v2.4.0\" && git push\n# Argo CD / Flux detects the commit and applies it:\n$ argocd app sync api   # or automated sync policy",
     "options": [
       "Storing only source code, never configuration, in Git",
       "Using a Git repository as the source of truth for declarative config, with an automated controller reconciling the live system to match it",
       "Manually SSHing into servers and applying changes, then recording them in a changelog",
       "A branching strategy that forbids using Git tags"
+    ],
+    "optionNotes": [
+      "GitOps stores declarative configuration in Git, not just source code; the config repo is the whole point.",
+      "Using Git as the single source of truth for declarative config, with a controller that continuously reconciles the live system to match, is the definition of GitOps.",
+      "Manual SSH changes recorded afterwards are imperative and drift-prone, the opposite of GitOps reconciliation.",
+      "GitOps is a deployment model, not a branching strategy, and it does not forbid Git tags; tags are commonly used to pin releases."
     ],
     "answer": 1,
     "tags": [
@@ -1040,11 +1352,18 @@
     "type": "multi",
     "prompt": "Which of the following statements about Argo CD are true?",
     "explanation": "Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes: it continuously compares the desired state defined in a Git repository against the live cluster state and can automatically sync (and optionally self-heal) any drift. It is not limited to imperative `kubectl apply` commands run by hand, and it is specific to Kubernetes rather than a generic non-Kubernetes deployment tool.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  source:\n    repoURL: https://github.com/acme/k8s-config\n    path: apps/api\n  destination:\n    server: https://kubernetes.default.svc\n  syncPolicy:\n    automated:\n      prune: true\n      selfHeal: true   # revert manual drift",
     "options": [
       "It is a declarative GitOps continuous delivery tool for Kubernetes",
       "It continuously compares the live cluster state to the desired state defined in Git",
       "It can be configured to automatically sync and self-heal configuration drift",
       "It only supports manually running `kubectl apply` and has no automated sync feature"
+    ],
+    "optionNotes": [
+      "Argo CD is a declarative GitOps continuous delivery controller built specifically for Kubernetes.",
+      "Argo CD continuously diffs the live cluster state against the manifests in Git and reports Synced or OutOfSync.",
+      "With `syncPolicy.automated` and `selfHeal: true`, Argo CD applies Git changes automatically and reverts manual drift in the cluster.",
+      "Argo CD has an automated sync feature and does not rely on hand-run `kubectl apply`; this claim is false."
     ],
     "answer": [
       0,

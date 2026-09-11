@@ -6,11 +6,18 @@
     "type": "single",
     "prompt": "What is the fundamental difference between a Docker image and a Docker container?",
     "explanation": "An image is a read-only template of layers; a container is a runtime instance of that image with an added writable layer for changes.",
+    "example": "docker pull nginx:1.27          # downloads the read-only image\ndocker run -d --name web nginx:1.27   # creates a container (image + writable layer)\ndocker run -d --name web2 nginx:1.27  # second container from the same image",
     "options": [
       "An image is a running process; a container is the file used to start it",
       "A container is a running (or stopped) instance of an image, created by adding a thin writable layer on top of the image's read-only layers",
       "Images and containers are two names for exactly the same artifact",
       "A container is stored in a registry, while an image only exists on the local host"
+    ],
+    "optionNotes": [
+      "This reverses the roles: the image is the static template on disk and the container is the running (or stopped) process created from it.",
+      "A container is an instance of an image; Docker adds a thin writable layer on top of the image's read-only layers, which is why many containers can share one image.",
+      "They are distinct concepts: `docker images` lists templates, `docker ps -a` lists instances, and one image can back many containers.",
+      "Images are what get stored in and pulled from registries; containers only exist on the host where they were created."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
@@ -27,11 +34,18 @@
     "type": "single",
     "prompt": "Which Dockerfile instruction must appear first (ignoring comments and parser directives) and specifies the base image a build starts from?",
     "explanation": "FROM sets the base image for subsequent instructions and is typically the first instruction in a Dockerfile.",
+    "example": "# syntax=docker/dockerfile:1\nFROM python:3.12-slim   # base image; first real instruction\nWORKDIR /app\nCOPY . .\nCMD [\"python\", \"app.py\"]",
     "options": [
       "FROM",
       "BASEIMAGE",
       "SOURCE",
       "IMPORT"
+    ],
+    "optionNotes": [
+      "`FROM` selects the base image (or `scratch`) that every later instruction builds on, and only `ARG` may precede it.",
+      "`BASEIMAGE` is not a Dockerfile instruction; the parser would reject it.",
+      "`SOURCE` is not a Dockerfile instruction; it does not exist in the Dockerfile reference.",
+      "`IMPORT` is not a Dockerfile instruction; base images are declared with `FROM`."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/dockerfile/#from",
@@ -46,6 +60,7 @@
     "type": "boolean",
     "prompt": "In a Dockerfile, instructions such as `RUN`, `COPY`, and `ADD` each add a new layer to the resulting image.",
     "explanation": "Each of these instructions creates a new filesystem layer that is cached and stacked on top of previous layers.",
+    "example": "FROM alpine:3.20\nRUN apk add --no-cache curl   # layer 1\nCOPY app.sh /app.sh            # layer 2\nADD data.tar.gz /data/         # layer 3\n# docker history myimage shows each layer",
     "answer": true,
     "reference": "https://docs.docker.com/build/cache/",
     "tags": [
@@ -60,11 +75,18 @@
     "type": "single",
     "prompt": "A Node.js Dockerfile copies `package.json`, runs `npm install`, and only then copies the rest of the application source, instead of copying everything and installing in one step. What is the main caching benefit of this ordering?",
     "explanation": "Docker's build cache is invalidated layer-by-layer from the first changed instruction onward, so isolating rarely-changing dependency files before frequently-changing source code avoids unnecessary reinstalls.",
+    "example": "FROM node:20-alpine\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci               # cached until package files change\nCOPY . .                 # source changes invalidate only from here\nCMD [\"node\", \"server.js\"]",
     "options": [
       "It has no real effect; Docker always reinstalls dependencies on every build",
       "The dependency-install layer stays cached and is skipped on rebuilds as long as `package.json` is unchanged, even if application source code changes",
       "It forces Docker to rebuild every layer from scratch on each build, which is safer",
       "It reduces the number of instructions Docker is allowed to cache"
+    ],
+    "optionNotes": [
+      "Docker's layer cache does reuse the `npm install` layer when its inputs are unchanged, so the ordering has a large practical effect.",
+      "Because cache invalidation starts at the first changed instruction, keeping `package.json` and the install step before the source `COPY` means edits to source no longer trigger a reinstall.",
+      "Rebuilding every layer from scratch is the opposite of what the cache does; the ordering exists precisely to avoid that.",
+      "The number of cacheable instructions is unchanged; the ordering only changes which layers stay valid between builds."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/build/cache/",
@@ -81,11 +103,18 @@
     "type": "single",
     "prompt": "Which command lists only currently running containers (not stopped ones)?",
     "explanation": "`docker ps` without flags shows only running containers; add `-a`/`--all` to include stopped ones.",
+    "example": "docker ps          # running containers only\ndocker ps -a       # includes exited/created containers\ndocker ps -q       # only container IDs, handy for scripting",
     "options": [
       "`docker ps -a`",
       "`docker ps`",
       "`docker container ls -a`",
       "`docker images`"
+    ],
+    "optionNotes": [
+      "`docker ps -a` lists all containers regardless of state, including exited ones, so it shows more than the running set.",
+      "`docker ps` with no flags filters to containers whose state is running, which is exactly what the prompt asks for.",
+      "`docker container ls -a` is the newer equivalent of `docker ps -a` and likewise includes stopped containers.",
+      "`docker images` lists locally stored images, not containers at all."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/container/ls/",
@@ -100,6 +129,7 @@
     "type": "fill",
     "prompt": "Write the exact `docker` command (using the `ps` subcommand) that lists all containers, including stopped ones.",
     "explanation": "`docker ps -a` (or the newer `docker container ls -a`) lists every container regardless of state.",
+    "example": "docker ps -a                       # all containers, any state\ndocker ps -a --filter status=exited   # only stopped ones\ndocker container ls -a             # same thing, newer syntax",
     "answer": [
       "docker ps -a"
     ],
@@ -116,12 +146,20 @@
     "type": "multi",
     "prompt": "Which statements about the Dockerfile `EXPOSE` instruction are true? (Select all that apply.)",
     "explanation": "`EXPOSE` is documentation/metadata that also enables `-P` publishing; it does not itself publish ports (`-p` does that), and the app still binds the port on its own regardless of EXPOSE.",
+    "example": "# Dockerfile\nEXPOSE 8080\n\n# nothing is reachable from the host yet:\ndocker run -d myapp\n# publish explicitly, or let -P map all EXPOSEd ports to random host ports:\ndocker run -d -p 8080:8080 myapp\ndocker run -d -P myapp",
     "options": [
       "It documents which port(s) the container is intended to listen on",
       "It automatically publishes the port to the host machine",
       "It enables `docker run -P` to publish all exposed ports to random available host ports",
       "It is required for the application inside the container to be able to listen on that port",
       "It configures the container to use host networking"
+    ],
+    "optionNotes": [
+      "`EXPOSE` is metadata recorded in the image config that tells users and tooling which ports the service listens on.",
+      "Publishing to the host only happens through `-p`/`--publish` (or `-P`) at run time; `EXPOSE` alone leaves the port unreachable from outside.",
+      "`docker run -P` reads the image's exposed ports and binds each to an ephemeral host port, so `EXPOSE` is what makes `-P` useful.",
+      "A process can bind any port inside its own network namespace whether or not `EXPOSE` mentions it.",
+      "Host networking is selected with `--network host` at run time; `EXPOSE` has no influence on the network mode."
     ],
     "answer": [
       0,
@@ -140,11 +178,18 @@
     "type": "single",
     "prompt": "Which statement correctly describes how `CMD` and `ENTRYPOINT` interact in a Dockerfile?",
     "explanation": "ENTRYPOINT sets the fixed command; CMD provides default parameters that `docker run` arguments override, unless ENTRYPOINT itself is overridden with `--entrypoint`.",
+    "example": "FROM alpine:3.20\nENTRYPOINT [\"ping\"]      # fixed executable\nCMD [\"-c\", \"3\", \"localhost\"]   # default args\n# docker run img            -> ping -c 3 localhost\n# docker run img 8.8.8.8    -> ping 8.8.8.8",
     "options": [
       "`ENTRYPOINT` defines the executable that always runs when the container starts; `CMD` supplies default arguments to it, which can be overridden from the `docker run` command line",
       "`CMD` and `ENTRYPOINT` behave identically and either can be used interchangeably",
       "A Dockerfile can only contain one of `CMD` or `ENTRYPOINT`, never both",
       "`ENTRYPOINT` can only be written in shell form, never exec form"
+    ],
+    "optionNotes": [
+      "This matches the documented interaction: `ENTRYPOINT` is the command, `CMD` is its default argument list, and `docker run` arguments replace `CMD` while still being appended to `ENTRYPOINT`.",
+      "They differ in how run-time arguments are handled: extra `docker run` arguments replace `CMD` entirely but are appended to `ENTRYPOINT`.",
+      "A Dockerfile can (and commonly does) contain both; using them together is the standard way to provide a fixed command with overridable defaults.",
+      "`ENTRYPOINT` supports both exec form (`[\"exe\", \"arg\"]`) and shell form (`exe arg`), with exec form being the recommended one."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/dockerfile/#understand-how-cmd-and-entrypoint-interact",
@@ -161,6 +206,7 @@
     "type": "boolean",
     "prompt": "Arguments passed on the command line, as in `docker run myimage arg1 arg2`, override the Dockerfile's `CMD` instruction.",
     "explanation": "Any command given after the image name on `docker run` replaces the default CMD.",
+    "example": "FROM alpine:3.20\nCMD [\"echo\", \"default\"]\n# docker run img            -> prints: default\n# docker run img echo hi    -> prints: hi  (CMD replaced)",
     "answer": true,
     "reference": "https://docs.docker.com/reference/dockerfile/#cmd",
     "tags": [
@@ -174,11 +220,18 @@
     "type": "single",
     "prompt": "A Dockerfile contains `ENTRYPOINT [\"python\", \"app.py\"]` and `CMD [\"--help\"]`. What command actually runs inside the container when you execute `docker run myimage --version`?",
     "explanation": "Arguments given to `docker run` replace CMD but are still appended after ENTRYPOINT, producing `python app.py --version`.",
+    "example": "FROM python:3.12-slim\nCOPY app.py .\nENTRYPOINT [\"python\", \"app.py\"]\nCMD [\"--help\"]\n# docker run myimage            -> python app.py --help\n# docker run myimage --version -> python app.py --version",
     "options": [
       "`python app.py --help`",
       "`python app.py --version`",
       "`python --version`",
       "Just `--version`, because ENTRYPOINT is dropped when extra arguments are supplied"
+    ],
+    "optionNotes": [
+      "`--help` comes from `CMD`, which is discarded as soon as any arguments are supplied on the `docker run` command line.",
+      "Run-time arguments replace `CMD` and are appended to the exec-form `ENTRYPOINT`, giving `python app.py --version`.",
+      "`app.py` is part of the `ENTRYPOINT` array and is never dropped, so `python --version` cannot be the result.",
+      "`ENTRYPOINT` is only bypassed when `--entrypoint` is passed explicitly; extra arguments never remove it."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/dockerfile/#understand-how-cmd-and-entrypoint-interact",
@@ -195,12 +248,20 @@
     "type": "multi",
     "prompt": "Which of these practices genuinely help reduce the final size of a Docker image? (Select all that apply.)",
     "explanation": "Multi-stage builds, minimal base images, and cleaning up within the same layer all shrink image size; using `latest`/full distros and adding VOLUME instructions don't reduce image size.",
+    "example": "FROM golang:1.22 AS build\nWORKDIR /src\nCOPY . .\nRUN go build -o /app\n\nFROM gcr.io/distroless/static\nCOPY --from=build /app /app\nENTRYPOINT [\"/app\"]   # final image has no Go toolchain",
     "options": [
       "Using multi-stage builds so build-only tools and intermediate artifacts never reach the final stage",
       "Combining related `RUN` commands and cleaning up temporary files within the same layer",
       "Always basing the image on the `latest` tag of a full OS distribution",
       "Choosing a minimal base image such as `alpine` or a distroless image",
       "Adding a `VOLUME` instruction for every writable directory in the image"
+    ],
+    "optionNotes": [
+      "Multi-stage builds let the final `FROM` stage copy only compiled artifacts, so compilers, headers, and caches from earlier stages never reach the shipped image.",
+      "Because each `RUN` commits a layer, deleting temp files in a later layer does not shrink the image; cleaning up inside the same `RUN` (for example `apt-get install ... && rm -rf /var/lib/apt/lists/*`) does.",
+      "The `latest` tag of a full distribution is typically large and non-reproducible; it neither shrinks the image nor pins it.",
+      "Small bases such as `alpine`, `-slim` variants, or distroless images carry far fewer packages and files, directly reducing size.",
+      "`VOLUME` marks a mount point in image metadata; it changes nothing about the layers' contents or size."
     ],
     "answer": [
       0,
@@ -221,11 +282,18 @@
     "type": "single",
     "prompt": "What is the primary purpose of a multi-stage build in a Dockerfile?",
     "explanation": "Multi-stage builds use multiple `FROM` statements, with later stages copying only needed artifacts (via `COPY --from=`) from earlier stages, keeping the final image lean.",
+    "example": "FROM node:20 AS build\nWORKDIR /app\nCOPY . .\nRUN npm ci && npm run build\n\nFROM nginx:1.27-alpine\nCOPY --from=build /app/dist /usr/share/nginx/html   # only static output ships",
     "options": [
       "To build several unrelated images from one Dockerfile in a single command automatically",
       "To copy only the necessary build artifacts from earlier stages into a smaller final image, leaving build-time tools and intermediate files behind",
       "To let a container run on multiple hosts at the same time",
       "To allow more than one `ENTRYPOINT` instruction to be active at once"
+    ],
+    "optionNotes": [
+      "Multi-stage builds still produce a single final image (the last stage, or the one chosen with `--target`); building multiple unrelated images is done with separate builds or Bake.",
+      "The core idea is a build stage with all tooling followed by a slim runtime stage that pulls in only the artifacts it needs via `COPY --from`.",
+      "Running on multiple hosts is orchestration (Swarm, Kubernetes), unrelated to how an image is built.",
+      "Only the last `ENTRYPOINT` in the final stage applies; multi-stage builds do not make several entrypoints active."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/build/building/multi-stage/",
@@ -241,6 +309,7 @@
     "type": "fill",
     "prompt": "In a multi-stage Dockerfile, which flag on the `COPY` instruction copies files from an earlier build stage (for example, one named `builder`)?",
     "explanation": "`COPY --from=<stage>` copies files produced in a previous named (or indexed) build stage into the current stage.",
+    "example": "FROM rust:1.80 AS builder\nWORKDIR /src\nCOPY . .\nRUN cargo build --release\n\nFROM debian:bookworm-slim\nCOPY --from=builder /src/target/release/app /usr/local/bin/app\nCMD [\"app\"]",
     "answer": [
       "--from",
       "--from=builder"
@@ -259,12 +328,20 @@
     "type": "multi",
     "prompt": "Which of these commands operate on Docker images rather than on containers? (Select all that apply.)",
     "explanation": "`docker pull`, `docker rmi`, and `docker build` act on images; `docker exec` and `docker start` act on existing containers.",
+    "example": "docker pull alpine:3.20           # image: download\ndocker build -t myapp:1.0 .       # image: create from Dockerfile\ndocker rmi myapp:1.0              # image: delete\ndocker start web                  # container: start a stopped one\ndocker exec -it web sh            # container: run a process inside",
     "options": [
       "`docker pull`",
       "`docker rmi`",
       "`docker exec`",
       "`docker build`",
       "`docker start`"
+    ],
+    "optionNotes": [
+      "`docker pull` downloads an image (and its layers) from a registry into local storage.",
+      "`docker rmi` removes one or more images from the local host; it is short for `docker image rm`.",
+      "`docker exec` launches an additional process inside an already-running container, so it targets containers.",
+      "`docker build` reads a Dockerfile and build context and produces a new image.",
+      "`docker start` transitions an existing stopped container back to running; it does not operate on images."
     ],
     "answer": [
       0,
@@ -284,11 +361,18 @@
     "type": "single",
     "prompt": "When an image name has no registry hostname, such as `nginx:1.27`, which registry does the Docker CLI pull it from by default?",
     "explanation": "Docker Hub is the default registry used when no other registry hostname is specified in the image reference.",
+    "example": "docker pull nginx:1.27\n# equivalent fully qualified reference:\ndocker pull docker.io/library/nginx:1.27\n# other registries must be spelled out:\ndocker pull ghcr.io/org/tool:1.0",
     "options": [
       "Docker Hub (docker.io)",
       "GitHub Container Registry (ghcr.io)",
       "Amazon ECR Public",
       "A registry running on localhost:5000"
+    ],
+    "optionNotes": [
+      "Docker Hub at `docker.io` is the hard-coded default registry, and official images additionally get the implicit `library/` namespace.",
+      "GitHub Container Registry hosts images under `ghcr.io/...` and is only used when that hostname is part of the reference.",
+      "Amazon ECR Public serves images under `public.ecr.aws/...`; it is never assumed by default.",
+      "A local registry at `localhost:5000` is a common development setup, but the CLI only uses it when the image name starts with that host and port."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/cli/docker/image/pull/",
@@ -303,11 +387,18 @@
     "type": "single",
     "prompt": "You built a local image `myapp:latest` and need to push it to a private registry at `registry.example.com`. Which command correctly prepares it for that push?",
     "explanation": "`docker tag` creates a new reference to the same image under the target registry/repository name, which `docker push` then uses.",
+    "example": "docker build -t myapp:latest .\ndocker tag myapp:latest registry.example.com/myapp:latest   # new name, same image ID\ndocker login registry.example.com\ndocker push registry.example.com/myapp:latest",
     "options": [
       "`docker rename myapp:latest registry.example.com/myapp:latest`",
       "`docker tag myapp:latest registry.example.com/myapp:latest`",
       "`docker cp myapp:latest registry.example.com/myapp:latest`",
       "`docker mv myapp:latest registry.example.com/myapp:latest`"
+    ],
+    "optionNotes": [
+      "`docker rename` changes the name of a container, not an image reference, so it cannot prepare an image for push.",
+      "`docker tag` adds another reference to the same image ID; because the reference includes the registry host, `docker push` knows where to send it.",
+      "`docker cp` copies files between a container's filesystem and the host; it has nothing to do with image names.",
+      "`docker mv` is not a Docker CLI command."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/image/tag/",
@@ -323,6 +414,7 @@
     "type": "boolean",
     "prompt": "`docker push` uploads a local image to a remote registry.",
     "explanation": "That is the purpose of `docker push`, the counterpart to `docker pull`.",
+    "example": "docker tag myapp:1.0 myuser/myapp:1.0\ndocker login                    # authenticate to Docker Hub\ndocker push myuser/myapp:1.0    # uploads layers and manifest",
     "answer": true,
     "reference": "https://docs.docker.com/reference/cli/docker/image/push/",
     "tags": [
@@ -336,11 +428,18 @@
     "type": "single",
     "prompt": "What does `docker login` do?",
     "explanation": "`docker login` stores credentials for a registry (Docker Hub by default) so the CLI can authenticate future push/pull requests.",
+    "example": "docker login                            # Docker Hub, prompts for credentials\ndocker login ghcr.io -u myuser --password-stdin < token.txt\n# credentials are stored (or delegated to a credential helper) in ~/.docker/config.json",
     "options": [
       "Opens an interactive shell inside a container",
       "Authenticates the Docker CLI with a registry so subsequent `push`/`pull` operations can access private repositories",
       "Starts the Docker daemon",
       "Creates a new user account on the local machine"
+    ],
+    "optionNotes": [
+      "An interactive shell in a container is opened with `docker exec -it <container> sh`, not with `docker login`.",
+      "`docker login` obtains and stores credentials for a registry (Docker Hub if none is named) so later `push` and `pull` calls to private repositories are authenticated.",
+      "The daemon is started by the service manager (for example `systemctl start docker`) or `dockerd`; `docker login` only talks to a registry.",
+      "It creates no local OS accounts; it only records registry credentials in the Docker config or a credential helper."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/login/",
@@ -356,11 +455,18 @@
     "type": "single",
     "prompt": "What is the key difference between a Docker named volume and a bind mount?",
     "explanation": "Named volumes are created and managed by Docker (under its storage directory), while bind mounts directly expose a chosen host path, with the host being responsible for its structure and permissions.",
+    "example": "# named volume, managed by Docker under /var/lib/docker/volumes\ndocker run -d -v pgdata:/var/lib/postgresql/data postgres:16\n# bind mount, maps an explicit host path\ndocker run -d -v /home/me/site:/usr/share/nginx/html:ro nginx:1.27\ndocker volume ls   # shows pgdata, not the bind mount",
     "options": [
       "Bind mounts are fully managed by Docker in its own storage area; named volumes map directly to an arbitrary host path",
       "Named volumes are managed by Docker and live in Docker-controlled storage; bind mounts map a specific existing path on the host filesystem into the container",
       "There is no real difference; the terms are interchangeable",
       "Bind mounts persist data across container removal, while named volumes never do"
+    ],
+    "optionNotes": [
+      "This swaps the definitions: it is named volumes that Docker manages in its own storage area and bind mounts that map arbitrary host paths.",
+      "Named volumes are created via `docker volume create` or on first use and stored under Docker's data root, while bind mounts expose a caller-chosen host path as-is.",
+      "They differ in lifecycle, portability, and who owns the path, so the terms are not interchangeable.",
+      "Both persist beyond container removal; a named volume survives until `docker volume rm`, and a bind mount's data simply stays on the host."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/storage/",
@@ -376,11 +482,18 @@
     "type": "single",
     "prompt": "Using the modern `--mount` syntax, which flag correctly bind-mounts host directory `/data` to `/app/data` inside the container?",
     "explanation": "The `--mount` flag uses explicit key=value pairs; `type=bind` together with `source` and `target` defines a bind mount.",
+    "example": "docker run -d \\\n  --mount type=bind,source=/data,target=/app/data \\\n  myapp\n# equivalent short form: -v /data:/app/data\n# add ,readonly to make it read-only",
     "options": [
       "`--mount type=bind,source=/data,target=/app/data`",
       "`--volume-from /data:/app/data`",
       "`--link /data:/app/data`",
       "`--bind /data:/app/data`"
+    ],
+    "optionNotes": [
+      "`--mount` takes comma-separated key=value pairs; `type=bind` with `source` (host path) and `target` (container path) is the documented bind-mount form.",
+      "`--volumes-from` (the real spelling) mounts all volumes from another container; `--volume-from` does not exist and neither takes a host path mapping.",
+      "`--link` is the legacy mechanism for connecting containers by name on the default bridge network; it has nothing to do with filesystems.",
+      "`--bind` is not a `docker run` flag; the short syntax for a bind mount is `-v /data:/app/data`."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/engine/storage/bind-mounts/",
@@ -397,6 +510,7 @@
     "type": "boolean",
     "prompt": "A Docker named volume is automatically deleted whenever the container that used it is removed with a plain `docker rm`.",
     "explanation": "Named volumes are decoupled from container lifecycles; they persist until explicitly removed with `docker volume rm` (or `docker rm -v`/`docker compose down -v` for volumes that qualify), regardless of how many containers referencing them are deleted.",
+    "example": "docker run -d --name db -v pgdata:/var/lib/postgresql/data postgres:16\ndocker rm -f db\ndocker volume ls          # pgdata is still listed\ndocker volume rm pgdata   # explicit removal required",
     "answer": false,
     "reference": "https://docs.docker.com/engine/storage/volumes/",
     "tags": [
@@ -411,11 +525,18 @@
     "type": "single",
     "prompt": "What happens to anonymous volumes when you run `docker rm -v <container>`?",
     "explanation": "`docker rm -v` cleans up anonymous volumes tied to the removed container, as long as no other container still references them; named volumes are unaffected by this flag.",
+    "example": "docker run -d --name tmp -v /cache busybox sleep 1000   # anonymous volume\ndocker rm -v -f tmp     # removes the container and its anonymous volume\ndocker volume ls        # anonymous volume is gone; named volumes untouched",
     "options": [
       "Nothing; the `-v` flag has no effect on anonymous volumes",
       "Docker removes the anonymous volumes associated with that container, but only if they are not also referenced by another existing container",
       "Docker deletes every volume on the host, named and anonymous alike",
       "The command fails because `-v` is not a valid flag for `docker rm`"
+    ],
+    "optionNotes": [
+      "`-v` on `docker rm` does affect anonymous volumes; it is the documented way to clean them up alongside the container.",
+      "`docker rm -v` removes the container's anonymous volumes as long as no other container still references them, while named volumes are left alone.",
+      "Deleting every volume on the host would be `docker volume prune -a` territory; `docker rm -v` is scoped to one container's anonymous volumes.",
+      "`-v`/`--volumes` is a valid `docker rm` flag, so the command does not fail."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/container/rm/",
@@ -431,11 +552,18 @@
     "type": "single",
     "prompt": "Which mount type stores data only in host memory and never writes it to the container's writable layer or the host disk?",
     "explanation": "A `tmpfs` mount exists purely in memory and is lost when the container stops, making it useful for sensitive or highly transient data.",
+    "example": "docker run -d \\\n  --mount type=tmpfs,target=/run/secrets,tmpfs-size=64m \\\n  myapp\n# or: --tmpfs /run/secrets:size=64m\n# contents vanish when the container stops",
     "options": [
       "bind mount",
       "named volume",
       "tmpfs mount",
       "anonymous volume"
+    ],
+    "optionNotes": [
+      "A bind mount maps a host directory into the container, so its data lives on the host's disk.",
+      "A named volume is stored on disk under Docker's data root and persists across container restarts.",
+      "A `tmpfs` mount is backed by host RAM only; nothing is written to the writable layer or the host filesystem and it disappears when the container stops.",
+      "An anonymous volume is still a disk-backed volume, just without a user-chosen name."
     ],
     "answer": 2,
     "reference": "https://docs.docker.com/engine/storage/tmpfs/",
@@ -451,11 +579,18 @@
     "type": "single",
     "prompt": "When you run `docker network create mynet` without specifying a driver, which driver is used by default?",
     "explanation": "`bridge` is the default network driver for user-defined networks on a single Docker host.",
+    "example": "docker network create mynet\ndocker network inspect mynet --format '{{.Driver}}'   # bridge\n# explicit alternative:\ndocker network create -d overlay --attachable swarmnet",
     "options": [
       "host",
       "bridge",
       "overlay",
       "macvlan"
+    ],
+    "optionNotes": [
+      "The `host` driver shares the host network namespace and cannot be used to create additional user-defined networks.",
+      "`bridge` is the default driver on a single-host engine; a new Linux bridge and subnet are created for the network.",
+      "`overlay` spans multiple hosts and requires Swarm mode or an external key-value store; it must be requested with `-d overlay`.",
+      "`macvlan` gives containers their own MAC address on the physical network and must be selected explicitly with `-d macvlan` and a parent interface."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/network/drivers/bridge/",
@@ -470,11 +605,18 @@
     "type": "single",
     "prompt": "Two containers, `api` and `db`, are attached to the same user-defined bridge network. How can `api` reach `db` by name without any extra configuration?",
     "explanation": "On user-defined networks, Docker runs an embedded DNS resolver that automatically resolves container names and aliases to their current IP addresses.",
+    "example": "docker network create appnet\ndocker run -d --name db --network appnet postgres:16\ndocker run -d --name api --network appnet \\\n  -e DATABASE_URL=postgres://db:5432/app myapi\ndocker exec api getent hosts db   # resolves via 127.0.0.11",
     "options": [
       "It can't; containers must always communicate via host-published ports",
       "Docker's embedded DNS server resolves the container name (or any network alias) `db` to its container IP automatically on that network",
       "You must manually add an entry to `/etc/hosts` inside the `api` container",
       "Name resolution only works if both containers were started with `--link`"
+    ],
+    "optionNotes": [
+      "Containers on the same user-defined network talk directly over the network's subnet; published host ports are only needed for traffic from outside.",
+      "Docker's embedded DNS server (at `127.0.0.11` inside each container) resolves container names and `--network-alias` values for every container on a user-defined network.",
+      "Editing `/etc/hosts` manually is unnecessary and fragile, because container IPs can change on restart; the embedded DNS handles it.",
+      "`--link` is a legacy feature for the default bridge network; on user-defined networks name resolution works without it."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/network/#dns-services",
@@ -490,6 +632,7 @@
     "type": "boolean",
     "prompt": "Containers attached only to the default `bridge` network (not a user-defined one) can automatically resolve each other by container name through Docker's embedded DNS.",
     "explanation": "Automatic DNS-based name resolution between containers is only provided on user-defined networks. On the default `bridge` network, containers must use legacy `--link` or explicit IP addresses to reach each other by anything other than IP.",
+    "example": "docker run -d --name db postgres:16          # default bridge\ndocker run --rm busybox nslookup db          # fails: no DNS for names\n# fix: put both on a user-defined network\ndocker network create appnet\ndocker run -d --name db2 --network appnet postgres:16\ndocker run --rm --network appnet busybox nslookup db2   # works",
     "answer": false,
     "reference": "https://docs.docker.com/engine/network/#dns-services",
     "tags": [
@@ -505,11 +648,18 @@
     "type": "single",
     "prompt": "Which Docker network mode makes a container share the host machine's network namespace directly, removing network isolation and the need for port publishing?",
     "explanation": "In `host` mode, the container uses the host's network stack directly instead of getting its own network namespace.",
+    "example": "docker run -d --network host nginx:1.27\n# nginx now listens on the host's port 80 directly\ncurl http://localhost:80\n# -p flags are ignored in host mode",
     "options": [
       "bridge",
       "host",
       "none",
       "overlay"
+    ],
+    "optionNotes": [
+      "`bridge` gives the container its own network namespace behind a NAT bridge, so ports must be published to reach it.",
+      "`host` mode drops the container into the host's network namespace, so it binds host ports directly and `-p` is ignored.",
+      "`none` disables networking entirely, leaving only a loopback interface.",
+      "`overlay` connects containers across multiple Swarm nodes; it still isolates each container in its own namespace."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/network/drivers/host/",
@@ -524,6 +674,7 @@
     "type": "multi",
     "prompt": "Which of these are network drivers built into the Docker Engine? (Select all that apply.)",
     "explanation": "bridge, host, overlay, and macvlan are drivers shipped with Docker Engine. Flannel and Calico are third-party Kubernetes CNI network plugins, not built-in Docker drivers.",
+    "example": "docker info --format '{{join .Plugins.Network \", \"}}'\n# bridge, host, ipvlan, macvlan, null, overlay\ndocker network create -d macvlan -o parent=eth0 \\\n  --subnet 192.168.1.0/24 lan",
     "options": [
       "bridge",
       "host",
@@ -531,6 +682,14 @@
       "macvlan",
       "flannel",
       "calico"
+    ],
+    "optionNotes": [
+      "`bridge` is the built-in default single-host driver that creates a private NAT-ed network.",
+      "`host` is a built-in driver that shares the host's network namespace with the container.",
+      "`overlay` is built in and provides multi-host networking for Swarm services and attachable containers.",
+      "`macvlan` is built in and assigns containers a MAC address on the physical LAN via a parent interface.",
+      "Flannel is a Kubernetes CNI plugin from CoreOS that provides pod networking via VXLAN or host-gw; it is not a Docker Engine network driver.",
+      "Calico is a Kubernetes CNI plugin providing BGP-based routing and network policy; it is not shipped with Docker Engine."
     ],
     "answer": [
       0,
@@ -550,6 +709,7 @@
     "type": "fill",
     "prompt": "Write the `docker run` flag and mapping that publishes container port 80 to host port 8080 (in the form `-p HOST:CONTAINER`).",
     "explanation": "`-p 8080:80` (or the long form `--publish`) maps host port 8080 to container port 80.",
+    "example": "docker run -d -p 8080:80 nginx:1.27\ncurl http://localhost:8080          # reaches nginx on container port 80\ndocker port <container>             # 80/tcp -> 0.0.0.0:8080",
     "answer": [
       "-p 8080:80",
       "--publish 8080:80"
@@ -568,11 +728,18 @@
     "type": "single",
     "prompt": "What is the main purpose of a `compose.yaml` (or `docker-compose.yml`) file?",
     "explanation": "Compose files describe multi-container applications as a set of services plus their networks and volumes, managed together via the `docker compose` CLI.",
+    "example": "# compose.yaml\nservices:\n  web:\n    build: .\n    ports: [\"8080:80\"]\n    depends_on: [db]\n  db:\n    image: postgres:16\n    volumes: [pgdata:/var/lib/postgresql/data]\nvolumes:\n  pgdata: {}",
     "options": [
       "To declaratively define and configure multiple related services, networks, and volumes so they can be run together with a single command",
       "To replace the Dockerfile for building images",
       "To store registry login credentials",
       "To configure global settings for the Docker daemon"
+    ],
+    "optionNotes": [
+      "A Compose file is a declarative description of an application's services, networks, and volumes that `docker compose up` brings up together.",
+      "Compose does not replace the Dockerfile; a service's `build` key points at a Dockerfile that still defines the image.",
+      "Registry credentials live in `~/.docker/config.json` via `docker login`, never in a Compose file.",
+      "Daemon-wide settings belong in `/etc/docker/daemon.json`; Compose only configures application-level resources."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/compose/intro/compose-application-model/",
@@ -587,6 +754,7 @@
     "type": "fill",
     "prompt": "Write the Compose CLI command that starts all services defined in the compose file in detached (background) mode.",
     "explanation": "`docker compose up -d` builds/starts the defined services and returns control to the terminal immediately.",
+    "example": "docker compose up -d           # start all services in the background\ndocker compose up -d --build   # rebuild images first\ndocker compose ps              # check their status\ndocker compose logs -f web     # follow one service's logs",
     "answer": [
       "docker compose up -d",
       "docker-compose up -d"
@@ -605,11 +773,18 @@
     "type": "single",
     "prompt": "In a Compose file, a service declares `depends_on: [db]` without a `condition`. What does this actually guarantee?",
     "explanation": "Without a `condition` such as `service_healthy`, `depends_on` only controls container start order, not application-level readiness, which is a common source of race conditions on first startup.",
+    "example": "services:\n  db:\n    image: postgres:16\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\n      interval: 5s\n  api:\n    image: myapi\n    depends_on:\n      db:\n        condition: service_healthy   # waits for readiness, not just start",
     "options": [
       "That `db` is fully started and ready to accept connections before the dependent service starts",
       "Only that Docker starts the `db` container before starting the dependent service; it does not wait for `db`'s application inside to be ready",
       "That both services are always deployed on separate hosts",
       "That `db` automatically restarts whenever the dependent service crashes"
+    ],
+    "optionNotes": [
+      "Waiting for the application to accept connections requires `condition: service_healthy` plus a `healthcheck`; the short list form gives no such guarantee.",
+      "The short form of `depends_on` only orders container startup (and shutdown in reverse); Postgres may still be initialising when the dependent service connects.",
+      "Compose runs everything on one Docker host by default; `depends_on` says nothing about placement.",
+      "Restart behaviour is governed by the `restart` policy on each service, not by `depends_on`."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/compose/how-tos/startup-order/",
@@ -625,12 +800,20 @@
     "type": "multi",
     "prompt": "Which of these are valid top-level keys in a Docker Compose file? (Select all that apply.)",
     "explanation": "`services`, `volumes`, and `networks` are valid top-level Compose keys. `dockerfile` is a per-service `build` option, not a top-level key, and `pods` is a Kubernetes concept, not part of Compose.",
+    "example": "services:\n  app:\n    build:\n      context: .\n      dockerfile: Dockerfile.prod   # dockerfile is nested under build\n    networks: [backend]\nvolumes:\n  data: {}\nnetworks:\n  backend: {}",
     "options": [
       "services",
       "volumes",
       "networks",
       "dockerfile",
       "pods"
+    ],
+    "optionNotes": [
+      "`services` is the required top-level map that defines each container the application runs.",
+      "`volumes` at the top level declares named volumes that services can reference.",
+      "`networks` at the top level declares the networks services attach to.",
+      "`dockerfile` is a sub-key of a service's `build` section (naming an alternate Dockerfile), not a top-level key.",
+      "`pods` is a Kubernetes workload concept; Compose has no such key and will reject it as unknown."
     ],
     "answer": [
       0,
@@ -649,11 +832,18 @@
     "type": "single",
     "prompt": "What does `docker compose down` do by default (without extra flags)?",
     "explanation": "`docker compose down` tears down containers and networks; named volumes are preserved unless you pass `-v`/`--volumes`.",
+    "example": "docker compose up -d\ndocker compose down        # stops and removes containers + networks\ndocker volume ls           # named volumes still present\ndocker compose down -v     # also removes named volumes and anonymous volumes",
     "options": [
       "Pauses all running containers",
       "Stops and removes the containers and networks created by `docker compose up`, but keeps named volumes",
       "Deletes the compose file itself",
       "Rebuilds all images defined in the compose file"
+    ],
+    "optionNotes": [
+      "Pausing containers is `docker compose pause`; `down` actually stops and deletes them.",
+      "`docker compose down` removes the containers and the default network the project created, but deliberately keeps named volumes so data is not lost.",
+      "The compose file on disk is never touched by any `docker compose` command.",
+      "Rebuilding images is `docker compose build` (or `up --build`); `down` never builds anything."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/compose/down/",
@@ -669,11 +859,18 @@
     "type": "single",
     "prompt": "Why is it considered a security best practice to avoid running an application's main process as `root` inside a container?",
     "explanation": "Least-privilege reduces blast radius: a compromised root process inside a container is a more dangerous foothold, especially combined with misconfigurations like `--privileged` or mounted host paths.",
+    "example": "FROM node:20-alpine\nRUN addgroup -S app && adduser -S app -G app\nWORKDIR /app\nCOPY --chown=app:app . .\nUSER app             # main process no longer runs as uid 0\nCMD [\"node\", \"server.js\"]",
     "options": [
       "Root processes always run noticeably slower than non-root ones",
       "If an attacker compromises the application or escapes container isolation, running as root increases the potential impact and privileges they gain",
       "Docker refuses to start any container whose process runs as root",
       "Non-root containers automatically use less disk space"
+    ],
+    "optionNotes": [
+      "Running as root has no meaningful performance cost; the concern is security, not speed.",
+      "Least privilege limits what a compromised process can do; a root process inside a container maps to uid 0 on the host, which matters greatly after a namespace escape or with mounted host paths.",
+      "Docker starts containers as root by default and does not refuse to do so; the restriction has to be applied deliberately with `USER` or `--user`.",
+      "The user a process runs as has no bearing on image or disk size."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/build/building/best-practices/",
@@ -688,11 +885,18 @@
     "type": "single",
     "prompt": "Which Dockerfile instruction sets the user (and optionally group) that the container process runs as, instead of the default root?",
     "explanation": "`USER <name-or-uid>` switches the effective user for subsequent instructions and for the container's runtime process.",
+    "example": "FROM python:3.12-slim\nRUN useradd --create-home --uid 10001 appuser\nCOPY --chown=appuser:appuser . /app\nUSER appuser        # or: USER 10001:10001\nCMD [\"python\", \"/app/main.py\"]",
     "options": [
       "USER",
       "OWNER",
       "RUNAS",
       "GROUP"
+    ],
+    "optionNotes": [
+      "`USER <user>[:<group>]` sets the user for the remaining build instructions and for the container's process; it accepts a name or numeric UID.",
+      "`OWNER` is not a Dockerfile instruction; file ownership is set with `COPY --chown` instead.",
+      "`RUNAS` is not a Dockerfile instruction.",
+      "`GROUP` is not a Dockerfile instruction; the group is given as the optional second part of `USER`."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/dockerfile/#user",
@@ -708,6 +912,7 @@
     "type": "boolean",
     "prompt": "Running a container with `docker run --privileged` grants it nearly all the capabilities of the host, largely disabling normal container isolation, so it should be avoided unless strictly necessary.",
     "explanation": "`--privileged` gives the container extensive access to host devices and kernel capabilities, greatly expanding the attack surface if the container is compromised.",
+    "example": "# avoid:\ndocker run --privileged -v /:/host alpine   # near-full host access\n# prefer targeted grants instead:\ndocker run --cap-drop=ALL --cap-add=NET_ADMIN myapp\ndocker run --device /dev/ttyUSB0 myapp",
     "answer": true,
     "reference": "https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities",
     "tags": [
@@ -721,11 +926,18 @@
     "type": "single",
     "prompt": "You need to pass a private API key into a `docker build` so a `RUN` step can use it, without that secret ending up embedded in any image layer or in the build history. Which approach achieves this?",
     "explanation": "BuildKit secret mounts expose the secret file only for the duration of the specific `RUN` instruction and exclude it from the resulting image layers and history, unlike ARG/ENV which can leak into image metadata or layers.",
+    "example": "# syntax=docker/dockerfile:1\nFROM alpine:3.20\nRUN --mount=type=secret,id=api_key \\\n    curl -H \"Authorization: Bearer $(cat /run/secrets/api_key)\" https://api.example.com/setup\n\n# build:\n# docker build --secret id=api_key,src=./api_key.txt .",
     "options": [
       "Declare it as a regular `ARG` and reference it in a `RUN` command",
       "Hardcode the key directly in the Dockerfile as a string",
       "Use BuildKit's `RUN --mount=type=secret`, which mounts the secret into that step only and never writes it to a layer",
       "Set it with `ENV` near the top of the Dockerfile"
+    ],
+    "optionNotes": [
+      "`ARG` values are recorded in the image history and can be recovered with `docker history`, so they are unsuitable for secrets.",
+      "A hardcoded string lands in the Dockerfile, the build context, and the image history; it is the least secure option.",
+      "`RUN --mount=type=secret` exposes the secret as a file (under `/run/secrets` by default) only during that instruction and it is never committed to a layer or the history.",
+      "`ENV` persists into the image config and every container's environment, exposing the key to anyone who can inspect the image."
     ],
     "answer": 2,
     "reference": "https://docs.docker.com/build/building/secrets/",
@@ -741,12 +953,20 @@
     "type": "multi",
     "prompt": "Which of these are recommended container security practices? (Select all that apply.)",
     "explanation": "Non-root users, capability dropping, vulnerability scanning, and pinning images are recommended practices. Mounting the Docker socket into a container effectively grants it root-equivalent control over the host and should be avoided unless absolutely required and tightly controlled.",
+    "example": "FROM python:3.12-slim@sha256:1a2b3c...   # pinned by digest\nUSER 10001\n# run time:\ndocker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE --read-only myapp\ndocker scout cves myapp:1.0             # vulnerability scan",
     "options": [
       "Run containers as a non-root user whenever possible",
       "Use `--cap-drop=ALL` and add back only the specific Linux capabilities the container actually needs",
       "Mount the host's Docker socket (`/var/run/docker.sock`) into application containers for convenience",
       "Regularly scan images for known vulnerabilities, for example with Docker Scout",
       "Pin base images to a specific version or digest instead of always using `latest`"
+    ],
+    "optionNotes": [
+      "Running as a non-root user (via `USER` or `--user`) limits the damage a compromised process can do, especially after a container escape.",
+      "Dropping all capabilities and re-adding only what is needed (for example `NET_BIND_SERVICE`) removes kernel privileges an attacker could abuse.",
+      "Mounting `/var/run/docker.sock` lets the container drive the Docker daemon, which runs as root on the host, so it is effectively host root and should be avoided.",
+      "Scanning images with Docker Scout, Trivy, or similar tools surfaces known CVEs in the packages you ship.",
+      "Pinning base images to a version tag or `@sha256` digest makes builds reproducible and stops an upstream change from silently altering your image."
     ],
     "answer": [
       0,
@@ -767,6 +987,7 @@
     "type": "boolean",
     "prompt": "The `:latest` tag is just a conventional tag name; Docker does not guarantee it always points to the most recently built version of an image.",
     "explanation": "`latest` behaves like any other tag and only changes when someone explicitly builds or pushes an image with that tag; it provides no automatic tracking or freshness guarantee, which is why pinning specific tags/digests is recommended for production.",
+    "example": "docker build -t myapp:2.0 .          # does NOT move myapp:latest\ndocker build -t myapp:latest .       # only this reassigns latest\ndocker pull nginx                    # implicitly nginx:latest, whatever that currently is\ndocker pull nginx@sha256:abc123...   # immutable reference",
     "answer": true,
     "reference": "https://docs.docker.com/build/building/best-practices/",
     "tags": [
@@ -781,11 +1002,18 @@
     "type": "single",
     "prompt": "Why is pinning a base image to a specific version tag or digest, instead of `latest`, considered a best practice?",
     "explanation": "Because `latest` can be reassigned to a new image at any time, pinning to a version or digest ensures the same bits are used across builds and environments.",
+    "example": "# non-reproducible:\nFROM python:latest\n# reproducible tag:\nFROM python:3.12.5-slim-bookworm\n# fully immutable digest:\nFROM python:3.12.5-slim-bookworm@sha256:0f5a3c...\n# docker images --digests shows digests",
     "options": [
       "It is required by Docker Hub's terms of service",
       "It makes builds reproducible and predictable, since `latest` can silently point to a different (and potentially breaking) image over time",
       "Specific tags always download faster than `latest`",
       "It has no practical benefit; it's purely a style preference"
+    ],
+    "optionNotes": [
+      "Docker Hub's terms do not mandate pinning; the practice comes from build reproducibility, not policy.",
+      "Because `latest` (and any mutable tag) can be re-pointed upstream at any time, pinning a version or digest guarantees identical inputs across builds and environments.",
+      "Download speed depends on layer size and cache state, not on which tag name is used.",
+      "Unpinned bases have caused real breakages when an upstream image changed; this is a practical concern, not style."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/build/building/best-practices/",
@@ -801,12 +1029,20 @@
     "type": "multi",
     "prompt": "Which commands can be used to inspect a running container's resource usage or configuration? (Select all that apply.)",
     "explanation": "`docker stats` shows live resource usage, `docker inspect` shows detailed JSON configuration, and `docker top` lists the processes running inside a container. `docker rmi` removes images and `docker network create` makes a new network; neither inspects a running container.",
+    "example": "docker stats web                        # live CPU/mem/net/IO\ndocker inspect web --format '{{.HostConfig.Memory}}'\ndocker top web                          # processes inside the container\ndocker inspect web | jq '.[0].NetworkSettings.IPAddress'",
     "options": [
       "`docker stats`",
       "`docker inspect`",
       "`docker top`",
       "`docker rmi`",
       "`docker network create`"
+    ],
+    "optionNotes": [
+      "`docker stats` streams live CPU, memory, network, and block I/O figures for running containers.",
+      "`docker inspect` prints the full JSON configuration and state of a container (or image, volume, network).",
+      "`docker top` shows the processes running inside a container, similar to `ps` on the host.",
+      "`docker rmi` deletes images from local storage and reveals nothing about a running container.",
+      "`docker network create` creates a new network; it is a mutating command, not an inspection one."
     ],
     "answer": [
       0,
@@ -826,6 +1062,7 @@
     "type": "fill",
     "prompt": "Write the `docker run` flag (with value) that limits a container to a maximum of 512 megabytes of memory.",
     "explanation": "`--memory` (or its short form `-m`) sets the maximum amount of memory the container can use, e.g. `--memory=512m`.",
+    "example": "docker run -d --memory=512m --memory-swap=512m myapp   # hard 512 MiB cap, no swap\ndocker stats --no-stream   # MEM USAGE / LIMIT column shows 512MiB\ndocker update --memory 1g <container>   # raise later",
     "answer": [
       "--memory=512m",
       "--memory 512m",
@@ -846,11 +1083,18 @@
     "type": "single",
     "prompt": "A container is started with `--memory=256m` and its process tries to allocate more memory than that limit. What typically happens?",
     "explanation": "When a container exceeds its memory limit, the kernel's out-of-memory killer steps in and kills a process within that cgroup, frequently terminating the container's main process.",
+    "example": "docker run -d --name hog --memory=256m python:3.12 \\\n  python -c \"x = bytearray(500 * 1024 * 1024)\"\ndocker inspect hog --format '{{.State.OOMKilled}} {{.State.ExitCode}}'\n# true 137   (137 = 128 + SIGKILL)",
     "options": [
       "Docker automatically raises the limit to accommodate the process",
       "The Linux kernel's OOM killer terminates a process inside the container (often the main process), which can cause the container to exit",
       "The process is throttled indefinitely but never killed",
       "Docker pauses the container until memory becomes available elsewhere on the host"
+    ],
+    "optionNotes": [
+      "cgroup memory limits are hard caps; Docker never raises them on its own (though `docker update --memory` can change them manually).",
+      "Exceeding the cgroup limit triggers the kernel OOM killer inside that cgroup; it typically kills the container's main process, the container exits with code 137, and `OOMKilled` is set to true.",
+      "Memory is not throttled like CPU; when reclaim fails the kernel kills rather than stalls indefinitely.",
+      "Docker does not pause containers on memory pressure; `docker pause` is a manual, unrelated operation."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/containers/resource_constraints/",
@@ -866,11 +1110,18 @@
     "type": "single",
     "prompt": "Which `docker run` flag restricts a container to using at most 1.5 CPU cores worth of processing time?",
     "explanation": "`--cpus` sets a fractional or whole-number limit on the number of CPU cores a container may use.",
+    "example": "docker run -d --cpus=1.5 myapp     # at most 1.5 cores of CPU time\n# roughly equivalent CFS settings:\ndocker run -d --cpu-period=100000 --cpu-quota=150000 myapp\n# relative weight instead of a cap:\ndocker run -d --cpu-shares=512 myapp",
     "options": [
       "`--cpus=1.5`",
       "`--cpu-limit=1.5`",
       "`--cores=1.5`",
       "`--max-cpu=1.5`"
+    ],
+    "optionNotes": [
+      "`--cpus` sets a CFS quota so the container can consume at most the given number of cores' worth of CPU time, accepting fractional values.",
+      "`--cpu-limit` is not a `docker run` flag.",
+      "`--cores` is not a `docker run` flag; pinning to specific cores is `--cpuset-cpus`.",
+      "`--max-cpu` is not a `docker run` flag."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/engine/containers/resource_constraints/",
@@ -886,11 +1137,18 @@
     "type": "single",
     "prompt": "What does the Dockerfile `HEALTHCHECK` instruction do?",
     "explanation": "`HEALTHCHECK` runs a specified command on an interval and updates the container's reported health status accordingly, visible via `docker inspect` or `docker ps`.",
+    "example": "FROM nginx:1.27-alpine\nHEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \\\n  CMD wget -qO- http://localhost/ || exit 1\n# docker ps shows (healthy) / (unhealthy) in STATUS",
     "options": [
       "It automatically restarts the container whenever the check fails",
       "It defines a command Docker runs periodically inside the container to determine and report whether the container is `starting`, `healthy`, or `unhealthy`",
       "It verifies that the Docker host machine itself is healthy before allowing any container to start",
       "It replaces the need for a `CMD` or `ENTRYPOINT` instruction"
+    ],
+    "optionNotes": [
+      "Docker Engine only records the status; restarting on failure needs an orchestrator or external tooling.",
+      "`HEALTHCHECK` runs the given command on a schedule inside the container and sets the health state to `starting`, `healthy`, or `unhealthy` based on its exit code.",
+      "The check runs inside the container against the application, not against the host machine.",
+      "`HEALTHCHECK` is additional metadata; the container still needs a `CMD` or `ENTRYPOINT` to have a main process."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/dockerfile/#healthcheck",
@@ -906,11 +1164,18 @@
     "type": "single",
     "prompt": "A container's `HEALTHCHECK` keeps reporting `unhealthy`, yet the container itself is never automatically restarted by the Docker Engine on its own. Why?",
     "explanation": "The Docker Engine itself does not restart a container just because its health check fails; it only exposes the health state. Automated remediation needs an orchestrator (like Swarm or Kubernetes) or external tooling watching that state.",
+    "example": "docker ps --filter health=unhealthy   # still Up, just marked unhealthy\n# options that DO react to health:\n# Compose: depends_on with condition: service_healthy\n# Swarm:   docker service create --health-cmd ... (replaces unhealthy tasks)\n# Kubernetes: livenessProbe restarts the container\n# or a watcher: autoheal / docker events --filter event=health_status",
     "options": [
       "`HEALTHCHECK` alone only updates the reported health status; actually reacting to an unhealthy container (restarting it, replacing it, or removing it from service) requires a separate mechanism such as a restart policy, an orchestrator, or Swarm/Compose-level handling",
       "Docker Engine always restarts unhealthy containers automatically within 30 seconds",
       "Health checks are purely cosmetic and never affect any reported container state",
       "`docker inspect` cannot show health check results at all"
+    ],
+    "optionNotes": [
+      "The Engine's contract is to run the check and publish the state; remediation such as restart or replacement is left to Swarm, Kubernetes, Compose conditions, or external watchers.",
+      "There is no built-in 30-second auto-restart; even `--restart` policies react to exit codes, not to health status.",
+      "Health checks are not cosmetic: they change `docker ps` output, `docker inspect` state, and drive Swarm rollouts and Compose `service_healthy` conditions.",
+      "`docker inspect` does show health results under `State.Health`, including the last several probe outputs."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/dockerfile/#healthcheck",
@@ -926,6 +1191,7 @@
     "type": "boolean",
     "prompt": "You can check a running container's current health status by running `docker inspect` and looking at the `State.Health.Status` field.",
     "explanation": "`docker inspect <container>` includes a `State.Health.Status` field (e.g. `starting`, `healthy`, `unhealthy`) when the container's image defines a HEALTHCHECK.",
+    "example": "docker inspect --format '{{.State.Health.Status}}' web\n# healthy\ndocker inspect web | jq '.[0].State.Health.Log[-1]'   # last probe output",
     "answer": true,
     "reference": "https://docs.docker.com/reference/dockerfile/#healthcheck",
     "tags": [
@@ -940,11 +1206,18 @@
     "type": "single",
     "prompt": "Which command streams the live, ongoing log output of a running container named `web`?",
     "explanation": "The `-f`/`--follow` flag makes `docker logs` keep streaming new log output as it is produced, similar to `tail -f`.",
+    "example": "docker logs -f web                  # follow like tail -f\ndocker logs -f --tail 100 web       # last 100 lines, then follow\ndocker logs --since 10m web         # last ten minutes only",
     "options": [
       "`docker logs web`",
       "`docker logs -f web`",
       "`docker attach web --logs`",
       "`docker top web -f`"
+    ],
+    "optionNotes": [
+      "`docker logs web` prints the log output collected so far and exits; it does not keep streaming.",
+      "`docker logs -f web` (`--follow`) prints existing output and then continues streaming new lines as the container writes them.",
+      "`docker attach` connects to the main process's stdio, but `--logs` is not a valid flag for it and attach is riskier than `logs -f`.",
+      "`docker top` lists processes inside the container and has no `-f` streaming flag."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/container/logs/",
@@ -960,12 +1233,20 @@
     "type": "multi",
     "prompt": "Which of these are valid built-in Docker Engine logging drivers? (Select all that apply.)",
     "explanation": "json-file, syslog, journald, and none are all supported Docker logging drivers (along with others such as local, fluentd, awslogs, and splunk). `kubelet` is a Kubernetes node component, not a Docker logging driver.",
+    "example": "docker run -d --log-driver=journald nginx:1.27\ndocker run -d --log-driver=none busybox   # discard all output\n# daemon-wide default in /etc/docker/daemon.json:\n# { \"log-driver\": \"json-file\", \"log-opts\": { \"max-size\": \"10m\", \"max-file\": \"3\" } }",
     "options": [
       "json-file",
       "syslog",
       "journald",
       "none",
       "kubelet"
+    ],
+    "optionNotes": [
+      "`json-file` is the default driver; it writes each log line as a JSON object under `/var/lib/docker/containers/<id>/`.",
+      "`syslog` forwards container output to a syslog daemon, locally or over the network.",
+      "`journald` sends logs to systemd's journal so they can be read with `journalctl`.",
+      "`none` discards all container output; `docker logs` then returns nothing.",
+      "`kubelet` is the Kubernetes node agent that runs pods via the container runtime; it is not a Docker logging driver."
     ],
     "answer": [
       0,
@@ -985,11 +1266,18 @@
     "type": "single",
     "prompt": "Why can unbounded container log files become a problem in production if left at their defaults?",
     "explanation": "Without `max-size`/`max-file` log options (or an external rotation solution), `json-file` logs can grow indefinitely, which has caused real production disk-exhaustion incidents.",
+    "example": "# before: /var/lib/docker/containers/<id>/<id>-json.log grows forever\ndu -sh /var/lib/docker/containers/*/*-json.log\n# fix per container:\ndocker run -d --log-opt max-size=10m --log-opt max-file=3 myapp\n# or daemon-wide via daemon.json \"log-opts\"",
     "options": [
       "Docker automatically compresses all logs, so this is never actually an issue",
       "With the default `json-file` driver and no size limits configured, log files can grow without bound and eventually consume all available disk space",
       "Container logs are kept only in memory and never touch disk by default",
       "Docker automatically ships all container logs off-host by default"
+    ],
+    "optionNotes": [
+      "Docker does not compress `json-file` logs by default; compression of rotated files is an opt-in `compress` option and only applies once rotation is configured.",
+      "The default `json-file` driver has no size cap unless `max-size`/`max-file` are set, so a chatty container can fill the disk and take the host down.",
+      "Container logs are written to disk under `/var/lib/docker/containers/` by default; the in-memory-only driver is `none` (which keeps nothing) or a remote driver.",
+      "Shipping logs off-host requires choosing a driver such as `fluentd`, `awslogs`, or `gelf`; nothing is forwarded by default."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/engine/logging/configure/",
@@ -1005,6 +1293,7 @@
     "type": "fill",
     "prompt": "Which `--log-opt` key, used with the `json-file` driver (e.g. `--log-opt <key>=10m`), sets the maximum size of a single log file before it is rotated?",
     "explanation": "`max-size` caps each log file's size; `max-file` controls how many rotated files are kept.",
+    "example": "docker run -d \\\n  --log-driver json-file \\\n  --log-opt max-size=10m \\\n  --log-opt max-file=5 \\\n  nginx:1.27\n# rotates at 10 MB, keeps at most 5 files",
     "answer": [
       "max-size"
     ],
@@ -1022,11 +1311,18 @@
     "type": "single",
     "prompt": "What is BuildKit, and why did it become Docker's default build engine?",
     "explanation": "BuildKit re-architected image building around a DAG of build steps, enabling concurrency, smarter cache reuse, and features like secret/SSH mounts that the legacy builder lacked.",
+    "example": "docker buildx version                    # BuildKit-based builder\nDOCKER_BUILDKIT=1 docker build .         # legacy way to opt in\n# BuildKit-only Dockerfile features:\nRUN --mount=type=cache,target=/root/.npm npm ci\nRUN --mount=type=ssh git clone git@github.com:org/private.git",
     "options": [
       "A graphical editor for writing Dockerfiles",
       "An improved build backend that offers parallel execution of independent build stages, more efficient caching, build secrets, and SSH forwarding, replacing the legacy sequential builder",
       "A container runtime that competes directly with containerd",
       "A proxy service used only for mirroring registries"
+    ],
+    "optionNotes": [
+      "BuildKit is a build backend with no graphical component; Dockerfiles are edited with any text editor.",
+      "BuildKit models the build as a DAG so independent stages run in parallel, skips unused stages, caches more precisely, and adds `--mount=type=secret|ssh|cache`, which is why it replaced the legacy builder.",
+      "The container runtime underneath Docker is containerd (with runc); BuildKit only builds images and actually uses containerd under the hood.",
+      "Registry mirroring is configured in `daemon.json` (`registry-mirrors`); BuildKit is unrelated to proxying registries."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/build/buildkit/",
@@ -1041,6 +1337,7 @@
     "type": "boolean",
     "prompt": "On current versions of Docker Engine and Docker Desktop, BuildKit is the default builder for `docker build`, so manually setting `DOCKER_BUILDKIT=1` is generally no longer necessary.",
     "explanation": "BuildKit has been the default build backend for `docker build` for some time now, though the legacy builder can still be selected explicitly if needed.",
+    "example": "docker build -t myapp .        # uses BuildKit automatically on Docker 23+ / Desktop\ndocker buildx ls               # shows the default builder and its driver\n# force the legacy builder only if truly needed:\nDOCKER_BUILDKIT=0 docker build -t myapp .",
     "answer": true,
     "reference": "https://docs.docker.com/build/buildkit/",
     "tags": [
@@ -1054,11 +1351,18 @@
     "type": "single",
     "prompt": "Which BuildKit feature lets a `RUN` instruction reuse a persistent cache directory (for example, an apt or npm package cache) across builds, without that cache ending up baked into the image's layers?",
     "explanation": "`RUN --mount=type=cache,target=<path>` gives that RUN step a cache mount that persists between builds on the same host but is not committed into the resulting image layer.",
+    "example": "# syntax=docker/dockerfile:1\nFROM node:20\nWORKDIR /app\nCOPY package*.json ./\nRUN --mount=type=cache,target=/root/.npm npm ci   # cache survives across builds\nCOPY . .",
     "options": [
       "`RUN --mount=type=cache`",
       "`RUN --mount=type=secret`",
       "`COPY --from=builder`",
       "`ARG BUILDKIT_INLINE_CACHE`"
+    ],
+    "optionNotes": [
+      "`RUN --mount=type=cache,target=<dir>` mounts a persistent, host-local cache directory into that step; it speeds up package managers and is excluded from the committed layer.",
+      "`RUN --mount=type=secret` exposes a secret file for one instruction without persisting it; it is for credentials, not for package caches.",
+      "`COPY --from=builder` copies files from another build stage or image into the current layer, which does get baked into the image.",
+      "`BUILDKIT_INLINE_CACHE` is a build argument that embeds cache metadata into a pushed image for remote layer-cache reuse; it does not provide a directory mount for `RUN`."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/build/cache/optimize/",
@@ -1074,6 +1378,7 @@
     "type": "multi",
     "prompt": "By default (with no extra flags), which of these does `docker system prune` remove? (Select all that apply.)",
     "explanation": "`docker system prune` removes stopped containers, unused networks, dangling images, and unused build cache by default. It leaves volumes untouched unless you pass `--volumes`, and it never removes currently running containers.",
+    "example": "docker system prune            # stopped containers, unused networks, dangling images, build cache\ndocker system prune -a         # also removes all unused (not just dangling) images\ndocker system prune --volumes  # additionally removes unused volumes\ndocker system df               # see what is reclaimable first",
     "options": [
       "Stopped containers",
       "Unused networks",
@@ -1081,6 +1386,14 @@
       "Named volumes",
       "Build cache",
       "Running containers"
+    ],
+    "optionNotes": [
+      "Containers in the exited or created state are removed by `docker system prune`.",
+      "Networks with no containers attached (user-defined ones) are removed.",
+      "Dangling images, meaning untagged layers left behind by rebuilds, are removed; tagged-but-unused images need `-a`.",
+      "Named volumes are deliberately preserved because they hold data; they are only removed with `--volumes`.",
+      "Unused BuildKit build cache is cleared as part of the default prune.",
+      "Running containers are never touched by any prune command."
     ],
     "answer": [
       0,
@@ -1101,11 +1414,18 @@
     "type": "single",
     "prompt": "Which command opens an interactive shell session inside an already-running container named `web`?",
     "explanation": "`docker exec -it <container> sh` runs a new interactive process inside an already-running container; `docker run` would instead start a brand-new container.",
+    "example": "docker run -d --name web nginx:1.27\ndocker exec -it web sh          # shell inside the running container\ndocker exec -it -u root web bash   # as a specific user, if bash exists\ndocker exec web ls /etc/nginx   # one-off non-interactive command",
     "options": [
       "`docker run -it web sh`",
       "`docker exec -it web sh`",
       "`docker attach web --shell`",
       "`docker start -it web`"
+    ],
+    "optionNotes": [
+      "`docker run -it web sh` would try to start a new container from an image called `web`, not enter the existing one.",
+      "`docker exec -it web sh` starts an extra `sh` process inside the already-running container `web`, with a TTY and stdin attached.",
+      "`docker attach` connects to the container's main process (and Ctrl-C may kill it); it has no `--shell` flag.",
+      "`docker start` restarts a stopped container; it has `-i` and `-a` flags but no `-t`, and it does not launch a new shell."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/container/exec/",
@@ -1120,11 +1440,18 @@
     "type": "single",
     "prompt": "What is the key difference between `ARG` and `ENV` instructions in a Dockerfile?",
     "explanation": "`ARG` variables exist only during the build (and can be overridden with `--build-arg`); `ENV` variables persist as environment variables in the final image and any containers started from it.",
+    "example": "ARG APP_VERSION=1.0          # build-time only\nENV APP_VERSION=$APP_VERSION  # promote it into the runtime environment\nRUN echo \"building $APP_VERSION\"\n# docker build --build-arg APP_VERSION=2.3 .\n# docker run img env | grep APP_VERSION  -> APP_VERSION=2.3",
     "options": [
       "`ARG` defines a build-time-only variable that is not present in the running container's environment unless also assigned to an `ENV`; `ENV` sets an environment variable that persists into the running container",
       "They are functionally identical and can always be used interchangeably",
       "`ENV` values can only be set from the `docker run` command line, never from the Dockerfile",
       "`ARG` values are always available inside the running container by default"
+    ],
+    "optionNotes": [
+      "`ARG` variables live only during the build (settable via `--build-arg`) and vanish from the runtime environment unless copied into an `ENV`, which persists in the image config and every container.",
+      "They differ in scope and lifetime, so they are not interchangeable: one is a build parameter, the other a runtime environment variable.",
+      "`ENV` is set in the Dockerfile and baked into the image; `docker run -e` can override it but is not the only source.",
+      "`ARG` values are absent from the running container by default; only an `ENV` assignment carries them forward."
     ],
     "answer": 0,
     "reference": "https://docs.docker.com/reference/dockerfile/#arg",
@@ -1141,11 +1468,18 @@
     "type": "single",
     "prompt": "What is the difference between `docker stop` and `docker kill`?",
     "explanation": "`docker stop` gives the process a chance to shut down cleanly before forcibly killing it after a timeout; `docker kill` sends the (by default fatal) signal right away.",
+    "example": "docker stop web              # SIGTERM, then SIGKILL after 10s\ndocker stop -t 30 web        # longer grace period\ndocker kill web              # SIGKILL immediately\ndocker kill --signal=SIGHUP web   # send a custom signal instead",
     "options": [
       "They are simply two aliases for the exact same operation",
       "`docker stop` sends `SIGTERM` and waits a grace period before sending `SIGKILL`, allowing graceful shutdown; `docker kill` sends `SIGKILL` (or a specified signal) immediately",
       "`docker kill` only works on paused containers",
       "`docker stop` also removes the container afterward, while `docker kill` never does"
+    ],
+    "optionNotes": [
+      "The two commands send different signals with different timing, so they are not aliases.",
+      "`docker stop` sends `SIGTERM`, waits for the timeout (10 s by default, adjustable with `-t`), then sends `SIGKILL`; `docker kill` sends `SIGKILL` (or whatever `--signal` specifies) immediately.",
+      "`docker kill` works on any running container; paused containers must be unpaused first.",
+      "Neither command removes the container; that requires `docker rm` (or `--rm` on `docker run`)."
     ],
     "answer": 1,
     "reference": "https://docs.docker.com/reference/cli/docker/container/stop/",

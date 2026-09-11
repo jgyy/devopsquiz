@@ -11,8 +11,15 @@
       "git new",
       "git create"
     ],
+    "optionNotes": [
+      "`git init` creates a `.git` directory with an empty object database and refs, turning the current directory into a repository, which is exactly what the prompt asks for.",
+      "`git start` is not a Git command; Git has no subcommand by that name.",
+      "`git new` is not a built-in Git command; repository creation is done with `git init` (or `git clone` for existing repos).",
+      "`git create` does not exist in Git; some hosting CLIs like `gh repo create` create remote repos, but that is not part of Git itself."
+    ],
     "answer": 0,
     "explanation": "`git init` creates a new `.git` subdirectory, turning the current directory into a Git repository. The other commands are not real Git commands.",
+    "example": "mkdir my-app && cd my-app\ngit init   # creates the .git directory\ngit status # 'No commits yet'",
     "reference": "https://git-scm.com/docs/git-init",
     "tags": [
       "basics"
@@ -26,12 +33,19 @@
     "prompt": "Which command moves changes from the working directory into the staging area (index) so they will be included in the next commit?",
     "options": [
       "git commit",
-      "git stage",
+      "git index",
       "git add",
       "git track"
     ],
+    "optionNotes": [
+      "`git commit` records what is already in the index as a commit; it does not itself move working-tree changes into the staging area (except with `-a`, which stages tracked files as a shortcut).",
+      "`git index` is not a Git command; the index is the internal name for the staging area, but you interact with it through `git add`, `git reset` and `git restore --staged`.",
+      "`git add` copies the current content of files from the working directory into the index so it will be part of the next commit, which is precisely the staging step.",
+      "`git track` is not a Git command; tracking begins the first time a file is added with `git add`."
+    ],
     "answer": 2,
-    "explanation": "`git add <file>` stages changes. `git stage` is not a built-in Git command, and `git commit` records already-staged changes rather than staging new ones.",
+    "explanation": "`git add <file>` stages changes (`git stage` is an accepted synonym). `git index` and `git track` are not Git commands, and `git commit` records already-staged changes rather than staging new ones.",
+    "example": "git add src/app.py        # stage one file\ngit add -A                # stage all changes\ngit add -p                # interactively stage hunks",
     "reference": "https://git-scm.com/docs/git-add",
     "tags": [
       "basics"
@@ -49,8 +63,15 @@
       "git log",
       "git show"
     ],
+    "optionNotes": [
+      "`git diff` shows line-level changes between the working tree and index (or between commits); it does not give the per-file staged/unstaged/untracked summary.",
+      "`git status` reports the state of the working tree and index, listing staged, unstaged, and untracked files, which is what the prompt describes.",
+      "`git log` lists commit history; it says nothing about the current state of the working directory.",
+      "`git show` displays an object such as a commit with its diff; it does not summarise the working directory state."
+    ],
     "answer": 1,
     "explanation": "`git status` summarizes the state of the working directory and staging area. `git diff` shows line-by-line changes, and `git log` shows commit history.",
+    "example": "git status\n# On branch main\n# Changes to be committed:   modified: README.md\n# Changes not staged:        modified: app.py\n# Untracked files:           notes.txt\ngit status -s   # short form",
     "reference": "https://git-scm.com/docs/git-status",
     "tags": [
       "basics"
@@ -68,8 +89,15 @@
       "git commit",
       "git checkout"
     ],
+    "optionNotes": [
+      "`git save` is not a Git command; there is no such subcommand.",
+      "`git push` uploads existing local commits to a remote; it does not create commits from the staging area.",
+      "`git commit` takes the contents of the index and stores them as a new commit object with a message and parent, which is what the prompt asks.",
+      "`git checkout` switches branches or restores files in the working tree; it does not record a commit."
+    ],
     "answer": 2,
     "explanation": "`git commit` creates a new commit from whatever is currently staged. `git push` sends commits to a remote, and `git save` is not a Git command.",
+    "example": "git add .\ngit commit -m \"Add login endpoint\"   # records the staged snapshot\ngit commit                          # opens editor for the message",
     "reference": "https://git-scm.com/docs/git-commit",
     "tags": [
       "basics"
@@ -87,8 +115,15 @@
       "git track",
       "git commits"
     ],
+    "optionNotes": [
+      "`git log` walks backward from HEAD and prints each commit's hash, author, date, and message, which is the commit history for the current branch.",
+      "`git history` is not a built-in Git command.",
+      "`git track` does not exist in Git.",
+      "`git commits` is not a Git command; history is viewed with `git log`."
+    ],
     "answer": 0,
     "explanation": "`git log` lists commits reachable from HEAD, newest first by default. `git history`, `git track`, and `git commits` are not Git commands.",
+    "example": "git log                 # full history of the current branch\ngit log --oneline -5    # last 5 commits, one per line\ngit log --graph --all   # visualise all branches",
     "reference": "https://git-scm.com/docs/git-log",
     "tags": [
       "basics"
@@ -106,8 +141,15 @@
       "It configures the remote repository URL",
       "It lists branches that cannot be deleted"
     ],
+    "optionNotes": [
+      "A `.gitignore` file contains patterns for paths that Git should treat as intentionally untracked, so they are not shown as untracked or staged by `git add`; this is its purpose.",
+      "Commit messages are not stored in `.gitignore`; message templates use `commit.template` and reusable text is not a Git feature of this file.",
+      "Remote URLs are configured in `.git/config` via `git remote`; `.gitignore` has nothing to do with remotes.",
+      "Branch deletion restrictions are enforced by server-side branch protection, not by `.gitignore`."
+    ],
     "answer": 0,
     "explanation": "`.gitignore` contains patterns matching files Git should leave untracked, such as build artifacts or secrets, so they never get accidentally staged.",
+    "example": "# .gitignore\nnode_modules/\n*.log\n.env\ndist/\n# Then: git status no longer lists these paths as untracked",
     "reference": "https://git-scm.com/docs/gitignore",
     "tags": [
       "basics",
@@ -126,8 +168,15 @@
       "git merge develop",
       "git fetch develop"
     ],
+    "optionNotes": [
+      "`git branch develop` creates a new branch named develop at HEAD (or errors if it exists); it does not change which branch is checked out.",
+      "`git switch develop` updates HEAD and the working tree to the existing develop branch, which is what the prompt asks for; `git checkout develop` does the same.",
+      "`git merge develop` integrates develop's commits into the current branch; it does not switch branches.",
+      "`git fetch develop` would try to fetch from a remote named develop; it does not change the checked-out branch."
+    ],
     "answer": 1,
     "explanation": "`git switch develop` (or the older `git checkout develop`) changes the currently checked-out branch. `git branch develop` only creates a branch without switching to it.",
+    "example": "git switch develop       # switch to existing branch\ngit checkout develop     # older equivalent\ngit switch -c feature/x  # create and switch",
     "reference": "https://git-scm.com/docs/git-switch",
     "tags": [
       "branching"
@@ -145,8 +194,15 @@
       "You must first push the branch to a remote before deleting it",
       "Git never allows deleting local branches"
     ],
+    "optionNotes": [
+      "The lowercase `-d` flag only deletes branches whose commits are already reachable from the current branch (or upstream); the error means unmerged commits exist and Git is protecting them, so this is the right reading.",
+      "An invalid branch name yields a different error such as 'branch not found'; the not-fully-merged message specifically concerns unmerged commits.",
+      "Git never requires pushing before local deletion; the safety check is about local reachability, not remotes.",
+      "Git does allow deleting local branches with `-d` (when merged) or `-D` (force), so this claim is false."
+    ],
     "answer": 0,
     "explanation": "`-d` is the safe delete flag: Git refuses if deleting the branch would make commits unreachable. Using `-D` forces deletion regardless.",
+    "example": "git branch -d old-feature\n# error: The branch 'old-feature' is not fully merged.\ngit log main..old-feature   # see the unmerged commits\ngit branch -D old-feature   # force delete if you really mean it",
     "reference": "https://git-scm.com/docs/git-branch",
     "tags": [
       "branching"
@@ -164,8 +220,15 @@
       "A merge performed with the `--force` flag",
       "A merge that squashes all commits into one before merging"
     ],
+    "optionNotes": [
+      "When the current branch has no commits that the target lacks, Git simply advances the branch ref to the target commit without creating a merge commit; this is the definition of a fast-forward.",
+      "No merge type automatically resolves all conflicts; a fast-forward simply cannot have conflicts because nothing diverged.",
+      "`--force` is not a `git merge` option; forcing relates to `git push --force` or `git branch -f`, not fast-forward merges.",
+      "Squashing is done with `git merge --squash`, which is a separate behaviour that collapses commits; it is unrelated to fast-forwarding."
+    ],
     "answer": 0,
     "explanation": "A fast-forward happens when the current branch has no commits of its own since it diverged, so Git can just move the branch pointer forward instead of creating a merge commit.",
+    "example": "git switch main\ngit merge feature\n# Updating a1b2c3d..e4f5g6h\n# Fast-forward\ngit merge --no-ff feature   # force a merge commit instead",
     "reference": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
     "tags": [
       "merging"
@@ -183,8 +246,15 @@
       "It only works on remote branches, never local ones",
       "It automatically squashes every commit into a single commit"
     ],
+    "optionNotes": [
+      "`git rebase` takes the commits unique to your branch and re-applies them one at a time onto the tip of the target branch, producing new commits and a linear history with no merge commit.",
+      "Rebase does not delete commits from the other branch; the target branch is untouched and only your branch's commits are rewritten.",
+      "Rebase works on any local branch; it is commonly run entirely locally before pushing.",
+      "Plain rebase preserves each commit separately; squashing only happens if you choose it in an interactive rebase (`-i`)."
+    ],
     "answer": 0,
     "explanation": "Rebase re-applies each commit from your branch onto the tip of the target branch, resulting in a linear history instead of the merge commit that `git merge` would create.",
+    "example": "git switch feature\ngit rebase main      # replay feature commits on top of main\n# resolve conflicts, then:\ngit rebase --continue\ngit log --oneline --graph   # linear history",
     "reference": "https://git-scm.com/docs/git-rebase",
     "tags": [
       "rebasing"
@@ -202,8 +272,15 @@
       "They indicate syntax errors unrelated to the merge",
       "They are automatically removed and can be ignored"
     ],
+    "optionNotes": [
+      "Git writes the conflicting hunk with the current branch's version between `<<<<<<<` and `=======` and the incoming branch's version between `=======` and `>>>>>>>`, so you can choose or combine them manually.",
+      "Nothing is permanently deleted; both versions are preserved inside the markers until you resolve the conflict.",
+      "The markers are inserted by Git during a merge, not by a language parser, although leaving them in will usually cause syntax errors.",
+      "They are never removed automatically; you must edit the file, remove the markers, and stage it to complete the merge."
+    ],
     "answer": 0,
     "explanation": "Git inserts these markers around the conflicting sections: content above `=======` comes from your current branch (HEAD), content below comes from the branch being merged in. You must edit the file to resolve them.",
+    "example": "<<<<<<< HEAD\nport = 8080\n=======\nport = 9090\n>>>>>>> feature/ports\n# keep the wanted lines, delete the markers, then: git add config.py && git commit",
     "reference": "https://git-scm.com/docs/git-merge#_how_to_resolve_conflicts",
     "tags": [
       "merging",
@@ -222,8 +299,15 @@
       "There is no difference; they are aliases for the same command",
       "`git pull` only works on the first clone of a repository"
     ],
+    "optionNotes": [
+      "`git fetch` downloads objects and updates remote-tracking refs like `origin/main` without touching your branch, while `git pull` is fetch followed by merge or rebase into the current branch; this captures the real difference.",
+      "Uploading commits is done by `git push`; both fetch and pull download from the remote.",
+      "They are not aliases; `pull` literally runs `fetch` and then `merge` (or `rebase`).",
+      "`git pull` can be run at any time on any branch with an upstream, not only after the first clone."
+    ],
     "answer": 0,
     "explanation": "`git pull` is effectively `git fetch` followed by `git merge` (or `git rebase` with `--rebase`). `git fetch` alone updates remote-tracking branches but never touches your local branches.",
+    "example": "git fetch origin            # update origin/main, working branch untouched\ngit log main..origin/main   # review what arrived\ngit merge origin/main       # integrate when ready\ngit pull --rebase origin main   # fetch + rebase in one step",
     "reference": "https://git-scm.com/docs/git-pull",
     "tags": [
       "remotes"
@@ -241,8 +325,15 @@
       "git upload",
       "git commit --remote"
     ],
+    "optionNotes": [
+      "`git push` transfers local commits and updates the corresponding branch on the remote, which is what the prompt asks.",
+      "`git send` is not a Git command; the closest is `git send-email`, which mails patches rather than pushing.",
+      "`git upload` does not exist; `git upload-pack` is an internal server-side helper, not a user command.",
+      "`git commit --remote` is not a valid option; `git commit` only records commits locally."
+    ],
     "answer": 0,
     "explanation": "`git push` transfers local commits to a remote repository and updates the corresponding remote branch.",
+    "example": "git push                    # push current branch to its upstream\ngit push origin feature/x   # explicit remote and branch\ngit push --force-with-lease # safer force push after a rebase",
     "reference": "https://git-scm.com/docs/git-push",
     "tags": [
       "remotes"
@@ -260,6 +351,7 @@
       "remote add"
     ],
     "explanation": "Full command accepted too.",
+    "example": "git remote add origin https://example.com/repo.git\ngit remote -v   # verify: origin https://example.com/repo.git (fetch/push)",
     "reference": "https://git-scm.com/docs/git-remote",
     "pattern": "^(git\\s+)?remote\\s+add(\\s+origin\\s+https?:\\/\\/\\S+)?$",
     "tags": [
@@ -279,6 +371,7 @@
       "git push --set-upstream origin <branch>"
     ],
     "explanation": "The `-u`/`--set-upstream` flag on `git push` both pushes the branch and records the tracking relationship.",
+    "example": "git switch -c feature/login\ngit push -u origin HEAD          # push and set upstream\ngit push --set-upstream origin feature/login   # long form\ngit status   # 'Your branch is up to date with origin/feature/login'",
     "reference": "https://git-scm.com/docs/git-push",
     "pattern": "^git\\s+push\\s+(-u|--set-upstream)\\s+origin\\s+\\S+$",
     "tags": [
@@ -298,8 +391,15 @@
       "To create a backup branch automatically on every commit",
       "To compress the `.git` repository to save disk space"
     ],
+    "optionNotes": [
+      "`git stash` saves the working tree and index changes into a stash entry and restores a clean working tree, so you can switch branches and later `pop` or `apply` them; this is its primary purpose.",
+      "Stashed changes are stored in the repository, not deleted; permanent removal would be `git stash drop` or `git checkout -- .`.",
+      "Git does not create backup branches on commit; the reflog is the closest safety mechanism.",
+      "Repository compression is done by `git gc`; `git stash` does not affect disk usage of the object store."
+    ],
     "answer": 0,
     "explanation": "`git stash` saves your uncommitted working directory and index changes on a stack, restoring a clean working directory so you can do something else, then reapply the changes later with `git stash pop` or `git stash apply`.",
+    "example": "git stash            # shelve uncommitted changes\ngit switch hotfix    # do other work\ngit switch feature\ngit stash pop        # bring the changes back\ngit stash list       # see saved stashes",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -313,6 +413,7 @@
     "prompt": "You can have more than one stash entry saved at the same time, and `git stash list` will show all of them.",
     "answer": true,
     "explanation": "`git stash` pushes each stash onto a stack, so multiple stashes can coexist; `git stash list` shows them all, most recent first.",
+    "example": "git stash push -m \"wip: header\"\ngit stash push -m \"wip: footer\"\ngit stash list\n# stash@{0}: On main: wip: footer\n# stash@{1}: On main: wip: header\ngit stash apply stash@{1}",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -330,8 +431,15 @@
       "Moves the branch pointer back one commit and unstages the changes, but keeps them in the working directory",
       "Discards all local commits and matches the remote"
     ],
+    "optionNotes": [
+      "With `--soft`, only the branch ref moves; the index still holds the previous commit's tree, so its changes show as staged and the working directory is untouched.",
+      "Nothing is deleted from disk by a soft reset; both index and working tree are preserved.",
+      "Unstaging while keeping working-tree changes describes `--mixed` (the default), not `--soft`.",
+      "Discarding local commits to match the remote would be `git reset --hard origin/<branch>`, not a soft reset of one commit."
+    ],
     "answer": 0,
     "explanation": "`--soft` only moves HEAD (and the branch ref); the index and working tree are untouched, so the changes from the undone commit remain staged and ready to be recommitted.",
+    "example": "git reset --soft HEAD~1   # undo last commit, keep changes staged\ngit status                # 'Changes to be committed'\ngit commit -m \"Better message\"   # re-commit",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -349,8 +457,15 @@
       "Only updates the working directory, leaving the index untouched",
       "Creates a new commit that undoes the previous one"
     ],
+    "optionNotes": [
+      "The mixed mode moves the branch ref and resets the index to that commit, but leaves the working directory files as they are, so the changes appear unstaged.",
+      "Deleting working-directory changes is what `--hard` does; `--mixed` keeps them.",
+      "Updating only the working directory is not a reset mode; `--mixed` always updates the index.",
+      "Creating a new undo commit is `git revert`, not `git reset`."
+    ],
     "answer": 0,
     "explanation": "`--mixed` is the default: it moves HEAD and resets the staging area to match the new HEAD, but working directory files are left as-is, so changes appear as unstaged modifications.",
+    "example": "git reset HEAD~1          # same as --mixed\ngit status                # changes now unstaged but still in files\ngit add -p && git commit  # re-stage selectively",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -368,8 +483,15 @@
       "It rewrites the history of every branch in the repository",
       "It disables the ability to ever commit again"
     ],
+    "optionNotes": [
+      "`--hard` resets the branch ref, the index, and the working directory to the target commit, so any uncommitted edits are overwritten and cannot be recovered via reflog.",
+      "`git reset` only affects the local repository; it never touches or deletes a remote.",
+      "It only moves the current branch's ref, not every branch in the repository.",
+      "Committing is still possible afterwards; the danger is data loss, not a disabled command."
+    ],
     "answer": 0,
     "explanation": "`--hard` resets HEAD, the index, and the working directory to match the target commit, discarding uncommitted work with no confirmation. Committed work may still be recoverable via the reflog, but uncommitted changes are generally lost.",
+    "example": "git reset --hard HEAD~1   # uncommitted edits are gone for good\n# safer alternatives:\ngit stash                 # save first\ngit reflog                # can recover committed work, not uncommitted",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -387,8 +509,15 @@
       "`git reset` only works on remote branches",
       "`git revert` cannot undo merge commits"
     ],
+    "optionNotes": [
+      "`git revert` adds a new commit that inverts the change, so shared history is not rewritten, while `git reset` moves the branch pointer and requires a force push that breaks others' clones.",
+      "Typing speed is irrelevant; the preference is about preserving shared history.",
+      "`git reset` operates on local branches; it is not limited to remote branches.",
+      "`git revert` can undo merge commits using `-m <parent-number>`, so this is not a reason to prefer it."
+    ],
     "answer": 0,
     "explanation": "Because `revert` adds a new commit instead of removing or rewriting existing ones, it is safe to use on shared branches. `reset` moves the branch pointer and, if the rewritten history is pushed, forces collaborators to reconcile diverged histories.",
+    "example": "git revert abc1234        # new commit that undoes abc1234\ngit push                  # history only grows, collaborators fast-forward\n# versus: git reset --hard HEAD~1 && git push --force  (rewrites shared history)",
     "reference": "https://git-scm.com/docs/git-revert",
     "tags": [
       "revert",
@@ -403,6 +532,7 @@
     "prompt": "Running `git revert <commit>` deletes the target commit from the repository's history.",
     "answer": false,
     "explanation": "`git revert` does not remove or rewrite the original commit; it creates a brand new commit that applies the inverse of the target commit's changes, keeping full history intact.",
+    "example": "git revert abc1234\ngit log --oneline -2\n# 9f8e7d6 Revert \"Add feature X\"\n# abc1234 Add feature X   <- still present",
     "reference": "https://git-scm.com/docs/git-revert",
     "tags": [
       "revert"
@@ -420,8 +550,15 @@
       "Merges two entire branches together",
       "Lists commits that have not yet been pushed"
     ],
+    "optionNotes": [
+      "`git cherry-pick` computes the diff introduced by the given commit and applies it to the current branch as a new commit with a new hash; this is its definition.",
+      "Cherry-pick never deletes commits; removing one from history would be `git rebase -i` and `drop`.",
+      "Merging whole branches is `git merge`; cherry-pick works one commit (or range) at a time.",
+      "Listing unpushed commits is `git log @{u}..` or `git cherry`, not `git cherry-pick`."
+    ],
     "answer": 0,
     "explanation": "`cherry-pick` takes the diff introduced by one specific commit and applies it to the current branch, creating a new commit with (by default) a new hash.",
+    "example": "git switch main\ngit cherry-pick abc1234       # new commit on main with abc1234's changes\ngit cherry-pick -x abc1234    # add '(cherry picked from commit ...)' to message",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "tags": [
       "cherry-pick"
@@ -435,6 +572,7 @@
     "prompt": "A `git cherry-pick` can fail with a conflict, in which case you must resolve it manually and then run `git cherry-pick --continue`, just as you would during a rebase.",
     "answer": true,
     "explanation": "Cherry-picking replays a commit's diff onto a potentially different tree, so conflicts can occur. Git pauses and lets you resolve files, `git add` them, and then run `git cherry-pick --continue` (or `--abort` to cancel).",
+    "example": "git cherry-pick abc1234\n# CONFLICT (content): Merge conflict in app.py\nvim app.py            # resolve markers\ngit add app.py\ngit cherry-pick --continue\n# or abandon: git cherry-pick --abort",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "tags": [
       "cherry-pick",
@@ -453,8 +591,15 @@
       "An annotated tag automatically pushes itself to all remotes",
       "A lightweight tag can point to multiple commits at once"
     ],
+    "optionNotes": [
+      "An annotated tag is a separate tag object in the object database carrying tagger, date, message, and optional signature, whereas a lightweight tag is only a ref file pointing at a commit; this is the real distinction.",
+      "Tags can be created on any commit regardless of branch; there is no `main`-only restriction.",
+      "No tag pushes itself; tags reach remotes only via `git push --tags` or `git push origin <tag>`.",
+      "Any tag points to exactly one object; a tag cannot reference multiple commits."
+    ],
     "answer": 0,
     "explanation": "Annotated tags (`git tag -a`) create a full tag object with metadata and are recommended for releases; lightweight tags are simply a named reference to a commit with no extra metadata.",
+    "example": "git tag v1.0.0-rc            # lightweight: just a ref to a commit\ngit tag -a v1.0.0 -m \"GA\"    # annotated: tag object with tagger, date, message\ngit cat-file -t v1.0.0       # 'tag' ; lightweight prints 'commit'",
     "reference": "https://git-scm.com/book/en/v2/Git-Basics-Tagging",
     "tags": [
       "tags"
@@ -471,6 +616,7 @@
       "git tag -a v1.0.0 -m 'Release 1.0.0'"
     ],
     "explanation": "The `-a` flag creates an annotated tag object, and `-m` supplies its message, similarly to a commit.",
+    "example": "git tag -a v1.0.0 -m \"Release 1.0.0\"\ngit show v1.0.0        # shows tagger, date, message, then the commit\ngit push origin v1.0.0",
     "reference": "https://git-scm.com/docs/git-tag",
     "pattern": "^git\\s+tag\\s+-a\\s+v1\\.0\\.0\\s+-m\\s+.*Release 1\\.0\\.0.*$",
     "tags": [
@@ -491,6 +637,14 @@
       "index",
       "branch"
     ],
+    "optionNotes": [
+      "A blob stores the raw content of a file and is one of the four core object types.",
+      "A tree object records a directory listing mapping names to blobs and subtrees, and is a core object type.",
+      "A commit object points to a tree and parent commits along with author and message metadata; it is a core object type.",
+      "An annotated tag object wraps a reference to another object with a tagger and message; it is the fourth core object type.",
+      "The index (staging area) is a binary file at `.git/index`, not an object in the object database.",
+      "A branch is simply a ref file under `.git/refs/heads/` pointing to a commit; it is not an object type."
+    ],
     "answer": [
       0,
       1,
@@ -498,6 +652,7 @@
       3
     ],
     "explanation": "Git's object database stores exactly four object types: blobs (file contents), trees (directory listings), commits, and tag objects. The index and branches are not stored as objects; the index is a separate file and a branch is just a ref (a pointer) to a commit.",
+    "example": "git cat-file -t HEAD          # commit\ngit cat-file -t HEAD^{tree}   # tree\ngit cat-file -t HEAD:README.md   # blob\ngit cat-file -t v1.0.0        # tag (for an annotated tag)",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects",
     "tags": [
       "internals"
@@ -515,8 +670,15 @@
       "The most recently created tag",
       "The default remote repository"
     ],
+    "optionNotes": [
+      "HEAD is the symbolic ref for the current checkout, normally pointing at a branch which in turn points at a commit; this is what HEAD means.",
+      "The first commit is the root commit, reachable via `git rev-list --max-parents=0 HEAD`, not HEAD.",
+      "Tags are separate refs under `refs/tags/`; HEAD is unrelated to the most recent tag.",
+      "The default remote is typically named `origin` and configured in `.git/config`; HEAD is a local checkout pointer."
+    ],
     "answer": 0,
     "explanation": "`HEAD` is a symbolic reference that normally points at the branch you have checked out, which in turn points at a commit; it represents your current position in history.",
+    "example": "cat .git/HEAD\n# ref: refs/heads/main      <- HEAD points at a branch\ngit rev-parse HEAD          # resolves to the checked-out commit\ngit log -1 HEAD",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
     "tags": [
       "internals",
@@ -535,8 +697,15 @@
       "You have deleted the current branch by accident",
       "Your working directory has uncommitted changes that conflict with HEAD"
     ],
+    "optionNotes": [
+      "In a detached HEAD state, `.git/HEAD` contains a raw commit hash instead of `ref: refs/heads/...`, so new commits advance no branch and can be lost unless you create a branch.",
+      "Losing the `.git` directory would mean there is no repository at all, not a detached HEAD.",
+      "Deleting the current branch is not what detached HEAD means, and Git refuses to delete the checked-out branch anyway.",
+      "Uncommitted conflicting changes produce checkout errors, not the detached HEAD message."
+    ],
     "answer": 0,
     "explanation": "A detached HEAD occurs when you check out a specific commit, tag, or remote branch directly rather than a local branch; HEAD then points at that commit itself rather than at a branch reference.",
+    "example": "git checkout a1b2c3d\n# You are in 'detached HEAD' state...\ncat .git/HEAD     # a1b2c3d... (raw SHA, no 'ref:')\ngit switch -c rescue-branch   # keep any new commits",
     "reference": "https://git-scm.com/docs/git-checkout#_detached_head",
     "tags": [
       "internals",
@@ -555,8 +724,15 @@
       ".git/objects/main",
       ".git/HEAD/main"
     ],
+    "optionNotes": [
+      "Local branches are stored as files under `.git/refs/heads/`, so `main` lives at `.git/refs/heads/main` (or may be packed into `.git/packed-refs`).",
+      "`.git/branches/` is a legacy directory for old-style remote shorthand URLs, not branch refs.",
+      "`.git/objects/` holds the content-addressed object database; branch names never appear there.",
+      "`.git/HEAD` is a single file, not a directory, so `.git/HEAD/main` does not exist."
+    ],
     "answer": 0,
     "explanation": "Local branch references live as files under `.git/refs/heads/`, each containing the SHA-1 (or SHA-256) of the commit the branch points to. Remote-tracking branches live under `.git/refs/remotes/`.",
+    "example": "cat .git/refs/heads/main\n# 3f2a9c1e...   (the commit SHA the branch points to)\ngit update-ref refs/heads/main <sha>   # the low-level way to move it",
     "reference": "https://git-scm.com/book/en/v2/Git-Internals-Git-References",
     "tags": [
       "internals",
@@ -575,8 +751,15 @@
       "It lists every file ever tracked by the repository",
       "It synchronizes reflog entries with all remotes so collaborators can see them"
     ],
+    "optionNotes": [
+      "The reflog records every place HEAD and branch tips have pointed in this local repository, so commits orphaned by reset, rebase, or branch deletion can be found and restored.",
+      "`git log` follows commit parent links, whereas the reflog is a chronological record of ref movements that includes unreachable commits, so they are not the same data.",
+      "Files ever tracked would come from `git log --all --name-only`, not the reflog.",
+      "Reflogs are strictly local and per-clone; they are never transferred by push or fetch."
+    ],
     "answer": 0,
     "explanation": "The reflog records every movement of HEAD (commits, resets, rebases, checkouts) on your local machine, which is invaluable for recovering 'lost' commits after a hard reset or a bad rebase. It is purely local and is never pushed to a remote.",
+    "example": "git reset --hard HEAD~2   # oops, lost two commits\ngit reflog\n# 7c1d2e3 HEAD@{0}: reset: moving to HEAD~2\n# 9a8b7c6 HEAD@{1}: commit: add tests\ngit reset --hard HEAD@{1}   # recovered",
     "reference": "https://git-scm.com/docs/git-reflog",
     "tags": [
       "internals",
@@ -591,6 +774,7 @@
     "prompt": "Detached HEAD commits and reflog entries are pushed to the remote automatically the next time you run `git push`, so other collaborators can see them.",
     "answer": false,
     "explanation": "The reflog is entirely local metadata and is never transmitted by push or fetch. Likewise, commits made in a detached HEAD state are not on any branch, so a plain `git push` will not send them anywhere; they can be lost once garbage collected unless you point a branch or tag at them.",
+    "example": "git checkout a1b2c3d\ngit commit -m \"experiment\"    # only in local reflog\ngit push origin HEAD:refs/heads/experiment   # must push explicitly to share",
     "reference": "https://git-scm.com/docs/git-reflog",
     "tags": [
       "internals",
@@ -609,8 +793,15 @@
       "It compares two branches and lists only the commits unique to each",
       "It automatically bisects (halves) large files to reduce repository size"
     ],
+    "optionNotes": [
+      "`git bisect` binary-searches between a known good and known bad commit, checking out midpoints for you to test, which finds the culprit in O(log n) steps; this is its purpose.",
+      "Splitting a branch is done by creating a new branch with `git branch`; bisect does not create branches.",
+      "Comparing unique commits between branches is `git log A...B --left-right` or `git cherry`, not bisect.",
+      "Bisect has nothing to do with file size; large files are handled by tools like Git LFS."
+    ],
     "answer": 0,
     "explanation": "`git bisect` automates a binary search: you tell it one known-good and one known-bad commit, it checks out a midpoint, and you test and mark it good/bad, repeating until it narrows down the exact commit that introduced the regression.",
+    "example": "git bisect start\ngit bisect bad            # current commit is broken\ngit bisect good v1.2.0    # known good release\n# test, then mark: git bisect good | git bisect bad\ngit bisect reset          # done",
     "reference": "https://git-scm.com/docs/git-bisect",
     "tags": [
       "bisect"
@@ -629,12 +820,20 @@
       "git bisect commit",
       "git bisect finish"
     ],
+    "optionNotes": [
+      "`git bisect start` begins a bisect session and optionally takes the bad and good commits as arguments.",
+      "`git bisect good` marks the currently checked-out (or given) commit as not containing the bug.",
+      "`git bisect bad` marks the current or given commit as containing the bug.",
+      "`git bisect commit` is not a subcommand; bisect never creates commits.",
+      "`git bisect finish` does not exist; a session is ended with `git bisect reset`."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "`git bisect start` begins a session, and each candidate commit is marked with `git bisect good` or `git bisect bad`. There is no `git bisect commit` or `git bisect finish` subcommand; a session is ended with `git bisect reset`.",
+    "example": "git bisect start\ngit bisect bad HEAD\ngit bisect good v1.0.0\ngit bisect run ./test.sh   # automate marking good/bad\ngit bisect reset",
     "reference": "https://git-scm.com/docs/git-bisect",
     "tags": [
       "bisect"
@@ -652,8 +851,15 @@
       "git commit --amend <base>",
       "git merge -i <base>"
     ],
+    "optionNotes": [
+      "`git rebase -i <base>` opens the todo list of commits after base so you can pick, reword, squash, edit, or drop them before they are replayed; this is exactly the described behaviour.",
+      "`git log` has no `-i` interactive mode; `-i` on log means case-insensitive grep.",
+      "`git commit --amend` rewrites only the most recent commit and takes no base argument.",
+      "`git merge -i` is not a valid merge option; merge has no interactive todo list."
+    ],
     "answer": 0,
     "explanation": "`git rebase -i <base>` (interactive rebase) opens a 'todo list' of commits since `<base>` in your editor, where each line's action (pick, reword, edit, squash, drop, etc.) controls what happens to that commit.",
+    "example": "git rebase -i HEAD~3\n# editor opens:\n# pick a1b2c3d Add feature\n# squash d4e5f6a fix typo\n# reword 7g8h9i0 wip -> becomes 'Add tests'",
     "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
     "tags": [
       "rebasing",
@@ -674,6 +880,14 @@
       "rename",
       "amend"
     ],
+    "optionNotes": [
+      "`pick` keeps the commit as is and replays it; it is the default todo action.",
+      "`squash` melds the commit into the previous one and lets you combine their messages.",
+      "`reword` keeps the commit's content but opens the editor to change its message.",
+      "`drop` removes the commit from the replayed history entirely.",
+      "`rename` is not a rebase todo command; changing a message is done with `reword`.",
+      "`amend` is not a todo command; the closest are `edit` (stop to amend) or `fixup` (squash without editing the message)."
+    ],
     "answer": [
       0,
       1,
@@ -681,6 +895,7 @@
       3
     ],
     "explanation": "Valid interactive rebase todo commands include `pick` (keep as-is), `reword` (keep changes, edit message), `squash`/`fixup` (combine into previous commit), `edit` (pause to amend), and `drop` (remove the commit). `rename` and `amend` are not todo-list commands.",
+    "example": "pick 1a2b3c Add API client\nreword 4d5e6f Fix client timeout\nsquash 7g8h9i Tweak\ndrop 0j1k2l Debug print\n# also valid: edit, fixup, exec, break, label, reset, merge",
     "reference": "https://git-scm.com/docs/git-rebase#_interactive_mode",
     "tags": [
       "rebasing",
@@ -699,8 +914,15 @@
       "It automatically fixes any bugs in the commits",
       "It is required before Git will allow a push"
     ],
+    "optionNotes": [
+      "Squashing turns a noisy sequence of fix-up commits into one coherent commit, making `git log`, `git blame`, bisect, and reverts easier to reason about; this is the main benefit.",
+      "Commit granularity has no effect on runtime performance of the code.",
+      "Squashing only combines diffs; it does not change or fix the resulting code.",
+      "Git never requires squashing before push; some teams enforce it by policy, but Git itself does not."
+    ],
     "answer": 0,
     "explanation": "Squashing combines noisy, incremental commits into a single well-described commit, making the project history easier to read, bisect, and review without losing the final result.",
+    "example": "git rebase -i main\n# pick   a1 Add search endpoint\n# fixup  b2 wip\n# fixup  c3 fix typo\n# fixup  d4 fix again\n# result: one commit 'Add search endpoint'",
     "reference": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
     "tags": [
       "squash",
@@ -715,6 +937,7 @@
     "prompt": "Rebasing (including interactive rebase and squashing) creates brand new commits with different SHA-1 hashes, even if the resulting file content is identical to the originals.",
     "answer": true,
     "explanation": "Because a commit's hash is derived from its content, parent, author, and committer timestamp, replaying a commit onto a new base (or combining commits) always produces a new commit object with a new hash, distinct from the originals.",
+    "example": "git log --oneline -1        # e4f5g6h Add tests\ngit rebase main             # replay onto a new parent\ngit log --oneline -1        # 9z8y7x6 Add tests  <- same content, new hash",
     "reference": "https://git-scm.com/docs/git-rebase",
     "tags": [
       "rebasing"
@@ -732,8 +955,15 @@
       ".git/scripts/",
       "hooks/ in the repository root"
     ],
+    "optionNotes": [
+      "Git looks for executable hook scripts in `.git/hooks/` by default, and `git init` populates it with `.sample` files.",
+      "`.githooks/` is a common convention for versioned hooks, but it only works if you set `git config core.hooksPath .githooks`; it is not the default.",
+      "`.git/scripts/` is not a directory Git creates or reads.",
+      "A `hooks/` directory in the repository root is not consulted by Git unless `core.hooksPath` points to it."
+    ],
     "answer": 0,
     "explanation": "Git looks for executable scripts named things like `pre-commit` or `pre-push` inside `.git/hooks/` by default. Since `.git/` is not cloned as regular content, these are local-only unless a `core.hooksPath` pointing at a tracked directory is configured.",
+    "example": "ls .git/hooks/\n# pre-commit.sample  commit-msg.sample  pre-push.sample ...\ncp .git/hooks/pre-commit.sample .git/hooks/pre-commit\nchmod +x .git/hooks/pre-commit",
     "reference": "https://git-scm.com/docs/githooks",
     "tags": [
       "hooks"
@@ -747,6 +977,7 @@
     "prompt": "Because hooks live inside the `.git/hooks/` directory, they are automatically tracked, committed, and shared with everyone who clones the repository.",
     "answer": false,
     "explanation": "The `.git` directory itself is never version-controlled by Git, so files under `.git/hooks/` are local to each clone and are not shared automatically. Teams typically share hooks by storing them in a tracked directory and configuring `core.hooksPath`, or by using a hook manager tool.",
+    "example": "# .git/ is never committed, so share hooks via a tracked directory:\nmkdir .githooks && cp pre-commit .githooks/\ngit config core.hooksPath .githooks   # each clone must run this\n# or use a tool like pre-commit / husky",
     "reference": "https://git-scm.com/docs/githooks",
     "tags": [
       "hooks"
@@ -762,6 +993,7 @@
       "git submodule add https://example.com/lib.git vendor/lib"
     ],
     "explanation": "`git submodule add <url> <path>` clones the given repository into `<path>` and records it, along with the commit it is pinned to, in a `.gitmodules` file.",
+    "example": "git submodule add https://example.com/lib.git vendor/lib\ncat .gitmodules\n# [submodule \"vendor/lib\"]\n#   path = vendor/lib\n#   url = https://example.com/lib.git\ngit commit -m \"Add lib submodule\"",
     "reference": "https://git-scm.com/docs/git-submodule",
     "pattern": "^git\\s+submodule\\s+add\\s+https?:\\/\\/\\S+\\s+vendor\\/lib$",
     "tags": [
@@ -780,8 +1012,15 @@
       "git clone --deep <url>",
       "git clone --all <url>"
     ],
+    "optionNotes": [
+      "`--recurse-submodules` tells `git clone` to run `git submodule update --init --recursive` after cloning, so nested submodules are populated in one step.",
+      "`--with-submodules` is not a `git clone` option.",
+      "`--deep` does not exist; the related real flag is `--depth <n>` for shallow clones, which is unrelated to submodules.",
+      "`--all` is not a valid clone option; it belongs to commands like `git fetch --all` and `git branch --all`."
+    ],
     "answer": 0,
     "explanation": "By default, `git clone` leaves submodule directories empty; passing `--recurse-submodules` tells Git to also initialize and clone each registered submodule at the commit the superproject expects.",
+    "example": "git clone --recurse-submodules https://example.com/app.git\n# if already cloned without it:\ngit submodule update --init --recursive",
     "reference": "https://git-scm.com/docs/git-clone",
     "tags": [
       "submodules"
@@ -799,8 +1038,15 @@
       "It merges the `hotfix-branch` into the current branch at path `../hotfix`",
       "It deletes the working directory and recreates it from the `hotfix-branch`"
     ],
+    "optionNotes": [
+      "`git worktree add <path> <branch>` creates an additional working directory attached to the same `.git` repository with the given branch checked out, so two branches can be worked on side by side.",
+      "It does not create a branch named `hotfix` in the current directory; the first argument is a filesystem path, and the branch is `hotfix-branch`.",
+      "Worktrees do not merge anything; merging is `git merge`.",
+      "The existing working directory is left untouched; only a new one is created at the given path."
+    ],
     "answer": 0,
     "explanation": "`git worktree add` creates an additional working directory attached to the same repository (sharing the same `.git` object database), each with its own checked-out branch, so you can avoid stashing or cloning to work on multiple branches simultaneously.",
+    "example": "git worktree add ../hotfix hotfix-branch\ncd ../hotfix && git status   # On branch hotfix-branch\ngit worktree list\ngit worktree remove ../hotfix",
     "reference": "https://git-scm.com/docs/git-worktree",
     "tags": [
       "worktrees"
@@ -818,8 +1064,15 @@
       "-G",
       "--verify"
     ],
+    "optionNotes": [
+      "Uppercase `-S` (`--gpg-sign`) signs the commit with the configured GPG or SSH key, which is what the prompt asks.",
+      "Lowercase `-s` (`--signoff`) only appends a `Signed-off-by:` trailer to the message (DCO); it is not cryptographic.",
+      "`-G` is not a `git commit` option; on `git log` it is the regex pickaxe for searching diffs.",
+      "`--verify` is not a commit flag; `--no-verify` skips hooks, and signature checks use `git verify-commit`."
+    ],
     "answer": 0,
     "explanation": "The uppercase `-S` flag signs the commit with your configured signing key. (The lowercase `-s` instead adds a `Signed-off-by` trailer, which is a plain text convention unrelated to cryptographic signing.)",
+    "example": "git config --global user.signingkey ABC123DEF\ngit commit -S -m \"Signed change\"     # GPG or SSH signature\ngit config --global commit.gpgsign true   # sign every commit\ngit log --show-signature -1",
     "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--S",
     "tags": [
       "signing"
@@ -837,8 +1090,15 @@
       "git log --amend",
       "git fsck --signed"
     ],
+    "optionNotes": [
+      "`git verify-commit` checks the GPG or SSH signature on the given commit and reports good, bad, or unknown key, which is exactly what is asked.",
+      "`git status` has no `--sign` option; it reports working-tree state only.",
+      "`git log --amend` is not valid; `--amend` belongs to `git commit`.",
+      "`git fsck` checks object integrity and connectivity; it has no `--signed` option and does not verify signatures."
+    ],
     "answer": 0,
     "explanation": "`git verify-commit` validates a commit's GPG/SSH signature. You can also see signature status inline with `git log --show-signature`.",
+    "example": "git verify-commit HEAD\n# gpg: Good signature from \"Dev <dev@example.com>\"\ngit verify-commit --raw abc1234\ngit log --show-signature -1   # alternative view",
     "reference": "https://git-scm.com/docs/git-verify-commit",
     "tags": [
       "signing"
@@ -858,6 +1118,14 @@
       "trunk",
       "staging"
     ],
+    "optionNotes": [
+      "Feature branches branch from and merge back into `develop` in Git flow; they are a core part of the model.",
+      "`develop` is the long-lived integration branch in Git flow alongside `master`/`main`.",
+      "Release branches are cut from `develop` to prepare a version and are merged into both `main` and `develop`.",
+      "Hotfix branches branch from `main` to patch production and merge back into `main` and `develop`.",
+      "A trunk is the single shared branch of trunk-based development, a different model, and is not a Git flow branch type.",
+      "A `staging` branch is a deployment-environment convention some teams use, but it is not part of Driessen's Git flow."
+    ],
     "answer": [
       0,
       1,
@@ -865,6 +1133,7 @@
       3
     ],
     "explanation": "Git flow defines long-lived `main`/`master` and `develop` branches, plus short-lived supporting branches: `feature/*`, `release/*`, and `hotfix/*`. 'trunk' and 'staging' are not part of this named model.",
+    "example": "git flow init                 # sets main, develop, feature/, release/, hotfix/\ngit flow feature start login\ngit flow release start 1.2.0\ngit flow hotfix start 1.2.1",
     "reference": "https://nvie.com/posts/a-successful-git-branching-model/",
     "tags": [
       "workflows",
@@ -883,8 +1152,15 @@
       "A model where every developer commits directly to `main` with no branches or reviews at all",
       "A model exclusive to open-source projects hosted outside of GitHub"
     ],
+    "optionNotes": [
+      "GitHub flow is intentionally simple: one deployable `main`, short-lived branches, pull requests for review, and merge (often deploy) straight into `main`; this describes it accurately.",
+      "A separate `develop` branch and scheduled release branches describe Git flow, not GitHub flow.",
+      "Committing directly to `main` with no review contradicts the PR-centred nature of GitHub flow.",
+      "GitHub flow is a workflow that can be applied on any host and any project type; it is not limited to open source or to non-GitHub hosting."
+    ],
     "answer": 0,
     "explanation": "GitHub flow simplifies Git flow: there is no `develop` or `release` branch, just `main` plus short-lived feature branches merged via reviewed pull requests, suited to teams that deploy frequently.",
+    "example": "git switch -c fix/typo\ngit commit -am \"Fix typo\" && git push -u origin fix/typo\ngh pr create --base main      # review + CI\n# merge PR -> deploy main; branch deleted",
     "reference": "https://docs.github.com/en/get-started/using-github/github-flow",
     "tags": [
       "workflows",
@@ -903,8 +1179,15 @@
       "Every feature requires its own permanent branch that is never deleted",
       "It forbids the use of feature flags"
     ],
+    "optionNotes": [
+      "Trunk-based development means everyone integrates into one shared trunk frequently, using very short-lived branches or direct commits, often with feature flags to hide unfinished work; this is its defining trait.",
+      "Long-lived branches merged quarterly is the opposite of trunk-based development and leads to painful integration.",
+      "Permanent per-feature branches contradict the short-lived branch principle.",
+      "Feature flags are actually encouraged in trunk-based development to decouple deploy from release, not forbidden."
+    ],
     "answer": 0,
     "explanation": "Trunk-based development minimizes long-lived branches and merge drift by having developers integrate small changes into the trunk frequently, often paired with feature flags to hide incomplete work.",
+    "example": "git switch -c small-change    # lives < 1 day\ngit commit -am \"Add flag-guarded checkout v2\"\ngit push && open PR -> merged to main same day\n# feature stays hidden behind a feature flag until ready",
     "reference": "https://trunkbaseddevelopment.com/",
     "tags": [
       "workflows",
@@ -919,6 +1202,7 @@
     "prompt": "A pull request automatically merges a branch's changes into the target branch as soon as it is opened, without any review or approval step.",
     "answer": false,
     "explanation": "A pull (or merge) request is a proposal to merge changes; it stays open for discussion, review, and required checks, and only merges when someone with permission explicitly merges it (or when configured automation does, after conditions are met) — it is not an automatic, immediate merge.",
+    "example": "gh pr create --base main --head feature/x\n# PR is open: CI runs, reviewers comment, 'Merge' button stays inactive\n# until required approvals/checks pass and someone clicks merge",
     "reference": "https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests",
     "tags": [
       "workflows",
@@ -937,8 +1221,15 @@
       "To automatically back up the branch to a second remote",
       "To hide the branch's commit history from contributors"
     ],
+    "optionNotes": [
+      "Branch protection lets you require reviews and passing checks and block force pushes or direct pushes, so only vetted changes land on `main`; this is its purpose.",
+      "Protection rules are configurable and can usually be bypassed or removed by administrators; they are not a permanent read-only lock.",
+      "Backing up to another remote is done with mirroring or push rules, not branch protection.",
+      "Protection controls writes, not visibility; commit history stays visible to anyone with read access."
+    ],
     "answer": 0,
     "explanation": "Protected branches let a team require reviews, passing CI checks, and up-to-date branches, and typically block force-pushes or deletions, keeping an important branch like `main` from being broken or rewritten accidentally.",
+    "example": "# GitHub: Settings > Branches > Add rule for main\n# [x] Require a pull request before merging (1 approval)\n# [x] Require status checks to pass (ci/test)\n# [x] Do not allow force pushes\ngit push --force origin main   # rejected: protected branch",
     "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
     "tags": [
       "workflows",
@@ -958,12 +1249,20 @@
       "Automatically delete the repository",
       "Grant every visitor admin access"
     ],
+    "optionNotes": [
+      "Requiring PR reviews is a standard protection option that blocks merging until the configured number of approvals is reached.",
+      "Requiring status checks (CI jobs) to pass before merging is a common protection setting on GitHub and GitLab.",
+      "Blocking force pushes protects the branch history from being rewritten and is a standard protection option.",
+      "Deleting the repository is not a branch protection setting; it is a destructive admin action unrelated to protecting a branch.",
+      "Granting visitors admin access is an access-control change and the opposite of protection; it is not a protected-branch option."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Protected branches commonly require reviews and passing CI checks and block force pushes or deletions. Deleting the repository or granting broad admin access are not branch protection features — they are the opposite of what protection is for.",
+    "example": "# GitLab: Settings > Repository > Protected branches\n#   Branch: main  Allowed to merge: Maintainers  Allowed to push: No one\n# GitHub rule: required reviews=2, required checks=build,test, block force push",
     "reference": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches",
     "tags": [
       "workflows",
@@ -980,6 +1279,7 @@
       "feat"
     ],
     "explanation": "Conventional Commits defines standard type prefixes such as `feat` for new features and `fix` for bug fixes, enabling automated changelog and version generation.",
+    "example": "git commit -m \"feat: add dark mode toggle\"\ngit commit -m \"feat(ui)!: drop legacy theme\"   # scope and breaking-change marker",
     "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
     "pattern": "^feat$",
     "tags": [
@@ -1000,6 +1300,14 @@
       "update",
       "change"
     ],
+    "optionNotes": [
+      "`feat` marks a new feature and maps to a MINOR version bump in semantic versioning; it is defined in the specification.",
+      "`fix` marks a bug fix and maps to a PATCH bump; it is defined in the specification.",
+      "`chore` is one of the conventional types adopted from the Angular convention for maintenance tasks that touch no source or tests.",
+      "`docs` is a conventional type for documentation-only changes, also from the Angular convention.",
+      "`update` is not a recognised type; such changes fall under `fix`, `feat`, `refactor`, or `chore`.",
+      "`change` is not a conventional type; generic 'change' commits should be classified as `refactor`, `fix`, or similar."
+    ],
     "answer": [
       0,
       1,
@@ -1007,6 +1315,7 @@
       3
     ],
     "explanation": "Conventional Commits defines types such as `feat`, `fix`, `docs`, `style`, `refactor`, `test`, and `chore`. Generic words like `update` or `change` are not part of the specification.",
+    "example": "git commit -m \"feat(auth): add SSO login\"\ngit commit -m \"fix: handle null user\"\ngit commit -m \"chore: bump dependencies\"\ngit commit -m \"docs: update README\"",
     "reference": "https://www.conventionalcommits.org/en/v1.0.0/",
     "tags": [
       "conventional-commits"
@@ -1025,12 +1334,20 @@
       "HEAD@{1}",
       "HEAD:1"
     ],
+    "optionNotes": [
+      "`HEAD~1` means one generation back following the first parent, so it is the first parent of HEAD.",
+      "`HEAD^` with no number defaults to `^1`, the first parent of HEAD.",
+      "`HEAD^1` explicitly selects the first parent, which is the same commit as `HEAD^` and `HEAD~1`.",
+      "`HEAD@{1}` is a reflog reference meaning where HEAD pointed one movement ago, which may be any commit and is unrelated to parentage.",
+      "`HEAD:1` uses the `<rev>:<path>` syntax to name a path called `1` inside the tree of HEAD; it is not a parent selector."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "`HEAD~1`, `HEAD^`, and `HEAD^1` are all equivalent ways to name the first parent of HEAD. `HEAD@{1}` instead refers to where HEAD pointed one reflog entry ago (a different, local-only concept), and `HEAD:1` is not valid revision syntax.",
+    "example": "git rev-parse HEAD~1 HEAD^ HEAD^1   # all print the same SHA\ngit show HEAD@{1}      # where HEAD was one reflog move ago (different thing)\ngit show HEAD^2        # second parent of a merge commit",
     "reference": "https://git-scm.com/docs/gitrevisions",
     "tags": [
       "internals",
@@ -1050,12 +1367,20 @@
       "--force",
       "--delete"
     ],
+    "optionNotes": [
+      "`--soft` moves the branch ref and leaves index and working tree intact; it is a real reset mode.",
+      "`--mixed` is the default mode that resets the index but not the working tree.",
+      "`--hard` resets the ref, index, and working tree, discarding local changes; it is a real mode.",
+      "`--force` is not a `git reset` option; forcing is associated with `git push --force` and `git checkout -f`.",
+      "`--delete` does not exist on `git reset`; `-d`/`--delete` belongs to commands like `git branch` and `git push`."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "`git reset` supports `--soft`, `--mixed` (the default), and `--hard`, plus the less common `--merge` and `--keep`. There is no `--force` or `--delete` mode for `git reset`.",
+    "example": "git reset --soft HEAD~1    # move ref only\ngit reset --mixed HEAD~1   # move ref + reset index (default)\ngit reset --hard HEAD~1    # move ref + index + working tree\n# also real: --merge, --keep",
     "reference": "https://git-scm.com/docs/git-reset",
     "tags": [
       "reset"
@@ -1074,12 +1399,20 @@
       "git push",
       "git add"
     ],
+    "optionNotes": [
+      "`git fetch` downloads new objects and refs from the remote into your local repository without merging.",
+      "`git pull` fetches from the remote and then merges or rebases, so it brings data down and integrates it.",
+      "`git clone` copies an entire remote repository, including all its history, into a new local repository.",
+      "`git push` sends local commits up to the remote; it never downloads new history.",
+      "`git add` stages local working-tree changes into the index and never contacts a remote."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "`git fetch`, `git pull`, and `git clone` all retrieve data from a remote. `git push` sends local commits up to a remote, and `git add` only affects the local staging area, never touching a remote at all.",
+    "example": "git clone https://example.com/repo.git   # full download\ngit fetch origin                          # update remote-tracking refs\ngit pull origin main                      # fetch + merge",
     "reference": "https://git-scm.com/docs/git-fetch",
     "tags": [
       "remotes"
@@ -1093,6 +1426,7 @@
     "prompt": "Running `git fetch` immediately updates the files in your working directory to match the remote branch's latest commit.",
     "answer": false,
     "explanation": "`git fetch` only downloads new objects and updates remote-tracking references (e.g. `origin/main`); it never touches your working directory or local branches. You need `git merge`, `git rebase`, or `git pull` to actually bring those changes into your checked-out branch.",
+    "example": "git fetch origin\ngit status   # 'Your branch is behind origin/main by 3 commits' - files unchanged\ngit merge origin/main   # now the working tree updates",
     "reference": "https://git-scm.com/docs/git-fetch",
     "tags": [
       "remotes"
@@ -1110,8 +1444,15 @@
       "`apply` only works on the most recent stash, while `pop` can target any stash",
       "There is no difference between the two commands"
     ],
+    "optionNotes": [
+      "`apply` restores the stashed changes but keeps the entry so it can be applied again (e.g. to another branch), while `pop` applies and then drops it; this is the real difference.",
+      "Deleting a stash without restoring is `git stash drop`, not `apply`.",
+      "Both `apply` and `pop` accept a specific stash such as `stash@{2}`; neither is limited to the newest entry.",
+      "They differ in whether the stash entry is removed, so they are not identical."
+    ],
     "answer": 0,
     "explanation": "Both commands restore stashed changes to the working directory, but `git stash pop` also drops that stash entry afterward, whereas `git stash apply` keeps it so it can be reapplied elsewhere if needed.",
+    "example": "git stash apply       # changes restored, stash@{0} still listed\ngit stash list        # stash@{0} remains\ngit stash pop         # changes restored AND stash@{0} removed\ngit stash drop stash@{0}   # manual cleanup after apply",
     "reference": "https://git-scm.com/docs/git-stash",
     "tags": [
       "stash"
@@ -1127,6 +1468,7 @@
       "git cherry-pick abc1234"
     ],
     "explanation": "`git cherry-pick <commit>` replays the diff introduced by the given commit onto the current branch.",
+    "example": "git switch main\ngit cherry-pick abc1234\ngit log --oneline -1   # new commit with a new hash but abc1234's changes",
     "reference": "https://git-scm.com/docs/git-cherry-pick",
     "pattern": "^git\\s+cherry-pick\\s+abc1234$",
     "tags": [
@@ -1141,6 +1483,7 @@
     "prompt": "Running `git commit --amend` edits the previous commit in place, keeping the same commit hash while updating its message or contents.",
     "answer": false,
     "explanation": "`--amend` actually creates a brand-new commit object that replaces the previous one; because the content and/or timestamp differ, the new commit gets a different hash, and the old commit becomes unreferenced (recoverable via `git reflog` until garbage collected).",
+    "example": "git log --oneline -1        # 1a2b3c4 Fix typo\ngit commit --amend -m \"Fix typo in README\"\ngit log --oneline -1        # 9d8e7f6 Fix typo in README  <- new hash\ngit push --force-with-lease  # required if already pushed",
     "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---amend",
     "tags": [
       "basics"

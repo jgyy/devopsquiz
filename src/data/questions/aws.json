@@ -11,8 +11,15 @@
       "Grant only the minimum permissions needed to perform a required task",
       "All resources should be publicly accessible for simplicity"
     ],
+    "optionNotes": [
+      "`AdministratorAccess` is a managed policy granting `*:*`; handing it to everyone is the opposite of least privilege and maximises blast radius.",
+      "Role expiry is unrelated to permission scope; roles issue temporary credentials by design, and never expiring them would weaken security rather than define least privilege.",
+      "Granting only the minimum permissions required for the task is the definition of least privilege, limiting damage if credentials leak.",
+      "Making resources public removes access control entirely and is a well-known misconfiguration, not a security principle."
+    ],
     "answer": 2,
     "explanation": "Least privilege means granting only the permissions required to perform a task, and no more, which limits the blast radius if credentials are compromised.",
+    "example": "# Policy that only allows reading one bucket, nothing more\n{\n  \"Effect\": \"Allow\",\n  \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n  \"Resource\": [\"arn:aws:s3:::app-logs\", \"arn:aws:s3:::app-logs/*\"]\n}",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
     "tags": [
       "iam",
@@ -31,8 +38,15 @@
       "A role can only be used by the AWS root account",
       "A role and a user are functionally identical in IAM"
     ],
+    "optionNotes": [
+      "Roles have no long-term access keys at all; permanent access key pairs belong to IAM users, which is exactly what distinguishes the two.",
+      "A role is an identity with permissions that trusted principals (users, services, federated identities) assume to receive short-lived credentials, rather than being bound to one person.",
+      "The root account is not required to use roles; any principal listed in the role's trust policy, including other accounts and AWS services, can assume it.",
+      "Users and roles differ fundamentally in credential lifetime and how they are used; they are not interchangeable."
+    ],
     "answer": 1,
     "explanation": "A role is an identity with temporary credentials that can be assumed by trusted entities (users, applications, or AWS services), whereas a user has long-term credentials tied to a single person or application.",
+    "example": "# Application on EC2 assumes a role instead of storing user keys\naws sts assume-role \\\n  --role-arn arn:aws:iam::123456789012:role/AppReadOnly \\\n  --role-session-name deploy-$(date +%s)   # returns temp keys + session token",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html",
     "tags": [
       "iam"
@@ -48,6 +62,7 @@
       "Effect"
     ],
     "explanation": "`Effect` is set to either `Allow` or `Deny` and determines the outcome of the statement when it matches a request.",
+    "example": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Deny\",        # Allow or Deny\n    \"Action\": \"s3:DeleteBucket\",\n    \"Resource\": \"*\"\n  }]\n}",
     "pattern": "^effect$",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_effect.html",
     "tags": [
@@ -67,8 +82,15 @@
       "PutRolePolicy",
       "AssumeRole"
     ],
+    "optionNotes": [
+      "`CreateRole` is an IAM API that creates a new role resource; it does not return any credentials.",
+      "`GetSessionToken` returns temporary credentials for the calling IAM user (commonly to add MFA), not credentials for a role.",
+      "`PutRolePolicy` attaches an inline permissions policy to a role; it is a management call with no credential output.",
+      "`AssumeRole` is the STS call that returns a temporary access key, secret key and session token scoped to the target role."
+    ],
     "answer": 3,
     "explanation": "`AssumeRole` returns a set of temporary credentials (access key, secret key, and session token) that a caller can use to act as the specified role.",
+    "example": "aws sts assume-role \\\n  --role-arn arn:aws:iam::123456789012:role/CIDeployer \\\n  --role-session-name gh-actions \\\n  --duration-seconds 3600\n# output contains AccessKeyId, SecretAccessKey, SessionToken",
     "reference": "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
     "tags": [
       "iam",
@@ -83,6 +105,7 @@
     "prompt": "AWS best practice recommends using the account root user for day-to-day administrative tasks instead of creating individual IAM users or roles.",
     "answer": false,
     "explanation": "AWS recommends locking away root user credentials, enabling MFA on the root account, and using IAM users/roles (often via IAM Identity Center) for everyday tasks instead of the root user.",
+    "example": "# Instead of root: create an admin user via IAM Identity Center or IAM,\n# then lock root behind MFA and use it only for account-level tasks\naws iam create-user --user-name alice\naws iam attach-user-policy --user-name alice \\\n  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
     "tags": [
       "iam",
@@ -101,8 +124,15 @@
       "AWS averages the two statements and prompts the admin",
       "The most recently attached policy wins"
     ],
+    "optionNotes": [
+      "An allow does not win merely because it exists; IAM evaluation checks for explicit denies first, and any match ends evaluation as denied.",
+      "IAM policy evaluation logic treats an explicit `Deny` as final, overriding every `Allow` from identity, resource or session policies.",
+      "IAM performs no averaging or interactive prompting; decisions are deterministic per request.",
+      "Attachment order and recency have no bearing on evaluation; all applicable policies are evaluated together."
+    ],
     "answer": 1,
     "explanation": "An explicit `Deny` always overrides any `Allow` in IAM policy evaluation logic, regardless of how many policies grant the permission.",
+    "example": "# Policy A: Allow s3:PutObject on *\n# Policy B: Deny  s3:PutObject on arn:aws:s3:::prod-*\naws s3 cp app.zip s3://prod-artifacts/   # AccessDenied: explicit Deny wins\naws s3 cp app.zip s3://dev-artifacts/    # succeeds",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html",
     "tags": [
       "iam",
@@ -121,12 +151,19 @@
       "Network ACL policy",
       "Permissions boundary"
     ],
+    "optionNotes": [
+      "Identity-based policies are attached to users, groups or roles and define what that identity may do; they are one of the core IAM policy categories.",
+      "Resource-based policies (S3 bucket policies, KMS key policies, SQS queue policies) are attached to the resource and can name principals from other accounts.",
+      "Network ACLs are VPC subnet-level packet filters, not IAM policies; there is no IAM policy category by that name.",
+      "A permissions boundary is a managed policy that sets the maximum permissions an identity-based policy can grant, and is an official IAM policy type."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "IAM supports identity-based policies (attached to users/groups/roles), resource-based policies (attached directly to resources like S3 buckets), and permissions boundaries (which set the maximum permissions an identity can have). A 'network ACL policy' is not an IAM policy type.",
+    "example": "# Identity-based: on a role\naws iam attach-role-policy --role-name App --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess\n# Resource-based: on the bucket\naws s3api put-bucket-policy --bucket logs --policy file://policy.json\n# Permissions boundary: caps what the role can ever do\naws iam put-role-permissions-boundary --role-name App --permissions-boundary arn:aws:iam::111:policy/Boundary",
     "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html",
     "tags": [
       "iam",
@@ -143,6 +180,7 @@
       "169.254.169.254"
     ],
     "explanation": "EC2 instances can query `http://169.254.169.254/latest/meta-data/` to retrieve metadata such as instance ID, IAM role credentials, and network configuration.",
+    "example": "# From inside the instance (IMDSv2 token flow)\nTOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 300\")\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" \\\n  http://169.254.169.254/latest/meta-data/instance-id",
     "pattern": "^169\\.254\\.169\\.254$",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html",
     "tags": [
@@ -162,8 +200,15 @@
       "It encrypts all EBS volumes automatically",
       "It replaces security groups with NACLs"
     ],
+    "optionNotes": [
+      "The session-token handshake (a PUT with a TTL header, then GETs carrying that token) is exactly what IMDSv2 adds, blocking simple SSRF and misconfigured-proxy attacks that only issue GETs.",
+      "Instance profiles are still how a role's credentials reach the instance; IMDSv2 changes how metadata is fetched, not whether a profile is needed.",
+      "EBS encryption is configured on volumes or as an account default, and is unrelated to the metadata service.",
+      "Security groups and NACLs are VPC firewall constructs; IMDSv2 does not touch network filtering."
+    ],
     "answer": 0,
     "explanation": "IMDSv2 requires a session-oriented PUT request to first obtain a token, which helps protect against SSRF and open-proxy attacks that could otherwise be used to steal metadata credentials with simple GET requests.",
+    "example": "# IMDSv2: PUT for a token first, then GET with the token header\nTOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\")\ncurl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/\n# enforce it: aws ec2 modify-instance-metadata-options --instance-id i-0abc --http-tokens required",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html",
     "tags": [
       "ec2",
@@ -183,12 +228,19 @@
       "Reserved Instances",
       "Lifecycle Instances"
     ],
+    "optionNotes": [
+      "On-Demand is the pay-by-the-second default with no commitment, and is a real purchasing option.",
+      "Spot Instances sell spare capacity at steep discounts and can be interrupted; they are a real purchasing option.",
+      "Reserved Instances give a discount for a one or three year commitment to an instance family and region, and are a real purchasing option.",
+      "There is no EC2 purchasing option called Lifecycle Instances; the term is invented (Auto Scaling has lifecycle hooks, which is unrelated to pricing)."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "EC2 offers On-Demand, Reserved Instances, Spot Instances, Savings Plans, and Dedicated Hosts. 'Lifecycle Instances' is not a real EC2 purchasing option.",
+    "example": "# On-Demand: default for run-instances\naws ec2 run-instances --instance-type t3.micro --image-id ami-0abc ...\n# Spot: request spare capacity at a discount\naws ec2 run-instances --instance-market-options 'MarketType=spot' ...\n# Reserved: 1 or 3 year commitment\naws ec2 purchase-reserved-instances-offering --reserved-instances-offering-id <id> --instance-count 2",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html",
     "tags": [
       "ec2",
@@ -207,8 +259,15 @@
       "Only outbound traffic to the internet gateway",
       "Only outbound traffic within the same subnet"
     ],
+    "optionNotes": [
+      "A new security group does have outbound rules; blocking all egress only happens if you delete the default egress rule.",
+      "AWS creates every new security group with a single egress rule allowing all protocols to `0.0.0.0/0` (and `::/0`), while inbound is empty and therefore denied.",
+      "Security groups do not reference gateways; the default rule allows any destination, not only internet-bound traffic.",
+      "There is no subnet-scoped default; the default egress rule covers all destinations."
+    ],
     "answer": 1,
     "explanation": "By default, a security group allows all outbound traffic unless you add rules to restrict it; inbound traffic, by contrast, is denied by default until rules are added.",
+    "example": "aws ec2 create-security-group --group-name web --description web --vpc-id vpc-0abc\naws ec2 describe-security-groups --group-names web \\\n  --query 'SecurityGroups[0].IpPermissionsEgress'\n# [{\"IpProtocol\": \"-1\", \"IpRanges\": [{\"CidrIp\": \"0.0.0.0/0\"}]}]  <- allow all outbound",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html",
     "tags": [
       "vpc",
@@ -227,8 +286,15 @@
       "To store instance metadata centrally",
       "To automatically maintain the number of running EC2 instances within defined limits based on health and demand"
     ],
+    "optionNotes": [
+      "EBS encryption is set per volume or via the account-level default; an Auto Scaling group does not manage it.",
+      "Cross-region routing is handled by Route 53 or Global Accelerator; Auto Scaling groups are regional and manage instance counts.",
+      "Instance metadata is served per instance by IMDS; it is not stored centrally by Auto Scaling.",
+      "An Auto Scaling group launches and terminates instances to keep capacity between min and max, replacing unhealthy ones and reacting to scaling policies."
+    ],
     "answer": 3,
     "explanation": "An Auto Scaling group automatically launches or terminates EC2 instances to keep the fleet size within a defined minimum, maximum, and desired capacity, helping maintain availability and adjust to load.",
+    "example": "aws autoscaling create-auto-scaling-group \\\n  --auto-scaling-group-name web-asg \\\n  --launch-template LaunchTemplateName=web,Version='$Latest' \\\n  --min-size 2 --max-size 10 --desired-capacity 3 \\\n  --vpc-zone-identifier subnet-0a,subnet-0b   # spreads across AZs",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html",
     "tags": [
       "ec2",
@@ -247,12 +313,19 @@
       "Round-robin scaling",
       "Scheduled scaling"
     ],
+    "optionNotes": [
+      "Target tracking keeps a metric such as average CPU near a target value and manages its own alarms; it is a real policy type.",
+      "Step scaling adds or removes capacity in steps based on how far an alarm breaches its threshold, and is a real policy type.",
+      "Round-robin is a load-balancing algorithm, not an Auto Scaling policy type; no such scaling policy exists.",
+      "Scheduled scaling changes min, max or desired capacity at fixed times or on a cron recurrence, and is a real policy type."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "Auto Scaling supports target tracking scaling, step scaling, simple scaling, and scheduled scaling. 'Round-robin scaling' is not a real scaling policy type.",
+    "example": "# Target tracking: keep average CPU near 50%\naws autoscaling put-scaling-policy --auto-scaling-group-name web --policy-name cpu50 \\\n  --policy-type TargetTrackingScaling --target-tracking-configuration file://cpu50.json\n# Scheduled: 6 instances on weekdays at 08:00 UTC\naws autoscaling put-scheduled-update-group-action --auto-scaling-group-name web \\\n  --scheduled-action-name am --recurrence \"0 8 * * 1-5\" --desired-capacity 6",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html",
     "tags": [
       "auto-scaling"
@@ -270,8 +343,15 @@
       "Application Load Balancer (ALB)",
       "Gateway Load Balancer"
     ],
+    "optionNotes": [
+      "The Network Load Balancer works at Layer 4 (TCP/UDP/TLS) and forwards by port, so it cannot inspect URL paths or Host headers.",
+      "The Classic Load Balancer is a legacy option with limited Layer 7 features and no path or host based rules.",
+      "The Application Load Balancer is the Layer 7 option with listener rules on path, host, headers, query strings and more.",
+      "The Gateway Load Balancer passes traffic transparently to third-party virtual appliances such as firewalls at Layer 3, not HTTP routing."
+    ],
     "answer": 2,
     "explanation": "The Application Load Balancer (ALB) operates at Layer 7 and supports content-based routing such as path-based and host-based rules, whereas the Network Load Balancer (NLB) operates at Layer 4.",
+    "example": "# ALB listener rule: send /api/* to the api target group\naws elbv2 create-rule --listener-arn <listener-arn> --priority 10 \\\n  --conditions Field=path-pattern,Values='/api/*' \\\n  --actions Type=forward,TargetGroupArn=<api-tg-arn>",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html",
     "tags": [
       "load-balancer",
@@ -286,6 +366,7 @@
     "prompt": "An Application Load Balancer (ALB) operates at the OSI Layer 7 (application layer), understanding HTTP/HTTPS requests.",
     "answer": true,
     "explanation": "ALB is a Layer 7 load balancer that can inspect HTTP headers, paths, and hostnames to make routing decisions.",
+    "example": "# ALB rule matching on an HTTP Host header (a Layer 7 property)\naws elbv2 create-rule --listener-arn <arn> --priority 5 \\\n  --conditions Field=host-header,Values='admin.example.com' \\\n  --actions Type=forward,TargetGroupArn=<admin-tg>",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html",
     "tags": [
       "load-balancer",
@@ -304,8 +385,15 @@
       "Both support static IPs identically",
       "Neither supports static IPs"
     ],
+    "optionNotes": [
+      "The Network Load Balancer accepts a subnet mapping with an Elastic IP allocation per Availability Zone, giving clients fixed addresses to allowlist.",
+      "The Application Load Balancer only exposes a DNS name whose underlying IPs change; to front it with static IPs you place an NLB or Global Accelerator in front.",
+      "The two load balancers differ here: only the NLB offers static or Elastic IPs natively.",
+      "Static IP support does exist, on the NLB."
+    ],
     "answer": 0,
     "explanation": "The Network Load Balancer (NLB) operates at Layer 4 and supports a static IP per AZ, which is useful for clients that need to allowlist fixed IPs. ALB does not expose a static IP; it is accessed via a DNS name that can resolve to changing IPs.",
+    "example": "# NLB with a fixed Elastic IP in each AZ\naws elbv2 create-load-balancer --name ingress-nlb --type network \\\n  --subnet-mappings SubnetId=subnet-0a,AllocationId=eipalloc-111 \\\n                    SubnetId=subnet-0b,AllocationId=eipalloc-222",
     "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html",
     "tags": [
       "load-balancer",
@@ -324,8 +412,15 @@
       "The set of security groups attached to the VPC",
       "The maximum number of EC2 instances allowed"
     ],
+    "optionNotes": [
+      "Availability Zones are chosen per subnet; the VPC CIDR says nothing about which AZs are used.",
+      "The CIDR block, for example `10.0.0.0/16`, is the private IP range of the VPC from which each subnet carves a smaller block.",
+      "Security groups are separate resources associated with ENIs; the CIDR does not list them.",
+      "Instance count is bounded by service quotas and available IPs, but the CIDR is an address range, not an instance limit."
+    ],
     "answer": 1,
     "explanation": "The CIDR block (e.g. `10.0.0.0/16`) defines the private IP address range available to resources within the VPC, from which subnets carve out smaller ranges.",
+    "example": "aws ec2 create-vpc --cidr-block 10.0.0.0/16   # 65,536 private addresses\naws ec2 create-subnet --vpc-id vpc-0abc --cidr-block 10.0.1.0/24 --availability-zone ap-southeast-1a\naws ec2 create-subnet --vpc-id vpc-0abc --cidr-block 10.0.2.0/24 --availability-zone ap-southeast-1b",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html",
     "tags": [
       "vpc"
@@ -343,8 +438,15 @@
       "Its route table has a route to an Internet Gateway for internet-bound traffic",
       "It has no security group attached"
     ],
+    "optionNotes": [
+      "Tags are metadata only and have no effect on routing or reachability.",
+      "Instance type has nothing to do with subnet visibility.",
+      "A route for `0.0.0.0/0` pointing at an Internet Gateway in the subnet's route table is what makes it public.",
+      "Security groups attach to instances, not subnets, and their absence is not possible; they do not define public subnets."
+    ],
     "answer": 2,
     "explanation": "A subnet is considered public when its route table has a route sending internet-bound traffic (0.0.0.0/0) to an Internet Gateway, and resources in it typically have public IP addresses.",
+    "example": "# Make a subnet public: route 0.0.0.0/0 to the IGW\naws ec2 create-route --route-table-id rtb-0pub --destination-cidr-block 0.0.0.0/0 --gateway-id igw-0abc\naws ec2 associate-route-table --route-table-id rtb-0pub --subnet-id subnet-0a\naws ec2 modify-subnet-attribute --subnet-id subnet-0a --map-public-ip-on-launch",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Subnets.html",
     "tags": [
       "vpc",
@@ -363,8 +465,15 @@
       "It encrypts traffic between subnets",
       "It assigns IAM permissions to EC2 instances"
     ],
+    "optionNotes": [
+      "DNS records live in Route 53 hosted zones or the VPC resolver, not in route tables.",
+      "A route table is a list of destination CIDR to target rules that decide where traffic leaving a subnet or gateway goes.",
+      "Route tables do not encrypt anything; encryption in transit is handled by TLS, VPN or Nitro-based inter-instance encryption.",
+      "IAM permissions for EC2 come from instance profiles; route tables are purely a networking construct."
+    ],
     "answer": 1,
     "explanation": "A route table contains a set of rules (routes) that determine where network traffic from a subnet or gateway is directed, such as to an Internet Gateway, NAT gateway, or peering connection.",
+    "example": "aws ec2 describe-route-tables --route-table-ids rtb-0priv --query 'RouteTables[0].Routes'\n# 10.0.0.0/16   local          # intra-VPC\n# 0.0.0.0/0     nat-0abc123    # internet via NAT gateway\n# 10.1.0.0/16   pcx-0def456    # peered VPC",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html",
     "tags": [
       "vpc",
@@ -383,8 +492,15 @@
       "To encrypt data in transit within the VPC",
       "To load balance traffic across multiple EC2 instances"
     ],
+    "optionNotes": [
+      "An Internet Gateway is the VPC component that provides a target for internet-bound routes and performs 1:1 NAT for instances with public IPs.",
+      "Private subnets already communicate with each other via the implicit `local` route; no gateway is needed for that.",
+      "The IGW does not encrypt traffic; it just routes packets to and from the internet.",
+      "Load balancing is done by Elastic Load Balancing, not by the Internet Gateway."
+    ],
     "answer": 0,
     "explanation": "An Internet Gateway is a horizontally scaled, redundant VPC component that allows communication between instances in the VPC and the internet, when combined with public IPs and appropriate routes.",
+    "example": "aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId'\naws ec2 attach-internet-gateway --internet-gateway-id igw-0abc --vpc-id vpc-0abc\n# then add 0.0.0.0/0 -> igw-0abc in the public route table",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html",
     "tags": [
       "vpc",
@@ -403,8 +519,15 @@
       "To act as a firewall between subnets",
       "To let instances in private subnets reach the internet for outbound connections without being directly reachable from it"
     ],
+    "optionNotes": [
+      "The NAT gateway owns the Elastic IP; private instances keep only private addresses and share the gateway's IP for outbound traffic.",
+      "NAT gateways are zonal and provide address translation, not load balancing; you deploy one per AZ for resilience.",
+      "It is not a firewall; filtering is done by security groups, NACLs or AWS Network Firewall.",
+      "A NAT gateway translates outbound connections from private subnets so they can reach the internet while unsolicited inbound connections are impossible."
+    ],
     "answer": 3,
     "explanation": "A NAT gateway lets instances in private subnets initiate outbound connections to the internet (e.g., for software updates) while preventing the internet from initiating inbound connections to those instances.",
+    "example": "# NAT gateway lives in the public subnet with an Elastic IP\naws ec2 create-nat-gateway --subnet-id subnet-0pub --allocation-id eipalloc-111\n# private route table sends internet traffic through it\naws ec2 create-route --route-table-id rtb-0priv --destination-cidr-block 0.0.0.0/0 --nat-gateway-id nat-0abc",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html",
     "tags": [
       "vpc",
@@ -419,6 +542,7 @@
     "prompt": "Security groups are stateful (return traffic is automatically allowed), while network ACLs are stateless (return traffic must be explicitly allowed by a rule).",
     "answer": true,
     "explanation": "Security groups automatically allow response traffic for an allowed request, while NACLs evaluate inbound and outbound rules independently, requiring explicit rules for both directions.",
+    "example": "# Security group: one inbound rule; replies allowed automatically\naws ec2 authorize-security-group-ingress --group-id sg-0web --protocol tcp --port 443 --cidr 0.0.0.0/0\n# NACL: must also allow ephemeral return ports outbound\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --rule-number 100 --egress \\\n  --protocol tcp --port-range From=1024,To=65535 --cidr-block 0.0.0.0/0 --rule-action allow",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
     "tags": [
       "vpc",
@@ -439,6 +563,13 @@
       "NACLs support explicit deny rules",
       "NACLs automatically allow return traffic like security groups"
     ],
+    "optionNotes": [
+      "A NACL is associated with subnets and filters every packet entering or leaving them, unlike security groups which attach to ENIs.",
+      "NACLs are stateless: inbound and outbound rules are evaluated independently, so return traffic needs its own rule.",
+      "Rules are processed in ascending rule-number order and the first match decides; the trailing `*` rule denies anything unmatched.",
+      "NACLs can contain explicit `deny` entries, which is the main reason to use them, for example to block an abusive IP range.",
+      "Automatic return-traffic allowance is a security group (stateful) behaviour; NACLs require explicit ephemeral-port rules."
+    ],
     "answer": [
       0,
       1,
@@ -446,6 +577,7 @@
       3
     ],
     "explanation": "NACLs operate at the subnet level, are stateless, evaluate rules in numeric order until a match is found, and support both allow and deny rules — unlike security groups, which only support allow rules and operate at the instance/ENI level.",
+    "example": "# Deny one bad IP at the subnet edge, evaluated before the allow at 200\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --ingress \\\n  --rule-number 50 --protocol -1 --cidr-block 203.0.113.9/32 --rule-action deny\naws ec2 create-network-acl-entry --network-acl-id acl-0abc --ingress \\\n  --rule-number 200 --protocol tcp --port-range From=443,To=443 --cidr-block 0.0.0.0/0 --rule-action allow",
     "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
     "tags": [
       "vpc",
@@ -464,8 +596,15 @@
       "Sharing of IAM roles between two AWS accounts",
       "Merging two VPC CIDR blocks into one"
     ],
+    "optionNotes": [
+      "Peering is explicitly non-transitive; if A peers with B and B with C, A cannot reach C. Transit Gateway is the service for hub-and-spoke transitive routing.",
+      "A peering connection routes private IP traffic directly between exactly two VPCs (same or different accounts and regions) with no gateway or transitive path.",
+      "IAM roles are shared through trust policies, not networking; peering carries packets, not permissions.",
+      "The VPCs keep their own CIDRs (which must not overlap); nothing is merged."
+    ],
     "answer": 1,
     "explanation": "VPC peering establishes a private, direct network connection between two VPCs so resources can communicate as if on the same network, using private IP addresses; it is not transitive across multiple peered VPCs.",
+    "example": "aws ec2 create-vpc-peering-connection --vpc-id vpc-A --peer-vpc-id vpc-B --peer-owner-id 210987654321\naws ec2 accept-vpc-peering-connection --vpc-peering-connection-id pcx-0abc\n# routes needed in BOTH VPCs\naws ec2 create-route --route-table-id rtb-A --destination-cidr-block 10.1.0.0/16 --vpc-peering-connection-id pcx-0abc",
     "reference": "https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html",
     "tags": [
       "vpc",
@@ -484,8 +623,15 @@
       "S3 Standard-IA",
       "S3 Intelligent-Tiering Archive"
     ],
+    "optionNotes": [
+      "S3 Standard is the highest-cost, general-purpose class for frequently accessed data; it has no retrieval fee but does not lower storage cost.",
+      "Glacier Deep Archive is the cheapest class but restores take up to 12 hours, so it is not for millisecond retrieval.",
+      "Standard-IA keeps millisecond first-byte latency while charging less per GB stored, adding a per-GB retrieval fee, which fits infrequently read data.",
+      "The Intelligent-Tiering Archive Access tiers are asynchronous restore tiers, not millisecond access; only its Frequent and Infrequent tiers are instant."
+    ],
     "answer": 2,
     "explanation": "S3 Standard-IA (Infrequent Access) is designed for infrequently accessed data that still needs rapid access, offering lower storage cost with a retrieval fee, compared to S3 Standard which is optimized for frequently accessed data.",
+    "example": "aws s3 cp report.parquet s3://analytics/2026/ --storage-class STANDARD_IA\n# or move by lifecycle rule after 30 days\n\"Transitions\": [{\"Days\": 30, \"StorageClass\": \"STANDARD_IA\"}]",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html",
     "tags": [
       "s3",
@@ -504,8 +650,15 @@
       "It encrypts objects with a unique key per version",
       "It replicates the bucket to another region automatically"
     ],
+    "optionNotes": [
+      "Versioning stores every variant of a key and turns deletes into delete markers, so overwritten or deleted objects can be restored.",
+      "S3 never compresses objects for you; versioning actually increases storage use because old versions are retained.",
+      "Encryption is configured separately with SSE-S3, SSE-KMS or SSE-C and is per object, not per version scheme.",
+      "Replication is a separate feature (CRR/SRR) that requires versioning as a prerequisite but is not enabled by it."
+    ],
     "answer": 0,
     "explanation": "Versioning keeps multiple variants of an object in the same bucket, protecting against accidental overwrites and deletions by letting you retrieve or restore previous versions.",
+    "example": "aws s3api put-bucket-versioning --bucket app-config --versioning-configuration Status=Enabled\naws s3api list-object-versions --bucket app-config --prefix settings.yaml\n# restore an older version by copying it over the current one\naws s3api copy-object --bucket app-config --key settings.yaml --copy-source app-config/settings.yaml?versionId=3sL4kqtJlcpXroDTDmJ",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html",
     "tags": [
       "s3",
@@ -524,8 +677,15 @@
       "It enables cross-region replication by default",
       "It sets the maximum object size allowed in the bucket"
     ],
+    "optionNotes": [
+      "Access control is done with bucket policies, IAM and ACLs; lifecycle rules never restrict users.",
+      "Lifecycle rules define time-based transitions between storage classes and expirations, including cleanup of incomplete multipart uploads and old versions.",
+      "Replication is a separate configuration; lifecycle rules do not turn it on.",
+      "S3 has a fixed 5 TB object limit and no per-bucket size setting; lifecycle rules do not cap object size."
+    ],
     "answer": 1,
     "explanation": "Lifecycle rules automate moving objects between storage classes (e.g., Standard to Standard-IA to Glacier) as they age, and/or expiring (deleting) them after a defined period, without manual intervention.",
+    "example": "# lifecycle.json applied with: aws s3api put-bucket-lifecycle-configuration --bucket logs --lifecycle-configuration file://lifecycle.json\n{\"Rules\": [{\"ID\": \"age-out\", \"Status\": \"Enabled\", \"Filter\": {\"Prefix\": \"\"},\n  \"Transitions\": [{\"Days\": 30, \"StorageClass\": \"STANDARD_IA\"}, {\"Days\": 90, \"StorageClass\": \"GLACIER\"}],\n  \"Expiration\": {\"Days\": 365}}]}",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html",
     "tags": [
       "s3",
@@ -544,8 +704,15 @@
       "There is no difference; they are the same mechanism",
       "A bucket policy is a resource-based policy attached to the bucket itself, which can grant access to other AWS accounts, while an identity-based policy is attached to a user, group, or role"
     ],
+    "optionNotes": [
+      "Bucket policies contain `Allow` and `Deny` statements just like any IAM policy.",
+      "Bucket policies can name any principal, including roles in other accounts or anonymous access, not only the owner's users.",
+      "They are different mechanisms: one is attached to a resource and carries a `Principal` element, the other is attached to an identity and has none.",
+      "A bucket policy is a resource-based policy on the bucket that can grant cross-account access, whereas identity-based policies attach to users, groups or roles."
+    ],
     "answer": 3,
     "explanation": "A bucket policy is a resource-based JSON policy attached directly to the bucket that can grant or deny access to any principal (including cross-account principals), whereas an IAM identity-based policy is attached to a user, group, or role and defines what that identity can do.",
+    "example": "# Bucket policy granting another account read access\n{\"Version\": \"2012-10-17\", \"Statement\": [{\n  \"Effect\": \"Allow\",\n  \"Principal\": {\"AWS\": \"arn:aws:iam::210987654321:role/Reader\"},\n  \"Action\": \"s3:GetObject\",\n  \"Resource\": \"arn:aws:s3:::shared-data/*\"}]}",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-policy-language-overview.html",
     "tags": [
       "s3",
@@ -564,6 +731,7 @@
       "99.999999999%"
     ],
     "explanation": "Amazon S3 Standard, Standard-IA, and Glacier storage classes are designed for 99.999999999% (eleven 9s) durability of objects over a given year.",
+    "example": "# Durability is a design target, not a setting; you still protect against\n# accidental deletion with versioning and MFA delete\naws s3api put-bucket-versioning --bucket prod-backups \\\n  --versioning-configuration Status=Enabled,MFADelete=Enabled \\\n  --mfa \"arn:aws:iam::123456789012:mfa/root 123456\"",
     "pattern": "^99\\.999999999%?$",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/DataDurability.html",
     "tags": [
@@ -579,6 +747,7 @@
     "prompt": "Amazon S3 provides strong read-after-write consistency for all PUT and DELETE operations, including for overwrite PUTS and DELETES, for all AWS Regions.",
     "answer": true,
     "explanation": "Since December 2020, S3 provides strong read-after-write consistency automatically for all requests, without additional cost or performance impact, replacing the older eventual-consistency model.",
+    "example": "aws s3 cp config.json s3://app-config/config.json\naws s3 cp s3://app-config/config.json -   # immediately returns the new content\n# same for overwrite: the next GET after a PUT never returns the stale object",
     "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Introduction.html",
     "tags": [
       "s3",
@@ -597,8 +766,15 @@
       "Amazon S3",
       "Amazon FSx for Windows"
     ],
+    "optionNotes": [
+      "EBS is block storage confined to one AZ and normally attached to a single instance; it is not a network file system.",
+      "EFS is a regional, elastic NFSv4 file system with mount targets in each AZ, mountable by thousands of instances and containers at once.",
+      "S3 is object storage accessed over HTTP APIs; it is not a mountable NFS file system (Mountpoint for S3 is a client shim, not NFS).",
+      "FSx for Windows File Server is a managed SMB file system for Windows workloads, not NFS."
+    ],
     "answer": 1,
     "explanation": "Amazon EFS (Elastic File System) provides a shared, elastic NFS file system usable by many instances at once, unlike EBS, which is block storage that (with rare Multi-Attach exceptions) is normally attached to a single instance in a single AZ.",
+    "example": "# Same EFS file system mounted on instances in two AZs\nsudo mount -t efs -o tls fs-0abc123:/ /mnt/shared   # on instance in az-a\nsudo mount -t efs -o tls fs-0abc123:/ /mnt/shared   # on instance in az-b",
     "reference": "https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html",
     "tags": [
       "efs",
@@ -614,6 +790,7 @@
     "prompt": "An EBS volume is tied to a specific Availability Zone and can only be attached to EC2 instances within that same Availability Zone.",
     "answer": true,
     "explanation": "EBS volumes exist within a single AZ; to use one with an instance in a different AZ, you must first create a snapshot and restore it as a new volume in the target AZ.",
+    "example": "# Move a volume to another AZ via snapshot\naws ec2 create-snapshot --volume-id vol-0abc --description \"move to 1b\"\naws ec2 create-volume --snapshot-id snap-0def --availability-zone ap-southeast-1b\naws ec2 attach-volume --volume-id vol-0new --instance-id i-0inst-in-1b --device /dev/xvdf",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volumes.html",
     "tags": [
       "ebs"
@@ -631,8 +808,15 @@
       "To reduce storage costs",
       "To automatically shard the database across regions"
     ],
+    "optionNotes": [
+      "Multi-AZ keeps a synchronously replicated standby in another AZ and flips the endpoint's DNS to it automatically on failure, which is its purpose.",
+      "The classic Multi-AZ standby cannot serve reads; read offload is the job of read replicas (Multi-AZ DB clusters are a newer variant that do allow reader endpoints).",
+      "Multi-AZ roughly doubles instance and storage cost because of the standby; it does not save money.",
+      "RDS does not shard; cross-region distribution is handled by read replicas or Aurora Global Database, not Multi-AZ."
+    ],
     "answer": 0,
     "explanation": "Multi-AZ deployments maintain a synchronous standby replica in a different Availability Zone for high availability and automatic failover; the standby is not intended for offloading read traffic in the classic Multi-AZ model.",
+    "example": "aws rds create-db-instance --db-instance-identifier orders \\\n  --engine postgres --db-instance-class db.m6g.large \\\n  --allocated-storage 100 --multi-az \\\n  --master-username admin --master-user-password '...'\n# failover test: aws rds reboot-db-instance --db-instance-identifier orders --force-failover",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html",
     "tags": [
       "rds",
@@ -651,8 +835,15 @@
       "To offload read query traffic from the primary database, improving read scalability",
       "To back up the database to S3 automatically"
     ],
+    "optionNotes": [
+      "Read replicas replicate asynchronously and are not promoted automatically; synchronous failover is the Multi-AZ feature.",
+      "Encryption at rest is a KMS setting on the instance and storage, unrelated to replicas.",
+      "A read replica receives asynchronous updates from the primary and serves read-only queries, spreading read load horizontally.",
+      "Backups to S3 are handled by automated backups and snapshots, not by replicas."
+    ],
     "answer": 2,
     "explanation": "Read replicas use asynchronous replication to offload read-only query traffic from the primary database, improving read scalability; they can also be promoted to a standalone writable database if needed.",
+    "example": "aws rds create-db-instance-read-replica \\\n  --db-instance-identifier orders-replica-1 \\\n  --source-db-instance-identifier orders\n# point reporting queries at the replica endpoint\nDATABASE_READ_URL=postgres://orders-replica-1.abc.ap-southeast-1.rds.amazonaws.com/app",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html",
     "tags": [
       "rds",
@@ -671,12 +862,19 @@
       "Multi-AZ standby replicas use synchronous replication, primarily for failover rather than read scaling",
       "Multi-AZ deployments require you to manually fail over by editing DNS records"
     ],
+    "optionNotes": [
+      "RDS supports cross-region read replicas for most engines, used for DR and low-latency regional reads.",
+      "`promote-read-replica` detaches a replica from its source and makes it an independent, writable instance.",
+      "Multi-AZ replication is synchronous and the standby exists for automatic failover, not for serving read traffic.",
+      "Failover in Multi-AZ is automatic: RDS repoints the instance endpoint's DNS to the standby without manual DNS edits."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Multi-AZ uses synchronous replication primarily for failover/HA, while read replicas use asynchronous replication and are primarily for scaling reads. Read replicas can be created in a different AWS Region, and can be promoted to a standalone instance.",
+    "example": "# cross-region replica for DR / local reads\naws rds create-db-instance-read-replica --db-instance-identifier orders-eu \\\n  --source-db-instance-identifier arn:aws:rds:ap-southeast-1:123456789012:db:orders --region eu-west-1\n# promote it to a standalone writable instance\naws rds promote-read-replica --db-instance-identifier orders-eu --region eu-west-1",
     "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html",
     "tags": [
       "rds"
@@ -694,8 +892,15 @@
       "A container orchestration platform",
       "A content delivery network"
     ],
+    "optionNotes": [
+      "Managed relational databases are provided by Amazon RDS and Aurora, not Lambda.",
+      "Lambda runs functions on demand in response to events, billing per invocation and duration, with no servers to provision.",
+      "Container orchestration is ECS or EKS; Lambda can run container images but does not orchestrate long-running containers.",
+      "The AWS CDN is CloudFront; Lambda@Edge runs at CloudFront edges but Lambda itself is a compute service."
+    ],
     "answer": 1,
     "explanation": "AWS Lambda is a serverless compute service that runs your code in response to events and automatically manages the underlying compute resources, so you don't provision or manage servers.",
+    "example": "# handler.py\ndef handler(event, context):\n    return {\"statusCode\": 200, \"body\": f\"got {len(event.get('Records', []))} records\"}\n\naws lambda create-function --function-name hello --runtime python3.12 \\\n  --handler handler.handler --zip-file fileb://fn.zip --role arn:aws:iam::123456789012:role/lambda-exec",
     "reference": "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
     "tags": [
       "lambda",
@@ -714,12 +919,19 @@
       "Amazon DynamoDB Streams",
       "A Route 53 hosted zone directly"
     ],
+    "optionNotes": [
+      "S3 event notifications can invoke a Lambda function asynchronously whenever objects are created, removed or restored.",
+      "API Gateway invokes Lambda synchronously through Lambda proxy integrations for REST, HTTP and WebSocket APIs.",
+      "DynamoDB Streams feed Lambda through an event source mapping that polls the stream and invokes the function with batches of records.",
+      "A Route 53 hosted zone only serves DNS; it has no event integration with Lambda (health checks can notify via CloudWatch alarms, but the zone itself does not invoke functions)."
+    ],
     "answer": [
       0,
       1,
       2
     ],
     "explanation": "Lambda can be invoked by many event sources including S3 (object events), API Gateway (HTTP requests), and DynamoDB Streams (table changes). A Route 53 hosted zone by itself does not invoke Lambda functions.",
+    "example": "# S3 -> Lambda on object creation (JSON names the function ARN)\naws s3api put-bucket-notification-configuration --bucket uploads --notification-configuration file://notif.json\n# DynamoDB Streams -> Lambda via event source mapping\naws lambda create-event-source-mapping --function-name audit --starting-position LATEST \\\n  --event-source-arn arn:aws:dynamodb:ap-southeast-1:111:table/orders/stream/2026-01-01",
     "reference": "https://docs.aws.amazon.com/lambda/latest/dg/lambda-services.html",
     "tags": [
       "lambda"
@@ -737,8 +949,15 @@
       "An IAM policy attached to a cluster",
       "A CloudWatch dashboard for container metrics"
     ],
+    "optionNotes": [
+      "A task definition is the versioned JSON document listing container images, CPU and memory, ports, environment, volumes and IAM roles for a task.",
+      "An EC2 instance running the ECS agent is a container instance, part of a cluster's capacity, not a task definition.",
+      "IAM policies attached to roles govern permissions; the task definition merely references task and execution roles by ARN.",
+      "CloudWatch dashboards visualise metrics and are unrelated to how ECS describes a task."
+    ],
     "answer": 0,
     "explanation": "A task definition is a JSON blueprint that describes one or more containers (image, CPU/memory, ports, environment variables, etc.) that make up an application, used by ECS to launch tasks.",
+    "example": "# task-def.json, registered with: aws ecs register-task-definition --cli-input-json file://task-def.json\n{\"family\": \"api\", \"requiresCompatibilities\": [\"FARGATE\"], \"networkMode\": \"awsvpc\",\n \"cpu\": \"512\", \"memory\": \"1024\",\n \"containerDefinitions\": [{\"name\": \"api\", \"image\": \"123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0\",\n   \"portMappings\": [{\"containerPort\": 8080}]}]}",
     "reference": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html",
     "tags": [
       "ecs"
@@ -756,8 +975,15 @@
       "You don't need to provision or manage the underlying EC2 instances; AWS manages the compute",
       "It removes the need for a task definition"
     ],
+    "optionNotes": [
+      "Fargate charges per vCPU-second and GB-second and is often more expensive than well-packed EC2 hosts, so it is not always cheaper.",
+      "Fargate runs Linux containers (and Windows on some platform versions); it is not Windows-only.",
+      "With Fargate you specify only task CPU and memory; AWS provisions, patches and scales the underlying hosts invisibly.",
+      "Every ECS service or task still needs a task definition regardless of launch type."
+    ],
     "answer": 2,
     "explanation": "With Fargate, AWS manages the underlying compute infrastructure automatically, so you don't need to provision, patch, or scale EC2 instances yourself — you just define your task's CPU/memory needs.",
+    "example": "aws ecs create-service --cluster prod --service-name api \\\n  --task-definition api:7 --desired-count 3 --launch-type FARGATE \\\n  --network-configuration 'awsvpcConfiguration={subnets=[subnet-0a,subnet-0b],securityGroups=[sg-0api]}'\n# no EC2 instances, AMIs or agent upgrades to manage",
     "reference": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html",
     "tags": [
       "ecs",
@@ -776,8 +1002,15 @@
       "Billing consolidation across AWS accounts",
       "The Kubernetes control plane, including the API server and etcd"
     ],
+    "optionNotes": [
+      "Worker node OS patching is your responsibility with self-managed or managed node groups (managed node groups automate AMI rollouts but still run in your account).",
+      "Source code lives in CodeCommit, GitHub or similar; EKS does not host repositories.",
+      "Consolidated billing is an AWS Organizations feature, unrelated to Kubernetes.",
+      "EKS provisions and operates the highly available Kubernetes control plane, including the API server and etcd, across multiple AZs."
+    ],
     "answer": 3,
     "explanation": "EKS is a managed Kubernetes service in which AWS runs and manages the Kubernetes control plane (API server, etcd, etc.) across multiple AZs, while you manage worker nodes (or use Fargate for those too).",
+    "example": "eksctl create cluster --name prod --region ap-southeast-1 --nodes 3\naws eks update-kubeconfig --name prod\nkubectl get nodes   # nodes are yours; the API server and etcd are AWS-managed",
     "reference": "https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html",
     "tags": [
       "eks",
@@ -796,8 +1029,15 @@
       "Managing DNS records",
       "Auto-scaling EC2 fleets"
     ],
+    "optionNotes": [
+      "Serverless functions run on Lambda; ECR can store the container images Lambda uses, but it does not execute anything.",
+      "ECR is a managed OCI registry with private and public repositories, image scanning, lifecycle policies and replication.",
+      "DNS records are managed in Route 53, not ECR.",
+      "Fleet auto scaling is done by EC2 Auto Scaling; ECR is storage for images."
+    ],
     "answer": 1,
     "explanation": "ECR is a fully managed Docker/OCI container image registry used to store, manage, and deploy container images, integrating with ECS, EKS, and Lambda.",
+    "example": "aws ecr get-login-password | docker login --username AWS --password-stdin 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com\ndocker tag api:1.4.0 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0\ndocker push 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/api:1.4.0",
     "reference": "https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html",
     "tags": [
       "ecr",
@@ -816,8 +1056,15 @@
       "Hosting static websites",
       "Encrypting data at rest with customer-managed keys"
     ],
+    "optionNotes": [
+      "CloudWatch Logs ingests log events from the agent, Lambda, ECS, VPC Flow Logs and more, storing them in log groups you can search, filter and alarm on.",
+      "Permission boundaries are an IAM concept with no relation to logs.",
+      "Static websites are hosted from S3 buckets, often behind CloudFront.",
+      "Encryption with customer-managed keys is KMS; CloudWatch Logs can use a KMS key but that is not its purpose."
+    ],
     "answer": 0,
     "explanation": "CloudWatch Logs centralizes log collection, storage, and monitoring from EC2 instances, Lambda functions, and other AWS resources, letting you search, filter, and set alarms on log data.",
+    "example": "aws logs create-log-group --log-group-name /app/api\naws logs put-retention-policy --log-group-name /app/api --retention-in-days 30\naws logs tail /app/api --follow --filter-pattern \"ERROR\"   # live stream of matching events",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
     "tags": [
       "cloudwatch",
@@ -836,8 +1083,15 @@
       "It watches a metric and triggers an action when the metric crosses a defined threshold",
       "It replaces the need for security groups"
     ],
+    "optionNotes": [
+      "Raw log storage is the job of CloudWatch Logs with retention settings; alarms do not store data.",
+      "An alarm cannot fix code; it can only trigger actions such as notifications, Auto Scaling changes or EC2 recover/reboot.",
+      "An alarm evaluates a metric or metric-math expression against a threshold over evaluation periods and fires actions when it enters ALARM state.",
+      "Security groups are network controls; alarms have nothing to do with firewalling."
+    ],
     "answer": 2,
     "explanation": "A CloudWatch alarm watches a single metric (or metric math expression) over a specified period and triggers one or more actions (such as an SNS notification or an Auto Scaling action) when the metric breaches a defined threshold.",
+    "example": "aws cloudwatch put-metric-alarm --alarm-name api-5xx-high \\\n  --namespace AWS/ApplicationELB --metric-name HTTPCode_Target_5XX_Count \\\n  --dimensions Name=LoadBalancer,Value=app/api/0abc \\\n  --statistic Sum --period 60 --evaluation-periods 3 --threshold 50 \\\n  --comparison-operator GreaterThanThreshold \\\n  --alarm-actions arn:aws:sns:ap-southeast-1:123456789012:oncall",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html",
     "tags": [
       "cloudwatch",
@@ -852,6 +1106,7 @@
     "prompt": "You can publish your own custom application metrics to CloudWatch under a custom namespace using the PutMetricData API, in addition to the metrics AWS services publish automatically.",
     "answer": true,
     "explanation": "CloudWatch supports custom metrics via the `PutMetricData` API (or embedded metric format), letting applications publish business or application-specific metrics alongside built-in AWS service metrics.",
+    "example": "aws cloudwatch put-metric-data --namespace MyApp/Checkout \\\n  --metric-name OrdersPlaced --value 12 --unit Count \\\n  --dimensions Region=apac,Version=1.4.0\n# or emit EMF JSON to stdout in Lambda and CloudWatch extracts the metric",
     "reference": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html",
     "tags": [
       "cloudwatch",
@@ -870,8 +1125,15 @@
       "To manage VPC routing tables",
       "To host container images"
     ],
+    "optionNotes": [
+      "Performance metrics and dashboards are CloudWatch features.",
+      "CloudTrail records every management (and optionally data) API call with the caller identity, source IP and time, providing the audit trail for governance and forensics.",
+      "Route tables are managed through the EC2/VPC APIs, not CloudTrail.",
+      "Container images are hosted in ECR."
+    ],
     "answer": 1,
     "explanation": "CloudTrail records API calls and account activity made in an AWS account (who did what, when, and from where), which is essential for auditing, governance, and security investigation.",
+    "example": "aws cloudtrail create-trail --name org-audit --s3-bucket-name audit-logs --is-multi-region-trail\naws cloudtrail start-logging --name org-audit\n# who deleted that bucket?\naws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=DeleteBucket",
     "reference": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html",
     "tags": [
       "cloudtrail",
@@ -890,8 +1152,15 @@
       "They are two names for the same service",
       "CloudTrail only works with S3, CloudWatch only works with EC2"
     ],
+    "optionNotes": [
+      "The roles are reversed here: CloudWatch is the metrics and dashboard service and CloudTrail is the API audit service.",
+      "CloudTrail is the account activity audit log (who called which API from where) while CloudWatch handles metrics, logs, alarms and dashboards for operational health.",
+      "They are distinct services with different data models and consoles, although CloudTrail can deliver events into CloudWatch Logs.",
+      "Both services cover almost every AWS service; neither is limited to S3 or EC2."
+    ],
     "answer": 1,
     "explanation": "CloudTrail focuses on auditing 'who did what' by recording API calls/management events for governance and compliance, while CloudWatch focuses on operational monitoring: metrics, logs, dashboards, and alarms about resource performance and health.",
+    "example": "# CloudTrail answers \"who did it?\"\naws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=TerminateInstances\n# CloudWatch answers \"how is it performing?\"\naws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization \\\n  --dimensions Name=InstanceId,Value=i-0abc --period 300 --statistics Average \\\n  --start-time 2026-09-11T00:00Z --end-time 2026-09-11T01:00Z",
     "reference": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html",
     "tags": [
       "cloudtrail",
@@ -909,6 +1178,7 @@
       "a stack"
     ],
     "explanation": "A stack is a collection of AWS resources that CloudFormation creates, updates, and deletes together as a single unit, based on a template.",
+    "example": "aws cloudformation deploy --stack-name web-prod \\\n  --template-file template.yaml \\\n  --parameter-overrides Env=prod --capabilities CAPABILITY_IAM\naws cloudformation delete-stack --stack-name web-prod   # removes every resource in the stack",
     "pattern": "^(a\\s+)?stack$",
     "reference": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html",
     "tags": [
@@ -923,6 +1193,7 @@
     "prompt": "CloudFormation drift detection can identify when a stack's actual resource configuration has been changed outside of CloudFormation (e.g., manually via the console).",
     "answer": true,
     "explanation": "Drift detection compares the current state of stack resources to the expected configuration defined in the template/stack, flagging resources that have been modified outside of CloudFormation.",
+    "example": "aws cloudformation detect-stack-drift --stack-name web-prod\naws cloudformation describe-stack-resource-drifts --stack-name web-prod \\\n  --stack-resource-drift-status-filters MODIFIED DELETED\n# shows e.g. a security group rule added by hand in the console",
     "reference": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html",
     "tags": [
       "cloudformation",
@@ -941,12 +1212,19 @@
       "Round-trip routing",
       "Failover routing"
     ],
+    "optionNotes": [
+      "Weighted routing splits traffic across records by relative weight and is a real Route 53 policy.",
+      "Latency-based routing answers with the record in the region that gives the client the lowest measured latency and is a real policy.",
+      "Round-trip is not a Route 53 routing policy; the latency-based policy is the one that uses network round-trip measurements internally.",
+      "Failover routing returns a primary record while its health check passes and a secondary otherwise, and is a real policy."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "Route 53 supports Simple, Weighted, Latency-based, Failover, Geolocation, Geoproximity, and Multivalue answer routing policies. 'Round-trip' routing is not one of them.",
+    "example": "# Weighted record for app.example.com: this one gets 90%, a second record with SetIdentifier green gets 10\n{\"Action\": \"UPSERT\", \"ResourceRecordSet\": {\"Name\": \"app.example.com\", \"Type\": \"A\",\n  \"SetIdentifier\": \"blue\", \"Weight\": 90, \"TTL\": 60, \"ResourceRecords\": [{\"Value\": \"203.0.113.10\"}]}}\n# aws route53 change-resource-record-sets --hosted-zone-id Z123 --change-batch file://weighted.json",
     "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html",
     "tags": [
       "route53",
@@ -965,8 +1243,15 @@
       "Simple routing",
       "Geolocation routing"
     ],
+    "optionNotes": [
+      "Failover routing is all-or-nothing based on health checks; it cannot send a fixed percentage of traffic to each target.",
+      "Weighted routing assigns each record a weight and answers queries in proportion, so 95/5 or 50/50 splits for canary and blue-green rollouts are straightforward.",
+      "Simple routing returns one record set with no traffic control.",
+      "Geolocation routing picks a record by the client's country or continent, not by percentage."
+    ],
     "answer": 1,
     "explanation": "Weighted routing lets you assign relative weights to records associated with the same domain name, controlling what proportion of traffic goes to each resource — useful for gradual rollouts and A/B testing.",
+    "example": "# canary: 5% of users to the new stack (Terraform)\nresource \"aws_route53_record\" \"green\" {\n  zone_id = var.zone_id\n  name    = \"app.example.com\"\n  ttl     = 60   # short TTL so shifts apply fast\n  set_identifier = \"green\"\n  weighted_routing_policy { weight = 5 }   # blue record: weight 95\n  records = [aws_lb.green.dns_name] }",
     "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html",
     "tags": [
       "route53"
@@ -984,8 +1269,15 @@
       "A content delivery network (CDN) that caches content at edge locations for lower latency",
       "A DNS management service"
     ],
+    "optionNotes": [
+      "The managed NoSQL database is DynamoDB.",
+      "The container registry is ECR.",
+      "CloudFront is the global CDN that caches responses at hundreds of edge locations and can also terminate TLS, run edge functions and shield origins.",
+      "DNS management is Route 53; CloudFront distributions get a DNS name but do not manage zones."
+    ],
     "answer": 2,
     "explanation": "CloudFront is a content delivery network (CDN) that caches and delivers content from edge locations close to users, reducing latency for static and dynamic content.",
+    "example": "aws cloudfront create-distribution --origin-domain-name static-site.s3.ap-southeast-1.amazonaws.com\n# users hit d1234abcd.cloudfront.net; edge caches serve repeat requests\ncurl -sI https://d1234abcd.cloudfront.net/logo.png | grep -i x-cache   # X-Cache: Hit from cloudfront",
     "reference": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html",
     "tags": [
       "cloudfront",
@@ -1004,8 +1296,15 @@
       "A CloudWatch alarm attached to the distribution",
       "The source location (e.g., S3 bucket or load balancer) CloudFront retrieves content from"
     ],
+    "optionNotes": [
+      "The edge location is where CloudFront caches and serves content near users; it is the opposite end of the flow from the origin.",
+      "The distribution domain name (`dxxxx.cloudfront.net`) is what clients request, not where content is fetched from.",
+      "CloudWatch alarms monitor distribution metrics but are not part of CloudFront's data path.",
+      "The origin is the upstream source, such as an S3 bucket, ALB, API Gateway or any HTTP server, that CloudFront pulls from on a cache miss."
+    ],
     "answer": 3,
     "explanation": "An origin is the source location CloudFront fetches content from when it isn't already cached at the edge, such as an S3 bucket, an Application Load Balancer, or a custom HTTP server.",
+    "example": "# Terraform: an S3 bucket as the origin behind a distribution\nresource \"aws_cloudfront_distribution\" \"site\" {\n  origin {\n    domain_name = aws_s3_bucket.site.bucket_regional_domain_name\n    origin_id   = \"s3-site\"\n  }\n  default_cache_behavior { target_origin_id = \"s3-site\" ... }\n}",
     "reference": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistS3AndCustomOrigins.html",
     "tags": [
       "cloudfront"
@@ -1023,8 +1322,15 @@
       "They are identical services with different names",
       "SQS only supports email notifications"
     ],
+    "optionNotes": [
+      "SQS stores messages until a consumer polls and deletes them, while SNS pushes each published message to all subscribed endpoints, which is the correct distinction.",
+      "The descriptions are swapped: SNS is the push-based topic service and SQS the pull-based queue.",
+      "They are complementary rather than identical, and are often combined (SNS fan-out into SQS queues).",
+      "SQS carries arbitrary message bodies to any consumer; email is an SNS subscription protocol, not an SQS feature."
+    ],
     "answer": 0,
     "explanation": "SQS is a pull-based message queue where consumers poll for messages, typically used for decoupling and buffering work between producers and a single logical consumer group. SNS is a push-based publish/subscribe service that fans a message out to multiple subscribers (email, SMS, Lambda, SQS, etc.) at once.",
+    "example": "# SNS: one publish, pushed to every subscriber\naws sns publish --topic-arn arn:aws:sns:ap-southeast-1:123456789012:orders --message '{\"orderId\":42}'\n# SQS: consumer must poll\naws sqs receive-message --queue-url https://sqs.ap-southeast-1.amazonaws.com/123456789012/billing --wait-time-seconds 20",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html",
     "tags": [
       "sqs",
@@ -1039,6 +1345,7 @@
     "prompt": "An Amazon SQS *standard* queue guarantees strict first-in-first-out message ordering.",
     "answer": false,
     "explanation": "Standard queues provide best-effort, at-least-once delivery but do not guarantee strict ordering; if strict FIFO ordering (and exactly-once processing) is required, you must use a FIFO queue instead.",
+    "example": "# Standard queue: ordering is best effort\naws sqs create-queue --queue-name jobs\n# FIFO queue: strict order within a message group\naws sqs create-queue --queue-name jobs.fifo --attributes FifoQueue=true,ContentBasedDeduplication=true\naws sqs send-message --queue-url .../jobs.fifo --message-body '{\"id\":1}' --message-group-id order-42",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html",
     "tags": [
       "sqs"
@@ -1056,8 +1363,15 @@
       "AWS KMS",
       "AWS Config"
     ],
+    "optionNotes": [
+      "Parameter Store holds plaintext and SecureString parameters cheaply but has no built-in scheduled rotation workflow; you would write your own.",
+      "Secrets Manager provides managed rotation for RDS, Redshift, DocumentDB and custom secrets using AWS-supplied or custom Lambda rotation functions on a schedule.",
+      "KMS manages encryption keys and can rotate key material, but it does not store or rotate application secrets such as database passwords.",
+      "AWS Config records resource configuration history and evaluates compliance rules; it does not manage secrets."
+    ],
     "answer": 1,
     "explanation": "AWS Secrets Manager provides built-in automatic rotation support for supported services like RDS, using AWS-provided or custom Lambda rotation functions. Systems Manager Parameter Store can store secrets but does not have this same native rotation workflow built in.",
+    "example": "aws secretsmanager create-secret --name prod/db/orders \\\n  --secret-string '{\"username\":\"app\",\"password\":\"initial\"}'\naws secretsmanager rotate-secret --secret-id prod/db/orders \\\n  --rotation-lambda-arn arn:aws:lambda:ap-southeast-1:123456789012:function:SecretsManagerRDSPostgreSQLRotation \\\n  --rotation-rules AutomaticallyAfterDays=30",
     "reference": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html",
     "tags": [
       "secrets-manager",
@@ -1076,6 +1390,7 @@
       "Key Management Service"
     ],
     "explanation": "AWS Key Management Service (KMS) lets you create, manage, and control cryptographic keys used to encrypt and decrypt data, and integrates with many AWS services to provide server-side encryption.",
+    "example": "aws kms create-key --description \"app data key\" --query KeyMetadata.KeyId\naws kms create-alias --alias-name alias/app-data --target-key-id <key-id>\naws kms encrypt --key-id alias/app-data --plaintext fileb://secret.txt --query CiphertextBlob --output text > secret.enc",
     "pattern": "^(aws\\s+)?(kms|key management service)$",
     "reference": "https://docs.aws.amazon.com/kms/latest/developerguide/overview.html",
     "tags": [
@@ -1095,8 +1410,15 @@
       "Regions and AZs are the same thing",
       "Each AZ spans multiple Regions for redundancy"
     ],
+    "optionNotes": [
+      "Each Region is a separate geographic area made up of at least three isolated, physically separated AZs joined by low-latency links.",
+      "The hierarchy is the other way round: AZs sit inside a Region, never the reverse.",
+      "A Region is a geography and an AZ is one or more data centres within it; they are different levels of the hierarchy.",
+      "An AZ belongs to exactly one Region; cross-region redundancy is achieved by deploying to multiple Regions."
+    ],
     "answer": 0,
     "explanation": "An AWS Region is a geographic area that contains multiple, isolated Availability Zones, each consisting of one or more discrete data centers with independent power, cooling, and networking, connected by low-latency links.",
+    "example": "aws ec2 describe-availability-zones --region ap-southeast-1 \\\n  --query 'AvailabilityZones[].ZoneName'\n# [\"ap-southeast-1a\", \"ap-southeast-1b\", \"ap-southeast-1c\"]  <- 3 AZs in one Region",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html",
     "tags": [
       "regions",
@@ -1113,6 +1435,7 @@
       "aws s3 ls"
     ],
     "explanation": "`aws s3 ls` with no bucket argument lists all S3 buckets owned by the caller's account.",
+    "example": "aws s3 ls\n# 2026-03-04 09:12:31 app-logs\n# 2026-05-19 14:02:07 static-site\naws s3 ls s3://app-logs/2026/   # lists objects under a prefix instead",
     "pattern": "^aws\\s+s3\\s+ls$",
     "reference": "https://docs.aws.amazon.com/cli/latest/reference/s3/ls.html",
     "tags": [
@@ -1132,12 +1455,19 @@
       "Portability",
       "Reliability"
     ],
+    "optionNotes": [
+      "Operational Excellence covers running and monitoring systems and improving processes, and is one of the six pillars.",
+      "Cost Optimization is about avoiding unnecessary spend and is one of the six pillars.",
+      "Portability is a general design goal but is not a named Well-Architected pillar.",
+      "Reliability covers recovering from failure and meeting demand, and is one of the six pillars."
+    ],
     "answer": [
       0,
       1,
       3
     ],
     "explanation": "The AWS Well-Architected Framework's six pillars are Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, and Sustainability. 'Portability' is not one of the named pillars.",
+    "example": "# Well-Architected Tool review tagged by pillar\naws wellarchitected create-workload --workload-name payments \\\n  --description \"payments api\" --environment PRODUCTION \\\n  --aws-regions ap-southeast-1 --lenses wellarchitected --review-owner platform-team\n# pillars: operationalExcellence, security, reliability, performance, costOptimization, sustainability",
     "reference": "https://docs.aws.amazon.com/wellarchitected/latest/framework/the-pillars-of-the-framework.html",
     "tags": [
       "well-architected"
@@ -1155,8 +1485,15 @@
       "Spot Instances",
       "Dedicated Hosts"
     ],
+    "optionNotes": [
+      "Reserved Instances discount a one or three year commitment but the capacity is never interrupted by AWS.",
+      "Savings Plans discount committed hourly spend across instance families and are also uninterruptible.",
+      "Spot Instances offer up to 90% off On-Demand in exchange for a two-minute interruption notice when AWS reclaims capacity.",
+      "Dedicated Hosts are physical servers for licensing or compliance and typically cost more, not less."
+    ],
     "answer": 2,
     "explanation": "Spot Instances let you use spare EC2 capacity at steep discounts compared to On-Demand, but AWS can reclaim (interrupt) the capacity with short notice, making them best suited for fault-tolerant or flexible workloads.",
+    "example": "aws ec2 run-instances --image-id ami-0abc --instance-type c6i.xlarge --count 4 \\\n  --instance-market-options 'MarketType=spot,SpotOptions={SpotInstanceType=one-time}'\n# handle the 2-minute interruption notice\ncurl -s http://169.254.169.254/latest/meta-data/spot/instance-action",
     "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-spot-instances.html",
     "tags": [
       "ec2",
@@ -1176,8 +1513,15 @@
       "How long a consumer waits for messages on `ReceiveMessage`",
       "How long the queue is visible in the console"
     ],
+    "optionNotes": [
+      "Retention before deletion is the `MessageRetentionPeriod` attribute (up to 14 days), not the visibility timeout.",
+      "The visibility timeout is the window after a receive during which the message is hidden from other consumers so the first can finish and delete it.",
+      "How long `ReceiveMessage` waits for messages is `WaitTimeSeconds` (long polling).",
+      "Console visibility of a queue is not a configurable attribute."
+    ],
     "answer": 1,
     "explanation": "After a `ReceiveMessage`, the message stays in the queue but is invisible for the visibility timeout. If the consumer fails to delete it in time, it reappears and another consumer may process it, which is why SQS consumers must be idempotent.",
+    "example": "aws sqs set-queue-attributes --queue-url $Q --attributes VisibilityTimeout=120\n# consumer loop\nMSG=$(aws sqs receive-message --queue-url $Q)   # hidden for 120s\n# ... process ...\naws sqs delete-message --queue-url $Q --receipt-handle \"$RH\"   # delete before the timeout",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
     "tags": [
       "sqs",
@@ -1196,8 +1540,15 @@
       "When the producer explicitly sends it to the DLQ",
       "When the consumer returns an HTTP 500"
     ],
+    "optionNotes": [
+      "Messages older than the retention period are simply deleted, not moved to a DLQ.",
+      "The redrive policy's `maxReceiveCount` is the trigger: once a message has been received that many times without being deleted, SQS moves it to the DLQ.",
+      "Producers always send to the source queue; the move to the DLQ is done by SQS itself (a producer could send directly to any queue, but that is not how DLQs work).",
+      "SQS knows nothing about consumer HTTP status codes; only receive counts matter (Lambda event source mappings have their own failure-destination logic)."
+    ],
     "answer": 1,
     "explanation": "The redrive policy on the source queue names a DLQ and a `maxReceiveCount`. Each receive increments the receive count; once it exceeds the threshold SQS moves the message to the DLQ so poison messages stop blocking consumers. Alert on DLQ depth and use redrive to move messages back after a fix.",
+    "example": "# after 5 failed receives, move the message to jobs-dlq\naws sqs set-queue-attributes --queue-url $JOBS_URL --attributes \\\n  '{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"arn:aws:sqs:ap-southeast-1:123456789012:jobs-dlq\\\",\\\"maxReceiveCount\\\":\\\"5\\\"}\"}'\n# alarm on ApproximateNumberOfMessagesVisible of jobs-dlq > 0",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html",
     "tags": [
       "sqs",
@@ -1217,8 +1568,15 @@
       "Standard queues guarantee ordering; FIFO queues do not",
       "FIFO queues can only be consumed by Lambda"
     ],
+    "optionNotes": [
+      "Standard queues trade strict order and exactly-once for effectively unlimited throughput, while FIFO queues add `MessageGroupId` ordering and deduplication at a per-second quota; this is the real distinction.",
+      "FIFO queues are slightly more expensive per request and do not lose messages; both queue types are durable.",
+      "It is the reverse: FIFO queues guarantee ordering and standard queues offer only best-effort ordering.",
+      "FIFO queues can be consumed by any SQS client, including EC2, ECS and Lambda."
+    ],
     "answer": 0,
     "explanation": "Standard queues may deliver duplicates and out of order, so consumers must be idempotent. FIFO queues deduplicate within a 5-minute window (via deduplication id) and preserve order within a `MessageGroupId`, at a throughput cap unless high-throughput mode is enabled.",
+    "example": "# FIFO: order preserved per group, duplicates dropped for 5 minutes\naws sqs send-message --queue-url .../payments.fifo \\\n  --message-body '{\"orderId\":42,\"amount\":19.99}' \\\n  --message-group-id order-42 --message-deduplication-id charge-42-attempt1\n# Standard: same call without group/dedup ids; consumer must be idempotent",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-queue-types.html",
     "tags": [
       "sqs",
@@ -1234,6 +1592,7 @@
     "prompt": "Enabling SQS long polling (a `WaitTimeSeconds` greater than zero) reduces empty responses and cost compared with short polling.",
     "answer": true,
     "explanation": "With long polling, `ReceiveMessage` waits up to 20 seconds for a message to arrive instead of returning immediately, cutting the number of empty API calls and the chance of missing messages that are only on some SQS servers.",
+    "example": "# queue-wide default\naws sqs set-queue-attributes --queue-url $Q --attributes ReceiveMessageWaitTimeSeconds=20\n# or per call\naws sqs receive-message --queue-url $Q --wait-time-seconds 20 --max-number-of-messages 10",
     "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html",
     "tags": [
       "sqs",
@@ -1252,8 +1611,15 @@
       "Kinesis Data Streams only; Cloud SQL on GCP",
       "Direct HTTP calls from the producer to each consumer"
     ],
+    "optionNotes": [
+      "One queue delivers each message to a single consumer, so billing, analytics and email would compete for messages; Cloud Tasks is a task-dispatch service, not a fan-out equivalent.",
+      "An SNS topic (or EventBridge rules) pushes a copy of each event into a queue per consumer, and a Pub/Sub topic with one subscription per consumer is the direct Google Cloud analogue.",
+      "Kinesis is a streaming service that can support multiple consumers but is heavier than needed here, and Cloud SQL is a relational database, not a messaging equivalent.",
+      "Direct HTTP calls couple the producer to every consumer and lose buffering and retries, which is what messaging is meant to remove."
+    ],
     "answer": 1,
     "explanation": "A queue delivers each message to one consumer, so multiple services reading one SQS queue would compete. Fan-out uses a topic: SNS pushes a copy into each subscribed queue, which buffers and retries independently. Pub/Sub combines topic and subscription in one service, with each subscription getting its own copy and ack deadline (the Pub/Sub equivalent of the SQS visibility timeout).",
+    "example": "# SNS fan-out: one topic, one SQS queue per consumer\nTOPIC=arn:aws:sns:ap-southeast-1:111:order-placed\naws sns subscribe --topic-arn $TOPIC --protocol sqs --notification-endpoint arn:aws:sqs:ap-southeast-1:111:billing-q\naws sns subscribe --topic-arn $TOPIC --protocol sqs --notification-endpoint arn:aws:sqs:ap-southeast-1:111:email-q\n# GCP: gcloud pubsub subscriptions create billing-sub --topic order-placed",
     "reference": "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html",
     "tags": [
       "sns",
@@ -1276,6 +1642,13 @@
       "Acting as the system of record for financial transactions without any persistence",
       "Lightweight pub/sub or streams for real-time notifications, and distributed locks with `SET NX PX`"
     ],
+    "optionNotes": [
+      "Caching hot query results or rendered fragments with a TTL is the canonical Redis use, cutting p99 latency and database load.",
+      "Storing sessions in Redis lets any stateless replica serve any user, which is standard for horizontally scaled web tiers.",
+      "Atomic `INCR` plus `EXPIRE` (or `SET ... EX`) gives cheap, race-free counters and sliding-window rate limits.",
+      "Redis is in-memory and, without persistence, loses data on restart; even with AOF/RDB it should not be the sole ledger for money.",
+      "Redis Pub/Sub and Streams handle lightweight real-time messaging, and `SET key value NX PX ms` is the basis of simple distributed locks."
+    ],
     "answer": [
       0,
       1,
@@ -1283,6 +1656,7 @@
       4
     ],
     "explanation": "Redis is an in-memory data structure store: excellent as a cache, session store, rate limiter, leaderboard, lock or lightweight message bus. It is not a durable source of truth by default; even with AOF/RDB persistence you would still keep authoritative data in a database.",
+    "example": "# cache with TTL\nSET user:42:profile '{\"name\":\"Ann\"}' EX 300\n# rate limit: 100 requests per minute\nINCR ratelimit:42:202609111203\nEXPIRE ratelimit:42:202609111203 60\n# distributed lock\nSET lock:report-job token123 NX PX 30000",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html",
     "tags": [
       "redis",
@@ -1303,8 +1677,15 @@
       "`volatile-ttl`",
       "`volatile-lfu`"
     ],
+    "optionNotes": [
+      "`noeviction` refuses writes with an OOM error once memory is full, which protects data but makes a cache stop accepting new entries.",
+      "`allkeys-lru` evicts the least recently used key from the entire keyspace, freeing memory for fresh data, which is the standard choice for a pure cache.",
+      "`volatile-ttl` only evicts keys that carry an expiry, choosing those with the shortest TTL; keys without TTL are never evicted, so memory can still fill.",
+      "`volatile-lfu` likewise considers only keys with a TTL, using least-frequently-used ordering; it is not appropriate when any key may be dropped."
+    ],
     "answer": 1,
     "explanation": "`allkeys-lru` evicts the least recently used key across the whole keyspace, which is what a cache wants. `volatile-*` policies only evict keys that have a TTL, and `noeviction` returns errors on writes when memory is full, which is safer for a datastore but wrong for a cache.",
+    "example": "# ElastiCache parameter group\naws elasticache modify-cache-parameter-group --cache-parameter-group-name redis7-cache \\\n  --parameter-name-values ParameterName=maxmemory-policy,ParameterValue=allkeys-lru\n# self-hosted redis.conf\nmaxmemory 2gb\nmaxmemory-policy allkeys-lru",
     "reference": "https://redis.io/docs/latest/develop/reference/eviction/",
     "tags": [
       "redis",
@@ -1324,8 +1705,15 @@
       "Redis is placed in front of the database and proxies all SQL queries",
       "Writes go to Redis only and are flushed to the database nightly"
     ],
+    "optionNotes": [
+      "Synchronous push of every row change describes a write-through or CDC pipeline, not cache-aside, where the application populates the cache lazily on read.",
+      "In cache-aside the application checks Redis first, falls back to the database on a miss, and then writes the result into Redis with a TTL for subsequent reads.",
+      "Redis is not a SQL proxy; it stores keys and values that the application chooses to cache.",
+      "Write-behind with a nightly flush would make Redis the source of truth and risk data loss; it is not the cache-aside pattern."
+    ],
     "answer": 1,
     "explanation": "Cache-aside keeps the application in control: only requested data is cached, and a TTL or explicit invalidation on write bounds staleness. Watch for cache stampedes on hot keys (use jittered TTLs or request coalescing) and for a cold cache after a Redis failover.",
+    "example": "def get_product(pid):\n    cached = redis.get(f\"product:{pid}\")\n    if cached:\n        return json.loads(cached)          # cache hit\n    row = db.query(\"SELECT * FROM products WHERE id=%s\", pid)   # miss\n    redis.set(f\"product:{pid}\", json.dumps(row), ex=300)         # populate with TTL\n    return row",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html",
     "tags": [
       "redis",
@@ -1345,8 +1733,15 @@
       "It turns on persistence to S3",
       "It is required for any Multi-AZ failover"
     ],
+    "optionNotes": [
+      "Read replicas can be added to a single shard without cluster mode; that is the cluster-mode-disabled replication group.",
+      "Cluster mode shards the 16384 hash slots across node groups so data and writes scale out, requiring cluster-aware clients and hash tags for multi-key commands.",
+      "Persistence and backups to S3 are separate features (snapshots) available in either mode.",
+      "Multi-AZ automatic failover works in cluster-mode-disabled replication groups too."
+    ],
     "answer": 1,
     "explanation": "Without cluster mode a replication group is one shard: one primary for writes plus read replicas, limited by the memory of a single node. Cluster mode enabled spreads 16384 hash slots over shards; clients must be cluster-aware and use hash tags `{...}` for keys that need to live together.",
+    "example": "aws elasticache create-replication-group --replication-group-id sessions \\\n  --replication-group-description \"sessions\" --engine redis \\\n  --cache-node-type cache.r7g.large --num-node-groups 3 --replicas-per-node-group 1 \\\n  --cluster-mode enabled\n# keys that must share a slot: user:{42}:cart and user:{42}:profile",
     "reference": "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Replication.Redis-RedisCluster.html",
     "tags": [
       "redis",
@@ -1366,8 +1761,15 @@
       "It replaces instances whose CPU exceeds 50%",
       "It only scales at the top of each hour"
     ],
+    "optionNotes": [
+      "Target tracking looks at the group's aggregate metric, not individual instances, and can add several instances at once when far above target.",
+      "Like a thermostat, the policy computes the capacity needed to bring average CPU back to the target, scaling out aggressively and in conservatively, with alarms it creates and owns.",
+      "Instance replacement is driven by health checks, not by CPU thresholds.",
+      "Scaling on a fixed hourly schedule describes scheduled scaling; target tracking reacts continuously to the metric."
+    ],
     "answer": 1,
     "explanation": "Target tracking works like a thermostat: you choose the metric and target, and Auto Scaling creates and manages the scale-out and scale-in alarms. Scale-in is deliberately slower to avoid flapping. Step scaling and scheduled scaling are the alternatives when you need explicit thresholds or known daily patterns.",
+    "example": "aws autoscaling put-scaling-policy --auto-scaling-group-name workers \\\n  --policy-name cpu-50 --policy-type TargetTrackingScaling \\\n  --target-tracking-configuration '{\n    \"PredefinedMetricSpecification\": {\"PredefinedMetricType\": \"ASGAverageCPUUtilization\"},\n    \"TargetValue\": 50.0, \"DisableScaleIn\": false}'\n# ASG creates two CloudWatch alarms (AlarmHigh / AlarmLow) automatically",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html",
     "tags": [
       "autoscaling",
@@ -1387,8 +1789,15 @@
       "To allow time for the AMI to be copied to the region",
       "To throttle CloudWatch API calls"
     ],
+    "optionNotes": [
+      "The warmup keeps a booting instance's inflated metrics out of scaling maths and the grace period stops the ASG from killing it before the app is up, preventing oscillation.",
+      "Billing starts at launch regardless; neither setting affects charges.",
+      "AMIs are already regional; no copy happens at instance launch.",
+      "Neither setting rate-limits CloudWatch; they concern instance health and metric contribution."
+    ],
     "answer": 0,
     "explanation": "A fresh instance runs hot on CPU while starting and fails load balancer health checks until the app is up. The warmup excludes it from aggregate metrics, and the grace period stops ASG from terminating it as unhealthy too early. Without them a group can oscillate: scale out, see high CPU from booting nodes, scale out again.",
+    "example": "aws autoscaling update-auto-scaling-group --auto-scaling-group-name web-asg \\\n  --health-check-type ELB --health-check-grace-period 300 \\\n  --default-instance-warmup 180\n# new instances are excluded from CPU aggregation for 180s and\n# cannot be marked unhealthy by the ELB check for 300s",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html",
     "tags": [
       "autoscaling",
@@ -1408,8 +1817,15 @@
       "Scale on CPU, since queue consumers are always CPU bound",
       "Use scheduled scaling only"
     ],
+    "optionNotes": [
+      "Raw queue depth ignores how many workers already exist, so a fixed threshold keeps scaling out while a large fleet is already draining the queue, and gives no scale-in signal.",
+      "Dividing visible messages by in-service instances yields a per-instance load that target tracking can drive toward the backlog your latency SLO allows, which is the AWS-recommended pattern.",
+      "Many consumers are I/O bound waiting on downstream calls, so CPU is a poor proxy for queue pressure.",
+      "Scheduled scaling cannot react to unexpected bursts in message volume."
+    ],
     "answer": 1,
     "explanation": "Queue depth alone does not account for how many workers are already draining it. Backlog per instance normalises the metric so target tracking can compute how many instances are needed: acceptable backlog = (acceptable latency) x (messages one instance processes per second). On Kubernetes, KEDA does the same for pods.",
+    "example": "# backlog per instance = visible messages / running instances\nVIS=$(aws sqs get-queue-attributes --queue-url $Q --attribute-names ApproximateNumberOfMessagesVisible --query Attributes.ApproximateNumberOfMessagesVisible --output text)\nN=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names workers --query 'length(AutoScalingGroups[0].Instances)')\naws cloudwatch put-metric-data --namespace Workers --metric-name BacklogPerInstance --value $((VIS / N))",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-using-sqs-queue.html",
     "tags": [
       "autoscaling",
@@ -1425,6 +1841,7 @@
     "prompt": "With an Application Load Balancer in front of an Auto Scaling group, enabling the ELB health check type lets the group replace instances that the load balancer reports as unhealthy, not just instances whose EC2 status checks fail.",
     "answer": true,
     "explanation": "EC2 health checks only detect hardware or OS failure. With `HealthCheckType: ELB` the ASG also treats an instance that fails the target group's HTTP health check as unhealthy and terminates and replaces it, which catches hung application processes.",
+    "example": "aws autoscaling update-auto-scaling-group --auto-scaling-group-name web-asg \\\n  --health-check-type ELB --health-check-grace-period 300\n# target group health check the ASG now honours\naws elbv2 modify-target-group --target-group-arn <tg> --health-check-path /healthz --unhealthy-threshold-count 3",
     "reference": "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html",
     "tags": [
       "autoscaling",

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import Explanation from '../components/Explanation'
 import Prompt from '../components/Prompt'
 import QuestionCard from '../components/QuestionCard'
 import { correctLabel } from '../lib/labels'
@@ -62,12 +63,7 @@ export default function Quiz() {
               Correct answer: <Prompt text={correctLabel(q)} as="span" />
             </p>
           )}
-          <Prompt text={q.explanation} />
-          {q.reference && (
-            <a href={q.reference} target="_blank" rel="noreferrer">
-              Reference ↗
-            </a>
-          )}
+          <Explanation question={q} />
         </div>
       )}
 

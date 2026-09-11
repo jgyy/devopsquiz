@@ -9,6 +9,7 @@ const good = {
   type: 'boolean',
   prompt: 'p',
   explanation: 'e',
+  example: 'x',
   answer: true,
 }
 

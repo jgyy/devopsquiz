@@ -7,6 +7,8 @@ const baseFields = {
   difficulty: z.enum(DIFFICULTIES),
   prompt: z.string().min(1),
   explanation: z.string().min(1),
+  /** Short command, snippet, or scenario showing the concept in use. Newlines allowed. */
+  example: z.string().min(1),
   reference: z.string().url().optional(),
   tags: z.array(z.string()).optional(),
 }
@@ -18,8 +20,22 @@ const optionsSchema = (min: number) =>
     .max(6)
     .refine((opts) => new Set(opts).size === opts.length, 'options must be unique')
 
+/** One note per option, same order as `options`: what the option is and why it is or isn't correct. */
+const optionNotesSchema = z.array(z.string().min(1))
+const notesMatchOptions = {
+  message: 'optionNotes must have exactly one entry per option',
+  path: ['optionNotes'],
+}
+
 const singleSchema = z
-  .object({ ...baseFields, type: z.literal('single'), options: optionsSchema(2), answer: z.number().int().min(0) })
+  .object({
+    ...baseFields,
+    type: z.literal('single'),
+    options: optionsSchema(2),
+    optionNotes: optionNotesSchema,
+    answer: z.number().int().min(0),
+  })
+  .refine((q) => q.optionNotes.length === q.options.length, notesMatchOptions)
   .refine((q) => q.answer < q.options.length, { message: 'answer index out of range', path: ['answer'] })
 
 const multiSchema = z
@@ -27,8 +43,10 @@ const multiSchema = z
     ...baseFields,
     type: z.literal('multi'),
     options: optionsSchema(3),
+    optionNotes: optionNotesSchema,
     answer: z.array(z.number().int().min(0)).min(1),
   })
+  .refine((q) => q.optionNotes.length === q.options.length, notesMatchOptions)
   .refine((q) => q.answer.every((i) => i < q.options.length), { message: 'answer index out of range', path: ['answer'] })
   .refine((q) => q.answer.every((v, i) => i === 0 || v > q.answer[i - 1]), {
     message: 'answer indices must be sorted ascending and unique',

@@ -14,8 +14,10 @@ const bank: Question[] = [
     type: 'single',
     prompt: 'Which command lists running containers?',
     options: ['docker ps', 'docker images', 'docker run'],
+    optionNotes: ['Lists running containers.', 'Lists local images.', 'Starts a new container.'],
     answer: 0,
     explanation: 'docker ps lists running containers.',
+    example: 'docker ps',
   },
 ]
 
