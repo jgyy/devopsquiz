@@ -138,5 +138,16 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
 .terminal-bar .status-ready { color: var(--ok); }
 .terminal-bar .status-error { color: var(--bad); }
 .terminal-error { color: var(--bad); margin: 0 0 0.5rem; font-size: 0.9rem; }
-.terminal-host { height: 320px; background: #0f1419; border-radius: var(--radius); padding: 0.4rem; overflow: hidden; }
+.terminal-host { height: clamp(320px, 45vh, 560px); min-height: 0; background: #0f1419; border-radius: var(--radius); padding: 0.4rem; overflow: hidden; }
 .terminal-host .xterm { height: 100%; }
+.terminal-host .xterm-viewport, .terminal-host .xterm-screen { height: 100% !important; }
+
+/* Quiz page: use the full viewport width and put feedback beside the question. */
+.container.wide { max-width: 1400px; }
+.quiz-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.quiz-body.has-feedback { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.quiz-body > .feedback { margin: 1rem 0; position: sticky; top: 4rem; max-height: calc(100vh - 5rem); overflow-y: auto; }
+@media (max-width: 900px) {
+  .quiz-body.has-feedback { grid-template-columns: minmax(0, 1fr); }
+  .quiz-body > .feedback { position: static; max-height: none; }
+}
