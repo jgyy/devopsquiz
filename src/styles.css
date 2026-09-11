@@ -156,8 +156,11 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
 .diagram { position: relative; }
 .diagram-expand { display: block; margin: 0.4rem 0 0 auto; font-size: 0.85rem; }
 .diagram-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.7); display: grid; place-items: center; padding: 1rem; }
-.diagram-overlay-body { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem 1rem 1rem; max-width: 95vw; max-height: 95vh; overflow: hidden; }
+.diagram-overlay-body { position: relative; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem 1rem 1rem; width: 95vw; height: 95vh; overflow: hidden; }
 .diagram-close { position: absolute; top: 0.6rem; right: 0.9rem; }
-/* Mermaid sets an inline max-width on the svg; !important is needed to override it. The svg scales to
-   fit both the viewport width and height (padding subtracted) so the overlay never scrolls. */
-.diagram-svg.large svg { max-width: calc(95vw - 2rem) !important; max-height: calc(95vh - 3.5rem); width: auto; height: auto; }
+/* The overlay body is a fixed 95vw x 95vh box and the svg fills it completely. Mermaid's svg has a
+   viewBox with the default preserveAspectRatio="xMidYMid meet", so the drawing scales to fit inside that
+   box in both directions (like object-fit: contain) and never needs to scroll. Mermaid also sets an
+   inline max-width; !important overrides it. */
+.diagram-svg.large { flex: 1; min-height: 0; display: flex; }
+.diagram-svg.large svg { max-width: none !important; width: 100%; height: 100%; margin: 0; }
