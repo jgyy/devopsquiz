@@ -1,0 +1,11 @@
+[
+  {
+    "id": "kubernetes-001",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder kubernetes question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

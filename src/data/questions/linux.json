@@ -1,0 +1,11 @@
+[
+  {
+    "id": "linux-001",
+    "domain": "linux",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder linux question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

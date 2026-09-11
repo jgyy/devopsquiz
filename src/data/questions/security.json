@@ -1,0 +1,11 @@
+[
+  {
+    "id": "security-001",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder security question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

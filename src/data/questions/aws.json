@@ -1,0 +1,11 @@
+[
+  {
+    "id": "aws-001",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder aws question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

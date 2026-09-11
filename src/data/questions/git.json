@@ -1,0 +1,11 @@
+[
+  {
+    "id": "git-001",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder git question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

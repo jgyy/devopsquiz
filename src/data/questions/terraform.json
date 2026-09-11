@@ -1,0 +1,11 @@
+[
+  {
+    "id": "terraform-001",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder terraform question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

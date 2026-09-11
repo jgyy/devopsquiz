@@ -1,0 +1,11 @@
+[
+  {
+    "id": "docker-001",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder docker question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

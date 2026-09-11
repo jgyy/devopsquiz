@@ -1,0 +1,11 @@
+[
+  {
+    "id": "cicd-001",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder cicd question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]

@@ -1,0 +1,11 @@
+[
+  {
+    "id": "networking-001",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Placeholder networking question, replaced in the content task.",
+    "explanation": "Placeholder.",
+    "answer": true
+  }
+]
