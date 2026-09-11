@@ -132,3 +132,11 @@ th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: u
 .diagram-source { border: 0; padding: 0; background: transparent; }
 .diagram-source.failed { opacity: 0.7; }
 .explain .reference { display: inline-block; margin-top: 0.6rem; }
+
+.terminal { padding: 0.75rem; }
+.terminal-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.terminal-bar .status-ready { color: var(--ok); }
+.terminal-bar .status-error { color: var(--bad); }
+.terminal-error { color: var(--bad); margin: 0 0 0.5rem; font-size: 0.9rem; }
+.terminal-host { height: 320px; background: #0f1419; border-radius: var(--radius); padding: 0.4rem; overflow: hidden; }
+.terminal-host .xterm { height: 100%; }
