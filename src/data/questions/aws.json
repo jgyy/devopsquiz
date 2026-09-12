@@ -1921,5 +1921,348 @@
       "alb",
       "health-checks"
     ]
+  },
+  {
+    "id": "aws-074",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An IAM role in a member account has an identity-based policy allowing `s3:PutObject` on all buckets. An AWS Organizations SCP attached to the account's OU allows only `s3:GetObject` for S3. What happens when the role calls `s3:PutObject`?",
+    "options": [
+      "The request succeeds because identity-based policies override SCPs within the account",
+      "The request is denied because SCPs set the maximum permissions for the account and the action is not allowed by the SCP",
+      "The request succeeds only if the bucket has no bucket policy",
+      "The request is denied only if the caller is the account root user"
+    ],
+    "optionNotes": [
+      "SCPs are a guardrail evaluated before identity policies; an identity-based Allow cannot exceed what the SCP permits.",
+      "SCPs define the maximum permissions available to principals in the account. If the SCP does not allow `s3:PutObject`, the action is implicitly denied regardless of the role's own policies.",
+      "Bucket policies are resource-based policies and cannot grant more than the SCP allows to principals inside the organization, so their absence changes nothing here.",
+      "SCPs apply to every principal in the member account including the root user; they do not apply only to root."
+    ],
+    "answer": 1,
+    "explanation": "Service control policies act as a permissions ceiling for all principals in a member account (including root). An action must be allowed by the SCP and by an identity or resource policy; if the SCP does not allow it, the request is implicitly denied.",
+    "example": "# SCP on the OU: only S3 reads are allowed for S3\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\"Effect\": \"Allow\", \"Action\": [\"s3:GetObject\", \"ec2:*\", \"logs:*\"], \"Resource\": \"*\"}\n  ]\n}\n# Role policy allows s3:PutObject, but:\naws s3 cp app.zip s3://releases/   # AccessDenied (explicit deny in a service control policy)",
+    "diagram": "flowchart TD\nR[\"Request: s3:PutObject\"] --> S[\"SCP allows action?\"]\nS -->|\"no\"| D[\"Implicit deny\"]\nS -->|\"yes\"| B[\"Permissions boundary allows?\"]\nB -->|\"yes\"| I[\"Identity or resource policy allows?\"]\nI -->|\"yes\"| A[\"Allow\"]\nI -->|\"no\"| D",
+    "reference": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html",
+    "tags": [
+      "iam",
+      "organizations",
+      "scp",
+      "policy-evaluation"
+    ]
+  },
+  {
+    "id": "aws-075",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A developer attaches a permissions boundary to a role they create. The boundary allows `s3:*` and `dynamodb:*`. The role's identity-based policy allows `s3:*` and `sqs:*`. Which actions can the role actually perform?",
+    "options": [
+      "`s3:*`, `dynamodb:*` and `sqs:*` (the union of both policies)",
+      "Only `s3:*` (the intersection of the boundary and the identity policy)",
+      "Only `dynamodb:*` because the boundary takes precedence",
+      "Nothing, because the two policies conflict"
+    ],
+    "optionNotes": [
+      "A boundary never grants permissions on its own and identity policies cannot exceed it, so the union is wrong.",
+      "The effective permissions are the intersection: an action must be allowed by both the permissions boundary and the identity-based policy. Only `s3:*` appears in both.",
+      "The boundary does not grant `dynamodb:*`; the role's identity policy must also allow it, and it does not.",
+      "Overlapping but different policies do not conflict; the evaluation simply yields the intersection."
+    ],
+    "answer": 1,
+    "explanation": "A permissions boundary caps the maximum permissions an identity-based policy can grant. The effective permissions are the intersection of the boundary and the identity-based policy, so here only S3 actions are allowed.",
+    "example": "aws iam create-role --role-name DevApp \\\n  --assume-role-policy-document file://trust.json \\\n  --permissions-boundary arn:aws:iam::123456789012:policy/DevBoundary\naws iam attach-role-policy --role-name DevApp --policy-arn arn:aws:iam::123456789012:policy/S3AndSQS\n# Effective: s3:* only. sqs:* is outside the boundary, dynamodb:* is not in the identity policy.",
+    "diagram": "flowchart LR\nB[\"Boundary: s3:* dynamodb:*\"] --> X[\"Intersection\"]\nP[\"Identity policy: s3:* sqs:*\"] --> X\nX --> E[\"Effective: s3:* only\"]\nP -.->|\"outside boundary\"| Q[\"sqs:* denied\"]\nB -.->|\"not granted by identity policy\"| D[\"dynamodb:* denied\"]",
+    "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html",
+    "tags": [
+      "iam",
+      "permissions-boundary",
+      "policy-evaluation"
+    ]
+  },
+  {
+    "id": "aws-076",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "EC2 instances in private subnets need to write to S3 without traversing a NAT gateway and without any data-processing charge for that traffic. Which VPC endpoint type should you create?",
+    "options": [
+      "An interface endpoint (AWS PrivateLink) for S3, which adds an ENI in each subnet",
+      "A gateway endpoint for S3, which adds a route to the subnet route tables at no hourly cost",
+      "A Transit Gateway attachment to the S3 service",
+      "An egress-only internet gateway"
+    ],
+    "optionNotes": [
+      "Interface endpoints for S3 exist and are useful for on-premises or cross-VPC access, but they bill hourly per AZ plus per GB, so they do not meet the no-charge requirement.",
+      "Gateway endpoints are available only for S3 and DynamoDB, are free, and work by adding a prefix-list route to the route table so traffic stays on the AWS network.",
+      "Transit Gateway connects VPCs and on-premises networks; it has no attachment type for S3.",
+      "An egress-only internet gateway provides outbound IPv6 access to the internet; it still routes traffic over the public S3 endpoints and does not remove the need for NAT for IPv4."
+    ],
+    "answer": 1,
+    "explanation": "Gateway endpoints (S3 and DynamoDB only) are free and work through route table entries targeting the service prefix list. Interface endpoints use PrivateLink ENIs and incur hourly and per-GB charges, which is why gateway endpoints are the default choice for S3 from within a VPC.",
+    "example": "aws ec2 create-vpc-endpoint \\\n  --vpc-id vpc-0abc123 \\\n  --vpc-endpoint-type Gateway \\\n  --service-name com.amazonaws.ap-southeast-1.s3 \\\n  --route-table-ids rtb-0private1 rtb-0private2\n# route table now has: pl-6fa54006 (S3 prefix list) -> vpce-0123abcd",
+    "diagram": "flowchart LR\nI[\"EC2 in private subnet\"] --> RT[\"Route table\"]\nRT -->|\"pl-xxxx S3 prefix list\"| GE[\"Gateway endpoint (free)\"]\nGE --> S3[\"Amazon S3\"]\nRT -.->|\"0.0.0.0/0\"| NAT[\"NAT gateway (per GB charge)\"]\nNAT -.-> S3",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html",
+    "tags": [
+      "vpc",
+      "vpc-endpoints",
+      "s3",
+      "privatelink"
+    ]
+  },
+  {
+    "id": "aws-077",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about connecting many VPCs together are correct? (Select all that apply.)",
+    "options": [
+      "VPC peering is not transitive: A peered with B and B peered with C does not let A reach C",
+      "AWS Transit Gateway acts as a regional hub so each VPC needs only one attachment to reach all others",
+      "VPC peering supports overlapping CIDR blocks between the two VPCs",
+      "Transit Gateway route tables can segment traffic, for example keeping dev and prod VPCs isolated",
+      "VPC peering requires a NAT gateway in each VPC"
+    ],
+    "optionNotes": [
+      "Peering is strictly point-to-point; you would need a full mesh of peering connections for every pair, which is why it scales poorly.",
+      "Transit Gateway is a hub-and-spoke router; VPCs, VPNs and Direct Connect gateways attach once and routing is centralised.",
+      "Peering cannot be established between VPCs with overlapping or matching IPv4 CIDR blocks; the routes would be ambiguous.",
+      "Each attachment can be associated with a specific TGW route table, so you can build isolated routing domains on one gateway.",
+      "Peering traffic is routed privately over the AWS backbone using route table entries; no NAT gateway is involved."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "VPC peering is one-to-one, non-transitive and requires non-overlapping CIDRs, so a mesh of N VPCs needs N*(N-1)/2 connections. Transit Gateway centralises routing with one attachment per VPC and supports multiple route tables for segmentation.",
+    "example": "# Attach a VPC to a transit gateway and route to it\naws ec2 create-transit-gateway-vpc-attachment \\\n  --transit-gateway-id tgw-0abc --vpc-id vpc-0prod --subnet-ids subnet-a subnet-b\naws ec2 create-route --route-table-id rtb-0prod \\\n  --destination-cidr-block 10.0.0.0/8 --transit-gateway-id tgw-0abc",
+    "diagram": "flowchart TD\nsubgraph P[\"Peering (mesh)\"]\nA[\"VPC A\"] --- B[\"VPC B\"]\nB --- C[\"VPC C\"]\nA --- C\nend\nsubgraph T[\"Transit Gateway (hub)\"]\nD[\"VPC D\"] --> TG[\"TGW route tables\"]\nE[\"VPC E\"] --> TG\nF[\"VPC F\"] --> TG\nend",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html",
+    "tags": [
+      "vpc",
+      "peering",
+      "transit-gateway",
+      "networking"
+    ]
+  },
+  {
+    "id": "aws-078",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which EC2 feature lets you pass a shell script or cloud-init directives that run automatically on first boot of an instance? (Two words, for example `user ____`)",
+    "answer": [
+      "user data",
+      "userdata",
+      "user-data",
+      "ec2 user data"
+    ],
+    "pattern": "^(ec2\\s*)?user[\\s_-]*data$",
+    "explanation": "EC2 user data is passed at launch (up to 16 KB) and is executed by cloud-init on first boot by default, making it the standard way to bootstrap packages, config and agents.",
+    "example": "aws ec2 run-instances --image-id ami-0abc --instance-type t3.micro \\\n  --user-data file://bootstrap.sh\n# bootstrap.sh\n#!/bin/bash\ndnf install -y nginx\nsystemctl enable --now nginx\n# check from inside the instance:\n# TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')\n# curl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/user-data",
+    "diagram": "flowchart LR\nL[\"run-instances --user-data\"] --> M[\"Stored in instance metadata\"]\nM --> CI[\"cloud-init on first boot\"]\nCI --> S[\"Runs script as root\"]\nS --> R[\"Packages, config, agents installed\"]\nCI -.->|\"later reboots\"| N[\"Not re-run by default\"]",
+    "reference": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html",
+    "tags": [
+      "ec2",
+      "user-data",
+      "cloud-init",
+      "bootstrap"
+    ]
+  },
+  {
+    "id": "aws-079",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You are migrating EBS volumes from `gp2` to `gp3` for a database that needs consistent 6,000 IOPS. What is the key operational difference to understand?",
+    "options": [
+      "`gp3` IOPS scale automatically with volume size at 3 IOPS per GiB, so you must provision a 2,000 GiB volume",
+      "`gp3` provides a 3,000 IOPS and 125 MiB/s baseline regardless of size, and extra IOPS and throughput are provisioned independently of capacity",
+      "`gp3` only supports up to 3,000 IOPS; you must move to `io2` for anything higher",
+      "`gp3` cannot be used as a root volume, so only data volumes can be migrated"
+    ],
+    "optionNotes": [
+      "The 3 IOPS per GiB scaling describes `gp2`; that coupling of performance to size is exactly what `gp3` removes.",
+      "`gp3` decouples performance from capacity: every volume gets 3,000 IOPS and 125 MiB/s, and you can provision up to 16,000 IOPS and 1,000 MiB/s independently.",
+      "`gp3` supports up to 16,000 IOPS; `io2` is needed only beyond that or for sub-millisecond latency and higher durability guarantees.",
+      "`gp3` is fully supported as a boot or root volume."
+    ],
+    "answer": 1,
+    "explanation": "With `gp2`, IOPS are tied to size (3 IOPS/GiB with burst). `gp3` gives a fixed 3,000 IOPS / 125 MiB/s baseline for any size and lets you buy additional IOPS (up to 16,000) and throughput (up to 1,000 MiB/s) separately, usually at lower cost.",
+    "example": "# In-place modification, no downtime\naws ec2 modify-volume --volume-id vol-0abc123 \\\n  --volume-type gp3 --iops 6000 --throughput 250\naws ec2 describe-volumes-modifications --volume-ids vol-0abc123   # ModificationState: optimizing",
+    "diagram": "flowchart LR\nG2[\"gp2\"] --> S[\"IOPS = 3 per GiB (burst to 3000)\"]\nS --> C[\"Need big volume for IOPS\"]\nG3[\"gp3\"] --> B[\"Baseline 3000 IOPS 125 MiB/s any size\"]\nB --> P[\"Provision IOPS up to 16000 and throughput up to 1000 MiB/s separately\"]\nP --> M[\"modify-volume in place\"]",
+    "reference": "https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html",
+    "tags": [
+      "ebs",
+      "gp3",
+      "storage",
+      "performance"
+    ]
+  },
+  {
+    "id": "aws-080",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "An S3 presigned URL grants temporary access to a specific object using the permissions of the identity that generated it, so a presigned URL created with credentials that lack `s3:GetObject` will fail when used.",
+    "answer": true,
+    "explanation": "A presigned URL embeds a signature from the creator's credentials; the request is evaluated as if that principal made it. The URL also expires (max 7 days with IAM user credentials, and no later than when temporary credentials expire).",
+    "example": "aws s3 presign s3://releases/app-1.4.2.zip --expires-in 3600\n# https://releases.s3.amazonaws.com/app-1.4.2.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...&X-Amz-Expires=3600&X-Amz-Signature=...\n# Anyone with the link can GET for one hour, with the signer's permissions.",
+    "diagram": "sequenceDiagram\nparticipant A as \"App (IAM role)\"\nparticipant U as \"User\"\nparticipant S as \"S3\"\nA->>A: sign URL with role creds, expiry 1h\nA-->>U: presigned URL\nU->>S: GET object with URL\nS->>S: verify signature, expiry, signer permissions\nS-->>U: object (or AccessDenied)",
+    "reference": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html",
+    "tags": [
+      "s3",
+      "presigned-url",
+      "security"
+    ]
+  },
+  {
+    "id": "aws-081",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A pod on EKS needs to read from a specific S3 bucket. Which approach follows AWS best practice for granting that permission?",
+    "options": [
+      "Attach the S3 policy to the worker node instance role so every pod on the node inherits it",
+      "Bake an IAM user's access keys into a Kubernetes Secret and mount it into the pod",
+      "Use IAM Roles for Service Accounts (IRSA) or EKS Pod Identity to map the pod's Kubernetes service account to a dedicated IAM role",
+      "Run the pod with `hostNetwork: true` so it can call IMDS and use the node's credentials"
+    ],
+    "optionNotes": [
+      "Node-role permissions are shared by every pod on the node, violating least privilege; AWS recommends restricting pods from using the node role at all.",
+      "Long-lived access keys in Secrets do not rotate, are easy to leak and are the pattern IRSA was built to replace.",
+      "IRSA (via the cluster OIDC provider and a service account annotation) and the newer Pod Identity agent both give each service account its own role with short-lived credentials.",
+      "Host networking exposes node credentials to the pod; this is the exact escalation path IMDSv2 hop limits and IRSA are designed to prevent."
+    ],
+    "answer": 2,
+    "explanation": "IRSA associates a Kubernetes service account with an IAM role through the cluster's OIDC identity provider; EKS Pod Identity achieves the same via the `eks-pod-identity-agent` add-on and `create-pod-identity-association` without OIDC trust policies. Both scope credentials to the pod rather than the node.",
+    "example": "# Pod Identity (newer, no OIDC trust policy needed)\naws eks create-pod-identity-association --cluster-name prod \\\n  --namespace billing --service-account reports \\\n  --role-arn arn:aws:iam::123456789012:role/ReportsS3Read\n# IRSA (annotation on the service account)\nkubectl annotate serviceaccount -n billing reports \\\n  eks.amazonaws.com/role-arn=arn:aws:iam::123456789012:role/ReportsS3Read",
+    "diagram": "flowchart LR\nP[\"Pod\"] --> SA[\"ServiceAccount: reports\"]\nSA -->|\"IRSA: OIDC token\"| STS[\"STS AssumeRoleWithWebIdentity\"]\nSA -->|\"Pod Identity agent\"| STS\nSTS --> R[\"IAM role ReportsS3Read\"]\nR --> S3[\"S3 bucket\"]\nN[\"Node instance role\"] -.->|\"avoid: shared by all pods\"| S3",
+    "reference": "https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html",
+    "tags": [
+      "eks",
+      "irsa",
+      "pod-identity",
+      "iam",
+      "kubernetes"
+    ]
+  },
+  {
+    "id": "aws-082",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A latency-sensitive Lambda function behind API Gateway shows p99 spikes of 2 seconds caused by cold starts, while the rest of the account has other functions competing for the account concurrency limit. Which configuration addresses the cold starts specifically?",
+    "options": [
+      "Set reserved concurrency on the function so it always has execution capacity available",
+      "Configure provisioned concurrency on a published version or alias so execution environments are pre-initialised",
+      "Increase the function timeout so cold starts no longer cause errors",
+      "Move the function into a VPC to keep it warm"
+    ],
+    "optionNotes": [
+      "Reserved concurrency guarantees a slice of the account limit and caps the function, but it does not pre-warm environments, so cold starts still occur.",
+      "Provisioned concurrency keeps a configured number of environments initialised (init code already run) so invocations up to that count start with no cold start; it must target a version or alias, not `$LATEST`.",
+      "A longer timeout only changes when Lambda kills the invocation; it does nothing about initialisation latency.",
+      "VPC attachment historically made cold starts worse (ENI setup); it has no warming effect."
+    ],
+    "answer": 1,
+    "explanation": "Provisioned concurrency pre-initialises a fixed number of execution environments for a version or alias, removing cold-start latency for invocations up to that count. Reserved concurrency is about guaranteeing and capping capacity, not warmth, and both can be combined (provisioned cannot exceed reserved).",
+    "example": "aws lambda publish-version --function-name checkout\naws lambda update-alias --function-name checkout --name live --function-version 7\naws lambda put-provisioned-concurrency-config \\\n  --function-name checkout --qualifier live --provisioned-concurrent-executions 20\n# Optional: scale it on a schedule with Application Auto Scaling",
+    "diagram": "flowchart TD\nI[\"Invocation\"] --> Q[\"Warm environment available?\"]\nQ -->|\"yes\"| H[\"Handler runs immediately\"]\nQ -->|\"no\"| C[\"Cold start: download, init runtime, run init code\"]\nC --> H\nPC[\"Provisioned concurrency = 20\"] --> W[\"20 environments pre-initialised on alias live\"]\nW --> Q\nRC[\"Reserved concurrency\"] -.->|\"caps and guarantees count, no warming\"| Q",
+    "reference": "https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html",
+    "tags": [
+      "lambda",
+      "concurrency",
+      "cold-start",
+      "serverless"
+    ]
+  },
+  {
+    "id": "aws-083",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "You are choosing between Amazon EventBridge and Amazon Kinesis Data Streams for an integration. Which statements are accurate? (Select all that apply.)",
+    "options": [
+      "EventBridge rules filter events by content patterns and route them to many targets such as Lambda, Step Functions and SQS",
+      "Kinesis Data Streams retains records in ordered shards so multiple consumers can replay them independently",
+      "EventBridge is the better fit for high-throughput clickstream ingestion where per-record ordering and replay are required",
+      "Kinesis consumers must manage checkpoints (or use Lambda event source mappings) to track their position in each shard",
+      "EventBridge can receive events from SaaS partners and from AWS services such as CloudTrail-recorded API calls"
+    ],
+    "optionNotes": [
+      "Rules use JSON event patterns and each rule can fan out to up to five targets, with input transformation.",
+      "Records stay in a shard in order for the retention period (24 hours default, up to 365 days), and each consumer reads at its own iterator position.",
+      "EventBridge is a serverless event bus with per-rule delivery and limited replay via archives; it is not designed for ordered, high-volume streaming ingestion. Kinesis is the right fit there.",
+      "Kinesis is pull-based; a consumer (KCL, Lambda ESM, Firehose) tracks sequence numbers per shard to resume correctly.",
+      "EventBridge has partner event sources (Datadog, Zendesk, etc.) and the default bus receives AWS service events, including API calls delivered via CloudTrail."
+    ],
+    "answer": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "explanation": "EventBridge is a rule-based event router for decoupling services and reacting to AWS or SaaS events. Kinesis Data Streams is an ordered, replayable streaming log for high-volume data where consumers manage their own read position.",
+    "example": "# EventBridge: react to an EC2 state change\naws events put-rule --name ec2-stopped \\\n  --event-pattern '{\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Instance State-change Notification\"],\"detail\":{\"state\":[\"stopped\"]}}'\n# Kinesis: ordered ingestion with partition key\naws kinesis put-record --stream-name clicks --partition-key user-42 --data '{\"page\":\"/cart\"}'",
+    "diagram": "flowchart LR\nsubgraph EB[\"EventBridge\"]\nE[\"Event\"] --> RU[\"Rule: JSON pattern\"]\nRU --> L[\"Lambda\"]\nRU --> SF[\"Step Functions\"]\nend\nsubgraph KS[\"Kinesis Data Streams\"]\nP[\"Producer\"] --> SH[\"Shard: ordered records, retained\"]\nSH --> C1[\"Consumer A (own position)\"]\nSH --> C2[\"Consumer B (own position)\"]\nend",
+    "reference": "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html",
+    "tags": [
+      "eventbridge",
+      "kinesis",
+      "streaming",
+      "event-driven",
+      "messaging"
+    ]
+  },
+  {
+    "id": "aws-084",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "AWS Systems Manager Session Manager lets you open an interactive shell to an EC2 instance without opening inbound port 22 in the security group, as long as the instance has the SSM Agent running and an instance profile with SSM permissions.",
+    "answer": true,
+    "explanation": "The SSM Agent makes an outbound connection to the Systems Manager service (directly or via VPC endpoints), so no inbound rules, bastion hosts or SSH keys are needed. Sessions are IAM-controlled and can be logged to CloudWatch Logs or S3.",
+    "example": "# Instance profile needs AmazonSSMManagedInstanceCore\naws ssm describe-instance-information --query 'InstanceInformationList[].{id:InstanceId,ping:PingStatus}'\naws ssm start-session --target i-0abc123def\n# Port forwarding to a private RDS through the instance\naws ssm start-session --target i-0abc123def \\\n  --document-name AWS-StartPortForwardingSessionToRemoteHost \\\n  --parameters '{\"host\":[\"db.internal\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"5432\"]}'",
+    "diagram": "flowchart LR\nO[\"Operator: aws ssm start-session\"] --> IAM[\"IAM: ssm:StartSession allowed?\"]\nIAM --> SSM[\"Systems Manager service\"]\nA[\"SSM Agent on instance\"] -->|\"outbound 443 only\"| SSM\nSSM --> SH[\"Interactive shell\"]\nSH --> LOG[\"Session log to CloudWatch or S3\"]\nSG[\"Security group: no inbound 22\"] -.-> A",
+    "reference": "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html",
+    "tags": [
+      "systems-manager",
+      "session-manager",
+      "ec2",
+      "security"
+    ]
+  },
+  {
+    "id": "aws-085",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Before updating a production CloudFormation stack, you want to see exactly which resources will be replaced (causing downtime) without applying anything. What should you do?",
+    "options": [
+      "Run `aws cloudformation validate-template`, which reports resource replacements",
+      "Create a change set with `create-change-set`, then inspect its `Changes` list for `Replacement: True` before executing it",
+      "Enable drift detection on the stack; the drift report lists replacements",
+      "Run `update-stack` with `--disable-rollback` so you can watch each resource change in the events"
+    ],
+    "optionNotes": [
+      "`validate-template` only checks template syntax and does not compare against the live stack, so it cannot know what will change.",
+      "A change set previews the update: each `ResourceChange` shows `Action` (Add, Modify, Remove) and, for Modify, `Replacement` (True, False or Conditional) plus the property causing it. Nothing is applied until `execute-change-set`.",
+      "Drift detection compares the live resources to the last-deployed template, not to a proposed new template, so it does not preview an update.",
+      "`update-stack` applies changes immediately; `--disable-rollback` only keeps failed resources in place and would leave production in a partially updated state."
+    ],
+    "answer": 1,
+    "explanation": "Change sets let you preview how proposed template or parameter changes affect existing resources, including whether a resource will be replaced (new physical ID) and which property triggers it. Review, then execute or delete the change set.",
+    "example": "aws cloudformation create-change-set --stack-name prod-api \\\n  --template-body file://template.yaml --change-set-name v42 --capabilities CAPABILITY_IAM\naws cloudformation describe-change-set --stack-name prod-api --change-set-name v42 \\\n  --query 'Changes[].ResourceChange.{id:LogicalResourceId,action:Action,replace:Replacement}'\n# [{\"id\":\"Db\",\"action\":\"Modify\",\"replace\":\"True\"}]  <- stop and reconsider\naws cloudformation execute-change-set --stack-name prod-api --change-set-name v42",
+    "diagram": "flowchart TD\nT[\"New template\"] --> CS[\"create-change-set\"]\nCS --> D[\"describe-change-set\"]\nD --> R[\"Replacement: True on Db?\"]\nR -->|\"yes\"| X[\"delete-change-set, fix template\"]\nR -->|\"no\"| E[\"execute-change-set\"]\nE --> U[\"Stack updated\"]",
+    "reference": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html",
+    "tags": [
+      "cloudformation",
+      "change-sets",
+      "iac",
+      "deployment"
+    ]
   }
 ]

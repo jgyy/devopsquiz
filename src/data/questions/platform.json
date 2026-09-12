@@ -629,5 +629,501 @@
     ],
     "id": "platform-024",
     "domain": "platform"
+  },
+  {
+    "id": "platform-025",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "An enabling team pairs with a stream-aligned team for six weeks to help it adopt distributed tracing, then steps away once the team is self-sufficient. In Team Topologies terms, which interaction mode is this?",
+    "options": [
+      "Collaboration",
+      "X-as-a-Service",
+      "Facilitating",
+      "Ticket-driven hand-off"
+    ],
+    "optionNotes": [
+      "Collaboration is two teams working closely together on a shared goal, usually to discover something new. It is deliberately short-lived but is not the coaching pattern described here.",
+      "X-as-a-Service is consuming a well-defined service with minimal coordination, which is how a mature platform is consumed, not how an enabling team works.",
+      "Correct. Facilitating is the mode where one team (typically an enabling team) helps another learn a capability, with the explicit goal of making itself unnecessary.",
+      "Ticket-driven hand-offs are an anti-pattern Team Topologies tries to remove; they are not one of the three interaction modes."
+    ],
+    "answer": 2,
+    "explanation": "Team Topologies defines three interaction modes: collaboration, X-as-a-Service and facilitating. Enabling teams mostly use facilitating: they coach a stream-aligned team through a capability gap for a bounded period and then disengage.",
+    "example": "# interaction modes in practice\nplatform team   <-- X-as-a-Service --  stream-aligned team (self-service API)\nenabling team   -- facilitating -->    stream-aligned team (6 week tracing enablement)\nplatform team   <-- collaboration -->  stream-aligned team (co-designing a new golden path)",
+    "diagram": "flowchart LR\n    EN[\"Enabling team\"] -->|\"facilitating (time boxed)\"| SA[\"Stream-aligned team\"]\n    SA -->|\"X-as-a-Service\"| PT[\"Platform team\"]\n    SA <-->|\"collaboration (discovery)\"| PT\n    EN -.->|\"disengages when capable\"| DONE[\"Team owns tracing\"]",
+    "reference": "https://teamtopologies.com/key-concepts",
+    "tags": [
+      "cnpa",
+      "team-topologies",
+      "interaction-modes"
+    ]
+  },
+  {
+    "id": "platform-026",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "Which of the following are the fundamental team types defined by Team Topologies? (Select all that apply.)",
+    "options": [
+      "Stream-aligned team",
+      "Platform team",
+      "DevOps team",
+      "Enabling team",
+      "Complicated-subsystem team",
+      "Site reliability team"
+    ],
+    "optionNotes": [
+      "Correct. Stream-aligned teams own a slice of the business domain end to end and are the primary team type.",
+      "Correct. Platform teams provide internal services that reduce the cognitive load of stream-aligned teams.",
+      "A standalone DevOps team is described as an anti-pattern (a new silo), not one of the four fundamental types.",
+      "Correct. Enabling teams help other teams acquire missing capabilities, usually through the facilitating interaction mode.",
+      "Correct. Complicated-subsystem teams own a part of the system that needs deep specialist knowledge, such as a video codec or a pricing engine.",
+      "SRE is an operating model that a team may adopt; it is not one of the four Team Topologies team types."
+    ],
+    "answer": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "explanation": "Team Topologies reduces organisational design to four team types: stream-aligned, platform, enabling and complicated-subsystem. Everything else, including a separate DevOps team, is treated as a variation or an anti-pattern.",
+    "example": "# typical shape in a mid-size org\n- 8 stream-aligned teams (checkout, search, payments, ...)\n- 1 platform team (Kubernetes, CI, observability as a service)\n- 1 enabling team (security champions, test automation coaching)\n- 1 complicated-subsystem team (fraud scoring model)",
+    "diagram": "flowchart TD\n    SA[\"Stream-aligned teams\"] -->|\"consume\"| PT[\"Platform team\"]\n    EN[\"Enabling team\"] -->|\"coach\"| SA\n    CS[\"Complicated-subsystem team\"] -->|\"provide component\"| SA\n    X[\"Separate DevOps team\"] -.->|\"anti-pattern\"| SA",
+    "reference": "https://teamtopologies.com/key-concepts",
+    "tags": [
+      "cnpa",
+      "team-topologies",
+      "org-design"
+    ]
+  },
+  {
+    "id": "platform-027",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team wants to measure developer productivity with the SPACE framework instead of relying only on DORA metrics. What does the `S` in SPACE stand for?",
+    "options": [
+      "Speed of delivery",
+      "Satisfaction and well-being",
+      "Stability of the platform",
+      "Story points completed"
+    ],
+    "optionNotes": [
+      "Speed is closer to the DORA lead-time metric; SPACE places flow measures under `Efficiency and flow`, not under S.",
+      "Correct. SPACE stands for Satisfaction and well-being, Performance, Activity, Communication and collaboration, Efficiency and flow.",
+      "Platform stability is an operational metric, not a SPACE dimension.",
+      "Story points are an activity count; SPACE explicitly warns against using a single activity metric as a productivity measure."
+    ],
+    "answer": 1,
+    "explanation": "SPACE (Forsgren et al.) describes five dimensions: Satisfaction and well-being, Performance, Activity, Communication and collaboration, and Efficiency and flow. The framework recommends combining metrics from several dimensions, mixing perceptual survey data with system data.",
+    "example": "# sample SPACE scorecard for the platform\nS: quarterly developer survey, platform NPS\nP: change failure rate of services on the golden path\nA: pipelines run per week (context only, never a target)\nC: time to get a PR reviewed across teams\nE: time from repo creation to first production deploy",
+    "diagram": "flowchart LR\n    S[\"Satisfaction and well-being\"] --> DX[\"Developer productivity\"]\n    P[\"Performance\"] --> DX\n    A[\"Activity\"] --> DX\n    C[\"Communication and collaboration\"] --> DX\n    E[\"Efficiency and flow\"] --> DX",
+    "reference": "https://queue.acm.org/detail.cfm?id=3454124",
+    "tags": [
+      "cnpa",
+      "space-framework",
+      "measurement"
+    ]
+  },
+  {
+    "id": "platform-028",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "The Thinnest Viable Platform (TVP) concept from Team Topologies states that a platform should always be built on Kubernetes with the smallest possible set of add-ons.",
+    "answer": false,
+    "explanation": "A Thinnest Viable Platform is the smallest set of APIs, documentation and tools needed to accelerate the teams that use it. It can be as simple as a wiki page listing approved services and how to use them; the technology stack is not part of the definition.",
+    "example": "# a valid TVP for a 30-person company\n- Wiki page: how to get a repo, a pipeline and a namespace\n- Terraform module: standard service with logging and alerting\n- Slack channel with a rota for platform questions\n# grow it only when the wiki no longer scales",
+    "diagram": "flowchart LR\n    N[\"Need: teams blocked on infra\"] --> T[\"TVP: docs plus a few curated services\"]\n    T --> F[\"Feedback from teams\"]\n    F -->|\"only when justified\"| G[\"Grow: self-service APIs, portal\"]\n    G --> F",
+    "reference": "https://teamtopologies.com/key-concepts-content/what-is-a-thinnest-viable-platform-tvp",
+    "tags": [
+      "cnpa",
+      "thinnest-viable-platform",
+      "team-topologies"
+    ]
+  },
+  {
+    "id": "platform-029",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team defines a cluster-scoped `XPostgreSQLInstance` composite resource with Crossplane. Application teams should be able to request one from inside their own namespace without cluster-wide permissions. Which Crossplane mechanism provides this?",
+    "options": [
+      "Set `spec.claimNames` in the `CompositeResourceDefinition` so teams create a namespaced claim",
+      "Create a `ProviderConfig` in each team namespace",
+      "Grant teams `create` on the composite resource with a `ClusterRole`",
+      "Add a `Composition` per namespace"
+    ],
+    "optionNotes": [
+      "Correct. Declaring `claimNames` in the XRD generates a namespaced claim kind (for example `PostgreSQLInstance`) that binds to a cluster-scoped composite resource.",
+      "A `ProviderConfig` holds provider credentials and is referenced by managed resources; it does not give teams a namespaced request API.",
+      "This works but it exposes the cluster-scoped XR directly and requires cluster-wide RBAC, which is exactly what the question wants to avoid.",
+      "Compositions describe how to build an XR; they are cluster-scoped and are not tied to namespaces."
+    ],
+    "answer": 0,
+    "explanation": "Crossplane composite resources (XRs) are cluster-scoped. Adding `claimNames` to the XRD creates a namespaced claim kind; a claim creates and binds to an XR, so teams can be given ordinary namespaced RBAC.",
+    "example": "apiVersion: apiextensions.crossplane.io/v1\nkind: CompositeResourceDefinition\nmetadata:\n  name: xpostgresqlinstances.db.example.org\nspec:\n  group: db.example.org\n  names:\n    kind: XPostgreSQLInstance\n    plural: xpostgresqlinstances\n  claimNames:\n    kind: PostgreSQLInstance\n    plural: postgresqlinstances\n  versions: [...]",
+    "diagram": "flowchart LR\n    DEV[\"App team (namespace team-a)\"] -->|\"creates\"| CL[\"Claim: PostgreSQLInstance\"]\n    CL -->|\"binds to\"| XR[\"Composite: XPostgreSQLInstance (cluster scoped)\"]\n    XR -->|\"via Composition\"| MR[\"Managed resources: RDS instance, subnet group\"]\n    MR --> AWS[\"Cloud provider\"]",
+    "reference": "https://docs.crossplane.io/latest/concepts/claims/",
+    "tags": [
+      "cnpe",
+      "crossplane",
+      "claims"
+    ]
+  },
+  {
+    "id": "platform-030",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "In a Crossplane `Composition`, which `spec` field names the composite resource `apiVersion` and `kind` that the Composition is allowed to build?",
+    "answer": [
+      "compositeTypeRef",
+      "spec.compositeTypeRef",
+      ".spec.compositeTypeRef"
+    ],
+    "pattern": "^\\.?(spec\\.)?compositeTypeRef$",
+    "explanation": "`spec.compositeTypeRef` links a Composition to exactly one XR type by `apiVersion` and `kind`. Crossplane selects among multiple Compositions for the same XR type using `compositionRef`, `compositionSelector` labels or the XRD default.",
+    "example": "apiVersion: apiextensions.crossplane.io/v1\nkind: Composition\nmetadata:\n  name: postgres-aws-small\n  labels:\n    provider: aws\n    size: small\nspec:\n  compositeTypeRef:\n    apiVersion: db.example.org/v1alpha1\n    kind: XPostgreSQLInstance\n  mode: Pipeline\n  pipeline:\n    - step: patch-and-transform\n      functionRef:\n        name: function-patch-and-transform",
+    "diagram": "flowchart TD\n    XRD[\"XRD: XPostgreSQLInstance\"] --> C1[\"Composition aws-small\"]\n    XRD --> C2[\"Composition gcp-large\"]\n    C1 -->|\"compositeTypeRef\"| XRD\n    XR[\"XR with compositionSelector size=small\"] -->|\"matches\"| C1",
+    "reference": "https://docs.crossplane.io/latest/concepts/compositions/",
+    "tags": [
+      "cnpe",
+      "crossplane",
+      "compositions"
+    ]
+  },
+  {
+    "id": "platform-031",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team wants Crossplane to bring an existing, hand-built RDS instance under observation so its status appears in the cluster, but Crossplane must never modify or delete it. Which configuration achieves this?",
+    "options": [
+      "Set the `crossplane.io/external-name` annotation to the instance identifier and `managementPolicies: [\"Observe\"]`",
+      "Set `deletionPolicy: Orphan` and leave `spec.forProvider` empty",
+      "Apply the managed resource with `kubectl apply --server-side --force-conflicts`",
+      "Set `managementPolicies: [\"*\"]` and copy every attribute of the instance into `spec.forProvider`"
+    ],
+    "optionNotes": [
+      "Correct. The external-name annotation tells the provider which real resource to look at, and the `Observe` management policy makes Crossplane read-only for that resource.",
+      "`deletionPolicy: Orphan` only prevents deletion; Crossplane would still try to create or update the resource to match `spec.forProvider`.",
+      "Server-side apply affects how the Kubernetes object is written and has nothing to do with the provider's behaviour towards the cloud resource.",
+      "`*` is the default full-management policy; any drift between the spec and reality would be corrected by Crossplane, which the team wants to avoid."
+    ],
+    "answer": 0,
+    "explanation": "Managed resources support `managementPolicies` (Observe, Create, Update, Delete, LateInitialize, or `*`). Combining the `crossplane.io/external-name` annotation with `Observe` imports an existing resource in read-only mode; adding `Update` later lets the team take control incrementally.",
+    "example": "apiVersion: rds.aws.upbound.io/v1beta1\nkind: Instance\nmetadata:\n  name: legacy-orders-db\n  annotations:\n    crossplane.io/external-name: orders-prod-01\nspec:\n  managementPolicies: [\"Observe\"]\n  forProvider:\n    region: eu-west-1\n  providerConfigRef:\n    name: aws-prod",
+    "diagram": "flowchart LR\n    MR[\"Managed resource with external-name\"] -->|\"Observe only\"| P[\"Crossplane provider\"]\n    P -->|\"describe\"| RDS[\"Existing RDS orders-prod-01\"]\n    RDS -->|\"status.atProvider\"| MR\n    P -.-x|\"no create, update or delete\"| RDS",
+    "reference": "https://docs.crossplane.io/latest/concepts/managed-resources/",
+    "tags": [
+      "cnpe",
+      "crossplane",
+      "management-policies"
+    ]
+  },
+  {
+    "id": "platform-032",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team using Kratix wants to offer `Redis` as a self-service capability. Which Kratix resource do they install on the platform cluster to declare the request API, the dependencies to pre-install on worker clusters, and the workflow that fulfils each request?",
+    "options": [
+      "Promise",
+      "Destination",
+      "Composition",
+      "Blueprint"
+    ],
+    "optionNotes": [
+      "Correct. A Promise bundles an `api` (a CRD), `dependencies` (resources scheduled to Destinations) and `workflows` (pipelines run on promise install and on each resource request).",
+      "A Destination represents a cluster or other target where Kratix schedules workloads; it does not define a service.",
+      "Composition is a Crossplane concept, not a Kratix one.",
+      "Blueprint is not a Kratix resource kind."
+    ],
+    "answer": 0,
+    "explanation": "In Kratix, a Promise is the unit a platform team publishes. When a user creates a resource request against the Promise's API, the Promise workflow pipeline runs and writes the resulting manifests to a State Store, from where GitOps tooling applies them to a Destination.",
+    "example": "apiVersion: platform.kratix.io/v1alpha1\nkind: Promise\nmetadata:\n  name: redis\nspec:\n  api:\n    apiVersion: apiextensions.k8s.io/v1\n    kind: CustomResourceDefinition\n    metadata:\n      name: redis.marketplace.kratix.io\n    spec: {...}\n  workflows:\n    resource:\n      configure:\n        - apiVersion: platform.kratix.io/v1alpha1\n          kind: Pipeline\n          metadata:\n            name: instance-configure\n          spec:\n            containers:\n              - name: redis-configure\n                image: ghcr.io/example/redis-configure:v1",
+    "diagram": "flowchart LR\n    PT[\"Platform team\"] -->|\"installs\"| PR[\"Promise: redis\"]\n    DEV[\"Developer\"] -->|\"creates resource request\"| PR\n    PR -->|\"runs workflow pipeline\"| SS[\"State store (git or bucket)\"]\n    SS -->|\"GitOps sync\"| DEST[\"Destination cluster\"]",
+    "reference": "https://docs.kratix.io/main/reference/promises/intro",
+    "tags": [
+      "cnpe",
+      "kratix",
+      "self-service"
+    ]
+  },
+  {
+    "id": "platform-033",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A developer writes a Score workload file that declares `resources.db.type: postgres` and injects `${resources.db.host}` into an environment variable. Who or what turns that abstract resource into a real database?",
+    "options": [
+      "The Score implementation (for example `score-compose`, `score-k8s` or a platform orchestrator) resolves it with its configured provisioners",
+      "Kubernetes automatically creates a StatefulSet named `db` when the workload is applied",
+      "The container image must bundle a PostgreSQL server for the placeholder to resolve",
+      "The developer must add the connection string under `resources.db.params` before deploying"
+    ],
+    "optionNotes": [
+      "Correct. Score is a platform-agnostic workload spec; each implementation maps resource types to environment-specific provisioners, so the same file yields a Docker Compose service locally and a managed database in production.",
+      "Kubernetes has no knowledge of Score; a Score implementation must first translate the file into manifests.",
+      "Bundling the database into the image defeats the purpose of declaring a dependency and is not how placeholders are resolved.",
+      "Hard-coding credentials in the workload file breaks portability; `params` carries hints such as size, not the connection details."
+    ],
+    "answer": 0,
+    "explanation": "Score separates what a workload needs from how each environment provides it. The `resources` section declares dependencies by type, and the implementation's provisioners create or look up the concrete resource and fill in placeholders such as `${resources.db.host}`.",
+    "example": "# score.yaml\napiVersion: score.dev/v1b1\nmetadata:\n  name: orders\ncontainers:\n  main:\n    image: ghcr.io/acme/orders:1.4.0\n    variables:\n      DB_HOST: ${resources.db.host}\n      DB_NAME: ${resources.db.name}\nresources:\n  db:\n    type: postgres\n# local:  score-compose init && score-compose generate score.yaml\n# k8s:    score-k8s init && score-k8s generate score.yaml",
+    "diagram": "flowchart LR\n    S[\"score.yaml (resources.db: postgres)\"] --> SC[\"score-compose\"]\n    S --> SK[\"score-k8s or orchestrator\"]\n    SC -->|\"provisioner\"| PG1[\"postgres container in compose\"]\n    SK -->|\"provisioner\"| PG2[\"managed database plus Secret\"]",
+    "reference": "https://docs.score.dev/docs/score-specification/score-spec-reference/",
+    "tags": [
+      "cnpe",
+      "score",
+      "workload-spec"
+    ]
+  },
+  {
+    "id": "platform-034",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In Cluster API, which resource kind defines a reusable cluster template (control plane and worker classes) that a `Cluster` references through `spec.topology.class`?",
+    "answer": [
+      "ClusterClass",
+      "cluster class",
+      "clusterclass"
+    ],
+    "pattern": "^cluster\\s*class$",
+    "explanation": "`ClusterClass` lets a platform team publish a managed topology once and stamp out many clusters from it. Each `Cluster` sets `spec.topology.class` plus variables such as version and worker counts, and changes to the class roll out to all clusters that use it.",
+    "example": "apiVersion: cluster.x-k8s.io/v1beta1\nkind: Cluster\nmetadata:\n  name: team-a-dev\nspec:\n  topology:\n    class: standard-aws\n    version: v1.30.4\n    controlPlane:\n      replicas: 3\n    workers:\n      machineDeployments:\n        - class: default-worker\n          name: md-0\n          replicas: 4",
+    "diagram": "flowchart TD\n    CC[\"ClusterClass standard-aws\"] --> C1[\"Cluster team-a-dev\"]\n    CC --> C2[\"Cluster team-b-prod\"]\n    C1 --> CP[\"KubeadmControlPlane\"]\n    C1 --> MD[\"MachineDeployment md-0\"]\n    CC -.->|\"class change rolls out\"| C2",
+    "reference": "https://cluster-api.sigs.k8s.io/tasks/experimental-features/cluster-class/",
+    "tags": [
+      "cnpe",
+      "cluster-api",
+      "clusterclass"
+    ]
+  },
+  {
+    "id": "platform-035",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team runs the Hierarchical Namespace Controller (HNC). A team lead with admin rights only in namespace `team-a` runs `kubectl hns create team-a-dev -n team-a`. What happens?",
+    "options": [
+      "A `SubnamespaceAnchor` is created in `team-a`, HNC creates namespace `team-a-dev` as its child, and RoleBindings from `team-a` propagate into it",
+      "The command fails because creating namespaces always needs cluster-admin",
+      "A vCluster named `team-a-dev` is started inside `team-a`",
+      "Namespace `team-a-dev` is created but stays isolated with no inherited RBAC"
+    ],
+    "optionNotes": [
+      "Correct. Subnamespace anchors let namespace admins create child namespaces without cluster-level permissions, and HNC propagates RoleBindings, NetworkPolicies and other configured object types from parent to child.",
+      "That is exactly the limitation HNC removes: the user only needs permission to create `SubnamespaceAnchor` objects in the parent.",
+      "HNC creates ordinary Kubernetes namespaces, not virtual clusters.",
+      "Propagation of RBAC and other configured kinds from the parent is the whole point of the hierarchy."
+    ],
+    "answer": 0,
+    "explanation": "HNC adds a tree structure to namespaces. Creating a `SubnamespaceAnchor` in a parent makes HNC create the child namespace and propagate policy objects downward, so teams can self-serve environments while the platform team keeps guardrails at the top of the tree.",
+    "example": "$ kubectl hns create team-a-dev -n team-a\nSuccessfully created \"team-a-dev\" subnamespace anchor in \"team-a\" namespace\n$ kubectl hns tree team-a\nteam-a\n└── [s] team-a-dev\n$ kubectl get rolebinding -n team-a-dev   # propagated from team-a",
+    "diagram": "flowchart TD\n    ORG[\"org root namespace\"] --> TA[\"team-a\"]\n    TA -->|\"SubnamespaceAnchor\"| DEV[\"team-a-dev\"]\n    TA -->|\"SubnamespaceAnchor\"| STG[\"team-a-staging\"]\n    RB[\"RoleBinding and NetworkPolicy in team-a\"] -.->|\"propagate\"| DEV\n    RB -.->|\"propagate\"| STG",
+    "reference": "https://github.com/kubernetes-sigs/hierarchical-namespaces/blob/master/docs/user-guide/concepts.md",
+    "tags": [
+      "cnpe",
+      "hnc",
+      "multi-tenancy"
+    ]
+  },
+  {
+    "id": "platform-036",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team writes an OPA Gatekeeper `ConstraintTemplate` requiring an `owner` label on every Deployment. They want violations reported in the audit results and in `kubectl` warnings first, and only block requests after teams have had time to fix existing workloads. What should they set on the `Constraint`?",
+    "options": [
+      "`spec.enforcementAction: dryrun` now (or `warn`), switching to `deny` later",
+      "`spec.validationFailureAction: Audit` now, switching to `Enforce` later",
+      "Start Gatekeeper with `--disable-admission` until the cleanup is done",
+      "Leave `enforcementAction` at its default and rely on the audit controller only"
+    ],
+    "optionNotes": [
+      "Correct. `dryrun` records violations in the audit status without rejecting requests; `warn` additionally returns an admission warning to the client. Both let the team measure and communicate before flipping to `deny`.",
+      "`validationFailureAction` is Kyverno's field, not Gatekeeper's.",
+      "Disabling the admission webhook removes every constraint, including ones that must stay enforced.",
+      "The default `enforcementAction` is `deny`, so this would immediately block non-compliant Deployments."
+    ],
+    "answer": 0,
+    "explanation": "Gatekeeper constraints support `enforcementAction` values `deny` (default), `dryrun` and `warn`. Audit periodically scans existing resources regardless of the action, so `dryrun` or `warn` gives a full picture of violations before enforcement starts.",
+    "example": "apiVersion: constraints.gatekeeper.sh/v1beta1\nkind: K8sRequiredLabels\nmetadata:\n  name: deployments-must-have-owner\nspec:\n  enforcementAction: warn\n  match:\n    kinds:\n      - apiGroups: [\"apps\"]\n        kinds: [\"Deployment\"]\n  parameters:\n    labels: [\"owner\"]\n# kubectl get k8srequiredlabels deployments-must-have-owner -o jsonpath='{.status.totalViolations}'",
+    "diagram": "flowchart LR\n    CT[\"ConstraintTemplate (Rego)\"] --> C[\"Constraint enforcementAction: warn\"]\n    REQ[\"Deployment without owner\"] --> WH[\"Admission webhook\"]\n    WH -->|\"warn: admitted with warning\"| API[\"API server\"]\n    AUD[\"Audit controller\"] -->|\"status.violations\"| C\n    C -.->|\"later: deny\"| WH",
+    "reference": "https://open-policy-agent.github.io/gatekeeper/website/docs/violations/",
+    "tags": [
+      "cnpe",
+      "gatekeeper",
+      "policy-as-code"
+    ]
+  },
+  {
+    "id": "platform-037",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are rule types that can appear inside a Kyverno `ClusterPolicy` rule? (Select all that apply.)",
+    "options": [
+      "validate",
+      "mutate",
+      "generate",
+      "verifyImages",
+      "enforce",
+      "alert"
+    ],
+    "optionNotes": [
+      "Correct. `validate` rules accept or reject resources using a pattern, deny condition or CEL expression.",
+      "Correct. `mutate` rules patch resources on admission (or existing resources with `targets`).",
+      "Correct. `generate` rules create additional resources, such as a default NetworkPolicy when a Namespace appears.",
+      "Correct. `verifyImages` rules check image signatures and attestations, typically with Sigstore cosign or Notary.",
+      "`Enforce` is a value of `validationFailureAction` (alongside `Audit`), not a rule type.",
+      "Kyverno surfaces results through PolicyReports; there is no `alert` rule type."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "A Kyverno rule declares exactly one of `validate`, `mutate`, `generate` or `verifyImages`. Cleanup is handled by a separate `ClusterCleanupPolicy` kind, and enforcement mode is a policy-level setting rather than a rule type.",
+    "example": "apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: require-owner-label\nspec:\n  validationFailureAction: Audit\n  rules:\n    - name: check-owner\n      match:\n        any:\n          - resources:\n              kinds: [\"Deployment\"]\n      validate:\n        message: \"label owner is required\"\n        pattern:\n          metadata:\n            labels:\n              owner: \"?*\"",
+    "diagram": "flowchart TD\n    CP[\"ClusterPolicy\"] --> R[\"rule\"]\n    R --> V[\"validate\"]\n    R --> M[\"mutate\"]\n    R --> G[\"generate\"]\n    R --> VI[\"verifyImages\"]\n    CP -.->|\"policy level\"| FA[\"validationFailureAction: Audit or Enforce\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/",
+    "tags": [
+      "cnpe",
+      "kyverno",
+      "policy-as-code"
+    ]
+  },
+  {
+    "id": "platform-038",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team uses a Kyverno `generate` rule to create a default-deny `NetworkPolicy` in every new Namespace and sets `synchronize: true`. A tenant later deletes the generated NetworkPolicy from their namespace. What happens?",
+    "options": [
+      "Kyverno recreates the NetworkPolicy and keeps it in sync with the rule's definition",
+      "Nothing; generate rules only fire once when the trigger resource is created",
+      "The Namespace is deleted because the generated resource is its owner",
+      "Kyverno marks the Namespace as non-compliant in a PolicyReport but does not restore the object"
+    ],
+    "optionNotes": [
+      "Correct. With `synchronize: true` Kyverno treats the generated resource as managed: it is recreated if deleted and updated if the rule's data changes, and it is removed when the trigger is deleted.",
+      "That describes `synchronize: false`, where the generated object is created once and then left alone.",
+      "Ownership runs the other way: the generated resource is linked to the trigger, and deleting the child never deletes the parent.",
+      "PolicyReports are produced by validate rules; generate rules with synchronize actively reconcile instead of just reporting."
+    ],
+    "answer": 0,
+    "explanation": "Kyverno `generate` rules create resources in response to a trigger (here, a Namespace). `synchronize: true` makes Kyverno continuously reconcile the generated resource so tenants cannot remove platform guardrails by deleting them.",
+    "example": "apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: default-deny-per-namespace\nspec:\n  rules:\n    - name: generate-default-deny\n      match:\n        any:\n          - resources:\n              kinds: [\"Namespace\"]\n      generate:\n        apiVersion: networking.k8s.io/v1\n        kind: NetworkPolicy\n        name: default-deny-ingress\n        namespace: \"{{request.object.metadata.name}}\"\n        synchronize: true\n        data:\n          spec:\n            podSelector: {}\n            policyTypes: [\"Ingress\"]",
+    "diagram": "flowchart LR\n    NS[\"New Namespace\"] -->|\"trigger\"| KY[\"Kyverno generate rule\"]\n    KY -->|\"creates\"| NP[\"NetworkPolicy default-deny-ingress\"]\n    T[\"Tenant deletes NetworkPolicy\"] --> KY\n    KY -->|\"synchronize: true, recreate\"| NP",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/generate/",
+    "tags": [
+      "cnpe",
+      "kyverno",
+      "generate"
+    ]
+  },
+  {
+    "id": "platform-039",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A Kyverno `verifyImages` rule only checks image signatures; with default settings it never modifies the Pod spec that is admitted.",
+    "answer": false,
+    "explanation": "By default `verifyImages` rules have `mutateDigest: true`, so after a successful verification Kyverno rewrites the image reference from a tag to the immutable digest that was verified. This prevents a tag from being repointed after admission; set `mutateDigest: false` if the mutation is unwanted.",
+    "example": "apiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: verify-acme-images\nspec:\n  validationFailureAction: Enforce\n  rules:\n    - name: cosign-keyless\n      match:\n        any:\n          - resources:\n              kinds: [\"Pod\"]\n      verifyImages:\n        - imageReferences: [\"ghcr.io/acme/*\"]\n          mutateDigest: true   # default\n          attestors:\n            - entries:\n                - keyless:\n                    subject: \"https://github.com/acme/*\"\n                    issuer: \"https://token.actions.githubusercontent.com\"",
+    "diagram": "flowchart LR\n    POD[\"Pod image ghcr.io/acme/api:1.2\"] --> KY[\"Kyverno verifyImages\"]\n    KY -->|\"fetch signature\"| REG[\"Registry and Rekor\"]\n    KY -->|\"verified\"| MUT[\"mutateDigest: rewrite to sha256 digest\"]\n    MUT --> API[\"Admitted Pod\"]\n    KY -->|\"unverified\"| DENY[\"Rejected\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/verify-images/",
+    "tags": [
+      "cnpe",
+      "kyverno",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "platform-040",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team offers ephemeral preview environments. A developer opens a pull request and a full environment is created at `pr-482.preview.example.com`. When is that environment normally destroyed?",
+    "options": [
+      "When the pull request is merged or closed",
+      "At the next scheduled nightly cleanup, regardless of PR state",
+      "Only when the developer runs a manual teardown command",
+      "Never; preview environments are promoted to become staging"
+    ],
+    "optionNotes": [
+      "Correct. Preview environments are tied to the lifetime of the change; closing or merging the PR triggers automatic teardown so cost and drift stay bounded.",
+      "Some platforms add a TTL as a safety net, but the primary trigger is the PR lifecycle, not a fixed nightly schedule.",
+      "Manual teardown is the failure mode ephemeral environments are designed to eliminate.",
+      "Preview environments are disposable; staging is a long-lived environment with its own promotion flow."
+    ],
+    "answer": 0,
+    "explanation": "Ephemeral (preview) environments are created per branch or pull request and deleted automatically when the change is merged or abandoned. Tools such as the Argo CD ApplicationSet pull request generator or GitHub Actions environments implement this lifecycle.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: previews\nspec:\n  generators:\n    - pullRequest:\n        github:\n          owner: acme\n          repo: shop\n          labels: [\"preview\"]\n        requeueAfterSeconds: 60\n  template:\n    metadata:\n      name: \"shop-pr-{{number}}\"\n    spec:\n      destination:\n        namespace: \"pr-{{number}}\"\n        server: https://kubernetes.default.svc\n      syncPolicy:\n        automated:\n          prune: true",
+    "diagram": "flowchart LR\n    PR[\"PR opened\"] --> GEN[\"ApplicationSet PR generator\"]\n    GEN --> ENV[\"Namespace pr-482 plus ingress\"]\n    ENV --> URL[\"pr-482.preview.example.com\"]\n    MERGE[\"PR merged or closed\"] --> GEN\n    GEN -->|\"prune\"| DEL[\"Environment deleted\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/",
+    "tags": [
+      "cnpe",
+      "preview-environments",
+      "environments"
+    ]
+  },
+  {
+    "id": "platform-041",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A platform team wants to introduce showback for tenants on a shared Kubernetes cluster before moving to chargeback. Which statements are correct? (Select all that apply.)",
+    "options": [
+      "Showback reports each team's share of cost for visibility; chargeback actually transfers the cost to the team's budget",
+      "Costs must be allocated with a consistent key such as namespace or a mandatory `team` label",
+      "Shared platform costs (monitoring, ingress, control plane) and idle capacity need an explicit distribution rule",
+      "Showback requires finance to issue an internal invoice to each team every month",
+      "Tenants who see their showback numbers are not expected to change behaviour until chargeback begins"
+    ],
+    "optionNotes": [
+      "Correct. The FinOps Framework distinguishes showback (informational reporting) from chargeback (financial accountability through internal billing).",
+      "Correct. Without a reliable allocation dimension, a large share of spend ends up unallocated and the report loses credibility.",
+      "Correct. Shared and idle costs must be apportioned (evenly, proportionally, or absorbed by the platform) and the rule should be documented.",
+      "Invoicing is a chargeback activity; showback stops at reporting.",
+      "The purpose of showback is to drive behaviour through visibility; many organisations never move to chargeback at all."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Showback makes the cost of platform consumption visible per team without moving money; chargeback bills teams for it. Both rely on an allocation strategy (labels, namespaces) and an agreed way to spread shared and idle costs.",
+    "example": "# OpenCost allocation query, per namespace, last 7 days\ncurl -s 'http://opencost:9090/allocation?window=7d&aggregate=namespace' | jq '.data[0] | to_entries[] | {ns: .key, total: .value.totalCost}'\n# label-based instead: aggregate=label:team\n# shared costs: shareNamespaces=kube-system,monitoring&shareIdle=true",
+    "diagram": "flowchart LR\n    USE[\"Usage by namespace or team label\"] --> ALLOC[\"Allocation engine (OpenCost)\"]\n    SHARED[\"Shared and idle cost rule\"] --> ALLOC\n    ALLOC --> SB[\"Showback report per team\"]\n    SB -->|\"optional next step\"| CB[\"Chargeback to team budget\"]",
+    "reference": "https://www.finops.org/framework/capabilities/invoicing-chargeback/",
+    "tags": [
+      "cnpe",
+      "finops",
+      "showback"
+    ]
+  },
+  {
+    "id": "platform-042",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "Dev Container Features are reusable, self-contained units of installation code that a `devcontainer.json` file references by OCI registry reference (for example `ghcr.io/devcontainers/features/kubectl-helm-minikube:1`) so the same tooling is layered onto any base image.",
+    "answer": true,
+    "explanation": "Features are published to OCI registries and listed under the `features` key of `devcontainer.json`. They run after the base image is built, so a platform team can maintain a small set of Features (CLI tools, credentials helpers) and let teams pick any compatible base image.",
+    "example": "// .devcontainer/devcontainer.json\n{\n  \"image\": \"mcr.microsoft.com/devcontainers/base:ubuntu\",\n  \"features\": {\n    \"ghcr.io/devcontainers/features/kubectl-helm-minikube:1\": {},\n    \"ghcr.io/devcontainers/features/terraform:1\": { \"version\": \"1.9\" },\n    \"ghcr.io/acme/features/platform-cli:2\": {}\n  },\n  \"postCreateCommand\": \"platform login --sso\"\n}",
+    "diagram": "flowchart LR\n    IMG[\"Base image\"] --> F1[\"Feature: kubectl-helm-minikube\"]\n    F1 --> F2[\"Feature: terraform\"]\n    F2 --> F3[\"Feature: acme platform-cli\"]\n    F3 --> DC[\"Dev container ready\"]\n    JSON[\"devcontainer.json features key\"] -.-> F1",
+    "reference": "https://containers.dev/implementors/features/",
+    "tags": [
+      "cnpe",
+      "dev-containers",
+      "developer-experience"
+    ]
   }
 ]

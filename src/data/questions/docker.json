@@ -1545,5 +1545,440 @@
     "tags": [
       "cli"
     ]
+  },
+  {
+    "id": "docker-060",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `.dockerignore` file placed next to a Dockerfile?",
+    "explanation": "`.dockerignore` excludes matching paths from the build context sent to the builder, which keeps builds fast, keeps secrets and junk like `.git` or `node_modules` out of the image, and avoids needless cache invalidation.",
+    "example": "# .dockerignore\n.git\nnode_modules\n*.log\n.env\nDockerfile*\n\n# smaller context: 'sending build context' is now fast\ndocker build -t myapp .",
+    "diagram": "flowchart LR\n  D[\"Project directory\"] --> I[\".dockerignore filter\"]\n  I -->|\"excluded\"| X[\".git, node_modules, .env\"]\n  I -->|\"kept\"| C[\"Build context\"]\n  C --> B[\"BuildKit builder\"]\n  B --> IMG[\"Image (no secrets, smaller)\"]",
+    "options": [
+      "It lists files that Docker should refuse to `COPY` at runtime when the container starts",
+      "It excludes matching files and directories from the build context that is sent to the builder",
+      "It tells the registry which layers to skip when pushing an image",
+      "It hides files inside the running container from `docker exec` sessions"
+    ],
+    "optionNotes": [
+      "Nothing is copied at container start; `.dockerignore` only affects what the build context contains at build time.",
+      "Paths matching `.dockerignore` are never sent to the builder, so they cannot be copied into the image, cannot leak secrets, and do not bloat or slow the build.",
+      "Registries push and pull layers by digest; `.dockerignore` has no influence on push or pull.",
+      "`.dockerignore` is a build-time concept; it does not affect the filesystem of a running container."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/build/concepts/context/#dockerignore-files",
+    "tags": [
+      "dockerignore",
+      "build-context",
+      "best-practices"
+    ]
+  },
+  {
+    "id": "docker-061",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Dockerfile instruction sets the system call signal that `docker stop` sends to the container's main process (for example `SIGQUIT` for nginx)?",
+    "explanation": "`STOPSIGNAL` sets the signal sent on `docker stop`; it defaults to `SIGTERM` and can be given as a name like `SIGQUIT` or a number like `3`.",
+    "example": "FROM nginx:1.27\n# nginx does a graceful shutdown on SIGQUIT, not SIGTERM\nSTOPSIGNAL SIGQUIT\n\n# override per container if needed:\ndocker run --stop-signal SIGINT myimage",
+    "diagram": "flowchart LR\n  S[\"docker stop web\"] --> SIG[\"send STOPSIGNAL (default SIGTERM)\"]\n  SIG --> P[\"PID 1 in container\"]\n  P -->|\"exits in time\"| OK[\"Clean shutdown\"]\n  P -->|\"still alive after timeout\"| K[\"SIGKILL\"]",
+    "answer": [
+      "STOPSIGNAL"
+    ],
+    "pattern": "^\\s*STOPSIGNAL\\s*$",
+    "reference": "https://docs.docker.com/reference/dockerfile/#stopsignal",
+    "tags": [
+      "dockerfile",
+      "signals",
+      "stopsignal"
+    ]
+  },
+  {
+    "id": "docker-062",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A container runs `CMD node server.js` directly as PID 1. `docker stop` always waits the full 10 second timeout and then the container exits with code 137, and zombie processes accumulate from child processes it spawns. What is the most appropriate fix?",
+    "explanation": "PID 1 gets no default signal handlers and is responsible for reaping orphaned children; running under a tiny init such as `tini` via `docker run --init` (or `init: true` in Compose) forwards signals and reaps zombies.",
+    "example": "docker run -d --init --name api myapp        # injects tini as PID 1\n\n# or in Dockerfile\nRUN apk add --no-cache tini\nENTRYPOINT [\"/sbin/tini\", \"--\"]\nCMD [\"node\", \"server.js\"]",
+    "diagram": "flowchart TD\n  S[\"docker stop: SIGTERM\"] --> T[\"tini (PID 1)\"]\n  T -->|\"forwards signal\"| N[\"node server.js\"]\n  N --> C[\"child processes\"]\n  C -->|\"exit\"| T\n  T -->|\"reaps zombies\"| Z[\"No defunct processes\"]",
+    "options": [
+      "Increase the stop timeout with `docker stop -t 60` so the process has more time to finish",
+      "Run the container with `--init` (or add `tini` as the entrypoint) so an init process forwards signals and reaps zombie children",
+      "Switch the Dockerfile to `CMD node server.js` written in shell form so `/bin/sh` handles the signals",
+      "Add `STOPSIGNAL SIGKILL` to the Dockerfile so `docker stop` skips the timeout"
+    ],
+    "optionNotes": [
+      "A longer timeout does not help: the process never receives a handled SIGTERM as PID 1, so it will still be killed at the end of the timeout.",
+      "`--init` injects `tini` as PID 1; it forwards SIGTERM to the application and reaps orphaned children, fixing both the slow stop and the zombie build-up.",
+      "Shell form makes the problem worse: `/bin/sh` becomes PID 1 and by default does not forward signals to the child it spawned.",
+      "That just makes every stop an immediate kill; it hides the symptom, loses graceful shutdown, and does nothing about zombie reaping."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/reference/cli/docker/container/run/#init",
+    "tags": [
+      "init",
+      "pid1",
+      "signals",
+      "tini"
+    ]
+  },
+  {
+    "id": "docker-063",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about Linux capabilities in Docker (`--cap-add` / `--cap-drop`) are true? (Select all that apply.)",
+    "explanation": "Containers start with a restricted default capability set; `--cap-drop ALL` followed by `--cap-add` of only what is needed is the recommended least-privilege pattern, and the flags take effect only for processes running as root inside the container.",
+    "example": "# web server that must bind port 80 as root but nothing else\ndocker run -d --cap-drop ALL --cap-add NET_BIND_SERVICE nginx:1.27\n\n# needs to change file ownership at start\ndocker run --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID myimage",
+    "diagram": "flowchart TD\n  R[\"Container root process\"] --> D[\"Default capability set (about 14 caps)\"]\n  D -->|\"--cap-drop ALL\"| E[\"Empty set\"]\n  E -->|\"--cap-add NET_BIND_SERVICE\"| M[\"Minimal set: bind ports under 1024 only\"]\n  D -->|\"--cap-add SYS_ADMIN\"| B[\"Near-privileged (avoid)\"]",
+    "options": [
+      "Containers run with a reduced default set of capabilities, not the full set a host root process has",
+      "`--cap-drop ALL --cap-add NET_BIND_SERVICE` lets a root process bind ports below 1024 while dropping everything else",
+      "`--cap-add` grants extra privileges to a non-root user inside the container just as it does to root",
+      "`--privileged` is roughly equivalent to adding all capabilities plus removing device, seccomp and AppArmor restrictions",
+      "Dropping `CAP_SYS_ADMIN` is unnecessary because Docker never grants it by default"
+    ],
+    "optionNotes": [
+      "Correct: Docker grants a bounded default set such as CHOWN, NET_BIND_SERVICE, KILL and SETUID, and withholds dangerous ones like SYS_ADMIN and NET_ADMIN.",
+      "Correct: this is the classic least-privilege pattern for services that must listen on privileged ports as root.",
+      "Capabilities added with `--cap-add` apply to the container's root user; a non-root user does not gain them (file capabilities or ambient capabilities would be needed).",
+      "Correct: `--privileged` grants all capabilities and also lifts device cgroup, seccomp and AppArmor confinement, which is why it is far broader than any single `--cap-add`.",
+      "The statement is partly true (SYS_ADMIN is not in the default set) but the conclusion is misleading: the point of `--cap-drop ALL` is to remove even the defaults, and SYS_ADMIN can still be added by mistake."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "reference": "https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities",
+    "tags": [
+      "security",
+      "capabilities",
+      "least-privilege"
+    ]
+  },
+  {
+    "id": "docker-064",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You start a container with `docker run --read-only myapp` and it crashes because it cannot write scratch files to `/tmp`. What is the recommended way to keep the root filesystem immutable while still allowing those writes?",
+    "explanation": "`--read-only` mounts the container's root filesystem read-only; add explicit writable mounts such as `--tmpfs /tmp` (or a volume) only for the paths the app legitimately needs to write.",
+    "example": "docker run -d --read-only \\\n  --tmpfs /tmp:rw,noexec,nosuid,size=64m \\\n  --tmpfs /run \\\n  -v app-data:/var/lib/app \\\n  myapp",
+    "diagram": "flowchart TD\n  C[\"Container rootfs\"] -->|\"--read-only\"| RO[\"/ is read-only\"]\n  RO --> A[\"/tmp: tmpfs (RAM, writable)\"]\n  RO --> B[\"/var/lib/app: named volume (writable)\"]\n  RO --> D[\"/usr, /etc, /app: immutable\"]\n  A --> OK[\"App writes scratch files fine\"]",
+    "options": [
+      "Drop `--read-only` and instead run the container as a non-root user",
+      "Keep `--read-only` and add `--tmpfs /tmp` (and any other required writable paths) to the run command",
+      "Add `chmod 1777 /tmp` to the Dockerfile so the directory becomes writable despite the flag",
+      "Run with `--privileged`, which bypasses the read-only root filesystem"
+    ],
+    "optionNotes": [
+      "That abandons the hardening entirely; a non-root user is good practice but is orthogonal to keeping the filesystem immutable.",
+      "This is the documented pattern: an immutable rootfs plus explicitly declared writable mounts such as tmpfs for `/tmp` and `/run`, and volumes for persistent state.",
+      "Permission bits do not matter when the whole filesystem is mounted read-only; writes will still fail with a read-only filesystem error.",
+      "`--privileged` does not undo `--read-only`, and even if it did it would be a huge and unnecessary privilege escalation."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/reference/cli/docker/container/run/#read-only",
+    "tags": [
+      "security",
+      "read-only",
+      "tmpfs",
+      "hardening"
+    ]
+  },
+  {
+    "id": "docker-065",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the difference between the `always` and `unless-stopped` restart policies?",
+    "explanation": "Both restart the container whenever it exits and after a daemon restart, but `unless-stopped` remembers a manual `docker stop` and will not bring the container back when the daemon restarts, whereas `always` will.",
+    "example": "docker run -d --restart unless-stopped --name web nginx\ndocker stop web\nsudo systemctl restart docker   # web stays stopped\n\ndocker run -d --restart always --name api myapi\ndocker stop api\nsudo systemctl restart docker   # api comes back up",
+    "diagram": "flowchart TD\n  X[\"Container exits or crashes\"] --> A[\"always: restart\"]\n  X --> U[\"unless-stopped: restart\"]\n  S[\"docker stop then daemon restarts\"] --> A2[\"always: container starts again\"]\n  S --> U2[\"unless-stopped: stays stopped\"]\n  F[\"on-failure:N\"] -->|\"only non-zero exit, max N tries\"| R[\"restart\"]",
+    "options": [
+      "`always` restarts on any exit code while `unless-stopped` restarts only on non-zero exit codes",
+      "`unless-stopped` behaves like `always` except it does not restart a container that was manually stopped when the daemon itself restarts",
+      "`always` applies only to containers started by Compose, while `unless-stopped` is for `docker run`",
+      "`unless-stopped` gives up after a fixed number of restart attempts, `always` retries forever"
+    ],
+    "optionNotes": [
+      "Exit code sensitivity is the `on-failure` policy, not the distinction between these two; both restart regardless of exit code.",
+      "This is the only difference: a manually stopped `always` container is resurrected on daemon restart or reboot, an `unless-stopped` one is not.",
+      "Both policies are accepted by `docker run --restart` and by the Compose `restart` key.",
+      "Neither has an attempt limit; only `on-failure[:max-retries]` supports a retry cap."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/engine/containers/start-containers-automatically/",
+    "tags": [
+      "restart-policy",
+      "operations"
+    ]
+  },
+  {
+    "id": "docker-066",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A container exit code of 137 always means the kernel OOM killer terminated the process for exceeding its memory limit.",
+    "explanation": "Exit code 137 is 128 + 9, meaning the process died from SIGKILL; that can come from the OOM killer, but also from `docker kill`, from `docker stop` hitting its timeout, or from anything else sending SIGKILL. Check `docker inspect` for `State.OOMKilled` to confirm an OOM.",
+    "example": "docker inspect web --format '{{.State.ExitCode}} OOMKilled={{.State.OOMKilled}}'\n# 137 OOMKilled=true   -> memory limit hit\n# 137 OOMKilled=false  -> SIGKILL from docker kill / stop timeout\n# 143 = 128+15, SIGTERM handled by exiting",
+    "diagram": "flowchart TD\n  E[\"Exit code 137 = 128 + 9 (SIGKILL)\"] --> O[\"OOM killer (OOMKilled=true)\"]\n  E --> K[\"docker kill\"]\n  E --> T[\"docker stop timeout expired\"]\n  E --> H[\"host admin: kill -9\"]\n  I[\"docker inspect State.OOMKilled\"] -->|\"distinguishes\"| O",
+    "answer": false,
+    "reference": "https://docs.docker.com/reference/cli/docker/container/run/#exit-status",
+    "tags": [
+      "exit-codes",
+      "troubleshooting",
+      "oom"
+    ]
+  },
+  {
+    "id": "docker-067",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the key difference between `docker exec` and `docker attach`?",
+    "explanation": "`docker exec` starts an additional process inside the container, while `docker attach` connects your terminal to the container's existing main process (PID 1) and its stdio.",
+    "example": "docker exec -it web sh          # new shell process, exit leaves container running\ndocker attach web               # your terminal becomes PID 1's stdin/stdout\n# Ctrl-P Ctrl-Q detaches from attach; Ctrl-C may stop the main process",
+    "diagram": "flowchart LR\n  E[\"docker exec -it web sh\"] -->|\"spawns new process\"| S[\"sh (extra PID)\"]\n  A[\"docker attach web\"] -->|\"connects stdio to\"| P[\"PID 1 main process\"]\n  S -->|\"exit\"| R[\"container keeps running\"]\n  P -->|\"Ctrl-C without detach keys\"| X[\"main process may terminate\"]",
+    "options": [
+      "`exec` only works on stopped containers, `attach` only on running ones",
+      "`exec` runs a new process inside the container, while `attach` connects to the container's already running main process",
+      "`attach` requires `--privileged`, `exec` does not",
+      "They are aliases; `attach` is simply the older name for `exec`"
+    ],
+    "optionNotes": [
+      "Both require a running container; you cannot exec into or attach to a stopped one.",
+      "`exec` creates an extra process (for example a shell) alongside PID 1; `attach` hooks your terminal to PID 1's input and output, so sending Ctrl-C can kill the app.",
+      "Neither command needs elevated container privileges.",
+      "They are distinct commands with different behaviour; exiting an exec shell is harmless, but signals during attach reach the main process."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/reference/cli/docker/container/attach/",
+    "tags": [
+      "cli",
+      "exec",
+      "attach"
+    ]
+  },
+  {
+    "id": "docker-068",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does referencing an image as `nginx@sha256:3f2b...` (by digest) guarantee that referencing `nginx:1.27` does not?",
+    "explanation": "A tag is a mutable pointer that a publisher can move to new content, whereas a digest is the content-addressable SHA-256 of the image manifest, so pulling by digest always yields byte-for-byte identical content or fails.",
+    "example": "docker pull nginx:1.27\ndocker inspect nginx:1.27 --format '{{index .RepoDigests 0}}'\n# nginx@sha256:3f2b...\n\n# Dockerfile pinned to immutable content:\nFROM nginx:1.27@sha256:3f2b...",
+    "diagram": "flowchart LR\n  T[\"tag nginx:1.27\"] -->|\"today\"| M1[\"manifest sha256:aaa\"]\n  T -->|\"after publisher rebuild\"| M2[\"manifest sha256:bbb\"]\n  D[\"nginx@sha256:aaa\"] -->|\"always\"| M1\n  M1 --> L[\"Same layers, same config, verified on pull\"]",
+    "options": [
+      "That the image was scanned for vulnerabilities before being published",
+      "That the pulled content is exactly the immutable manifest identified by that hash, even if the tag is later moved",
+      "That the image will be pulled from the fastest available mirror",
+      "That the image's layers are compressed with a stronger algorithm"
+    ],
+    "optionNotes": [
+      "A digest says nothing about scanning; that is a separate process such as `docker scout` or a registry scanner.",
+      "The digest is a hash of the manifest, so the content is immutable and verified on pull; tags can be retagged to different content at any time.",
+      "Mirror selection is a registry and daemon configuration concern, unrelated to how the image is referenced.",
+      "Compression is unrelated; a digest merely identifies content, it does not change it."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier",
+    "tags": [
+      "images",
+      "digests",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "docker-069",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which are valid `condition` values for a long-form `depends_on` entry in a Compose file? (Select all that apply.)",
+    "explanation": "Compose supports `service_started` (the default), `service_healthy` (wait for the dependency's healthcheck to pass) and `service_completed_successfully` (wait for a one-shot dependency to exit with code 0).",
+    "example": "services:\n  migrate:\n    image: myapp\n    command: [\"./migrate\"]\n    depends_on:\n      db:\n        condition: service_healthy\n  api:\n    image: myapp\n    depends_on:\n      migrate:\n        condition: service_completed_successfully\n  db:\n    image: postgres:16\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\n      interval: 5s",
+    "diagram": "flowchart LR\n  DB[\"db (healthcheck)\"] -->|\"service_healthy\"| MG[\"migrate (one-shot)\"]\n  MG -->|\"service_completed_successfully (exit 0)\"| API[\"api\"]\n  C[\"cache\"] -->|\"service_started (default)\"| API",
+    "options": [
+      "service_started",
+      "service_healthy",
+      "service_completed_successfully",
+      "service_ready",
+      "service_running"
+    ],
+    "optionNotes": [
+      "Correct: the default, satisfied as soon as the dependency container has been started.",
+      "Correct: waits until the dependency's `healthcheck` reports healthy, so the dependency must define one.",
+      "Correct: waits for a dependency such as a migration job to exit with status 0.",
+      "Not a valid value; Compose will reject the file with a validation error.",
+      "Not a valid value; the start-state condition is spelled `service_started`."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "reference": "https://docs.docker.com/reference/compose-file/services/#depends_on",
+    "tags": [
+      "compose",
+      "depends_on",
+      "healthcheck"
+    ]
+  },
+  {
+    "id": "docker-070",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a Compose file, a service declares `profiles: [\"debug\"]`. What happens when you run a plain `docker compose up`?",
+    "explanation": "Services assigned to one or more profiles are only started when at least one of those profiles is activated with `--profile` or `COMPOSE_PROFILES`; services with no `profiles` key always start.",
+    "example": "services:\n  web:\n    image: myapp\n  pgadmin:\n    image: dpage/pgadmin4\n    profiles: [\"debug\"]\n\ndocker compose up -d                   # starts web only\ndocker compose --profile debug up -d   # starts web and pgadmin\nCOMPOSE_PROFILES=debug docker compose up -d",
+    "diagram": "flowchart TD\n  U[\"docker compose up\"] --> W[\"web (no profiles): started\"]\n  U --> P[\"pgadmin (profiles: debug): skipped\"]\n  U2[\"docker compose --profile debug up\"] --> W2[\"web: started\"]\n  U2 --> P2[\"pgadmin: started\"]",
+    "options": [
+      "The service starts normally; profiles only add labels to the container",
+      "The service is skipped unless the `debug` profile is enabled via `--profile debug` or `COMPOSE_PROFILES`",
+      "Compose fails with an error because a profile was not selected",
+      "The service starts but its ports are not published until the profile is activated"
+    ],
+    "optionNotes": [
+      "Profiles gate whether a service is part of the active model at all; they are not labels.",
+      "Profile-scoped services are excluded from `up`, `ps` and similar commands until one of their profiles is activated; unprofiled services always run.",
+      "Not selecting a profile is normal usage and simply leaves those services out.",
+      "There is no partial start; the service either is in the active set or it is not."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/compose/how-tos/profiles/",
+    "tags": [
+      "compose",
+      "profiles"
+    ]
+  },
+  {
+    "id": "docker-071",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `docker buildx build` flag (name only, no value) selects the target OS/architecture pairs, for example to produce a single multi-architecture image for `linux/amd64` and `linux/arm64`?",
+    "explanation": "`--platform` accepts a comma-separated list of platforms; with a `docker-container` builder and `--push`, buildx emits a multi-platform manifest list (image index) under one tag.",
+    "example": "docker buildx create --name multi --driver docker-container --use\ndocker buildx build \\\n  --platform linux/amd64,linux/arm64 \\\n  -t registry.example.com/myapp:1.0 --push .\n\ndocker buildx imagetools inspect registry.example.com/myapp:1.0",
+    "diagram": "flowchart TD\n  B[\"buildx build --platform linux/amd64,linux/arm64\"] --> A[\"amd64 image\"]\n  B --> R[\"arm64 image (QEMU or native node)\"]\n  A --> I[\"Manifest list / OCI index\"]\n  R --> I\n  I -->|\"docker pull on any arch\"| P[\"Daemon picks matching variant\"]",
+    "answer": [
+      "--platform",
+      "platform"
+    ],
+    "pattern": "^\\s*(--)?platform\\s*$",
+    "reference": "https://docs.docker.com/build/building/multi-platform/",
+    "tags": [
+      "buildx",
+      "multi-platform",
+      "buildkit"
+    ]
+  },
+  {
+    "id": "docker-072",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You run the Docker daemon in rootless mode. `docker run -p 80:80 nginx` fails with a permission error while `-p 8080:80` works. Why?",
+    "explanation": "In rootless mode the daemon itself is an unprivileged user process, so it cannot bind host ports below 1024 unless the host sysctl `net.ipv4.ip_unprivileged_port_start` is lowered (or the rootlesskit binary is granted `CAP_NET_BIND_SERVICE`).",
+    "example": "# host side, as root, then restart the rootless daemon\nsudo sysctl -w net.ipv4.ip_unprivileged_port_start=0\nsystemctl --user restart docker\n\n# or just map a high host port\ndocker run -d -p 8080:80 nginx",
+    "diagram": "flowchart TD\n  U[\"Unprivileged user\"] --> D[\"rootless dockerd + rootlesskit\"]\n  D -->|\"-p 8080:80\"| OK[\"Bind allowed (port over 1023)\"]\n  D -->|\"-p 80:80\"| X[\"Bind denied: privileged port\"]\n  S[\"sysctl net.ipv4.ip_unprivileged_port_start=0\"] --> X2[\"Bind allowed\"]",
+    "options": [
+      "Rootless daemons cannot publish ports at all; port 8080 only worked because nginx also listens there internally",
+      "The rootless daemon runs as an unprivileged user and so cannot bind host ports below 1024 unless the unprivileged port sysctl is lowered",
+      "Port 80 is reserved by the rootless daemon's own API socket",
+      "The nginx image refuses to start on privileged ports when the container's user is not root"
+    ],
+    "optionNotes": [
+      "Rootless mode publishes ports fine through rootlesskit; the restriction is specific to privileged ports below 1024.",
+      "The daemon and its port forwarder have no root privileges on the host, so the kernel's privileged-port rule applies; lowering `net.ipv4.ip_unprivileged_port_start` (or granting the binary `CAP_NET_BIND_SERVICE`) fixes it.",
+      "The rootless API socket is a Unix socket under `$XDG_RUNTIME_DIR`, not a TCP port.",
+      "Inside the container nginx still binds port 80 as usual; the failure happens on the host side when mapping the port."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/engine/security/rootless/#exposing-privileged-ports",
+    "tags": [
+      "rootless",
+      "security",
+      "networking"
+    ]
+  },
+  {
+    "id": "docker-073",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "`docker context` lets you save named endpoints (for example an SSH-reachable remote daemon) and switch the CLI between them with `docker context use`, without exporting `DOCKER_HOST` each time.",
+    "explanation": "A context stores the endpoint, TLS settings and optional metadata; `docker context use` makes it the default for all subsequent CLI commands, while `docker --context NAME` or `DOCKER_CONTEXT` selects one for a single command.",
+    "example": "docker context create prod --docker \"host=ssh://ops@prod.example.com\"\ndocker context use prod\ndocker ps                      # runs against prod over SSH\ndocker --context default ps    # one-off against local daemon",
+    "diagram": "flowchart LR\n  CLI[\"docker CLI\"] -->|\"context: default\"| L[\"local daemon unix socket\"]\n  CLI -->|\"context: prod (ssh://)\"| P[\"remote daemon over SSH\"]\n  CLI -->|\"context: ci (tcp:// + TLS)\"| T[\"remote daemon over TLS\"]\n  U[\"docker context use prod\"] --> CLI",
+    "answer": true,
+    "reference": "https://docs.docker.com/engine/manage-resources/contexts/",
+    "tags": [
+      "context",
+      "cli",
+      "remote"
+    ]
+  },
+  {
+    "id": "docker-074",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Which `docker run` flag protects the host from a fork bomb inside a container by capping the number of processes the container may create?",
+    "explanation": "`--pids-limit` sets the cgroup pids controller maximum for the container; once the limit is reached, further `fork` or `clone` calls fail inside the container while the host stays responsive.",
+    "example": "docker run -d --pids-limit 200 --name worker myimage\n\n# verify\ndocker inspect worker --format '{{.HostConfig.PidsLimit}}'\ncat /sys/fs/cgroup/system.slice/docker-<id>.scope/pids.max",
+    "diagram": "flowchart TD\n  C[\"Container with --pids-limit 200\"] --> G[\"cgroup pids.max = 200\"]\n  F[\"Process forks repeatedly\"] --> G\n  G -->|\"below limit\"| OK[\"fork succeeds\"]\n  G -->|\"at limit\"| E[\"fork fails: resource unavailable\"]\n  E --> H[\"Host process table unaffected\"]",
+    "options": [
+      "--ulimit nproc=200",
+      "--pids-limit 200",
+      "--cpus 0.5",
+      "--max-processes 200"
+    ],
+    "optionNotes": [
+      "`nproc` is a per-user limit counted across the whole host, so it behaves unpredictably in containers (especially for root) and is not the container-scoped control.",
+      "`--pids-limit` uses the pids cgroup controller to cap the total number of tasks in the container, which is the documented fork bomb defence.",
+      "A CPU quota slows a fork bomb down but does not stop it from exhausting the host's process table.",
+      "There is no such flag in `docker run`."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/reference/cli/docker/container/run/#pids-limit",
+    "tags": [
+      "resource-limits",
+      "security",
+      "cgroups"
+    ]
+  },
+  {
+    "id": "docker-075",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A project has `compose.yaml` and `compose.override.yaml`. The base defines `web` with `ports: [\"8080:80\"]` and `environment: {LOG_LEVEL: info}`; the override defines `web` with `ports: [\"9090:80\"]` and `environment: {LOG_LEVEL: debug}`. After `docker compose up`, what does `web` get?",
+    "explanation": "Compose automatically merges `compose.override.yaml` over `compose.yaml`: single-value keys and map entries like `environment` are replaced by the override, while sequence keys such as `ports`, `expose` and `dns` are concatenated, so both port mappings are published.",
+    "example": "docker compose config          # shows the merged result\n# services:\n#   web:\n#     environment:\n#       LOG_LEVEL: debug\n#     ports:\n#       - 8080:80\n#       - 9090:80\n\n# skip the override entirely:\ndocker compose -f compose.yaml up",
+    "diagram": "flowchart LR\n  B[\"compose.yaml: ports 8080, LOG_LEVEL=info\"] --> M[\"merge\"]\n  O[\"compose.override.yaml: ports 9090, LOG_LEVEL=debug\"] --> M\n  M -->|\"maps: override wins\"| E[\"LOG_LEVEL=debug\"]\n  M -->|\"lists like ports: concatenated\"| P[\"8080:80 and 9090:80\"]",
+    "options": [
+      "Ports `9090:80` only and `LOG_LEVEL=debug`, because the override file fully replaces the service definition",
+      "Ports `8080:80` and `9090:80` and `LOG_LEVEL=debug`, because list values are concatenated while map entries are overridden",
+      "Ports `8080:80` only and `LOG_LEVEL=info`, because override files are ignored unless passed with `-f`",
+      "Compose refuses to start because the two files define conflicting values for the same service"
+    ],
+    "optionNotes": [
+      "Merging happens per key, not per service; only single-value and map keys are replaced.",
+      "This matches the documented merge rules: `ports` (like `expose`, `dns`, `external_links`) are appended, while `environment`, `labels` and single values take the override's value.",
+      "`compose.override.yaml` is read automatically when no `-f` is given; it is skipped only if you pass `-f` explicitly.",
+      "Overlapping definitions are expected and are merged, not treated as conflicts."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/",
+    "tags": [
+      "compose",
+      "override",
+      "merge"
+    ]
   }
 ]

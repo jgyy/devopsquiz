@@ -1433,5 +1433,378 @@
       "gitops",
       "argocd"
     ]
+  },
+  {
+    "id": "cicd-059",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A GitHub Actions workflow runs on every push to a pull request branch. Developers push several commits in quick succession and want older, now-obsolete runs for the same branch to be cancelled automatically. Which configuration achieves this?",
+    "explanation": "The `concurrency` key groups runs sharing the same key; with `cancel-in-progress: true` GitHub cancels any in-progress run in that group when a new one starts. Keying the group on the workflow name and `github.ref` scopes cancellation to the same branch or PR.",
+    "example": "concurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm ci && npm test",
+    "diagram": "flowchart LR\nA[\"Push commit 1\"] --> B[\"Run 1 starts (group: ci-feature-x)\"]\nC[\"Push commit 2\"] --> D[\"Run 2 queued in same group\"]\nD -->|\"cancel-in-progress: true\"| E[\"Run 1 cancelled\"]\nD --> F[\"Run 2 executes\"]",
+    "options": [
+      "Set `timeout-minutes: 1` on the job so stale runs die quickly",
+      "Add a `concurrency` block with a group keyed on the branch and `cancel-in-progress: true`",
+      "Use `strategy.fail-fast: true` so the newest run stops the older matrix jobs",
+      "Set `on.push.branches-ignore` for the PR branch so only the last push triggers"
+    ],
+    "optionNotes": [
+      "`timeout-minutes` kills long-running jobs after a fixed time; it does not cancel runs because a newer one started and would also kill legitimate runs.",
+      "`concurrency.group` plus `cancel-in-progress: true` is the documented way to ensure only the newest run for a given key (such as a branch) keeps running.",
+      "`fail-fast` only cancels sibling matrix jobs inside the same run when one of them fails; it has no effect across separate workflow runs.",
+      "`branches-ignore` filters which branches trigger the workflow at all; it cannot express 'only the most recent push' and would stop the workflow from running for that branch entirely."
+    ],
+    "answer": 1,
+    "tags": [
+      "github-actions",
+      "concurrency"
+    ],
+    "reference": "https://docs.github.com/en/actions/using-jobs/using-concurrency"
+  },
+  {
+    "id": "cicd-060",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Why is combining the `pull_request_target` event with an `actions/checkout` of the pull request head ref (`ref: ${{ github.event.pull_request.head.sha }}`) followed by running `npm install` or a build script considered dangerous for a public repository?",
+    "explanation": "`pull_request_target` runs in the context of the base repository, so it has access to repository secrets and a write-capable `GITHUB_TOKEN`. Checking out and executing untrusted code from the fork's head lets an attacker run arbitrary code with those privileges (a 'pwn request').",
+    "example": "# DANGEROUS pattern\non: pull_request_target\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n      - run: npm install   # runs attacker-controlled postinstall scripts\n        env:\n          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}",
+    "diagram": "flowchart TD\nA[\"Fork opens PR with malicious package.json\"] --> B[\"pull_request_target fires in base repo context\"]\nB --> C[\"Workflow has secrets and write GITHUB_TOKEN\"]\nC --> D[\"checkout of PR head sha\"]\nD --> E[\"npm install executes attacker script\"]\nE --> F[\"Secrets exfiltrated, repo modified\"]",
+    "options": [
+      "Because `pull_request_target` cannot check out code at all, so the step fails and blocks merges",
+      "Because the workflow runs with base-repository secrets and a privileged token while executing code controlled by the fork author",
+      "Because `pull_request_target` runs on a self-hosted runner by default, exposing internal infrastructure",
+      "Because the head SHA is not available in that event and the checkout silently uses the default branch"
+    ],
+    "optionNotes": [
+      "`pull_request_target` can check out any ref; the danger is precisely that checking out the untrusted head works and then runs.",
+      "The event executes in the base repository's trust context (secrets available, `GITHUB_TOKEN` can be write-scoped), so running fork-controlled code such as install hooks or build scripts hands those privileges to the PR author.",
+      "The runner type is chosen by `runs-on`, not by the event; `pull_request_target` has no special relationship with self-hosted runners.",
+      "The head SHA is available in `github.event.pull_request.head.sha`; the problem is that using it pulls untrusted code into a privileged context, not that it is missing."
+    ],
+    "answer": 1,
+    "tags": [
+      "github-actions",
+      "security",
+      "pull-request-target"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request_target"
+  },
+  {
+    "id": "cicd-061",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a GitHub Actions workflow, which key (usable at the workflow or job level) restricts the scopes granted to the automatic `GITHUB_TOKEN`, for example limiting it to `contents: read`?",
+    "explanation": "The `permissions` key sets the access scopes of `GITHUB_TOKEN` for the whole workflow or a single job. Setting it explicitly (for example `contents: read`) follows least privilege and is required to add scopes such as `id-token: write` for OIDC.",
+    "example": "permissions:\n  contents: read\n  pull-requests: write   # allow commenting on PRs\n\njobs:\n  release:\n    permissions:\n      contents: write\n      id-token: write      # needed for OIDC\n    runs-on: ubuntu-latest\n    steps:\n      - run: gh release create v1.2.3",
+    "diagram": "flowchart LR\nA[\"Workflow run starts\"] --> B[\"GITHUB_TOKEN issued\"]\nB --> C{\"permissions key set?\"}\nC -->|\"yes\"| D[\"Only listed scopes (e.g. contents: read)\"]\nC -->|\"no\"| E[\"Repository default (permissive or restricted)\"]\nD --> F[\"Job steps use token\"]\nE --> F",
+    "answer": [
+      "permissions",
+      "permissions:"
+    ],
+    "pattern": "^\\s*permissions\\s*:?\\s*$",
+    "tags": [
+      "github-actions",
+      "security",
+      "github-token"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions"
+  },
+  {
+    "id": "cicd-062",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements correctly distinguish GitHub Actions reusable workflows (`workflow_call`) from composite actions?",
+    "explanation": "A reusable workflow is a whole workflow invoked with `jobs.<id>.uses` and can define multiple jobs, runners, and environments; a composite action is a bundle of steps invoked with `steps[*].uses` inside a single job. Reusable workflows receive secrets explicitly or via `secrets: inherit`, while composite actions run in the calling job's context and have no separate `runs-on`.",
+    "example": "# Caller of a reusable workflow\njobs:\n  ci:\n    uses: org/shared/.github/workflows/ci.yml@v2\n    with:\n      node-version: 20\n    secrets: inherit\n\n# Caller of a composite action (inside a job)\nsteps:\n  - uses: org/setup-tools@v1\n    with:\n      node-version: 20",
+    "diagram": "flowchart TD\nA[\"Caller workflow\"] --> B[\"jobs.ci.uses: reusable workflow\"]\nB --> C[\"Runs its own jobs, runners, environments\"]\nA --> D[\"Job with steps\"]\nD --> E[\"steps.uses: composite action\"]\nE --> F[\"Steps run inside the calling job\"]",
+    "options": [
+      "A reusable workflow is called at the job level with `uses`, while a composite action is called as a step",
+      "A reusable workflow can contain multiple jobs with their own `runs-on`; a composite action cannot",
+      "Composite actions can declare `secrets: inherit` to receive all caller secrets",
+      "A reusable workflow must be triggered by the `workflow_call` event in its `on` block",
+      "Composite actions can only be stored in the same repository as the caller"
+    ],
+    "optionNotes": [
+      "Correct: reusable workflows are referenced under `jobs.<job_id>.uses`, whereas composite actions are referenced from `steps[*].uses`.",
+      "Correct: a reusable workflow is a full workflow with one or more jobs and runner choices; a composite action is a sequence of steps that executes inside the calling job's runner.",
+      "Incorrect: `secrets: inherit` is a reusable-workflow feature. Composite actions receive values only through `inputs` (which can be fed secrets by the caller) or environment variables.",
+      "Correct: a workflow becomes reusable by listing `workflow_call` under `on`, optionally declaring `inputs`, `secrets`, and `outputs`.",
+      "Incorrect: composite actions can live in the same repo, a public repo, the Marketplace, or an internal repo with access configured."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "tags": [
+      "github-actions",
+      "reusable-workflows",
+      "composite-actions"
+    ],
+    "reference": "https://docs.github.com/en/actions/sharing-automations/reusing-workflows"
+  },
+  {
+    "id": "cicd-063",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In GitHub Actions, a `build` job computes a version string in one of its steps. A later `deploy` job needs that value. What is the correct mechanism to pass it?",
+    "explanation": "Steps write values to `$GITHUB_OUTPUT`, the job maps them under `jobs.build.outputs`, and downstream jobs that declare `needs: build` read them with `${{ needs.build.outputs.version }}`. Environment variables and shell variables do not survive across jobs because each job runs on a fresh runner.",
+    "example": "jobs:\n  build:\n    runs-on: ubuntu-latest\n    outputs:\n      version: ${{ steps.ver.outputs.version }}\n    steps:\n      - id: ver\n        run: echo \"version=1.4.$GITHUB_RUN_NUMBER\" >> \"$GITHUB_OUTPUT\"\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./deploy.sh ${{ needs.build.outputs.version }}",
+    "diagram": "flowchart LR\nA[\"step id: ver writes to GITHUB_OUTPUT\"] --> B[\"jobs.build.outputs.version\"]\nB --> C[\"deploy job declares needs: build\"]\nC --> D[\"needs.build.outputs.version\"]\nD --> E[\"deploy.sh 1.4.123\"]",
+    "options": [
+      "Export the value with `export VERSION=...`; environment variables are shared across all jobs in a run",
+      "Write the value to `$GITHUB_OUTPUT`, expose it under `jobs.build.outputs`, and read it via `needs.build.outputs`",
+      "Write the value to `$GITHUB_ENV`; any later job can then reference `env.VERSION`",
+      "Store the value in `secrets.VERSION` at runtime so the deploy job can read it"
+    ],
+    "optionNotes": [
+      "Each job runs on its own runner with a fresh environment, so shell exports in one job are invisible to another job.",
+      "Step outputs promoted to job outputs and consumed through the `needs` context are the supported way to pass data between jobs.",
+      "`$GITHUB_ENV` sets environment variables for subsequent steps in the same job only; it does not propagate to other jobs.",
+      "Secrets cannot be created or modified by a running workflow, and they are not a data-passing mechanism between jobs."
+    ],
+    "answer": 1,
+    "tags": [
+      "github-actions",
+      "job-outputs"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/defining-outputs-for-jobs"
+  },
+  {
+    "id": "cicd-064",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "In GitLab CI/CD, adding a `needs:` list to a job lets it start as soon as the listed jobs finish, even if other jobs in earlier stages are still running.",
+    "explanation": "`needs` builds a directed acyclic graph (DAG) that overrides the strict stage ordering: a job with `needs` waits only for the jobs it names. This shortens pipelines by letting independent work run out of stage order.",
+    "example": "stages: [build, test, deploy]\n\nbuild_api:\n  stage: build\n  script: make api\n\nbuild_web:\n  stage: build\n  script: make web\n\ntest_api:\n  stage: test\n  needs: [build_api]   # starts when build_api is done, does not wait for build_web\n  script: make test-api",
+    "diagram": "flowchart LR\nA[\"build_api\"] --> C[\"test_api (needs: build_api)\"]\nB[\"build_web (still running)\"] --> D[\"test_web (needs: build_web)\"]\nC --> E[\"deploy\"]\nD --> E",
+    "answer": true,
+    "tags": [
+      "gitlab-ci",
+      "dag",
+      "needs"
+    ],
+    "reference": "https://docs.gitlab.com/ci/yaml/#needs"
+  },
+  {
+    "id": "cicd-065",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What does the `include` keyword do in a `.gitlab-ci.yml` file?",
+    "explanation": "`include` pulls external YAML into the pipeline configuration, from local files, other projects, remote URLs, or GitLab templates. It is the standard way to share job definitions across repositories and keep the main file small.",
+    "example": "include:\n  - local: '/ci/lint.yml'\n  - project: 'platform/ci-templates'\n    ref: v3\n    file: '/templates/docker-build.yml'\n  - template: 'Security/SAST.gitlab-ci.yml'\n  - remote: 'https://example.com/ci/common.yml'",
+    "diagram": "flowchart TD\nA[\".gitlab-ci.yml\"] -->|\"include: local\"| B[\"ci/lint.yml\"]\nA -->|\"include: project\"| C[\"platform/ci-templates\"]\nA -->|\"include: template\"| D[\"Security/SAST.gitlab-ci.yml\"]\nB --> E[\"Merged pipeline config\"]\nC --> E\nD --> E",
+    "options": [
+      "It merges job definitions from other local, project, remote, or template YAML files into the pipeline",
+      "It declares which container image a job should use",
+      "It lists the files whose changes should trigger the pipeline",
+      "It imports environment variables from a `.env` file at runtime"
+    ],
+    "optionNotes": [
+      "`include` supports `local`, `project`, `remote`, and `template` sources and merges their YAML into the current configuration.",
+      "The container image is set with the `image` keyword, not `include`.",
+      "Change-based triggering is expressed with `rules: changes:` (or `only: changes:`), not with `include`.",
+      "Variables come from the `variables` keyword, CI/CD settings, or dotenv artifacts; `include` only merges YAML configuration."
+    ],
+    "answer": 0,
+    "tags": [
+      "gitlab-ci",
+      "include"
+    ],
+    "reference": "https://docs.gitlab.com/ci/yaml/includes/"
+  },
+  {
+    "id": "cicd-066",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A busy GitLab project with a protected `main` branch keeps seeing merges that pass their own MR pipeline yet break `main` because another MR merged first. Which GitLab feature is designed to prevent this?",
+    "explanation": "Merge trains queue MRs and run each pipeline against the result of merging that MR onto `main` plus all MRs ahead of it in the train, so the tested state matches what will actually land. If an earlier MR fails, later pipelines are re-run without it.",
+    "example": "# Project > Settings > Merge requests\n#   Merge method: Merge commit (or fast-forward)\n#   [x] Enable merged results pipelines\n#   [x] Enable merge trains\n#\n# .gitlab-ci.yml\nworkflow:\n  rules:\n    - if: $CI_MERGE_REQUEST_EVENT_TYPE == \"merge_train\"\n    - if: $CI_PIPELINE_SOURCE == \"merge_request_event\"\n    - if: $CI_COMMIT_BRANCH == \"main\"",
+    "diagram": "flowchart LR\nA[\"MR 1 joins train\"] --> B[\"Pipeline: main + MR1\"]\nC[\"MR 2 joins train\"] --> D[\"Pipeline: main + MR1 + MR2\"]\nB -->|\"pass\"| E[\"MR1 merged\"]\nD -->|\"pass\"| F[\"MR2 merged\"]\nB -->|\"fail\"| G[\"MR1 dropped, MR2 pipeline re-run without it\"]",
+    "options": [
+      "Merge trains, which test each MR against `main` plus the MRs queued ahead of it before merging",
+      "Pipeline schedules, which re-run the `main` pipeline every few minutes to catch breakage quickly",
+      "Protected branch rules, which allow merges only when the MR pipeline is green",
+      "Child pipelines, which isolate each MR's tests so unrelated changes cannot interfere"
+    ],
+    "optionNotes": [
+      "Merge trains (built on merged results pipelines) validate the actual post-merge state including queued MRs, eliminating the 'green on branch, red on main' race.",
+      "Schedules detect breakage after the fact; they do not prevent an incompatible merge from landing.",
+      "Requiring a green MR pipeline still tests the MR against a stale `main` snapshot, which is exactly the scenario described.",
+      "Child pipelines split configuration for organisation or monorepos; they do not change what base commit an MR is tested against."
+    ],
+    "answer": 0,
+    "tags": [
+      "gitlab-ci",
+      "merge-trains"
+    ],
+    "reference": "https://docs.gitlab.com/ci/pipelines/merge_trains/"
+  },
+  {
+    "id": "cicd-067",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a `Jenkinsfile`, which annotation is placed at the top to load a Jenkins Shared Library, for example `@___('my-shared-lib@main') _`?",
+    "explanation": "The `@Library` annotation imports a configured Shared Library into a Pipeline, optionally pinning a version after `@`. Steps defined under the library's `vars/` directory then become available as global functions.",
+    "example": "@Library('platform-pipeline@v2') _\n\npipeline {\n  agent any\n  stages {\n    stage('Build') {\n      steps {\n        standardBuild(language: 'go')   // defined in vars/standardBuild.groovy\n      }\n    }\n  }\n}",
+    "diagram": "flowchart LR\nA[\"Jenkinsfile: @Library('platform-pipeline@v2') _\"] --> B[\"Jenkins fetches library repo at tag v2\"]\nB --> C[\"vars/standardBuild.groovy\"]\nB --> D[\"src/org/acme/Helpers.groovy\"]\nC --> E[\"standardBuild() callable in pipeline\"]\nD --> E",
+    "answer": [
+      "@Library",
+      "Library"
+    ],
+    "pattern": "^\\s*@?Library\\s*$",
+    "tags": [
+      "jenkins",
+      "shared-libraries"
+    ],
+    "reference": "https://www.jenkins.io/doc/book/pipeline/shared-libraries/"
+  },
+  {
+    "id": "cicd-068",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In Tekton, you have defined a `Pipeline` that references several `Task` resources. Which Kubernetes resource do you create to actually execute that Pipeline with specific parameters and workspaces?",
+    "explanation": "A `Pipeline` and its `Task`s are reusable templates; a `PipelineRun` instantiates one execution, binding `params` and `workspaces` (for example a PVC or ConfigMap) and producing `TaskRun`s for each task. Nothing runs until a `PipelineRun` exists.",
+    "example": "apiVersion: tekton.dev/v1\nkind: PipelineRun\nmetadata:\n  generateName: build-and-push-\nspec:\n  pipelineRef:\n    name: build-and-push\n  params:\n    - name: image\n      value: registry.example.com/app:1.2.3\n  workspaces:\n    - name: source\n      volumeClaimTemplate:\n        spec:\n          accessModes: [ReadWriteOnce]\n          resources:\n            requests:\n              storage: 1Gi",
+    "diagram": "flowchart TD\nA[\"Task: git-clone\"] --> P[\"Pipeline: build-and-push\"]\nB[\"Task: kaniko-build\"] --> P\nP -->|\"instantiated by\"| R[\"PipelineRun (params, workspaces)\"]\nR --> T1[\"TaskRun: git-clone\"]\nR --> T2[\"TaskRun: kaniko-build\"]\nT1 --> W[\"Workspace PVC shared\"]\nT2 --> W",
+    "options": [
+      "A `TaskRun` that references the Pipeline by name",
+      "A `PipelineRun` that references the Pipeline and supplies params and workspace bindings",
+      "A `Trigger` resource, which is the only way to start Tekton Pipelines",
+      "A `Job` resource, since Tekton Pipelines execute as native Kubernetes Jobs"
+    ],
+    "optionNotes": [
+      "A `TaskRun` executes a single `Task`; it cannot reference a `Pipeline`.",
+      "`PipelineRun` is the execution instance of a `Pipeline`; it binds parameters and workspaces and the controller creates one `TaskRun` per task.",
+      "Tekton Triggers can create `PipelineRun`s in response to events, but they are optional; the run object is still a `PipelineRun`.",
+      "Tekton runs each `TaskRun` as a Pod managed by its own controller, not as a Kubernetes `Job`."
+    ],
+    "answer": 1,
+    "tags": [
+      "tekton",
+      "kubernetes"
+    ],
+    "reference": "https://tekton.dev/docs/pipelines/pipelineruns/"
+  },
+  {
+    "id": "cicd-069",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which statements about software supply chain artifacts and the SLSA framework are correct?",
+    "explanation": "An SBOM lists what is inside an artifact; provenance describes how and where it was built (source, builder, inputs); a signature binds an identity to the artifact. SLSA levels rate the build process, and SLSA Build L3 requires provenance to be generated by a hardened, isolated build platform rather than by user-controlled steps.",
+    "example": "# Generate SBOM and provenance in GitHub Actions\n- uses: anchore/sbom-action@v0\n  with:\n    image: ghcr.io/acme/app:${{ github.sha }}\n    format: spdx-json\n\n# SLSA provenance via the official generator (reusable workflow)\nprovenance:\n  uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0\n  with:\n    image: ghcr.io/acme/app\n    digest: ${{ needs.build.outputs.digest }}",
+    "diagram": "flowchart LR\nA[\"Source commit\"] --> B[\"Isolated build platform\"]\nB --> C[\"Artifact (image digest)\"]\nB --> D[\"Provenance attestation: who, how, from what\"]\nC --> E[\"SBOM: what is inside\"]\nC --> F[\"Signature: identity binding\"]\nD --> G[\"Verifier checks policy (SLSA level)\"]\nE --> G\nF --> G",
+    "options": [
+      "An SBOM enumerates the components and dependencies contained in an artifact",
+      "Build provenance records the source, builder, and inputs used to produce an artifact",
+      "An SBOM and provenance are the same document under two different names",
+      "SLSA Build Level 3 requires provenance generated by the build platform itself, not by user-defined build steps",
+      "Signing an artifact with cosign automatically produces a complete SBOM for it"
+    ],
+    "optionNotes": [
+      "Correct: an SBOM (SPDX or CycloneDX) is an inventory of packages and versions inside the artifact, used for vulnerability and licence analysis.",
+      "Correct: provenance (for example in-toto SLSA predicates) answers where and how the artifact was built so consumers can verify integrity.",
+      "Incorrect: they answer different questions. SBOM is about contents; provenance is about the build process.",
+      "Correct: at L3 the provenance must be unforgeable by the build steps, which is why hosted generators run in a separate, trusted job.",
+      "Incorrect: cosign signs and can attach attestations, but generating an SBOM is a separate step using tools such as syft or trivy."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "tags": [
+      "supply-chain",
+      "slsa",
+      "sbom",
+      "provenance"
+    ],
+    "reference": "https://slsa.dev/spec/v1.0/levels"
+  },
+  {
+    "id": "cicd-070",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Cosign keyless signing in CI requires the pipeline to store a long-lived private signing key as a secret, because the OIDC identity token alone cannot be used to produce a signature.",
+    "explanation": "Keyless signing does the opposite: cosign exchanges the workflow's OIDC identity token for a short-lived certificate from Fulcio, signs with an ephemeral key, and records the signature in the Rekor transparency log. No long-lived key is stored anywhere.",
+    "example": "permissions:\n  id-token: write\n  packages: write\nsteps:\n  - uses: sigstore/cosign-installer@v3\n  - run: cosign sign --yes ghcr.io/acme/app@${{ steps.build.outputs.digest }}\n    env:\n      COSIGN_EXPERIMENTAL: \"1\"\n# Verify later:\n# cosign verify --certificate-identity-regexp 'https://github.com/acme/.*' \\\n#   --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/acme/app@sha256:...",
+    "diagram": "sequenceDiagram\n    participant CI as CI job\n    participant F as Fulcio CA\n    participant R as Rekor log\n    CI->>CI: Generate ephemeral keypair\n    CI->>F: OIDC token + public key\n    F-->>CI: Short-lived signing certificate\n    CI->>CI: Sign artifact digest\n    CI->>R: Upload signature and cert\n    R-->>CI: Inclusion proof",
+    "answer": false,
+    "tags": [
+      "supply-chain",
+      "cosign",
+      "sigstore",
+      "oidc"
+    ],
+    "reference": "https://docs.sigstore.dev/cosign/signing/overview/"
+  },
+  {
+    "id": "cicd-071",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is a 'flaky' test in the context of a CI pipeline?",
+    "explanation": "A flaky test passes and fails non-deterministically without any change to the code under test, usually because of timing, shared state, ordering, or external dependencies. Flaky tests erode trust in CI and should be quarantined and fixed rather than blindly retried forever.",
+    "example": "# Typical cause: timing-dependent assertion\nit('sends notification', async () => {\n  triggerJob()\n  await sleep(100)             // race: job may take 120ms on a busy runner\n  expect(inbox.length).toBe(1) // sometimes 0\n})\n\n# Better: wait for the condition, not a fixed delay\nawait waitFor(() => expect(inbox.length).toBe(1))",
+    "diagram": "flowchart TD\nA[\"Same commit\"] --> B[\"CI run 1: PASS\"]\nA --> C[\"CI run 2: FAIL\"]\nA --> D[\"CI run 3: PASS\"]\nC --> E[\"Root causes: timing, shared state, order, network\"]\nE --> F[\"Quarantine, then fix determinism\"]",
+    "options": [
+      "A test that fails consistently because of a real bug in the code",
+      "A test that passes or fails intermittently with no change to the code under test",
+      "A test that is skipped because it is marked as slow",
+      "A test that only runs on the main branch after merge"
+    ],
+    "optionNotes": [
+      "A consistently failing test is a genuine (and useful) failure; flakiness is about inconsistency, not a stable red result.",
+      "Non-deterministic outcomes on identical code are the definition of a flaky test, and they undermine confidence in pipeline results.",
+      "Skipping slow tests is a pipeline-tiering decision and unrelated to flakiness.",
+      "Where a test runs in the branching model has nothing to do with whether its results are deterministic."
+    ],
+    "answer": 1,
+    "tags": [
+      "testing",
+      "flaky-tests"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/using-jobs-in-a-workflow"
+  },
+  {
+    "id": "cicd-072",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A monorepo contains `services/api` and `services/web`. The team wants the API test workflow in GitHub Actions to run only when files under `services/api/` (or the workflow file itself) change on a pull request. Which configuration is correct?",
+    "explanation": "Path filters on the `pull_request` (or `push`) trigger use `paths` to list globs that must match at least one changed file for the workflow to run. Including the workflow file itself ensures edits to the pipeline are also validated.",
+    "example": "on:\n  pull_request:\n    paths:\n      - 'services/api/**'\n      - '.github/workflows/api-tests.yml'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    defaults:\n      run:\n        working-directory: services/api\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...",
+    "diagram": "flowchart TD\nA[\"PR changes files\"] --> B{\"Any file matches paths globs?\"}\nB -->|\"services/api/handler.go\"| C[\"api-tests workflow runs\"]\nB -->|\"services/web/index.tsx only\"| D[\"api-tests workflow skipped\"]\nB -->|\".github/workflows/api-tests.yml\"| C",
+    "options": [
+      "Add `on.pull_request.paths` with `services/api/**` and the workflow file path",
+      "Add `jobs.test.if: contains(github.event.head_commit.message, 'api')` so only API commits trigger it",
+      "Set `defaults.run.working-directory: services/api`; GitHub then only triggers on changes in that directory",
+      "Use `on.pull_request.branches: ['services/api/*']` to match the changed directory"
+    ],
+    "optionNotes": [
+      "`paths` (and `paths-ignore`) are the built-in filters for triggering on changed files; listing the workflow file too keeps pipeline edits testable.",
+      "Filtering on commit message text is unreliable, relies on developer discipline, and `head_commit` is not populated the same way on `pull_request` events.",
+      "`working-directory` only changes where `run` steps execute; it has no effect on when the workflow is triggered.",
+      "`branches` filters on Git branch names, not on file paths, so it cannot express directory-based triggering."
+    ],
+    "answer": 0,
+    "tags": [
+      "github-actions",
+      "monorepo",
+      "path-filters"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore"
   }
 ]

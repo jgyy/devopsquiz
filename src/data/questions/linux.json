@@ -1480,5 +1480,428 @@
       "shell",
       "exit-codes"
     ]
+  },
+  {
+    "id": "linux-059",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "`uptime` on a 4-core server reports `load average: 4.10, 3.80, 2.10`. What is the most accurate interpretation of the first number?",
+    "options": [
+      "CPU utilisation is 410%, so the box is overcommitted by about four times",
+      "On average about 4.1 tasks were runnable or in uninterruptible (D) sleep over the last minute, roughly saturating the 4 cores",
+      "4.1 processes have been created per second over the last minute",
+      "The system has 4.1 GB of memory pressure and is starting to swap"
+    ],
+    "optionNotes": [
+      "Load average is not a percentage and is not scaled by core count; 4.1 on 4 cores means roughly full, not four times overcommitted.",
+      "Linux load average counts tasks that are running or runnable plus those in uninterruptible sleep (usually waiting on I/O), averaged over 1, 5 and 15 minutes. About 4.1 on 4 cores means demand roughly equals capacity, and the rising trend (2.1 to 4.1) says it is getting busier.",
+      "Load average has nothing to do with process creation rate; that is visible in `vmstat` or `/proc/stat` instead.",
+      "Memory pressure is not part of the load average calculation, although heavy swapping can raise it indirectly by putting tasks into D state."
+    ],
+    "answer": 1,
+    "explanation": "The three load average numbers are exponentially damped averages of the run queue length (running plus runnable tasks) plus tasks in uninterruptible sleep over 1, 5 and 15 minutes. Divide by the core count to judge saturation, and use `vmstat` or `top` to tell CPU-bound load from I/O-bound load.",
+    "example": "uptime\n# 10:02:11 up 12 days,  load average: 4.10, 3.80, 2.10\nnproc\n# 4\nvmstat 1 3   # check the r (runnable) and b (blocked) columns and the wa (iowait) column",
+    "diagram": "flowchart LR\nR[\"running + runnable tasks\"] --> L[\"load average\"]\nDS[\"tasks in uninterruptible sleep (D)\"] --> L\nL --> M1[\"1 min: 4.10\"]\nL --> M5[\"5 min: 3.80\"]\nL --> M15[\"15 min: 2.10\"]\nM1 -->|\"divide by nproc = 4\"| S[\"about 1.0 per core: saturated, rising\"]",
+    "reference": "https://man7.org/linux/man-pages/man5/proc_loadavg.5.html",
+    "tags": [
+      "performance",
+      "load-average"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-060",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What single command prints the current value of the kernel parameter `vm.swappiness` using the `sysctl` tool?",
+    "answer": [
+      "sysctl vm.swappiness",
+      "sysctl -n vm.swappiness",
+      "sudo sysctl vm.swappiness"
+    ],
+    "pattern": "^(sudo\\s+)?sysctl\\s+(-n\\s+)?vm\\.swappiness\\s*$",
+    "explanation": "`sysctl vm.swappiness` reads the value from `/proc/sys/vm/swappiness` and prints `vm.swappiness = 60` (the usual default). Use `sysctl -w vm.swappiness=10` for a runtime change and a file in `/etc/sysctl.d/` to make it persistent.",
+    "example": "sysctl vm.swappiness\n# vm.swappiness = 60\nsudo sysctl -w vm.swappiness=10          # until reboot\necho 'vm.swappiness = 10' | sudo tee /etc/sysctl.d/90-swap.conf\nsudo sysctl --system                    # reload all sysctl files",
+    "diagram": "flowchart LR\nC[\"sysctl vm.swappiness\"] --> P[\"/proc/sys/vm/swappiness\"]\nW[\"sysctl -w vm.swappiness=10\"] --> P\nF[\"/etc/sysctl.d/90-swap.conf\"] -->|\"sysctl --system at boot\"| P\nP --> K[\"kernel memory reclaim policy\"]",
+    "reference": "https://man7.org/linux/man-pages/man8/sysctl.8.html",
+    "tags": [
+      "sysctl",
+      "kernel",
+      "swap"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-061",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A critical database process must never be chosen by the kernel OOM killer. Which setting achieves that?",
+    "options": [
+      "Write `-1000` to `/proc/<pid>/oom_score_adj`",
+      "Write `0` to `/proc/<pid>/oom_score`",
+      "Run the process with `nice -n -20`",
+      "Set `vm.overcommit_memory=1` in sysctl"
+    ],
+    "optionNotes": [
+      "`oom_score_adj` ranges from -1000 to 1000; -1000 makes the task's badness score zero so the OOM killer skips it entirely. systemd exposes this as `OOMScoreAdjust=-1000` in the unit file.",
+      "`/proc/<pid>/oom_score` is read-only; it is the computed badness score, not a knob you can set.",
+      "`nice` only affects CPU scheduling priority and has no influence on which task the OOM killer picks.",
+      "`overcommit_memory=1` makes the kernel always allow allocations, which makes an OOM event more likely rather than protecting a specific process."
+    ],
+    "answer": 0,
+    "explanation": "The OOM killer ranks tasks by `oom_score`, which is derived from memory usage and adjusted by `oom_score_adj` (-1000 to 1000). A value of -1000 exempts the process; note that exempting a large process means some other task will be killed instead when memory runs out.",
+    "example": "echo -1000 | sudo tee /proc/$(pidof postgres | cut -d' ' -f1)/oom_score_adj\n\n# or, in the systemd unit:\n[Service]\nOOMScoreAdjust=-1000\n\n# check who got killed last time\njournalctl -k | grep -i 'out of memory'",
+    "diagram": "flowchart TD\nM[\"memory exhausted\"] --> O[\"OOM killer scores every task\"]\nO --> S[\"oom_score = memory use adjusted by oom_score_adj\"]\nS --> A[\"oom_score_adj = -1000 : never selected\"]\nS --> B[\"oom_score_adj = 0 : default\"]\nS --> C[\"oom_score_adj = 1000 : killed first\"]\nC --> K[\"SIGKILL sent to highest score\"]",
+    "reference": "https://man7.org/linux/man-pages/man5/proc_pid_oom_score_adj.5.html",
+    "tags": [
+      "oom",
+      "memory",
+      "kernel"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-062",
+    "difficulty": "medium",
+    "type": "boolean",
+    "answer": true,
+    "prompt": "A bash script can use `trap` to run cleanup code on SIGTERM, but it cannot catch or ignore SIGKILL.",
+    "explanation": "SIGKILL (signal 9) and SIGSTOP are handled entirely by the kernel and can never be caught, blocked or ignored by the process, so a `trap` on them has no effect. SIGTERM, SIGINT and SIGHUP can be trapped, which is why orchestrators send SIGTERM first and only escalate to SIGKILL after a grace period.",
+    "example": "#!/usr/bin/env bash\ntmp=$(mktemp -d)\ncleanup() { echo 'cleaning up'; rm -rf \"$tmp\"; }\ntrap cleanup EXIT TERM INT\nsleep 300\n\n# kill -TERM <pid>  -> cleanup runs\n# kill -KILL <pid>  -> process dies immediately, no cleanup",
+    "diagram": "flowchart LR\nT[\"kill -TERM pid\"] --> P[\"process\"]\nP -->|\"trap handler runs\"| C[\"cleanup, then exit\"]\nK[\"kill -KILL pid\"] --> KN[\"kernel\"]\nKN -->|\"no handler possible\"| X[\"process terminated immediately\"]",
+    "reference": "https://man7.org/linux/man-pages/man7/signal.7.html",
+    "tags": [
+      "signals",
+      "bash",
+      "trap"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-063",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A deploy script starts with `set -euo pipefail`. What does the `pipefail` part change?",
+    "options": [
+      "The script exits if any command in a pipeline writes to stderr",
+      "A pipeline's exit status becomes that of the rightmost command that failed, instead of only the last command",
+      "Pipelines are executed in the current shell instead of subshells",
+      "Every pipeline stage is retried once on failure"
+    ],
+    "optionNotes": [
+      "stderr output does not affect exit status; `pipefail` is purely about the exit code of pipelines.",
+      "Without `pipefail`, `curl -f url | tar xz` returns 0 whenever `tar` succeeds even if `curl` failed. With `pipefail` the pipeline returns the last non-zero status from any stage, so `set -e` can abort the script.",
+      "Whether pipeline stages run in subshells is controlled by the `lastpipe` shopt, not `pipefail`.",
+      "Bash never retries commands automatically; retries must be written explicitly."
+    ],
+    "answer": 1,
+    "explanation": "`set -e` aborts on a failing command, `set -u` errors on unset variables, and `set -o pipefail` makes a pipeline fail if any stage fails (the status is that of the rightmost failing command). Together they stop silent partial failures, although `set -e` still has known exceptions such as commands inside `if` conditions or `&&` chains.",
+    "example": "#!/usr/bin/env bash\nset -euo pipefail\n\n# without pipefail this pipeline would return 0 if curl failed but tar ran\ncurl -fsSL https://example.com/app.tgz | tar xz -C /opt/app\n\n# grep returning 1 (no match) would now abort the script; guard it:\ncount=$(grep -c ERROR app.log || true)",
+    "diagram": "flowchart LR\nA[\"curl (exit 22)\"] -->|\"pipe\"| B[\"tar (exit 0)\"]\nB --> N[\"default: pipeline status 0, script continues\"]\nB --> P[\"pipefail: pipeline status 22\"]\nP -->|\"set -e\"| X[\"script aborts\"]",
+    "reference": "https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html",
+    "tags": [
+      "bash",
+      "scripting",
+      "pipefail"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-064",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are real advantages of a systemd timer over a classic cron entry for a nightly backup job? (Select all that apply.)",
+    "options": [
+      "`Persistent=true` runs the job after boot if the machine was off when it was due",
+      "Job output goes to the journal automatically and is viewable with `journalctl -u backup.service`",
+      "Timers can only fire once per day, which keeps the schedule simple",
+      "`systemctl list-timers` shows when each timer last ran and when it fires next",
+      "The job inherits the calling user's interactive shell environment exactly like a terminal session"
+    ],
+    "optionNotes": [
+      "`Persistent=true` in the `[Timer]` section records the last trigger time and catches up on missed runs, which cron does not do without anacron.",
+      "The timer starts a `.service` unit, so stdout and stderr land in the journal with the unit name attached; cron mails output or drops it unless you redirect it.",
+      "`OnCalendar=` accepts arbitrary calendar expressions such as `*-*-* 02:00:00` or `Mon..Fri 09:00`, and `OnUnitActiveSec=` gives monotonic intervals, so timers are not limited to once a day.",
+      "`systemctl list-timers --all` prints NEXT, LEFT, LAST, PASSED, UNIT and ACTIVATES columns, which is far more visibility than cron gives.",
+      "Neither cron nor systemd services load your interactive shell profile; a unit runs with a minimal environment, so the unit must set `Environment=` or `EnvironmentFile=` explicitly."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "A systemd timer pairs a `.timer` unit with a `.service` unit. It gains journal logging, `list-timers` visibility, dependency ordering, `Persistent=` catch-up and `RandomizedDelaySec=`, while still supporting flexible `OnCalendar=` schedules. Like cron it does not inherit an interactive environment.",
+    "example": "# /etc/systemd/system/backup.timer\n[Timer]\nOnCalendar=*-*-* 02:00:00\nPersistent=true\nRandomizedDelaySec=15m\n\n[Install]\nWantedBy=timers.target\n\nsudo systemctl enable --now backup.timer\nsystemctl list-timers backup.timer\njournalctl -u backup.service --since today",
+    "diagram": "flowchart LR\nT[\"backup.timer (OnCalendar, Persistent)\"] -->|\"activates\"| S[\"backup.service\"]\nS --> J[\"journal: journalctl -u backup.service\"]\nT --> L[\"systemctl list-timers\"]\nB[\"boot after missed run\"] -->|\"Persistent=true\"| S",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html",
+    "tags": [
+      "systemd",
+      "timers",
+      "cron"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-065",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which command prints the kernel ring buffer, the place to look for hardware errors, driver messages and OOM kill notices right after they happen?",
+    "options": [
+      "`dmesg`",
+      "`lastlog`",
+      "`journalctl --user`",
+      "`syslog -k`"
+    ],
+    "optionNotes": [
+      "`dmesg` reads the kernel ring buffer (also exposed via `journalctl -k` on systemd systems); `dmesg -T` adds human-readable timestamps and `dmesg -w` follows new messages.",
+      "`lastlog` reports the most recent login of each user, not kernel messages.",
+      "`journalctl --user` shows the current user's own service logs; kernel messages need `journalctl -k` or `dmesg`.",
+      "`syslog -k` is not a Linux command; kernel messages reach syslog via the `kern` facility, but `dmesg` is the direct tool."
+    ],
+    "answer": 0,
+    "explanation": "The kernel logs to an in-memory ring buffer that `dmesg` prints. On systemd systems the journal also captures it (`journalctl -k`), and on many distributions reading it now requires root because of `kernel.dmesg_restrict=1`.",
+    "example": "sudo dmesg -T | tail -20\nsudo dmesg -T | grep -iE 'oom|killed process|I/O error|link is down'\nsudo dmesg -w      # follow new kernel messages live",
+    "diagram": "flowchart LR\nK[\"kernel: drivers, OOM killer, block layer\"] --> R[\"ring buffer\"]\nR --> D[\"dmesg -T\"]\nR --> J[\"journalctl -k\"]\nR --> S[\"rsyslog kern facility (/var/log/kern.log)\"]",
+    "reference": "https://man7.org/linux/man-pages/man1/dmesg.1.html",
+    "tags": [
+      "kernel",
+      "logs",
+      "dmesg"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-066",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A shared directory `/srv/project` is owned by group `devs` and has mode `2775` (`drwxrwsr-x`). What effect does the `s` in the group position have?",
+    "options": [
+      "Only the directory owner can delete files inside it",
+      "Files and subdirectories created inside inherit the group `devs` instead of the creator's primary group",
+      "All files inside become executable by group members",
+      "Group members can run any file inside with the privileges of the directory owner"
+    ],
+    "optionNotes": [
+      "Restricting deletion to the file owner is the sticky bit (`t`, mode 1xxx), which is typically used on `/tmp`.",
+      "The setgid bit on a directory makes new entries inherit the directory's group, and new subdirectories also inherit the setgid bit, which is exactly what a team-shared tree needs.",
+      "setgid on a directory does not change the permission bits of files created inside; those are still governed by the creator's umask.",
+      "Running a file with the owner's privileges describes setuid on an executable file, and it does not apply to directories at all."
+    ],
+    "answer": 1,
+    "explanation": "On a directory, the setgid bit (`chmod g+s` or the leading 2 in `2775`) makes new files and subdirectories take the directory's group rather than the creating user's primary group, so collaboration works without everyone changing their default group. Pair it with a `umask` of `002` or ACLs so the group also gets write access.",
+    "example": "sudo chgrp devs /srv/project\nsudo chmod 2775 /srv/project\nls -ld /srv/project\n# drwxrwsr-x 2 root devs 4096 ... /srv/project\ntouch /srv/project/notes.md\nls -l /srv/project/notes.md\n# -rw-rw-r-- 1 alice devs 0 ... notes.md   (group is devs, not alice)",
+    "diagram": "flowchart TD\nD[\"/srv/project mode 2775, group devs\"] -->|\"alice creates file\"| F[\"notes.md group = devs\"]\nD -->|\"alice creates dir\"| S[\"sub/ group = devs, setgid inherited\"]\nN[\"same dir without setgid\"] -->|\"alice creates file\"| G[\"file group = alice (primary group)\"]",
+    "reference": "https://man7.org/linux/man-pages/man1/chmod.1.html",
+    "tags": [
+      "permissions",
+      "setgid"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-067",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Without changing the owner, group or mode bits, what single command grants the user `bob` read-only access to `report.txt` using a POSIX ACL?",
+    "answer": [
+      "setfacl -m u:bob:r report.txt",
+      "setfacl -m u:bob:r-- report.txt",
+      "setfacl -m user:bob:r report.txt",
+      "setfacl -m user:bob:r-- report.txt",
+      "sudo setfacl -m u:bob:r report.txt"
+    ],
+    "pattern": "^(sudo\\s+)?setfacl\\s+(-m|--modify)\\s+(u|user):bob:(r|r--)\\s+report\\.txt\\s*$",
+    "explanation": "`setfacl -m u:bob:r report.txt` adds a named-user ACL entry; `getfacl` then shows it and `ls -l` shows a `+` after the mode bits. Remember the ACL mask (which `setfacl` recalculates automatically) caps what named users and groups can actually get, and `chmod` on the group bits changes that mask.",
+    "example": "setfacl -m u:bob:r report.txt\ngetfacl report.txt\n# user::rw-\n# user:bob:r--\n# group::r--\n# mask::r--\n# other::---\nls -l report.txt\n# -rw-r-----+ 1 alice alice 812 ... report.txt\nsetfacl -x u:bob report.txt   # remove the entry again",
+    "diagram": "flowchart LR\nC[\"setfacl -m u:bob:r report.txt\"] --> A[\"ACL entry user:bob:r--\"]\nA --> M[\"effective = entry AND mask\"]\nM --> B[\"bob can read\"]\nO[\"owner, group, mode bits unchanged\"] --> M\nG[\"getfacl / ls -l shows +\"] --> A",
+    "reference": "https://man7.org/linux/man-pages/man1/setfacl.1.html",
+    "tags": [
+      "acl",
+      "permissions"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-068",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A web server must listen on port 443 but should not run as root. Which approach gives it exactly that privilege and nothing more?",
+    "options": [
+      "Run it with `sudo` and rely on the application dropping privileges later",
+      "Grant the binary the `cap_net_bind_service` capability with `setcap` (or use `AmbientCapabilities=CAP_NET_BIND_SERVICE` in its systemd unit)",
+      "Set the setuid bit on the binary so it always starts as root",
+      "Lower `net.ipv4.ip_unprivileged_port_start` to 0 in sysctl for the whole system"
+    ],
+    "optionNotes": [
+      "Starting as root and hoping the program drops privileges gives it full root during startup and depends on application code being correct.",
+      "`CAP_NET_BIND_SERVICE` is the single capability that allows binding ports below 1024; `setcap 'cap_net_bind_service=+ep' /usr/bin/app` or `AmbientCapabilities=` in the unit grants only that, keeping every other root power away from the process.",
+      "setuid root grants all of root's privileges, which is the opposite of least privilege, and modern distributions avoid new setuid binaries.",
+      "Changing `ip_unprivileged_port_start` allows every unprivileged process on the host to bind low ports, which is far broader than one service needs."
+    ],
+    "answer": 1,
+    "explanation": "Linux splits root's power into capabilities. `CAP_NET_BIND_SERVICE` covers binding privileged ports (below 1024), so granting just that via file capabilities (`setcap`) or via `AmbientCapabilities=` in a systemd unit running as a non-root `User=` follows least privilege. `getcap` and `/proc/<pid>/status` (CapEff) show what is in effect.",
+    "example": "sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/app\ngetcap /usr/local/bin/app\n# /usr/local/bin/app cap_net_bind_service=ep\n\n# systemd alternative:\n[Service]\nUser=app\nAmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE",
+    "diagram": "flowchart TD\nR[\"root: all capabilities\"] --> N[\"CAP_NET_BIND_SERVICE\"]\nR --> O[\"CAP_SYS_ADMIN, CAP_CHOWN, ... (not granted)\"]\nN -->|\"setcap on file or AmbientCapabilities in unit\"| P[\"app process, uid app\"]\nP --> B[\"bind :443 succeeds\"]\nP --> X[\"cannot chown, mount, load modules\"]",
+    "reference": "https://man7.org/linux/man-pages/man7/capabilities.7.html",
+    "tags": [
+      "capabilities",
+      "security",
+      "systemd"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-069",
+    "difficulty": "hard",
+    "type": "boolean",
+    "answer": false,
+    "prompt": "`strace` traces the library function calls a program makes (such as `malloc` and `printf`), while `ltrace` is the tool for tracing kernel system calls.",
+    "explanation": "It is the other way round: `strace` traces system calls and signals (`open`, `read`, `connect`, and so on) by using `ptrace`, while `ltrace` intercepts calls into shared libraries. `strace -p <pid>` attaches to a running process, `-f` follows children, and `-e trace=network` or `-e trace=file` filters by syscall group.",
+    "example": "strace -f -e trace=network,file -o /tmp/app.trace ./app\nstrace -p 2231 -T -e trace=openat     # attach: why is it slow opening files?\nltrace -e malloc+free ./app             # library calls instead",
+    "diagram": "flowchart LR\nA[\"application\"] -->|\"library call (printf, malloc)\"| L[\"libc\"]\nL -->|\"syscall (write, mmap)\"| K[\"kernel\"]\nLT[\"ltrace\"] -.->|\"observes\"| L\nST[\"strace\"] -.->|\"observes via ptrace\"| K",
+    "reference": "https://man7.org/linux/man-pages/man1/strace.1.html",
+    "tags": [
+      "strace",
+      "debugging",
+      "syscalls"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-070",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Something is already bound to TCP port 8080 and your app fails to start. Which command shows which process holds that port?",
+    "options": [
+      "`lsof -i :8080`",
+      "`lsof /dev/tcp/8080`",
+      "`cat /proc/net/ports | grep 8080`",
+      "`ps aux | grep 8080`"
+    ],
+    "optionNotes": [
+      "`lsof -i :8080` lists open network files on port 8080 with the command name and PID; `ss -ltnp 'sport = :8080'` is the equivalent using `ss`.",
+      "`/dev/tcp/...` is a bash-only pseudo path for opening connections; it is not a file `lsof` can inspect.",
+      "There is no `/proc/net/ports` file; the raw tables are `/proc/net/tcp` and `/proc/net/tcp6`, and they show ports in hexadecimal without process names.",
+      "`ps aux` shows command lines, which only match if the port number happens to appear in the arguments, so it is unreliable."
+    ],
+    "answer": 0,
+    "explanation": "`lsof -i :PORT` (add `-n -P` to skip name resolution) shows the owning process, or use `ss -ltnp` for listening sockets with PIDs. Running either as root is needed to see sockets owned by other users.",
+    "example": "sudo lsof -nP -i :8080\n# COMMAND  PID USER  FD  TYPE DEVICE SIZE/OFF NODE NAME\n# java    2140 app   45u IPv6 32211      0t0  TCP *:8080 (LISTEN)\n\nsudo ss -ltnp 'sport = :8080'",
+    "diagram": "flowchart LR\nE[\"bind: address already in use\"] --> L[\"lsof -nP -i :8080\"]\nE --> S[\"ss -ltnp\"]\nL --> P[\"PID 2140 java\"]\nS --> P\nP --> A[\"stop it, or change the port\"]",
+    "reference": "https://man7.org/linux/man-pages/man8/lsof.8.html",
+    "tags": [
+      "lsof",
+      "networking",
+      "troubleshooting"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-071",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following statements about `/etc/fstab` entries are correct? (Select all that apply.)",
+    "options": [
+      "The `nofail` option lets the system boot even if that device is missing at boot time",
+      "The sixth field is the `fsck` pass order, where `0` means the filesystem is never checked",
+      "Devices must be referenced by `/dev/sdX` names; `UUID=` and `LABEL=` are not accepted",
+      "`noauto` means the entry is not mounted automatically at boot but can still be mounted with `mount /mountpoint`",
+      "`_netdev` should be added to local disk entries so they mount before the network comes up"
+    ],
+    "optionNotes": [
+      "`nofail` tells systemd not to fail `local-fs.target` (and thus boot into emergency mode) when the device is absent; it is the standard choice for removable or optional volumes.",
+      "Field five is the `dump` flag and field six is the `fsck` pass: `1` for the root filesystem, `2` for others, `0` to skip.",
+      "`UUID=` and `LABEL=` (and `PARTUUID=`) are the recommended way to identify devices because `/dev/sdX` names can change between boots.",
+      "`noauto` skips the entry during `mount -a` and boot, while the entry still supplies the defaults so a bare `mount /mountpoint` works later.",
+      "`_netdev` marks a filesystem as needing the network (NFS, iSCSI, CIFS) so it is mounted after networking is up and unmounted before it goes down; it is wrong for local disks."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "An fstab line has six fields: device, mount point, type, options, dump, and fsck pass. `UUID=` identifiers avoid device-name drift, `nofail` and `x-systemd.device-timeout=` keep a missing disk from blocking boot, `noauto` defers mounting, and `_netdev` is reserved for network filesystems.",
+    "example": "# <device>                                 <mount>    <type> <options>                          <dump> <pass>\nUUID=3f1c2a9e-1b2c-4d5e-8f90-abcdef123456  /          ext4   defaults                            0      1\nUUID=9a8b7c6d-5e4f-4a3b-9c2d-0123456789ab  /data      xfs    defaults,nofail,x-systemd.device-timeout=10s 0 2\nnfs01:/exports/media                       /mnt/media nfs    defaults,_netdev,noauto             0      0\n\nsudo findmnt --verify   # sanity-check fstab before rebooting",
+    "diagram": "flowchart LR\nF[\"/etc/fstab line\"] --> D[\"UUID= or LABEL= device\"]\nF --> O[\"options: nofail, noauto, _netdev\"]\nF --> P[\"fsck pass: 1 root, 2 others, 0 skip\"]\nO -->|\"nofail\"| B[\"boot continues if device missing\"]\nO -->|\"_netdev\"| N[\"wait for network.target\"]",
+    "reference": "https://man7.org/linux/man-pages/man5/fstab.5.html",
+    "tags": [
+      "fstab",
+      "mount",
+      "filesystem"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-072",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You mirror `/srv/site/` to a backup host with `rsync -avz /srv/site/ backup:/srv/site/`. Which extra option is needed so files removed from the source are also removed on the destination?",
+    "options": [
+      "`--delete`",
+      "`--prune`",
+      "`--sync`",
+      "`--force`"
+    ],
+    "optionNotes": [
+      "`--delete` removes files on the receiving side that no longer exist on the sender, turning a copy into a true mirror; pair it with `--dry-run` (`-n`) first to see what would go.",
+      "`--prune-empty-dirs` (`-m`) only drops empty directories from the transfer list; there is no plain `--prune` option.",
+      "`--sync` is not an rsync option; synchronisation of contents is rsync's default behaviour, but deletion is opt-in.",
+      "`--force` allows replacing a non-empty directory with a non-directory; it does not delete extraneous files."
+    ],
+    "answer": 0,
+    "explanation": "rsync never deletes on the destination unless asked. `--delete` removes extraneous files; also note that the trailing slash on the source (`/srv/site/`) copies the directory contents rather than creating `site/site`, which is a common mistake.",
+    "example": "rsync -avz --delete --dry-run /srv/site/ backup:/srv/site/   # preview\nrsync -avz --delete /srv/site/ backup:/srv/site/\n# -a archive (perms, times, symlinks, owners), -v verbose, -z compress",
+    "diagram": "flowchart LR\nS[\"source /srv/site/ (a.html, b.html)\"] -->|\"rsync -avz\"| D1[\"dest keeps stale c.html\"]\nS -->|\"rsync -avz --delete\"| D2[\"dest exactly matches: c.html removed\"]\nN[\"--dry-run\"] --> D2",
+    "reference": "https://man7.org/linux/man-pages/man1/rsync.1.html",
+    "tags": [
+      "rsync",
+      "backup"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-073",
+    "difficulty": "easy",
+    "type": "boolean",
+    "answer": false,
+    "prompt": "It is safe to edit `/etc/sudoers` directly with any text editor, because `sudo` validates the file's syntax at runtime and falls back to the previous rules if it finds an error.",
+    "explanation": "A syntax error in `/etc/sudoers` makes `sudo` refuse to run at all, which can lock you out of root. `visudo` opens the file with locking and checks the syntax before saving, and drop-in files in `/etc/sudoers.d/` (edited with `visudo -f`) keep changes isolated. There is no fallback to older rules.",
+    "example": "sudo visudo                       # edits /etc/sudoers safely\nsudo visudo -f /etc/sudoers.d/deploy\n# deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart app.service\nsudo visudo -c                    # check syntax of all sudoers files",
+    "diagram": "flowchart TD\nE[\"edit sudoers\"] --> V[\"visudo: lock + syntax check\"]\nE --> T[\"plain editor\"]\nV -->|\"error\"| R[\"refuses to save bad file\"]\nT -->|\"typo saved\"| X[\"sudo: parse error, no root access\"]\nV -->|\"ok\"| S[\"sudo works\"]",
+    "reference": "https://www.sudo.ws/docs/man/visudo.man/",
+    "tags": [
+      "sudo",
+      "sudoers",
+      "security"
+    ],
+    "domain": "linux"
+  },
+  {
+    "id": "linux-074",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "On a RHEL-family host you suspect SELinux is blocking your application. Which mode keeps SELinux logging denials to the audit log while no longer blocking the actions, so you can confirm the theory?",
+    "options": [
+      "Permissive",
+      "Disabled",
+      "Enforcing",
+      "Targeted"
+    ],
+    "optionNotes": [
+      "In permissive mode the policy is still loaded and every would-be denial is logged as an AVC message, but nothing is blocked, which is ideal for diagnosis (`setenforce 0` switches at runtime).",
+      "Disabled turns SELinux off entirely with no logging, requires a reboot, and leaves files unlabeled, which causes more trouble when you turn it back on.",
+      "Enforcing is the normal production mode where denials are both logged and blocked, so it does not answer the question.",
+      "Targeted is a policy type (versus MLS), not a mode; it describes which processes are confined."
+    ],
+    "answer": 0,
+    "explanation": "`getenforce` shows the current mode and `setenforce 0` switches to permissive until reboot (persist via `SELINUX=` in `/etc/selinux/config`). If the problem disappears in permissive mode, read the AVC denials with `ausearch -m avc -ts recent` or `sealert`, then fix the label or boolean rather than leaving SELinux off.",
+    "example": "getenforce\n# Enforcing\nsudo setenforce 0\ngetenforce\n# Permissive\n# reproduce the problem, then:\nsudo ausearch -m avc -ts recent\nsudo setenforce 1",
+    "diagram": "flowchart LR\nA[\"app action\"] --> P[\"SELinux policy check\"]\nP -->|\"enforcing\"| B[\"blocked and logged\"]\nP -->|\"permissive\"| L[\"allowed but logged (AVC)\"]\nP -->|\"disabled\"| N[\"no check, no log\"]\nL --> D[\"ausearch -m avc, then fix label or boolean\"]",
+    "reference": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_selinux/changing-selinux-states-and-modes_using-selinux",
+    "tags": [
+      "selinux",
+      "security"
+    ],
+    "domain": "linux"
   }
 ]

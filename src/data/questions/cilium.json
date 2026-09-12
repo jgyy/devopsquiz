@@ -538,5 +538,545 @@
     ],
     "id": "cilium-020",
     "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Cilium is installed with `routingMode=native` on a cluster where nodes sit in different L3 subnets and no BGP or cloud route integration is configured. Pods on different nodes cannot reach each other, while Pods on the same node can. What is the most likely cause?",
+    "options": [
+      "In native routing mode Cilium does not encapsulate traffic, so the underlying network must be able to route PodCIDRs between nodes; nothing is installing those routes",
+      "Native routing mode requires `kubeProxyReplacement=true`, which was not enabled",
+      "Native routing only works when all nodes share a single IPAM pool of /16 or larger",
+      "The VXLAN port 8472 is blocked between the subnets"
+    ],
+    "optionNotes": [
+      "Correct. With `routingMode=native` Cilium sends Pod packets unencapsulated and relies on the network to route each node's PodCIDR. Across L3 subnets you need BGP, cloud routes, or `autoDirectNodeRoutes` on an L2 network.",
+      "kube-proxy replacement affects Service load balancing, not whether Pod-to-Pod packets can be routed between nodes.",
+      "The IPAM pool size has no effect on inter-node reachability; the missing piece is routing information in the underlay.",
+      "VXLAN is only used in tunnel mode. In native mode there is no encapsulation, so a blocked UDP 8472 is irrelevant."
+    ],
+    "answer": 0,
+    "explanation": "In tunnel mode (VXLAN or Geneve) Cilium encapsulates Pod traffic between nodes, so the underlay only needs node-to-node reachability. In native routing mode the underlay must know how to reach every PodCIDR, which requires BGP, cloud provider routes, or `autoDirectNodeRoutes=true` when all nodes share one L2 segment.",
+    "example": "# tunnel mode (default) - works on any network with node reachability\ncilium install --set routingMode=tunnel --set tunnelProtocol=vxlan\n\n# native routing on a single L2 segment\ncilium install --set routingMode=native \\\n  --set autoDirectNodeRoutes=true \\\n  --set ipv4NativeRoutingCIDR=10.0.0.0/8",
+    "diagram": "flowchart LR\n    P1[\"Pod A on node 1\"] --> D{\"routingMode\"}\n    D -->|\"tunnel\"| V[\"VXLAN or Geneve encapsulation\"]\n    V --> N2[\"node 2 decapsulates\"]\n    D -->|\"native\"| R[\"plain IP packet\"]\n    R --> U[\"underlay must route PodCIDR\"]\n    U -->|\"BGP, cloud routes, autoDirectNodeRoutes\"| N2\n    N2 --> P2[\"Pod B\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/concepts/routing/",
+    "tags": [
+      "cca",
+      "routing",
+      "native-routing"
+    ],
+    "id": "cilium-021",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Cilium support asked you to collect logs, eBPF map dumps, CRDs and Hubble flows from every node into a single zip file for troubleshooting. Which `cilium` CLI subcommand does this? Give the full two-word command.",
+    "answer": [
+      "cilium sysdump"
+    ],
+    "pattern": "^cilium\\s+sysdump$",
+    "explanation": "`cilium sysdump` gathers agent and operator logs, `cilium-dbg` output, BPF map contents, Kubernetes resources and Hubble flows from the cluster and writes them to a timestamped `cilium-sysdump-*.zip` archive that you can attach to a bug report.",
+    "example": "cilium sysdump --output-filename cilium-sysdump-prod\n# collects: logs, cilium-dbg status/endpoint/policy output, bpf maps, CRDs, hubble flows\n# writes ./cilium-sysdump-prod.zip",
+    "diagram": "flowchart TD\n    S[\"cilium sysdump\"] --> L[\"agent and operator logs\"]\n    S --> B[\"eBPF map dumps\"]\n    S --> K[\"Kubernetes objects and CRDs\"]\n    S --> H[\"Hubble flows\"]\n    L --> Z[\"cilium-sysdump-timestamp.zip\"]\n    B --> Z\n    K --> Z\n    H --> Z",
+    "reference": "https://docs.cilium.io/en/stable/operations/troubleshooting/",
+    "tags": [
+      "cca",
+      "troubleshooting",
+      "cli"
+    ],
+    "id": "cilium-022",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Running `cilium-dbg endpoint list` inside an agent Pod shows one endpoint stuck in the `waiting-for-identity` state for several minutes. What does this state mean?",
+    "options": [
+      "The agent has not yet been able to allocate a numeric security identity for the endpoint's label set, usually because the identity allocation backend (CRDs or kvstore) is unreachable",
+      "The endpoint is waiting for its Pod to pass its Kubernetes readiness probe",
+      "The endpoint is queued behind other endpoints while its eBPF program is being compiled",
+      "The Pod has no labels, so Cilium cannot assign an identity until labels are added"
+    ],
+    "optionNotes": [
+      "Correct. Identities are allocated from labels via CRDs (`CiliumIdentity`) or a kvstore; if that allocation fails or times out the endpoint sits in `waiting-for-identity` and its datapath is not fully programmed.",
+      "Cilium endpoint states are independent of Kubernetes readiness probes.",
+      "That situation is represented by the `regenerating` or `waiting-to-regenerate` states, not `waiting-for-identity`.",
+      "A Pod always carries at least the namespace and default labels, so an identity can be allocated; missing labels are not the cause."
+    ],
+    "answer": 0,
+    "explanation": "Cilium endpoints move through states such as `creating`, `waiting-for-identity`, `waiting-to-regenerate`, `regenerating`, `ready`, `disconnecting` and `disconnected`. `waiting-for-identity` indicates the agent is still trying to resolve the endpoint's labels into a numeric identity, typically because the CRD or kvstore backend is slow or unavailable.",
+    "example": "kubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint list\n# ENDPOINT   POLICY (ingress)   POLICY (egress)   IDENTITY   LABELS                 STATUS\n# 1234       Disabled           Disabled          <no id>    k8s:app=web            waiting-for-identity\n# 2345       Enabled            Disabled          21561      k8s:app=api            ready",
+    "diagram": "flowchart LR\n    C[\"creating\"] --> W[\"waiting-for-identity\"]\n    W -->|\"identity allocated\"| G[\"waiting-to-regenerate\"]\n    G --> R[\"regenerating\"]\n    R --> Y[\"ready\"]\n    Y -->|\"pod deleted\"| D[\"disconnecting\"]\n    D --> X[\"disconnected\"]\n    W -->|\"CRD or kvstore unreachable\"| W",
+    "reference": "https://docs.cilium.io/en/stable/operations/troubleshooting/",
+    "tags": [
+      "cca",
+      "endpoints",
+      "troubleshooting"
+    ],
+    "id": "cilium-023",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You want to use `CiliumClusterwideNetworkPolicy` to restrict which sources may reach SSH on the Kubernetes nodes themselves, not on Pods. Which Cilium feature must be enabled, and how are the nodes selected?",
+    "options": [
+      "Enable `hostFirewall.enabled=true` and write a policy with `nodeSelector` instead of `endpointSelector`",
+      "Enable `hostFirewall.enabled=true` and write a policy whose `endpointSelector` matches the node's `kubernetes.io/hostname` label",
+      "Enable `hostServices.enabled=true` and select nodes with `toEntities: host`",
+      "No extra feature is required; any `CiliumNetworkPolicy` with `fromEntities: cluster` also applies to node traffic"
+    ],
+    "optionNotes": [
+      "Correct. The host firewall applies policy to the node's host endpoint; policies for it use `nodeSelector` in a `CiliumClusterwideNetworkPolicy` to pick nodes by their Node labels.",
+      "`endpointSelector` matches Pod endpoints; the host endpoint is selected by `nodeSelector`.",
+      "`hostServices` relates to socket-level service load balancing for host processes, not to policy enforcement on the node.",
+      "By default network policy applies only to Pod endpoints. Without the host firewall, node traffic is not policed."
+    ],
+    "answer": 0,
+    "explanation": "Cilium's host firewall extends policy enforcement to the node's own network namespace via a special host endpoint with the reserved `host` identity. Policies targeting nodes must be `CiliumClusterwideNetworkPolicy` objects using `nodeSelector`, and it is recommended to start in audit mode to avoid locking yourself out of SSH.",
+    "example": "apiVersion: cilium.io/v2\nkind: CiliumClusterwideNetworkPolicy\nmetadata:\n  name: node-ssh\nspec:\n  nodeSelector:\n    matchLabels:\n      node-role.kubernetes.io/worker: \"\"\n  ingress:\n  - fromCIDR: [\"10.10.0.0/24\"]\n    toPorts:\n    - ports:\n      - port: \"22\"\n        protocol: TCP",
+    "diagram": "flowchart LR\n    H[\"helm: hostFirewall.enabled=true\"] --> E[\"host endpoint per node (identity: host)\"]\n    P[\"CiliumClusterwideNetworkPolicy\"] -->|\"nodeSelector\"| E\n    T[\"traffic to node port 22\"] --> E\n    E -->|\"allowed CIDR\"| A[\"accept\"]\n    E -->|\"other source\"| D[\"drop\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/host-firewall/",
+    "tags": [
+      "cca",
+      "host-firewall",
+      "network-policy"
+    ],
+    "id": "cilium-024",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "When Cilium's Bandwidth Manager is enabled, adding the annotation `kubernetes.io/egress-bandwidth: 10M` to a Pod limits that Pod's egress rate using eBPF and EDT (Earliest Departure Time) instead of the traditional tc token-bucket filter.",
+    "answer": true,
+    "explanation": "The Bandwidth Manager (`bandwidthManager.enabled=true`) honors the standard `kubernetes.io/egress-bandwidth` Pod annotation and enforces it with eBPF-based EDT rate limiting and the fq qdisc, which scales better than the TBF-based bandwidth plugin. Ingress limiting via `kubernetes.io/ingress-bandwidth` is not implemented by the Bandwidth Manager.",
+    "example": "cilium install --set bandwidthManager.enabled=true\n\napiVersion: v1\nkind: Pod\nmetadata:\n  name: uploader\n  annotations:\n    kubernetes.io/egress-bandwidth: \"10M\"",
+    "diagram": "flowchart LR\n    A[\"Pod annotation egress-bandwidth: 10M\"] --> C[\"cilium-agent reads annotation\"]\n    C --> M[\"eBPF map: rate per endpoint\"]\n    P[\"Pod egress packets\"] --> E[\"eBPF sets EDT timestamp\"]\n    E --> M\n    E --> F[\"fq qdisc paces packets\"]\n    F --> N[\"NIC\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/kubernetes/bandwidth-manager/",
+    "tags": [
+      "cca",
+      "bandwidth-manager",
+      "qos"
+    ],
+    "id": "cilium-025",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Hubble is not installed on a cluster, but you need to watch policy drops for a specific endpoint in real time on the node where it runs. Which command gives you a live stream of datapath events from inside the agent Pod?",
+    "options": [
+      "`cilium-dbg monitor --type drop`",
+      "`cilium-dbg bpf ct list global`",
+      "`cilium-dbg endpoint log <id>`",
+      "`cilium-dbg policy get`"
+    ],
+    "optionNotes": [
+      "Correct. `cilium-dbg monitor` streams events from the node's perf ring buffer; `--type drop` limits output to dropped packets, and `--related-to <endpoint id>` narrows it to one endpoint.",
+      "This dumps the connection tracking table, a static snapshot rather than a live event stream.",
+      "`endpoint log` shows the endpoint's state-change history, not packet-level events.",
+      "`policy get` prints the current policy repository; it does not show what the datapath is dropping."
+    ],
+    "answer": 0,
+    "explanation": "`cilium-dbg monitor` (formerly `cilium monitor`) reads the per-node event ring buffer used by the eBPF datapath and prints drops, traces, policy verdicts and debug messages. It is the low-level tool Hubble builds on, useful when Hubble is not deployed or when you need node-local detail.",
+    "example": "kubectl -n kube-system exec -it ds/cilium -- cilium-dbg monitor --type drop --related-to 1234\n# xx drop (Policy denied) flow 0x... to endpoint 1234, identity 21561->16 : 10.0.1.5:43210 -> 10.0.2.9:8080 tcp SYN",
+    "diagram": "flowchart LR\n    B[\"eBPF datapath\"] -->|\"drop, trace, policy-verdict events\"| R[\"perf ring buffer\"]\n    R --> M[\"cilium-dbg monitor\"]\n    R --> H[\"hubble (if enabled)\"]\n    M -->|\"--type drop\"| O[\"only drops\"]\n    M -->|\"--related-to id\"| E[\"one endpoint\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/troubleshooting/",
+    "tags": [
+      "cca",
+      "troubleshooting",
+      "monitor"
+    ],
+    "id": "cilium-026",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Before enforcing a new default-deny policy in production, you want Cilium to log which flows would be dropped without actually dropping them. Which mechanism provides this?",
+    "options": [
+      "Policy audit mode, enabled with `policyAuditMode=true` or per endpoint with `cilium-dbg endpoint config <id> PolicyAuditMode=Enabled`, which reports `audit` verdicts in Hubble instead of dropping",
+      "Adding `spec.mode: dryRun` to the `CiliumNetworkPolicy` object",
+      "Setting `policyEnforcementMode=never`, which logs denied flows while allowing them",
+      "Running `hubble observe --verdict WOULD_DROP`, which simulates the policy against live flows"
+    ],
+    "optionNotes": [
+      "Correct. In audit mode the datapath still evaluates policy but allows traffic that would be denied and emits an audit verdict, so you can inspect it with `hubble observe --verdict AUDIT` before switching enforcement on.",
+      "There is no `mode: dryRun` field in the CNP spec; audit mode is an agent or endpoint setting, not a policy field.",
+      "`never` simply disables enforcement; it does not evaluate or log what a policy would have denied.",
+      "`WOULD_DROP` is not a Hubble verdict. Valid verdicts include FORWARDED, DROPPED, AUDIT, REDIRECTED and ERROR."
+    ],
+    "answer": 0,
+    "explanation": "Policy audit mode keeps traffic flowing but marks flows that a policy would deny with the `AUDIT` verdict. It can be enabled cluster-wide via the `policyAuditMode` Helm value or per endpoint with `cilium-dbg endpoint config`, and is the recommended way to validate host firewall and default-deny policies before enforcing them.",
+    "example": "# cluster-wide\ncilium install --set policyAuditMode=true\n# per endpoint\nkubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint config 1234 PolicyAuditMode=Enabled\n# observe what would be dropped\nhubble observe --verdict AUDIT --namespace shop",
+    "diagram": "flowchart LR\n    F[\"incoming flow\"] --> P{\"policy allows?\"}\n    P -->|\"yes\"| A[\"FORWARDED\"]\n    P -->|\"no\"| M{\"audit mode?\"}\n    M -->|\"enabled\"| U[\"AUDIT verdict, packet forwarded\"]\n    M -->|\"disabled\"| D[\"DROPPED\"]\n    U --> H[\"hubble observe --verdict AUDIT\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/policy-creation/",
+    "tags": [
+      "cca",
+      "network-policy",
+      "audit-mode"
+    ],
+    "id": "cilium-027",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Tetragon is deployed alongside Cilium. Which custom resource do you create to tell Tetragon which kernel functions or syscalls to observe and optionally enforce on?",
+    "options": [
+      "`TracingPolicy`",
+      "`CiliumNetworkPolicy` with a `tracing` section",
+      "`TetragonRule`",
+      "`CiliumClusterwideEnvoyConfig`"
+    ],
+    "optionNotes": [
+      "Correct. `TracingPolicy` (and its namespaced variant `TracingPolicyNamespaced`) defines kprobes, tracepoints or uprobes plus selectors and optional `Sigkill` or `Override` actions.",
+      "Tetragon has its own CRDs; `CiliumNetworkPolicy` has no tracing section.",
+      "`TetragonRule` is not a real resource kind.",
+      "`CiliumClusterwideEnvoyConfig` configures Envoy L7 proxies, unrelated to runtime security observability."
+    ],
+    "answer": 0,
+    "explanation": "Tetragon is an eBPF-based runtime security and observability tool from the Cilium project. Its `TracingPolicy` CRD attaches eBPF hooks to kernel functions (kprobes), tracepoints or user-space functions, and can filter events and apply enforcement actions such as killing the offending process.",
+    "example": "apiVersion: cilium.io/v1alpha1\nkind: TracingPolicy\nmetadata:\n  name: block-etc-shadow\nspec:\n  kprobes:\n  - call: security_file_open\n    syscall: false\n    args:\n    - index: 0\n      type: file\n    selectors:\n    - matchArgs:\n      - index: 0\n        operator: Prefix\n        values: [\"/etc/shadow\"]\n      matchActions:\n      - action: Sigkill",
+    "diagram": "flowchart LR\n    T[\"TracingPolicy CRD\"] --> A[\"tetragon agent\"]\n    A -->|\"attaches\"| K[\"kprobe / tracepoint / uprobe\"]\n    K --> E[\"kernel event\"]\n    E --> S{\"selectors match?\"}\n    S -->|\"yes\"| O[\"emit event via tetra getevents\"]\n    S -->|\"yes + action\"| X[\"Sigkill or Override\"]",
+    "reference": "https://tetragon.io/docs/concepts/tracing-policy/",
+    "tags": [
+      "cca",
+      "tetragon",
+      "runtime-security"
+    ],
+    "id": "cilium-028",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "You are using Cilium's LoadBalancer IPAM instead of MetalLB. Which Cilium resource `kind` defines the range of IPs from which `Service` objects of type `LoadBalancer` get their external address?",
+    "answer": [
+      "CiliumLoadBalancerIPPool",
+      "cilium load balancer ip pool"
+    ],
+    "pattern": "^cilium\\s*load\\s*balancer\\s*ip\\s*pool$",
+    "explanation": "`CiliumLoadBalancerIPPool` is a cluster-scoped CRD holding one or more CIDRs or ranges in `spec.blocks`. The operator assigns an IP from a matching pool to each `LoadBalancer` Service; the IP still needs to be announced, for example via BGP or L2 announcements.",
+    "example": "apiVersion: cilium.io/v2alpha1\nkind: CiliumLoadBalancerIPPool\nmetadata:\n  name: prod-pool\nspec:\n  blocks:\n  - cidr: 192.0.2.0/24\n  serviceSelector:\n    matchLabels:\n      env: prod",
+    "diagram": "flowchart LR\n    S[\"Service type LoadBalancer\"] --> O[\"cilium-operator LB IPAM\"]\n    P[\"CiliumLoadBalancerIPPool\"] -->|\"blocks + serviceSelector\"| O\n    O -->|\"sets status.loadBalancer.ingress\"| S\n    S --> A{\"announce\"}\n    A --> B[\"BGP control plane\"]\n    A --> L[\"L2 announcements\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/lb-ipam/",
+    "tags": [
+      "cca",
+      "lb-ipam",
+      "services"
+    ],
+    "id": "cilium-029",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You installed the `hubble` CLI on your laptop and run `hubble observe`, but it fails with a connection error to `localhost:4245`. What is the usual fix?",
+    "options": [
+      "Run `cilium hubble port-forward` so the `hubble-relay` service is reachable on localhost:4245",
+      "Run `cilium hubble enable --ui`, since the CLI needs Hubble UI to be deployed",
+      "Exec into a `cilium` agent Pod, because the `hubble` CLI only works from inside the cluster",
+      "Set `hubble.relay.enabled=false` so the CLI talks to each node's Hubble server directly"
+    ],
+    "optionNotes": [
+      "Correct. The CLI defaults to a Relay endpoint on localhost:4245; `cilium hubble port-forward` (or `kubectl port-forward svc/hubble-relay`) exposes it.",
+      "Hubble UI is optional; the CLI only needs Relay, which `cilium hubble enable` deploys without `--ui`.",
+      "Running `hubble observe` inside an agent Pod works for node-local flows, but the CLI is designed to be used from outside via Relay.",
+      "Disabling Relay would remove the cluster-wide view; the CLI expects a Relay endpoint by default."
+    ],
+    "answer": 0,
+    "explanation": "Hubble Relay aggregates flows from every node's Hubble server. The `hubble` CLI talks to Relay over gRPC on localhost:4245 by default, so `cilium hubble port-forward` (or an equivalent `kubectl port-forward`) is required unless Relay is exposed some other way.",
+    "example": "cilium hubble enable --ui\ncilium hubble port-forward &\nhubble status\nhubble observe --namespace shop --follow",
+    "diagram": "flowchart LR\n    C[\"hubble CLI on laptop\"] -->|\"localhost:4245\"| F[\"cilium hubble port-forward\"]\n    F --> R[\"hubble-relay service\"]\n    R --> N1[\"hubble server in agent node 1\"]\n    R --> N2[\"hubble server in agent node 2\"]\n    U[\"hubble-ui\"] --> R",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/setup/",
+    "tags": [
+      "cca",
+      "hubble",
+      "cli"
+    ],
+    "id": "cilium-030",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about DNS-aware L7 rules in a `CiliumNetworkPolicy` are correct? (Select all that apply.)",
+    "options": [
+      "A `dns` rule under `toPorts.rules` uses `matchName` for exact names and `matchPattern` for wildcards such as `*.example.com`",
+      "DNS rules are enforced by the Cilium DNS proxy running in the agent, not by Envoy",
+      "A DNS rule automatically allows the resolved IPs on every port without an additional egress rule",
+      "Typical `toFQDNs` policies pair a DNS rule allowing lookups to `kube-dns` with a separate `toFQDNs` egress rule for the actual traffic",
+      "`matchPattern: \"*\"` allows the Pod to resolve any name while still recording the answers for `toFQDNs` use"
+    ],
+    "optionNotes": [
+      "Correct. `matchName` requires an exact match; `matchPattern` supports `*` wildcards for a label or subdomain.",
+      "Correct. Cilium redirects port 53 traffic to its built-in DNS proxy inside the agent; Envoy is used for HTTP, gRPC and Kafka.",
+      "Wrong. A DNS rule only permits and inspects the lookup itself; you still need a `toFQDNs` (or CIDR) rule to allow the connection to the resolved IPs.",
+      "Correct. The standard pattern is one egress rule to the DNS server with a `dns` L7 rule, plus a `toFQDNs` rule with the destination ports.",
+      "Correct. A catch-all pattern is commonly used to observe DNS while still populating the FQDN-to-IP cache."
+    ],
+    "answer": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "explanation": "DNS L7 rules govern which names a Pod may resolve and feed the DNS proxy's cache that `toFQDNs` rules rely on. They do not themselves authorize the follow-up connection, so a policy typically has two egress rules: one to the DNS server with `rules.dns`, and one with `toFQDNs` and the destination ports.",
+    "example": "egress:\n- toEndpoints:\n  - matchLabels:\n      k8s:io.kubernetes.pod.namespace: kube-system\n      k8s:k8s-app: kube-dns\n  toPorts:\n  - ports:\n    - port: \"53\"\n      protocol: ANY\n    rules:\n      dns:\n      - matchPattern: \"*.github.com\"\n- toFQDNs:\n  - matchPattern: \"*.github.com\"\n  toPorts:\n  - ports:\n    - port: \"443\"\n      protocol: TCP",
+    "diagram": "flowchart LR\n    P[\"Pod\"] -->|\"port 53\"| X[\"cilium DNS proxy\"]\n    X -->|\"matchName / matchPattern allowed?\"| K[\"kube-dns\"]\n    K --> X\n    X -->|\"record name to IP\"| C[\"FQDN cache\"]\n    C --> F[\"toFQDNs rule maps to IPs\"]\n    P -->|\"port 443\"| F\n    F --> E[\"external service\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/",
+    "tags": [
+      "cca",
+      "network-policy",
+      "dns"
+    ],
+    "id": "cilium-031",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In `hubble observe` output you see a flow from identity `6` to a Pod. Which reserved Cilium identity does the number 6 represent?",
+    "options": [
+      "`remote-node`, meaning the traffic originated from another node's host network namespace",
+      "`host`, meaning the traffic originated from the local node",
+      "`world`, meaning the traffic came from outside the cluster",
+      "`kube-apiserver`, meaning the traffic came from the API server"
+    ],
+    "optionNotes": [
+      "Correct. Reserved identities are fixed: `host` is 1, `world` is 2, `unmanaged` is 3, `health` is 4, `init` is 5, `remote-node` is 6 and `kube-apiserver` is 7.",
+      "`host` is reserved identity 1.",
+      "`world` is reserved identity 2.",
+      "`kube-apiserver` is reserved identity 7."
+    ],
+    "answer": 0,
+    "explanation": "Cilium reserves the low identity numbers for special entities: `host` (1), `world` (2), `unmanaged` (3), `health` (4), `init` (5), `remote-node` (6) and `kube-apiserver` (7). Regular Pod identities are allocated from 256 upward. Knowing these values helps interpret raw monitor and Hubble output.",
+    "example": "kubectl -n kube-system exec ds/cilium -- cilium-dbg identity list\n# ID   LABELS\n# 1    reserved:host\n# 2    reserved:world\n# 3    reserved:unmanaged\n# 4    reserved:health\n# 5    reserved:init\n# 6    reserved:remote-node\n# 7    reserved:kube-apiserver",
+    "diagram": "flowchart TD\n    R[\"reserved identities\"] --> H[\"1 host\"]\n    R --> W[\"2 world\"]\n    R --> U[\"3 unmanaged\"]\n    R --> E[\"4 health\"]\n    R --> I[\"5 init\"]\n    R --> N[\"6 remote-node\"]\n    R --> K[\"7 kube-apiserver\"]\n    R --> P[\"256 and above: Pod identities\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/",
+    "tags": [
+      "cca",
+      "identity",
+      "hubble"
+    ],
+    "id": "cilium-032",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Setting `autoDirectNodeRoutes=true` makes Cilium install a route for every remote node's PodCIDR on each node, which is sufficient for native routing between nodes even when the nodes are in different L3 subnets.",
+    "answer": false,
+    "explanation": "`autoDirectNodeRoutes` installs per-node PodCIDR routes with the remote node IP as next hop, which only works when all nodes are directly reachable on the same L2 network. Across L3 subnets the intermediate routers do not know the PodCIDRs, so you need BGP, cloud provider routes, or tunnel mode instead.",
+    "example": "# fine on a single L2 segment\ncilium install --set routingMode=native --set autoDirectNodeRoutes=true \\\n  --set ipv4NativeRoutingCIDR=10.244.0.0/16\n\n# multiple L3 subnets: advertise PodCIDRs via BGP instead\ncilium install --set routingMode=native --set bgpControlPlane.enabled=true",
+    "diagram": "flowchart LR\n    A[\"node 1: route 10.244.2.0/24 via node2-ip\"] --> Q{\"node 2 on same L2?\"}\n    Q -->|\"yes\"| OK[\"packet delivered directly\"]\n    Q -->|\"no, across router\"| RT[\"router has no PodCIDR route\"]\n    RT --> X[\"packet dropped\"]\n    RT -->|\"fix\"| B[\"BGP or cloud routes or tunnel\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/concepts/routing/",
+    "tags": [
+      "cca",
+      "routing",
+      "native-routing"
+    ],
+    "id": "cilium-033",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "With `hubble observe`, which flag restricts output to flows with a specific verdict, for example only dropped or only forwarded flows? Give the flag name including the leading dashes.",
+    "answer": [
+      "--verdict",
+      "--verdict DROPPED",
+      "--verdict=DROPPED"
+    ],
+    "pattern": "^--verdict(\\s*=?\\s*(DROPPED|FORWARDED|AUDIT|ERROR|REDIRECTED))?$",
+    "explanation": "`hubble observe --verdict <VERDICT>` filters flows by the datapath decision. Valid verdicts include `FORWARDED`, `DROPPED`, `AUDIT`, `REDIRECTED` and `ERROR`. Combine it with `--namespace`, `--pod`, `--type` or `--protocol` to narrow the stream further.",
+    "example": "hubble observe --verdict DROPPED --namespace shop --follow\n# Sep 12 10:01:02.123: shop/cart-6f8 (ID:21561) <> shop/db-0 (ID:13337) Policy denied DROPPED (TCP Flags: SYN)",
+    "diagram": "flowchart LR\n    F[\"all flows from relay\"] --> V{\"--verdict\"}\n    V -->|\"DROPPED\"| D[\"policy or datapath drops\"]\n    V -->|\"FORWARDED\"| W[\"allowed flows\"]\n    V -->|\"AUDIT\"| A[\"would-be drops in audit mode\"]\n    D --> O[\"terminal output\"]\n    W --> O\n    A --> O",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/",
+    "tags": [
+      "cca",
+      "hubble",
+      "cli"
+    ],
+    "id": "cilium-034",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You enable Cilium's built-in Ingress controller with `ingressController.enabled=true` and create an `Ingress` object, but it never gets an address. Which of the following is the most common missing piece?",
+    "options": [
+      "The `Ingress` does not set `ingressClassName: cilium` (or the default class was not set with `ingressController.default=true`)",
+      "The `Ingress` must reference an `IngressRoute` CRD instead of `rules`",
+      "The Cilium Ingress controller only works when `routingMode=native`",
+      "Envoy must be installed manually as a separate Deployment before Ingress can be used"
+    ],
+    "optionNotes": [
+      "Correct. Cilium only reconciles Ingresses whose class is `cilium`, either explicitly via `ingressClassName` or because `ingressController.default=true` made it the cluster default.",
+      "`IngressRoute` is a Traefik concept; Cilium uses the standard `Ingress` spec.",
+      "The Ingress controller works in tunnel and native routing modes alike.",
+      "Cilium deploys Envoy itself, either embedded in the agent or as the `cilium-envoy` DaemonSet; no manual install is required."
+    ],
+    "answer": 0,
+    "explanation": "Cilium's Ingress controller requires kube-proxy replacement (or at least `nodePort.enabled=true`) and only handles `Ingress` objects with `ingressClassName: cilium`. The `loadbalancerMode` setting controls whether one shared LoadBalancer Service (`shared`) or one per Ingress (`dedicated`) is created, and that Service still needs an external IP from LB IPAM or the cloud.",
+    "example": "cilium install --set kubeProxyReplacement=true \\\n  --set ingressController.enabled=true \\\n  --set ingressController.loadbalancerMode=dedicated\n\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: shop\nspec:\n  ingressClassName: cilium\n  rules:\n  - host: shop.example.com\n    http:\n      paths:\n      - path: /\n        pathType: Prefix\n        backend:\n          service:\n            name: shop\n            port:\n              number: 80",
+    "diagram": "flowchart LR\n    I[\"Ingress ingressClassName: cilium\"] --> O[\"cilium-operator\"]\n    O -->|\"shared or dedicated\"| S[\"Service type LoadBalancer\"]\n    O --> C[\"CiliumEnvoyConfig\"]\n    C --> E[\"Envoy proxy\"]\n    S --> E\n    E --> B[\"backend Pods\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/servicemesh/ingress/",
+    "tags": [
+      "cca",
+      "service-mesh",
+      "ingress"
+    ],
+    "id": "cilium-035",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which requirements must be satisfied before two clusters can be connected with Cilium Cluster Mesh? (Select all that apply.)",
+    "options": [
+      "Each cluster has a unique `cluster.name` and a unique numeric `cluster.id`",
+      "PodCIDRs of the clusters must not overlap, unless you use overlapping-PodCIDR support with tunnel mode",
+      "Both clusters must run the same Kubernetes distribution",
+      "Nodes in each cluster can reach the other cluster's nodes and its `clustermesh-apiserver` endpoint",
+      "Both clusters must use the same CA, for example by sharing the `cilium-ca` secret"
+    ],
+    "optionNotes": [
+      "Correct. The cluster ID (1 to 255 by default) is encoded into security identities, and the name distinguishes clusters in Hubble and global services.",
+      "Correct. Cross-cluster Pod routing needs non-overlapping ranges in the standard setup.",
+      "Wrong. Cluster Mesh works across distributions and cloud providers; only network reachability and Cilium version compatibility matter.",
+      "Correct. The agents in each cluster connect to the remote `clustermesh-apiserver` to learn identities, nodes and services, and Pods must be routable across clusters.",
+      "Correct. `cilium clustermesh connect` relies on both sides trusting the same CA so the agents can authenticate to the remote apiserver over mTLS."
+    ],
+    "answer": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "explanation": "Cluster Mesh requires distinct cluster names and IDs, non-overlapping PodCIDRs (in the default configuration), a shared CA for mTLS, and node-level reachability between clusters plus access to each cluster's `clustermesh-apiserver` Service. The CLI's `cilium clustermesh connect` automates exchanging the connection secrets.",
+    "example": "cilium install --context c1 --set cluster.name=c1 --set cluster.id=1\ncilium install --context c2 --set cluster.name=c2 --set cluster.id=2\ncilium clustermesh enable --context c1 --service-type LoadBalancer\ncilium clustermesh enable --context c2 --service-type LoadBalancer\ncilium clustermesh connect --context c1 --destination-context c2\ncilium clustermesh status --context c1 --wait",
+    "diagram": "flowchart LR\n    A[\"cluster c1 id=1\"] -->|\"mTLS, shared CA\"| B[\"clustermesh-apiserver in c2\"]\n    C[\"cluster c2 id=2\"] -->|\"mTLS, shared CA\"| D[\"clustermesh-apiserver in c1\"]\n    A -->|\"non-overlapping PodCIDR\"| C\n    B -->|\"identities, nodes, services\"| A\n    D -->|\"identities, nodes, services\"| C",
+    "reference": "https://docs.cilium.io/en/stable/network/clustermesh/clustermesh/",
+    "tags": [
+      "cca",
+      "cluster-mesh",
+      "installation"
+    ],
+    "id": "cilium-036",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Cilium runs in native routing mode. Pods can reach each other, but when a Pod connects to an external IP on the internet, its packets leave the node with the Pod IP as source and are never answered. Which setting is most likely misconfigured?",
+    "options": [
+      "`ipv4NativeRoutingCIDR` is set too broadly, so Cilium treats the destination as internal and skips SNAT (masquerading)",
+      "`enableIPv4Masquerade=true` conflicts with native routing and must be turned off",
+      "`kubeProxyReplacement` is disabled, so egress traffic is not masqueraded",
+      "The `world` entity is missing from the Pod's egress policy"
+    ],
+    "optionNotes": [
+      "Correct. Cilium masquerades traffic leaving the native routing CIDR. If that CIDR is `0.0.0.0/0` or otherwise includes the destination, packets are sent unmasqueraded with a Pod IP the external network cannot route back to.",
+      "Masquerading is normally enabled in native routing mode precisely so external traffic uses the node IP; turning it off would make the symptom worse.",
+      "Masquerading is performed by the eBPF or iptables masquerade logic regardless of kube-proxy replacement.",
+      "A policy problem would show as a drop on the node; here the packet leaves the node, so policy is not the cause."
+    ],
+    "answer": 0,
+    "explanation": "In native routing mode `ipv4NativeRoutingCIDR` defines the range that is reachable without NAT. Destinations outside it are masqueraded to the node IP (with eBPF masquerading when `bpf.masquerade=true`). Setting the CIDR too wide causes external traffic to keep the Pod source IP and fail.",
+    "example": "# check the effective setting\nkubectl -n kube-system exec ds/cilium -- cilium-dbg config | grep -i -E 'NativeRouting|Masquerade'\n\n# correct: only the pod range is native\ncilium install --set routingMode=native \\\n  --set ipv4NativeRoutingCIDR=10.244.0.0/16 \\\n  --set bpf.masquerade=true",
+    "diagram": "flowchart LR\n    P[\"Pod 10.244.1.5\"] --> D{\"destination inside ipv4NativeRoutingCIDR?\"}\n    D -->|\"yes\"| N[\"send with Pod IP source\"]\n    D -->|\"no\"| S[\"SNAT to node IP\"]\n    S --> I[\"internet replies to node\"]\n    N -->|\"if CIDR too broad\"| X[\"internet cannot route back to Pod IP\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/concepts/masquerading/",
+    "tags": [
+      "cca",
+      "routing",
+      "masquerading"
+    ],
+    "id": "cilium-037",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Your Prometheus scrapes port 9962 on each Cilium agent and collects `cilium_*` metrics, but no `hubble_drop_total` or `hubble_flows_processed_total` series appear. What is missing?",
+    "options": [
+      "Hubble metrics must be enabled with `hubble.metrics.enabled` listing metric groups such as `drop` and `flow`, and they are served on the separate hubble-metrics port 9965",
+      "Hubble metrics are only exported by `hubble-relay`, so Prometheus must scrape the Relay Pod instead of the agents",
+      "The `cilium-operator` must be restarted so that it starts aggregating flow counters into its own metrics endpoint",
+      "Hubble metrics require Hubble UI to be enabled because the UI backend computes them"
+    ],
+    "optionNotes": [
+      "Correct. Hubble metrics are derived from flows and served on port 9965 per agent, configured via the `hubble.metrics.enabled` list; they are independent of the agent's own `cilium_*` metrics on 9962.",
+      "Relay forwards flows to clients; it does not export the per-flow `hubble_*` metrics.",
+      "The operator exposes its own `cilium_operator_*` metrics but does not aggregate flow metrics.",
+      "Hubble UI is not involved in metric export."
+    ],
+    "answer": 0,
+    "explanation": "Hubble metrics are derived from observed flows and are served on the `hubble-metrics` port (9965 by default) of each agent, distinct from the agent's `cilium_*` metrics on port 9962. The list of enabled metric groups is configured through the `hubble.metrics.enabled` Helm value, and options like `labelsContext` control cardinality.",
+    "example": "cilium install \\\n  --set hubble.enabled=true \\\n  --set hubble.metrics.enableOpenMetrics=true \\\n  --set \"hubble.metrics.enabled={dns,drop,tcp,flow,port-distribution,icmp,httpV2:exemplars=true;labelsContext=source_ip\\,source_namespace\\,destination_namespace}\"\n# scrape :9965/metrics for hubble_flows_processed_total, hubble_drop_total ...",
+    "diagram": "flowchart LR\n    B[\"eBPF datapath events\"] --> H[\"hubble server in agent\"]\n    H -->|\"flows\"| R[\"hubble-relay\"]\n    H -->|\"aggregated by enabled groups\"| M[\"hubble_* metrics :9965\"]\n    A[\"cilium-agent internals\"] --> C[\"cilium_* metrics :9962\"]\n    M --> P[\"Prometheus\"]\n    C --> P",
+    "reference": "https://docs.cilium.io/en/stable/observability/metrics/",
+    "tags": [
+      "cca",
+      "hubble",
+      "metrics"
+    ],
+    "id": "cilium-038",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which Cilium features cause traffic to be redirected through an Envoy proxy rather than being handled entirely in the eBPF datapath? (Select all that apply.)",
+    "options": [
+      "HTTP L7 rules in a `CiliumNetworkPolicy`",
+      "DNS `matchPattern` rules in a `CiliumNetworkPolicy`",
+      "The Cilium Ingress controller and Gateway API implementation",
+      "Kafka L7 rules in a `CiliumNetworkPolicy`",
+      "ClusterIP load balancing with kube-proxy replacement"
+    ],
+    "optionNotes": [
+      "Correct. HTTP-aware policy needs request parsing, which is done by Envoy with Cilium's policy filter.",
+      "Wrong. DNS rules are enforced by the agent's built-in DNS proxy, not Envoy.",
+      "Correct. Ingress and Gateway API resources are translated into `CiliumEnvoyConfig` objects and served by Envoy.",
+      "Correct. Kafka protocol parsing is implemented as an Envoy filter.",
+      "Wrong. Service load balancing happens in eBPF (socket-level or tc-level) without any proxy."
+    ],
+    "answer": [
+      0,
+      2,
+      3
+    ],
+    "explanation": "Cilium keeps L3/L4 forwarding, service load balancing and identity policy in eBPF. Envoy is only in the path for HTTP, gRPC and Kafka L7 policy and for ingress features (Ingress, Gateway API, `CiliumEnvoyConfig`). DNS policy is the exception among L7 rules: it uses a lightweight DNS proxy inside the agent.",
+    "example": "# see whether Envoy is receiving redirected traffic for an endpoint\nkubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint get 1234 -o jsonpath='{[0].status.policy.realized.l4}'\n# proxy statistics\nkubectl -n kube-system exec ds/cilium -- cilium-dbg status --verbose | grep -A5 Proxy",
+    "diagram": "flowchart LR\n    T[\"packet\"] --> E[\"eBPF datapath\"]\n    E -->|\"L3/L4 policy, services\"| F[\"forward in kernel\"]\n    E -->|\"port 53 with dns rule\"| D[\"DNS proxy in agent\"]\n    E -->|\"HTTP, gRPC, Kafka rule or Ingress\"| V[\"Envoy proxy\"]\n    V --> F\n    D --> F",
+    "reference": "https://docs.cilium.io/en/stable/security/network/proxy/envoy/",
+    "tags": [
+      "cca",
+      "envoy",
+      "l7"
+    ],
+    "id": "cilium-039",
+    "domain": "cilium"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Enabling `ciliumEndpointSlice.enabled=true` replaces the per-Pod `CiliumEndpoint` objects with batched `CiliumEndpointSlice` objects so that agents watch fewer resources in large clusters; the `CiliumEndpoint` objects themselves are no longer created.",
+    "answer": false,
+    "explanation": "With CiliumEndpointSlice enabled the operator aggregates endpoint information into `CiliumEndpointSlice` objects and agents watch those instead of individual `CiliumEndpoint` objects, which reduces API server and watch load at scale. However `CiliumEndpoint` objects are still created for each Pod; the slices are built from them.",
+    "example": "cilium install --set ciliumEndpointSlice.enabled=true\nkubectl get ciliumendpointslices\n# NAME          AGE\n# ces-2z8k9...  5m\nkubectl get ciliumendpoints -A | head   # still present per Pod",
+    "diagram": "flowchart LR\n    P[\"Pod\"] --> A[\"cilium-agent creates CiliumEndpoint\"]\n    A --> O[\"cilium-operator\"]\n    O -->|\"batches into\"| S[\"CiliumEndpointSlice\"]\n    S -->|\"single watch\"| G[\"agents on all nodes\"]\n    A -.->|\"without CES: every agent watches every CEP\"| G",
+    "reference": "https://docs.cilium.io/en/stable/network/kubernetes/ciliumendpointslice/",
+    "tags": [
+      "cca",
+      "scalability",
+      "endpoints"
+    ],
+    "id": "cilium-040",
+    "domain": "cilium"
   }
 ]

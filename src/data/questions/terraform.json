@@ -1529,5 +1529,382 @@
     "tags": [
       "comparisons"
     ]
+  },
+  {
+    "id": "terraform-061",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You rename `resource \"aws_s3_bucket\" \"logs\"` to `resource \"aws_s3_bucket\" \"audit_logs\"`. Which configuration construct lets Terraform treat this as a rename in state rather than a destroy and recreate, without anyone running `terraform state mv`?",
+    "explanation": "A `moved` block records that the object at the `from` address now lives at the `to` address. On the next plan Terraform updates the state binding in place, so the real bucket is kept and the rename is reproducible for every collaborator and CI run, unlike an imperative `terraform state mv`.",
+    "example": "moved {\n  from = aws_s3_bucket.logs\n  to   = aws_s3_bucket.audit_logs\n}\n\n# terraform plan\n# aws_s3_bucket.audit_logs: moved from aws_s3_bucket.logs (no changes)",
+    "diagram": "flowchart LR\n  A[\"state: aws_s3_bucket.logs\"] -->|\"moved block from/to\"| B[\"state: aws_s3_bucket.audit_logs\"]\n  B --> C[\"plan: 0 to add, 0 to destroy\"]\n  D[\"no moved block\"] --> E[\"plan: destroy logs, create audit_logs\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/moved",
+    "options": [
+      "A `moved` block with `from` and `to` addresses",
+      "A `lifecycle { ignore_changes = [name] }` block on the new resource",
+      "An `import` block pointing at the bucket name",
+      "A `depends_on` entry referencing the old address"
+    ],
+    "optionNotes": [
+      "Correct: `moved` declaratively re-binds the existing state object to the new address, and Terraform reports it as a move rather than a replacement.",
+      "`ignore_changes` only suppresses diffs on attributes of an existing tracked resource; it cannot tell Terraform that a different address refers to the same object.",
+      "An `import` block would try to import the bucket under the new address while the old address still exists in state, producing a conflict or a duplicate binding.",
+      "`depends_on` only influences ordering and does not affect how state addresses map to real objects."
+    ],
+    "answer": 0,
+    "tags": [
+      "moved",
+      "refactoring",
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-062",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You want an `aws_instance` to be replaced whenever the `aws_launch_template` version it uses changes, even though no attribute of the instance itself changes. Which `lifecycle` argument does this?",
+    "explanation": "`replace_triggered_by` takes a list of resource or attribute references; when any referenced value changes in the plan, Terraform schedules the resource for replacement. It only accepts references to managed resources or their attributes (or `terraform_data` values), not arbitrary expressions.",
+    "example": "resource \"aws_instance\" \"app\" {\n  # ...\n  lifecycle {\n    replace_triggered_by = [\n      aws_launch_template.app.latest_version\n    ]\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"aws_launch_template.app.latest_version changes\"] --> B[\"replace_triggered_by\"]\n  B --> C[\"aws_instance.app planned for replacement\"]\n  D[\"unrelated change\"] --> E[\"instance untouched\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#replace_triggered_by",
+    "options": [
+      "`replace_triggered_by`",
+      "`create_before_destroy`",
+      "`ignore_changes`",
+      "`prevent_destroy`"
+    ],
+    "optionNotes": [
+      "Correct: `replace_triggered_by` forces replacement when a referenced resource or attribute changes.",
+      "`create_before_destroy` only changes the order of operations during a replacement; it does not decide when replacement happens.",
+      "`ignore_changes` does the opposite, suppressing diffs so that changes do not trigger updates.",
+      "`prevent_destroy` blocks any plan that would destroy the resource, so it would make the desired replacement fail."
+    ],
+    "answer": 0,
+    "tags": [
+      "lifecycle",
+      "replace_triggered_by"
+    ]
+  },
+  {
+    "id": "terraform-063",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which statements about `precondition`, `postcondition`, and top-level `check` blocks are true?",
+    "explanation": "Preconditions and postconditions live inside a resource, data, or output `lifecycle` block and are hard failures: a false `condition` stops the plan or apply. A top-level `check` block instead reports a warning when its `assert` fails, so it never blocks an apply, and it can contain a scoped data source that is evaluated as part of the check.",
+    "example": "resource \"aws_instance\" \"web\" {\n  ami = var.ami_id\n  lifecycle {\n    precondition {\n      condition     = data.aws_ami.selected.architecture == \"x86_64\"\n      error_message = \"AMI must be x86_64.\"\n    }\n  }\n}\n\ncheck \"health\" {\n  data \"http\" \"site\" { url = \"https://example.com/healthz\" }\n  assert {\n    condition     = data.http.site.status_code == 200\n    error_message = \"Site is not healthy.\"\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"precondition\"] -->|\"false\"| B[\"error: plan or apply stops\"]\n  C[\"postcondition\"] -->|\"false after apply\"| B\n  D[\"check block assert\"] -->|\"false\"| E[\"warning only, apply continues\"]\n  D --> F[\"may include scoped data source\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/expressions/custom-conditions",
+    "options": [
+      "A failing `precondition` causes an error that stops the plan or apply",
+      "A failing `assert` inside a `check` block produces a warning but does not block the apply",
+      "`postcondition` blocks can reference `self` to inspect the resource's own resulting attributes",
+      "A `check` block can contain a scoped `data` block that is evaluated only as part of the check",
+      "`precondition` and `postcondition` blocks are declared at the top level of a `.tf` file, outside any resource"
+    ],
+    "optionNotes": [
+      "True: preconditions are hard validation; a false condition halts the operation with the `error_message`.",
+      "True: checks are advisory and surface as warnings in plan and apply output.",
+      "True: `self` is available in postconditions so you can assert on attributes known only after apply.",
+      "True: a scoped data source inside `check` runs during the check and its failure is also reported as a check warning rather than an error.",
+      "False: preconditions and postconditions are nested inside a `lifecycle` block of a resource, data source, or output; only `check` is top-level."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tags": [
+      "custom-conditions",
+      "check",
+      "validation"
+    ]
+  },
+  {
+    "id": "terraform-064",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What environment variable name would you export so that a Terraform input variable declared as `variable \"region\" {}` receives its value from the environment?",
+    "explanation": "Terraform reads environment variables prefixed with `TF_VAR_` followed by the exact variable name, so `TF_VAR_region` populates `var.region`. The name is case-sensitive and matches the variable name exactly.",
+    "example": "export TF_VAR_region=ap-southeast-1\nterraform plan   # var.region == \"ap-southeast-1\"",
+    "diagram": "flowchart LR\n  A[\"export TF_VAR_region=ap-southeast-1\"] --> B[\"terraform plan\"]\n  B --> C[\"var.region resolved\"]\n  D[\"terraform.tfvars\"] --> B\n  E[\"-var flag\"] --> B",
+    "reference": "https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_var_name",
+    "answer": [
+      "TF_VAR_region",
+      "export TF_VAR_region",
+      "TF_VAR_region=<value>"
+    ],
+    "pattern": "^\\s*(export\\s+)?TF_VAR_region\\s*(=.*)?$",
+    "tags": [
+      "variables",
+      "environment-variables"
+    ]
+  },
+  {
+    "id": "terraform-065",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the purpose of a `dynamic` block inside a Terraform resource?",
+    "explanation": "A `dynamic` block generates repeated nested configuration blocks (such as multiple `ingress` blocks in a security group) from a collection, using `for_each` and a `content` block. It is for nested blocks only; top-level resource repetition still uses `count` or `for_each` on the resource itself.",
+    "example": "resource \"aws_security_group\" \"web\" {\n  dynamic \"ingress\" {\n    for_each = var.allowed_ports\n    content {\n      from_port   = ingress.value\n      to_port     = ingress.value\n      protocol    = \"tcp\"\n      cidr_blocks = [\"0.0.0.0/0\"]\n    }\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"var.allowed_ports = [80, 443]\"] --> B[\"dynamic ingress for_each\"]\n  B --> C[\"ingress block port 80\"]\n  B --> D[\"ingress block port 443\"]\n  C --> E[\"one aws_security_group\"]\n  D --> E",
+    "reference": "https://developer.hashicorp.com/terraform/language/expressions/dynamic-blocks",
+    "options": [
+      "To generate repeated nested blocks from a collection, such as several `ingress` rules",
+      "To create multiple copies of the whole resource",
+      "To lazily evaluate a resource only when it is referenced",
+      "To fetch attribute values from the provider at plan time"
+    ],
+    "optionNotes": [
+      "Correct: `dynamic` iterates a collection and emits one nested block per element via its `content` block.",
+      "Repeating an entire resource is done with `count` or `for_each` on the resource, not `dynamic`.",
+      "Terraform has no lazy resource evaluation construct; all resources in the graph are evaluated.",
+      "Reading remote values is the role of data sources, not dynamic blocks."
+    ],
+    "answer": 0,
+    "tags": [
+      "dynamic-blocks",
+      "hcl"
+    ]
+  },
+  {
+    "id": "terraform-066",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You have two `provider \"aws\"` blocks, one for `us-east-1` and one with `alias = \"west\"` for `us-west-2`. How do you make a resource use the `us-west-2` provider configuration?",
+    "explanation": "Aliased provider configurations are selected with the `provider` meta-argument using the `<provider>.<alias>` form. Resources without a `provider` argument use the default (non-aliased) configuration for that provider.",
+    "example": "provider \"aws\" {\n  region = \"us-east-1\"\n}\n\nprovider \"aws\" {\n  alias  = \"west\"\n  region = \"us-west-2\"\n}\n\nresource \"aws_s3_bucket\" \"dr\" {\n  provider = aws.west\n  bucket   = \"my-dr-bucket\"\n}",
+    "diagram": "flowchart TD\n  A[\"provider aws (default, us-east-1)\"] --> C[\"aws_s3_bucket.primary\"]\n  B[\"provider aws alias west (us-west-2)\"] --> D[\"aws_s3_bucket.dr\"]\n  D -.->|\"provider = aws.west\"| B\n  C -.->|\"no provider arg\"| A",
+    "reference": "https://developer.hashicorp.com/terraform/language/providers/configuration#alias-multiple-provider-configurations",
+    "options": [
+      "Set `provider = aws.west` in the resource block",
+      "Set `region = \"us-west-2\"` directly in the resource block",
+      "Set `provider = \"aws-west\"` as a quoted string in the resource block",
+      "Add `alias = \"west\"` to the resource block"
+    ],
+    "optionNotes": [
+      "Correct: the `provider` meta-argument takes an unquoted `aws.west` reference to the aliased configuration.",
+      "Most AWS resources have no per-resource `region` argument; region comes from the provider configuration.",
+      "The `provider` meta-argument is a reference, not a string; a quoted value is a syntax error.",
+      "`alias` is only valid inside a `provider` block, not on resources."
+    ],
+    "answer": 0,
+    "tags": [
+      "providers",
+      "alias"
+    ]
+  },
+  {
+    "id": "terraform-067",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "If the same input variable is set both in `terraform.tfvars` and via `-var` on the command line, the value from `terraform.tfvars` wins because files are loaded after command-line flags.",
+    "explanation": "Terraform loads variable sources in this order, with later sources overriding earlier ones: `TF_VAR_` environment variables, `terraform.tfvars` (or `.tfvars.json`), `*.auto.tfvars` in lexical order, then `-var` and `-var-file` options in the order given on the command line. So a `-var` flag overrides `terraform.tfvars`, not the other way round.",
+    "example": "# terraform.tfvars\ninstance_type = \"t3.small\"\n\nterraform plan -var=\"instance_type=t3.large\"\n# var.instance_type == \"t3.large\"",
+    "diagram": "flowchart LR\n  A[\"TF_VAR_ env\"] --> B[\"terraform.tfvars\"]\n  B --> C[\"*.auto.tfvars\"]\n  C --> D[\"-var / -var-file in order\"]\n  D --> E[\"final value (last wins)\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables#variable-definition-precedence",
+    "answer": false,
+    "tags": [
+      "variables",
+      "tfvars",
+      "precedence"
+    ]
+  },
+  {
+    "id": "terraform-068",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Since Terraform 1.10, what does setting `use_lockfile = true` on the `s3` backend do?",
+    "explanation": "With `use_lockfile = true` the S3 backend writes a `.tflock` object next to the state object using S3 conditional writes, giving state locking without a DynamoDB table. The older `dynamodb_table` argument still works and can be set at the same time during migration, but it is deprecated.",
+    "example": "terraform {\n  backend \"s3\" {\n    bucket       = \"acme-tfstate\"\n    key          = \"prod/network.tfstate\"\n    region       = \"ap-southeast-1\"\n    use_lockfile = true\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"terraform apply\"] --> B[\"s3 backend\"]\n  B -->|\"use_lockfile = true\"| C[\"PUT prod/network.tfstate.tflock (conditional)\"]\n  C --> D[\"write state object\"]\n  D --> E[\"DELETE .tflock\"]\n  F[\"legacy: dynamodb_table\"] -.-> B",
+    "reference": "https://developer.hashicorp.com/terraform/language/backend/s3#state-locking",
+    "options": [
+      "It enables state locking using a `.tflock` object in the same S3 bucket, removing the need for a DynamoDB table",
+      "It makes the backend honor `.terraform.lock.hcl` when downloading providers",
+      "It stores the state file itself in a DynamoDB table instead of S3",
+      "It encrypts the state object with a customer-managed KMS key"
+    ],
+    "optionNotes": [
+      "Correct: S3 conditional writes let the backend create a lock object atomically, so DynamoDB is no longer required for locking.",
+      "The dependency lock file is handled by `terraform init` and is unrelated to backend state locking.",
+      "State is always stored in S3 with this backend; DynamoDB was only ever used for lock records.",
+      "Encryption is controlled by `encrypt` and `kms_key_id`, not `use_lockfile`."
+    ],
+    "answer": 0,
+    "tags": [
+      "backend",
+      "s3",
+      "locking"
+    ]
+  },
+  {
+    "id": "terraform-069",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `terraform plan` flag shows how Terraform's state differs from real infrastructure (drift) by proposing only state updates, without planning any changes to the infrastructure itself?",
+    "explanation": "`terraform plan -refresh-only` refreshes every resource and reports differences between the state file and the real objects, planning only to update the state. Combined with `terraform apply -refresh-only` it lets you accept drift into state without changing infrastructure.",
+    "example": "terraform plan -refresh-only\n# Note: Objects have changed outside of Terraform\n#   ~ aws_instance.web: tags.Owner \"platform\" -> \"security\"\nterraform apply -refresh-only   # accept the drift into state",
+    "diagram": "flowchart LR\n  A[\"terraform plan -refresh-only\"] --> B[\"read real infrastructure\"]\n  B --> C[\"compare with state\"]\n  C --> D[\"report drift\"]\n  D --> E[\"apply -refresh-only updates state only\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/plan#planning-modes",
+    "answer": [
+      "-refresh-only",
+      "--refresh-only",
+      "terraform plan -refresh-only",
+      "refresh-only"
+    ],
+    "pattern": "^\\s*(terraform\\s+plan\\s+)?-{0,2}refresh-only\\s*$",
+    "tags": [
+      "drift",
+      "plan",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-070",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is the recommended built-in replacement for the `null_resource` resource from the `hashicorp/null` provider?",
+    "explanation": "`terraform_data` is built into Terraform (1.4 and later) and needs no extra provider. It supports `triggers_replace` to force re-running provisioners and can store an arbitrary `input` value, covering the common uses of `null_resource` and its `triggers` map.",
+    "example": "resource \"terraform_data\" \"bootstrap\" {\n  triggers_replace = [aws_instance.web.id]\n\n  provisioner \"local-exec\" {\n    command = \"./bootstrap.sh ${aws_instance.web.public_ip}\"\n  }\n}",
+    "diagram": "flowchart LR\n  A[\"null_resource (hashicorp/null provider)\"] -->|\"replaced by\"| B[\"terraform_data (built in)\"]\n  B --> C[\"triggers_replace\"]\n  B --> D[\"input / output\"]\n  B --> E[\"provisioners\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/terraform-data",
+    "options": [
+      "`terraform_data`",
+      "`local_file`",
+      "`random_id`",
+      "`external` data source"
+    ],
+    "optionNotes": [
+      "Correct: `terraform_data` is the built-in managed resource intended to replace `null_resource`.",
+      "`local_file` writes files to disk via the `local` provider and is not a general-purpose trigger resource.",
+      "`random_id` generates random values and is unrelated to running provisioners or tracking triggers.",
+      "The `external` data source runs a program to fetch data at plan time; it is a data source, not a replacement for a trigger resource."
+    ],
+    "answer": 0,
+    "tags": [
+      "terraform_data",
+      "null_resource",
+      "provisioners"
+    ]
+  },
+  {
+    "id": "terraform-071",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "An input variable declared with `ephemeral = true` (Terraform 1.10 and later) is never written to the plan file or the state file, and it can only be used in other ephemeral contexts such as provider configuration, provisioners, or `ephemeral` resources.",
+    "explanation": "Ephemeral values exist only for the duration of a single Terraform operation. Terraform enforces that they are not persisted to plan or state, and it errors if an ephemeral value flows into a normal resource argument. They can be used in provider blocks, provisioner and connection blocks, `ephemeral` resources, `locals`, and outputs marked `ephemeral`.",
+    "example": "variable \"db_password\" {\n  type      = string\n  ephemeral = true\n}\n\nephemeral \"aws_secretsmanager_secret_version\" \"db\" {\n  secret_id = \"prod/db\"\n}\n\nprovider \"postgresql\" {\n  password = ephemeral.aws_secretsmanager_secret_version.db.secret_string\n}",
+    "diagram": "flowchart LR\n  A[\"ephemeral variable\"] --> B[\"provider config\"]\n  A --> C[\"ephemeral resource\"]\n  A --> D[\"provisioner / connection\"]\n  A -.->|\"error\"| E[\"normal resource argument\"]\n  B --> F[\"never in plan or state\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables#exclude-values-from-state",
+    "answer": true,
+    "tags": [
+      "ephemeral",
+      "sensitive",
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-072",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In a `variable` block, which nested block lets you reject values that fail a custom `condition` and display an `error_message` to the user?",
+    "explanation": "The `validation` block inside a `variable` declares a `condition` expression that must return true for the value to be accepted and an `error_message` shown when it is false. The condition may reference only the variable itself (and, since Terraform 1.9, other variables and data), and a variable can have several `validation` blocks.",
+    "example": "variable \"environment\" {\n  type = string\n  validation {\n    condition     = contains([\"dev\", \"staging\", \"prod\"], var.environment)\n    error_message = \"environment must be dev, staging, or prod.\"\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"var.environment = qa\"] --> B[\"validation condition\"]\n  B -->|\"false\"| C[\"error_message shown, plan fails\"]\n  D[\"var.environment = prod\"] --> B\n  B -->|\"true\"| E[\"plan continues\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables#custom-validation-rules",
+    "options": [
+      "`validation`",
+      "`precondition`",
+      "`assert`",
+      "`constraint`"
+    ],
+    "optionNotes": [
+      "Correct: `validation { condition = ... error_message = ... }` is the variable-level validation mechanism.",
+      "`precondition` belongs inside a `lifecycle` block of resources, data sources, and outputs, not inside `variable`.",
+      "`assert` is used inside `check` blocks and `terraform test` run blocks, not variables.",
+      "There is no `constraint` block; type constraints are given by the `type` argument."
+    ],
+    "answer": 0,
+    "tags": [
+      "variables",
+      "validation"
+    ]
+  },
+  {
+    "id": "terraform-073",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which statements about the native `terraform test` framework are true?",
+    "explanation": "Test files use the `.tftest.hcl` (or `.tftest.json`) extension and contain `run` blocks executed in order. Each run defaults to `command = apply`, creating real infrastructure that Terraform destroys at the end of the test; setting `command = plan` checks only the plan. `assert` blocks inside a run evaluate a `condition` against the resulting plan or state.",
+    "example": "# tests/bucket.tftest.hcl\nvariables {\n  bucket_name = \"acme-test-bucket\"\n}\n\nrun \"creates_bucket\" {\n  command = plan\n\n  assert {\n    condition     = aws_s3_bucket.this.bucket == var.bucket_name\n    error_message = \"bucket name mismatch\"\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"terraform test\"] --> B[\"load *.tftest.hcl\"]\n  B --> C[\"run block 1 (plan or apply)\"]\n  C --> D[\"assert conditions\"]\n  D --> E[\"run block 2\"]\n  E --> F[\"destroy any applied resources\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/tests",
+    "options": [
+      "Test files use the `.tftest.hcl` extension and are typically placed in a `tests` directory",
+      "A `run` block defaults to `command = apply` and creates real resources unless `command = plan` is set",
+      "Resources created by `apply` run blocks are destroyed automatically when the test finishes",
+      "`assert` blocks require a `condition` and an `error_message`",
+      "Run blocks in a file execute in parallel, so they cannot share state"
+    ],
+    "optionNotes": [
+      "True: Terraform discovers `*.tftest.hcl` in the root and in the `tests` directory by default.",
+      "True: `apply` is the default; `command = plan` makes the run validate the plan without provisioning.",
+      "True: the framework tears down everything it applied, in reverse order, at the end of the test file.",
+      "True: both arguments are mandatory in an `assert` block.",
+      "False: run blocks execute sequentially in the order written, and later runs can reference outputs of earlier ones."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tags": [
+      "testing",
+      "terraform-test"
+    ]
+  },
+  {
+    "id": "terraform-074",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You want to stop managing `aws_iam_user.legacy` with Terraform but keep the user in AWS. Which configuration-based approach (Terraform 1.7 and later) achieves this without running `terraform state rm`?",
+    "explanation": "A `removed` block declares that a resource has been removed from configuration and, with `lifecycle { destroy = false }`, tells Terraform to drop it from state while leaving the real object untouched. Setting `destroy = true` (the default) would destroy it instead, so the flag is essential for a forget-only operation.",
+    "example": "# delete the resource \"aws_iam_user\" \"legacy\" block, then add:\nremoved {\n  from = aws_iam_user.legacy\n\n  lifecycle {\n    destroy = false\n  }\n}\n\n# terraform plan\n# aws_iam_user.legacy will no longer be managed by Terraform, but will not be destroyed",
+    "diagram": "flowchart TD\n  A[\"delete resource block\"] --> B[\"removed block from = aws_iam_user.legacy\"]\n  B -->|\"destroy = false\"| C[\"removed from state, user kept in AWS\"]\n  B -->|\"destroy = true (default)\"| D[\"user destroyed\"]\n  E[\"no removed block\"] --> D",
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/syntax#removing-resources",
+    "options": [
+      "Delete the resource block and add a `removed` block with `lifecycle { destroy = false }`",
+      "Delete the resource block and add `lifecycle { prevent_destroy = true }` to the module",
+      "Keep the resource block but set `count = 0`",
+      "Delete the resource block and run `terraform apply -refresh-only`"
+    ],
+    "optionNotes": [
+      "Correct: `removed` with `destroy = false` forgets the object from state declaratively without destroying it.",
+      "`prevent_destroy` is a resource lifecycle argument, and it would make the plan error rather than forget the resource; a deleted resource block cannot carry it anyway.",
+      "`count = 0` plans to destroy the existing instance, which is the opposite of the goal.",
+      "A refresh-only apply only syncs state with reality; with the resource block deleted, the next normal plan would still propose destroying the user."
+    ],
+    "answer": 0,
+    "tags": [
+      "removed",
+      "state",
+      "refactoring"
+    ]
   }
 ]

@@ -1480,5 +1480,424 @@
       "ingress",
       "egress"
     ]
+  },
+  {
+    "id": "networking-059",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "`ss -tan` on an application server shows hundreds of TCP sockets stuck in the `CLOSE_WAIT` state. What does this most likely indicate?",
+    "explanation": "`CLOSE_WAIT` means the remote peer has sent a FIN and the local kernel has acknowledged it, but the local application has not yet called `close()` on the socket. A pile-up of `CLOSE_WAIT` sockets is almost always an application bug (leaked connections or missing close in an error path), not a network problem.",
+    "example": "ss -tan state close-wait | wc -l\n# 842\n# find the owning process\nss -tanp state close-wait | head\n# fix: ensure the app closes sockets, e.g. Go: defer resp.Body.Close()",
+    "diagram": "flowchart LR\n    P[\"Remote peer sends FIN\"] --> K[\"Local kernel ACKs FIN\"]\n    K --> CW[\"Socket enters CLOSE_WAIT\"]\n    CW -->|\"app calls close()\"| LA[\"LAST_ACK then CLOSED\"]\n    CW -->|\"app never closes\"| LEAK[\"Sockets accumulate: fd leak\"]",
+    "options": [
+      "The local application has not closed sockets that the remote side already closed",
+      "The remote hosts are unreachable and the kernel is retransmitting SYNs",
+      "The kernel is holding sockets for 2*MSL to absorb late segments, which is normal",
+      "A firewall is dropping the final ACK of the three-way handshake"
+    ],
+    "optionNotes": [
+      "Correct: `CLOSE_WAIT` is the state after the peer's FIN is received and before the local app calls `close()`, so accumulation means the app is leaking connections.",
+      "Unreachable peers with SYN retransmission would show `SYN-SENT`, not `CLOSE_WAIT`.",
+      "The 2*MSL hold describes `TIME_WAIT`, which is held by the side that closed first, not `CLOSE_WAIT`.",
+      "A dropped handshake ACK would leave sockets in `SYN-RECV`; `CLOSE_WAIT` only occurs on an established connection that the peer began closing."
+    ],
+    "answer": 0,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc9293#section-3.3.2",
+    "tags": [
+      "tcp",
+      "states",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "networking-060",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After a graceful TCP teardown, which endpoint holds the connection in the `TIME_WAIT` state, and for how long?",
+    "explanation": "The endpoint that performs the active close (sends the first FIN) enters `TIME_WAIT` after acknowledging the peer's FIN and stays there for 2*MSL (60 seconds on Linux, where `TCP_TIMEWAIT_LEN` is fixed) so that delayed segments from the old connection cannot be misinterpreted by a new connection reusing the same 4-tuple.",
+    "example": "# a busy reverse proxy that closes upstream connections first collects TIME_WAIT sockets\nss -tan state time-wait | wc -l\n# 28000\n# mitigate by reusing keepalive connections or enabling\nsysctl net.ipv4.tcp_tw_reuse=2",
+    "diagram": "sequenceDiagram\n    participant A as Active closer\n    participant B as Passive closer\n    A->>B: FIN\n    B->>A: ACK\n    B->>A: FIN\n    A->>B: ACK\n    Note over A: TIME_WAIT for 2*MSL\n    Note over B: CLOSED immediately",
+    "options": [
+      "The passive closer, for one MSL",
+      "The active closer, for 2*MSL",
+      "Both endpoints, until the application calls close()",
+      "The active closer, until the peer retransmits its FIN"
+    ],
+    "optionNotes": [
+      "The passive closer goes from `LAST_ACK` straight to `CLOSED` once its FIN is acknowledged; it never enters `TIME_WAIT`.",
+      "Correct: whichever side sends the first FIN enters `TIME_WAIT` and holds it for twice the Maximum Segment Lifetime.",
+      "Only the active closer holds `TIME_WAIT`, and it is a kernel timer, not something the application controls.",
+      "The duration is a fixed timer (2*MSL), not dependent on the peer's retransmission."
+    ],
+    "answer": 1,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc9293#section-3.3.2",
+    "tags": [
+      "tcp",
+      "states",
+      "time-wait"
+    ]
+  },
+  {
+    "id": "networking-061",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "On a standard Ethernet link with a 1500-byte MTU, what is the typical TCP Maximum Segment Size (MSS) in bytes for IPv4 with no IP or TCP options?",
+    "explanation": "MSS is the MTU minus the IPv4 header (20 bytes) and the TCP header (20 bytes): 1500 - 40 = 1460. IPv6 has a 40-byte header, giving an MSS of 1440 on the same link.",
+    "example": "# tcpdump shows the MSS advertised in the SYN\ntcpdump -ni eth0 'tcp[tcpflags] & tcp-syn != 0' -c1\n# ... Flags [S], ... options [mss 1460,sackOK,...]\n# clamp MSS on a VPN or tunnel edge\niptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu",
+    "diagram": "flowchart LR\n    MTU[\"MTU 1500 bytes\"] --> IP[\"minus IPv4 header 20\"]\n    IP --> TCP[\"minus TCP header 20\"]\n    TCP --> MSS[\"MSS 1460 bytes of payload\"]",
+    "answer": [
+      "1460",
+      "1460 bytes"
+    ],
+    "pattern": "^\\s*1460(\\s*bytes)?\\s*$",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc9293#section-3.7.1",
+    "tags": [
+      "tcp",
+      "mss",
+      "mtu"
+    ]
+  },
+  {
+    "id": "networking-062",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A firewall between two sites drops all ICMP. Large HTTPS downloads through a GRE tunnel hang after the handshake, while small requests work. What is the most likely cause?",
+    "explanation": "Path MTU Discovery sets the Don't Fragment bit and relies on receiving ICMP `Fragmentation Needed` (type 3 code 4, or ICMPv6 Packet Too Big) from routers whose next hop has a smaller MTU. If the firewall drops those messages, the sender never learns to reduce its segment size and large packets are silently discarded: a PMTUD black hole.",
+    "example": "# symptom: handshake and small responses succeed, bulk data stalls\nping -M do -s 1472 remote.example.com   # fails with no reply behind the firewall\n# fixes: allow ICMP type 3 code 4, or clamp MSS on the tunnel endpoint\nip link set gre1 mtu 1400\niptables -t mangle -A FORWARD -o gre1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu",
+    "diagram": "flowchart LR\n    S[\"Sender: 1500-byte packet, DF set\"] --> R[\"Tunnel router: MTU 1476\"]\n    R -->|\"should send ICMP Frag Needed\"| S\n    R -.->|\"ICMP dropped by firewall\"| X[\"Sender never adjusts\"]\n    X --> H[\"Large packets black-holed, transfer hangs\"]",
+    "options": [
+      "A PMTUD black hole: ICMP Fragmentation Needed messages are being dropped",
+      "TLS renegotiation is being blocked by the firewall",
+      "The GRE tunnel is dropping packets larger than the TCP window",
+      "ARP resolution for the tunnel endpoint is failing intermittently"
+    ],
+    "optionNotes": [
+      "Correct: with DF set and ICMP blocked, oversized packets are dropped and the sender is never told to shrink them; only small packets get through.",
+      "TLS 1.3 has no renegotiation and the handshake itself completed; the issue only appears with large payloads.",
+      "The TCP window is unrelated to packet size limits on a link; the tunnel drops packets that exceed its MTU, not the window.",
+      "ARP failure would break all traffic to that next hop, not just large packets."
+    ],
+    "answer": 0,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc1191",
+    "tags": [
+      "mtu",
+      "pmtud",
+      "icmp",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "networking-063",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which DNS record type holds a zone's serial number, primary name server, and the refresh and retry timers used by secondary servers?",
+    "explanation": "The SOA (Start of Authority) record appears once at the apex of every zone and contains the primary nameserver, the responsible mailbox, the zone serial, and the refresh, retry, expire, and negative-cache TTL values that control zone transfers and negative caching.",
+    "example": "dig +short SOA example.com\n# ns1.example.com. hostmaster.example.com. 2024061501 7200 3600 1209600 3600\n#                                       serial     refresh retry expire  minimum",
+    "diagram": "flowchart TD\n    Z[\"Zone apex example.com\"] --> SOA[\"SOA record\"]\n    SOA --> P[\"Primary NS: ns1.example.com\"]\n    SOA --> S[\"Serial: 2024061501\"]\n    SOA --> T[\"Refresh, retry, expire timers\"]\n    SOA --> N[\"Minimum: negative-cache TTL\"]",
+    "options": [
+      "NS",
+      "SOA",
+      "TXT",
+      "CNAME"
+    ],
+    "optionNotes": [
+      "NS records list the authoritative name servers for a zone but carry no serial or timer values.",
+      "Correct: the SOA record is the zone's start of authority and carries the serial and secondary-server timers.",
+      "TXT records hold free-form text such as SPF or verification tokens.",
+      "CNAME creates an alias from one name to another and cannot exist at a zone apex."
+    ],
+    "answer": 1,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc1035#section-3.3.13",
+    "tags": [
+      "dns",
+      "records",
+      "soa"
+    ]
+  },
+  {
+    "id": "networking-064",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Split-horizon DNS serves different answers for the same name depending on the source of the query, for example returning a private IP to internal clients and a public IP to the internet.",
+    "explanation": "Split-horizon (or split-view) DNS is exactly this: the resolver or authoritative server selects a view based on the client's source address, so `app.example.com` can resolve to `10.0.5.20` on the corporate network and to a public load balancer address elsewhere.",
+    "example": "# BIND named.conf\nview \"internal\" {\n  match-clients { 10.0.0.0/8; };\n  zone \"example.com\" { type primary; file \"internal/example.com.zone\"; };\n};\nview \"external\" {\n  match-clients { any; };\n  zone \"example.com\" { type primary; file \"external/example.com.zone\"; };\n};",
+    "diagram": "flowchart TD\n    I[\"Internal client 10.0.1.5\"] -->|\"app.example.com?\"| DNS[\"Split-horizon DNS\"]\n    E[\"Internet client\"] -->|\"app.example.com?\"| DNS\n    DNS -->|\"internal view\"| A[\"10.0.5.20\"]\n    DNS -->|\"external view\"| B[\"203.0.113.10\"]",
+    "answer": true,
+    "reference": "https://bind9.readthedocs.io/en/latest/reference.html#view-statement-grammar",
+    "tags": [
+      "dns",
+      "split-horizon"
+    ]
+  },
+  {
+    "id": "networking-065",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In DNSSEC, which record placed in the parent zone links the chain of trust down to a child zone's signing key?",
+    "explanation": "The DS (Delegation Signer) record lives in the parent zone alongside the NS delegation and contains a hash of the child zone's KSK (DNSKEY). A validating resolver checks that the child's DNSKEY matches the parent's DS, and that the DS itself is signed by the parent's keys, all the way up to the root trust anchor.",
+    "example": "dig +dnssec DS example.com @a.gtld-servers.net\n# example.com. 86400 IN DS 370 13 2 BE74359954660069D5C63D200C39F5603827D7DD5ECE... \n# validate the full chain\ndelv example.com A\n# ; fully validated",
+    "diagram": "flowchart TD\n    ROOT[\"Root zone: trust anchor DNSKEY\"] -->|\"signs DS for .com\"| COM[\"com zone DNSKEY\"]\n    COM -->|\"signs DS for example.com\"| DS[\"DS record in com\"]\n    DS -->|\"hash matches\"| KSK[\"example.com KSK (DNSKEY)\"]\n    KSK -->|\"signs\"| ZSK[\"ZSK signs RRSIG on A records\"]",
+    "options": [
+      "RRSIG",
+      "DNSKEY",
+      "DS",
+      "NSEC"
+    ],
+    "optionNotes": [
+      "RRSIG records hold the signatures over record sets within a zone; they do not link to the parent.",
+      "DNSKEY records publish a zone's own public keys; the parent does not hold the child's DNSKEY.",
+      "Correct: the DS record in the parent contains a digest of the child's KSK, forming the delegation link in the chain of trust.",
+      "NSEC and NSEC3 records provide authenticated denial of existence, proving a name does not exist."
+    ],
+    "answer": 2,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4034#section-5",
+    "tags": [
+      "dns",
+      "dnssec"
+    ]
+  },
+  {
+    "id": "networking-066",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What problem does the TLS Server Name Indication (SNI) extension solve?",
+    "explanation": "SNI lets the client include the hostname it wants in the ClientHello, so a server hosting many sites on one IP address and port can select the matching certificate before the handshake completes. Without SNI the server would have to guess which certificate to present.",
+    "example": "# test which certificate is served for a specific name on a shared IP\nopenssl s_client -connect 203.0.113.10:443 -servername shop.example.com </dev/null 2>/dev/null | openssl x509 -noout -subject\n# curl sets SNI from the URL host automatically; override it with --resolve\ncurl --resolve shop.example.com:443:203.0.113.10 https://shop.example.com/",
+    "diagram": "flowchart LR\n    C[\"Client ClientHello with SNI shop.example.com\"] --> S[\"Server on 203.0.113.10:443\"]\n    S --> C1[\"cert for shop.example.com\"]\n    S -.-> C2[\"cert for blog.example.com\"]\n    S -.-> C3[\"cert for api.example.com\"]",
+    "options": [
+      "Hosting multiple HTTPS sites with different certificates on a single IP address",
+      "Encrypting the DNS query for the server's hostname",
+      "Allowing the server to verify the client's identity with a certificate",
+      "Compressing HTTP headers to reduce handshake size"
+    ],
+    "optionNotes": [
+      "Correct: SNI carries the requested hostname in the ClientHello so the server can pick the right certificate on a shared IP.",
+      "DNS encryption is handled by DoT or DoH, not by SNI; plain SNI is actually sent in cleartext unless Encrypted ClientHello is used.",
+      "Client identity verification uses mutual TLS with a client certificate, unrelated to SNI.",
+      "Header compression is an HTTP/2 feature (HPACK), not part of TLS."
+    ],
+    "answer": 0,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc6066#section-3",
+    "tags": [
+      "tls",
+      "sni"
+    ]
+  },
+  {
+    "id": "networking-067",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "During a TLS handshake, which ALPN protocol identifier does a client offer to negotiate HTTP/2?",
+    "explanation": "ALPN (Application-Layer Protocol Negotiation) lets client and server agree on the application protocol inside the TLS handshake. The registered identifier for HTTP/2 over TLS is `h2`; HTTP/1.1 is `http/1.1` and HTTP/3 is `h3`.",
+    "example": "curl -v https://example.com 2>&1 | grep -i alpn\n# * ALPN: curl offers h2,http/1.1\n# * ALPN: server accepted h2\nopenssl s_client -connect example.com:443 -alpn h2 </dev/null 2>/dev/null | grep ALPN",
+    "diagram": "sequenceDiagram\n    participant C as Client\n    participant S as Server\n    C->>S: ClientHello with ALPN list h2, http/1.1\n    S->>C: ServerHello selecting h2\n    Note over C,S: HTTP/2 frames flow over the TLS session",
+    "answer": [
+      "h2"
+    ],
+    "pattern": "^\\s*h2\\s*$",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc7540#section-3.1",
+    "tags": [
+      "tls",
+      "alpn",
+      "http2"
+    ]
+  },
+  {
+    "id": "networking-068",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does OCSP stapling change about how a client checks whether a TLS certificate has been revoked?",
+    "explanation": "With OCSP stapling the server periodically fetches a signed, time-limited OCSP response from the CA and attaches (staples) it to the TLS handshake. The client validates that response instead of contacting the CA's OCSP responder itself, which removes a privacy leak and a latency-adding external dependency.",
+    "example": "# nginx\nssl_stapling on;\nssl_stapling_verify on;\nssl_trusted_certificate /etc/ssl/chain.pem;\n# verify a staple is returned\nopenssl s_client -connect example.com:443 -status </dev/null 2>/dev/null | grep -A2 'OCSP Response Status'",
+    "diagram": "flowchart LR\n    S[\"Web server\"] -->|\"fetches signed OCSP response periodically\"| CA[\"CA OCSP responder\"]\n    C[\"Client\"] -->|\"ClientHello with status_request\"| S\n    S -->|\"certificate plus stapled OCSP response\"| C\n    C -.->|\"no direct query needed\"| CA",
+    "options": [
+      "The server includes a CA-signed OCSP response in the handshake so the client need not query the CA",
+      "The client caches the CA's full revocation list locally for 24 hours",
+      "The certificate is reissued with a shorter validity period so revocation is unnecessary",
+      "The client queries the OCSP responder over the same TLS connection as the server"
+    ],
+    "optionNotes": [
+      "Correct: stapling moves the OCSP lookup to the server side and delivers the signed result inside the handshake.",
+      "Downloading the full list describes CRLs, which stapling is designed to avoid.",
+      "Short-lived certificates are a separate strategy; stapling still uses standard certificates and OCSP.",
+      "OCSP responders are run by the CA, not reachable through the web server's TLS session."
+    ],
+    "answer": 0,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc6066#section-8",
+    "tags": [
+      "tls",
+      "ocsp",
+      "certificates"
+    ]
+  },
+  {
+    "id": "networking-069",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "If a site sends a `Strict-Transport-Security` header in a response delivered over plain HTTP, browsers will record the HSTS policy and upgrade future requests to HTTPS.",
+    "explanation": "Browsers ignore the `Strict-Transport-Security` header unless it arrives over an HTTPS connection with a valid certificate, because an attacker in the middle of a plain HTTP connection could otherwise inject or strip the policy. The header must be sent over HTTPS to be honored.",
+    "example": "# ignored: served over http://\ncurl -sI http://example.com | grep -i strict\n# honored: served over https://\ncurl -sI https://example.com | grep -i strict\n# strict-transport-security: max-age=31536000; includeSubDomains; preload",
+    "diagram": "flowchart TD\n    H[\"Response over plain HTTP with HSTS header\"] --> X[\"Browser ignores header\"]\n    S[\"Response over valid HTTPS with HSTS header\"] --> R[\"Browser records max-age policy\"]\n    R --> U[\"Future http:// requests rewritten to https:// before sending\"]",
+    "answer": false,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc6797#section-8.1",
+    "tags": [
+      "http",
+      "hsts",
+      "tls"
+    ]
+  },
+  {
+    "id": "networking-070",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements correctly contrast BGP with OSPF?",
+    "explanation": "OSPF is a link-state interior gateway protocol that floods topology information within an autonomous system and picks shortest paths by cost. BGP is a path-vector exterior gateway protocol that runs over TCP port 179 between peers, exchanges prefixes with AS-path and other attributes, and makes policy-driven rather than purely shortest-path decisions. Both are widely used inside data centers too (BGP in Clos fabrics), so neither is limited to one setting.",
+    "example": "# FRRouting: an eBGP session to an upstream provider\nrouter bgp 65001\n bgp router-id 10.0.0.1\n neighbor 192.0.2.1 remote-as 64500\n address-family ipv4 unicast\n  network 203.0.113.0/24\n# and OSPF inside the site\nrouter ospf\n network 10.0.0.0/8 area 0",
+    "diagram": "flowchart LR\n    OSPF[\"OSPF\"] --> O1[\"Link-state, floods LSAs\"]\n    OSPF --> O2[\"Shortest path by cost (Dijkstra)\"]\n    OSPF --> O3[\"IP protocol 89, within an AS\"]\n    BGP[\"BGP\"] --> B1[\"Path-vector, AS_PATH attribute\"]\n    BGP --> B2[\"Policy-based route selection\"]\n    BGP --> B3[\"TCP port 179, between ASes\"]",
+    "options": [
+      "BGP sessions run over TCP port 179, while OSPF runs directly over IP as protocol 89",
+      "OSPF is a link-state protocol; BGP is a path-vector protocol",
+      "BGP always selects the route with the lowest link cost, just like OSPF",
+      "BGP route selection can be influenced by policy attributes such as LOCAL_PREF and AS_PATH length",
+      "OSPF is used only on the public internet, while BGP is used only inside data centers"
+    ],
+    "optionNotes": [
+      "Correct: BGP peers over a TCP connection on port 179; OSPF packets are carried directly in IP with protocol number 89.",
+      "Correct: OSPF builds a full topology map from flooded LSAs; BGP advertises reachable prefixes with the list of ASes they traverse.",
+      "BGP has no notion of link cost; its decision process compares attributes like LOCAL_PREF, AS_PATH length and MED, in order.",
+      "Correct: operators shape BGP decisions with policy attributes, which is why it is used at AS boundaries.",
+      "This is backwards and too absolute: OSPF is an interior protocol, and BGP is used both on the internet and inside modern data center fabrics."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4271",
+    "tags": [
+      "bgp",
+      "ospf",
+      "routing"
+    ]
+  },
+  {
+    "id": "networking-071",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which IPv6 prefix is used for link-local addresses that every IPv6-enabled interface configures automatically?",
+    "explanation": "Link-local addresses come from `fe80::/10` and are valid only on the local link; they are used by Neighbor Discovery, router advertisements, and as the source of many control-plane messages. `fc00::/7` is unique local (private) space, `2000::/3` is global unicast, and `ff00::/8` is multicast.",
+    "example": "ip -6 addr show dev eth0\n# inet6 fe80::5054:ff:fe12:3456/64 scope link\n# link-local addresses need a zone id to be used\nping -6 fe80::1%eth0",
+    "diagram": "flowchart TD\n    I[\"IPv6 address types\"] --> LL[\"fe80::/10 link-local: auto, per link only\"]\n    I --> ULA[\"fc00::/7 unique local: private routing\"]\n    I --> GUA[\"2000::/3 global unicast: internet routable\"]\n    I --> MC[\"ff00::/8 multicast\"]",
+    "options": [
+      "fc00::/7",
+      "fe80::/10",
+      "2000::/3",
+      "ff02::/16"
+    ],
+    "optionNotes": [
+      "`fc00::/7` is the unique local address (ULA) range, roughly the IPv6 equivalent of RFC 1918 space.",
+      "Correct: `fe80::/10` is the link-local prefix, configured automatically on every interface and never routed.",
+      "`2000::/3` is the global unicast range used for internet-routable addresses.",
+      "`ff02::/16` is link-scoped multicast, such as `ff02::1` for all nodes; it is not a unicast address prefix."
+    ],
+    "answer": 1,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.6",
+    "tags": [
+      "ipv6",
+      "link-local"
+    ]
+  },
+  {
+    "id": "networking-072",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A VXLAN overlay carries VMs on a physical underlay with a 1500-byte MTU. Pods can ping each other but large HTTP responses stall. What is the standard fix?",
+    "explanation": "VXLAN encapsulates the original Ethernet frame inside UDP (destination port 4789) and adds roughly 50 bytes of headers (outer Ethernet 14, IP 20, UDP 8, VXLAN 8). If the underlay MTU is 1500, the overlay interfaces must use an MTU of about 1450, or the underlay must be raised (for example to 1550 or jumbo 9000) so full-size inner frames fit without being dropped.",
+    "example": "# VXLAN tunnel interface\nip link add vxlan0 type vxlan id 100 dstport 4789 dev eth0 local 10.0.0.1\nip link set vxlan0 mtu 1450\n# or raise the underlay instead\nip link set eth0 mtu 1550\n# Calico / Flannel expose this as a config value, e.g. Flannel sets the flannel.1 MTU automatically",
+    "diagram": "flowchart LR\n    F[\"Inner Ethernet frame up to 1500\"] --> V[\"VXLAN header 8\"]\n    V --> U[\"UDP 8, dst port 4789\"]\n    U --> IP[\"Outer IP 20\"]\n    IP --> E[\"Outer Ethernet 14\"]\n    E --> T[\"Total 50 bytes overhead: overlay MTU 1450 on a 1500 underlay\"]",
+    "options": [
+      "Lower the overlay interface MTU to about 1450, or raise the underlay MTU to accommodate the 50-byte VXLAN overhead",
+      "Change the VXLAN UDP port from 4789 to 8472 so the underlay firewall stops fragmenting",
+      "Disable TCP window scaling on the pods so segments stay small",
+      "Enable proxy ARP on the underlay switches so encapsulated frames can be reassembled"
+    ],
+    "optionNotes": [
+      "Correct: encapsulation adds about 50 bytes, so either the inner MTU must shrink or the outer MTU must grow.",
+      "The UDP port choice (4789 is IANA, 8472 is the legacy Linux default) has no effect on packet size.",
+      "Window scaling controls how much unacknowledged data is in flight, not segment size; this would only hurt throughput.",
+      "Proxy ARP answers ARP on behalf of other hosts and has nothing to do with encapsulated frame size."
+    ],
+    "answer": 0,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc7348#section-5",
+    "tags": [
+      "vxlan",
+      "overlay",
+      "mtu"
+    ]
+  },
+  {
+    "id": "networking-073",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which of the following are accurate statements about WireGuard?",
+    "explanation": "WireGuard is a modern VPN protocol built into the Linux kernel that uses a fixed cryptographic suite (Curve25519, ChaCha20-Poly1305, BLAKE2s) with no cipher negotiation. It runs over UDP, identifies peers by their public keys, and uses a cryptokey routing table where each peer's `AllowedIPs` determines which source addresses are accepted from it and which destinations are sent to it. It has no built-in user authentication or dynamic address assignment; those are layered on by tools such as wg-quick, Tailscale, or Netbird.",
+    "example": "# /etc/wireguard/wg0.conf\n[Interface]\nPrivateKey = <server-private-key>\nAddress = 10.8.0.1/24\nListenPort = 51820\n\n[Peer]\nPublicKey = <client-public-key>\nAllowedIPs = 10.8.0.2/32\n\nwg-quick up wg0\nwg show wg0 latest-handshakes",
+    "diagram": "flowchart LR\n    C[\"Client peer: public key A\"] -->|\"UDP 51820, Noise handshake\"| S[\"Server peer: public key B\"]\n    S --> AK[\"AllowedIPs 10.8.0.2/32 for peer A\"]\n    AK -->|\"src matches: accept\"| IN[\"Decrypted packet enters wg0\"]\n    AK -->|\"src does not match: drop\"| X[\"Discarded\"]",
+    "options": [
+      "It runs over UDP and peers are identified by their public keys",
+      "It negotiates cipher suites during the handshake like TLS does",
+      "A peer's `AllowedIPs` acts as both an inbound source filter and an outbound routing rule",
+      "It includes built-in username and password authentication",
+      "It is implemented in the mainline Linux kernel"
+    ],
+    "optionNotes": [
+      "Correct: WireGuard transports encrypted packets in UDP (default port 51820) and each peer is a static public key.",
+      "WireGuard deliberately has a single fixed set of primitives and no cipher agility, which keeps the protocol small.",
+      "Correct: this is cryptokey routing; packets from a peer with a source outside its `AllowedIPs` are dropped, and destinations in `AllowedIPs` are routed to that peer.",
+      "There is no user/password concept; authentication is purely key-based, and identity management is left to higher-level tooling.",
+      "Correct: WireGuard was merged into Linux 5.6 in 2020 and also has userspace and other-OS implementations."
+    ],
+    "answer": [
+      0,
+      2,
+      4
+    ],
+    "reference": "https://www.wireguard.com/protocol/",
+    "tags": [
+      "vpn",
+      "wireguard"
+    ]
+  },
+  {
+    "id": "networking-074",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "With anycast, the same IP address is advertised from multiple locations and routing delivers each client's packets to the topologically nearest instance, which is how public DNS resolvers such as `1.1.1.1` and `8.8.8.8` are served worldwide.",
+    "explanation": "Anycast announces one prefix from many sites via BGP; each router forwards toward whichever announcement is closest by its own metrics, so users hit a nearby instance transparently. Root DNS servers, CDNs, and public resolvers all rely on this for latency and DDoS resilience.",
+    "example": "# the same address answers from different data centers depending on where you are\ndig +short CHAOS TXT id.server @1.1.1.1\n# from Singapore: \"SIN\"   from Frankfurt: \"FRA\"\nmtr -n 8.8.8.8   # path ends at the nearest Google POP",
+    "diagram": "flowchart TD\n    U1[\"User in Singapore\"] -->|\"dst 1.1.1.1\"| A[\"BGP picks nearest announcement\"]\n    U2[\"User in Frankfurt\"] -->|\"dst 1.1.1.1\"| A\n    A --> S1[\"POP SIN announces 1.1.1.0/24\"]\n    A --> S2[\"POP FRA announces 1.1.1.0/24\"]",
+    "answer": true,
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4786",
+    "tags": [
+      "anycast",
+      "bgp",
+      "dns"
+    ]
   }
 ]

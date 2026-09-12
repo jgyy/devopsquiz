@@ -472,5 +472,537 @@
       "cli",
       "plugins"
     ]
+  },
+  {
+    "id": "backstage-019",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team writes a `kind: Group` entity for `platform-team` in `catalog-info.yaml`. Which `spec` field is required on every Group, and which field lists the groups directly beneath it in the org hierarchy?",
+    "options": [
+      "`spec.type` is required and `spec.children` lists the sub-groups",
+      "`spec.owner` is required and `spec.members` lists the sub-groups",
+      "`spec.lifecycle` is required and `spec.parent` lists the sub-groups",
+      "`spec.profile` is required and `spec.dependsOn` lists the sub-groups"
+    ],
+    "optionNotes": [
+      "Correct. A Group must declare `spec.type` (for example `team`, `business-unit`, `department`); `spec.children` is a required list (often empty) of child group refs, `spec.parent` is the single parent, and `spec.members` lists user refs.",
+      "Group has no `spec.owner` field; `spec.members` holds User entity refs, not sub-groups.",
+      "`spec.lifecycle` belongs to Component, API, Resource and System. `spec.parent` is a single parent ref, not a list of children.",
+      "`spec.profile` (displayName, email, picture) is optional on Group and User. `spec.dependsOn` is a Component/Resource field, not an org-hierarchy field."
+    ],
+    "answer": 0,
+    "explanation": "Group entities model the org chart. `spec.type` is required, `spec.children` is required (it may be an empty list), and `spec.parent`, `spec.members` and `spec.profile` are optional. The catalog derives `childOf`/`parentOf` and `hasMember`/`memberOf` relations from these fields, and the GitHub/LDAP org providers populate them automatically.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Group\nmetadata:\n  name: platform-team\n  description: Owns the developer portal\nspec:\n  type: team\n  profile:\n    displayName: Platform Team\n    email: platform@acme.com\n  parent: engineering\n  children: []\n  members:\n    - alice\n    - bob",
+    "diagram": "flowchart TD\n    E[\"Group: engineering\"] -->|\"parentOf\"| P[\"Group: platform-team (spec.type team)\"]\n    P -->|\"childOf\"| E\n    P -->|\"hasMember\"| A[\"User: alice\"]\n    P -->|\"hasMember\"| B[\"User: bob\"]\n    A -->|\"memberOf\"| P",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format#kind-group",
+    "tags": [
+      "cba",
+      "catalog",
+      "group-user"
+    ]
+  },
+  {
+    "id": "backstage-020",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An architect wants the catalog graph to show that the `payments-api` Component belongs to the `checkout` System, and that `checkout` belongs to the `commerce` Domain. Which `spec` fields express these two memberships?",
+    "options": [
+      "`spec.system: checkout` on the Component and `spec.domain: commerce` on the System",
+      "`spec.partOf: checkout` on the Component and `spec.partOf: commerce` on the System",
+      "`spec.owner: checkout` on the Component and `spec.owner: commerce` on the System",
+      "`spec.subcomponentOf: checkout` on the Component and `spec.parent: commerce` on the System"
+    ],
+    "optionNotes": [
+      "Correct. Component, API and Resource use `spec.system` to point at their System, and a System uses `spec.domain` to point at its Domain; the catalog turns these into `partOf`/`hasPart` relations.",
+      "`partOf` is the generated relation name that appears in the entity's `relations` array, not a field you write in `spec`.",
+      "`spec.owner` must reference a Group or User that owns the entity; it does not model system or domain membership.",
+      "`spec.subcomponentOf` nests one Component inside another Component, and System has no `spec.parent` field (that belongs to Group)."
+    ],
+    "answer": 0,
+    "explanation": "The catalog's modelling hierarchy is Domain > System > Component/API/Resource. You express it with `spec.system` on the leaf entities and `spec.domain` on the System; the processors emit `partOf` and reverse `hasPart` relations, which power the System and Domain pages and the dependency graph.",
+    "example": "---\napiVersion: backstage.io/v1alpha1\nkind: Domain\nmetadata:\n  name: commerce\nspec:\n  owner: group:default/commerce-leads\n---\napiVersion: backstage.io/v1alpha1\nkind: System\nmetadata:\n  name: checkout\nspec:\n  owner: group:default/checkout-team\n  domain: commerce\n---\napiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments-api\nspec:\n  type: service\n  lifecycle: production\n  owner: group:default/checkout-team\n  system: checkout",
+    "diagram": "flowchart TD\n    D[\"Domain: commerce\"]\n    S[\"System: checkout (spec.domain commerce)\"]\n    C[\"Component: payments-api (spec.system checkout)\"]\n    R[\"Resource: payments-db (spec.system checkout)\"]\n    S -->|\"partOf\"| D\n    C -->|\"partOf\"| S\n    R -->|\"partOf\"| S\n    D -->|\"hasPart\"| S",
+    "reference": "https://backstage.io/docs/features/software-catalog/system-model",
+    "tags": [
+      "cba",
+      "catalog",
+      "system-model"
+    ]
+  },
+  {
+    "id": "backstage-021",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "A Component's `spec.owner` should reference a Group named `platform-team` that lives in the default namespace. Write the fully qualified entity reference string (kind, namespace and name).",
+    "answer": [
+      "group:default/platform-team",
+      "Group:default/platform-team"
+    ],
+    "pattern": "^\\s*group\\s*:\\s*default\\s*/\\s*platform-team\\s*$",
+    "explanation": "Entity references use the form `kind:namespace/name`. The kind is case-insensitive and the namespace defaults to `default`, so `group:platform-team` also resolves, but the canonical form the catalog stores in relations is `group:default/platform-team`.",
+    "example": "spec:\n  owner: group:default/platform-team   # full ref\n  # shorthand that resolves to the same entity:\n  # owner: platform-team  (kind inferred from context, namespace default)\n\n# querying by ref\ncurl \"$BACKEND/api/catalog/entities/by-name/group/default/platform-team\"",
+    "diagram": "flowchart LR\n    REF[\"group:default/platform-team\"] --> K[\"kind: group\"]\n    REF --> NS[\"namespace: default\"]\n    REF --> N[\"name: platform-team\"]\n    SH[\"shorthand platform-team\"] -->|\"defaults applied\"| REF",
+    "reference": "https://backstage.io/docs/features/software-catalog/references",
+    "tags": [
+      "cba",
+      "catalog",
+      "entity-refs"
+    ]
+  },
+  {
+    "id": "backstage-022",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "The catalog rejects an entity whose `metadata.name` is longer than 63 characters or contains characters outside letters, digits, `-`, `_` and `.`; a name such as `Payments API` (with a space) will fail validation.",
+    "answer": true,
+    "explanation": "Entity names must be 1 to 63 characters from the set `[a-zA-Z0-9-_.]` and are unique per kind and namespace, mirroring Kubernetes naming rules. Spaces and most punctuation are rejected by the built-in validator, so human-friendly names belong in `metadata.title` instead, which is free text and is used for display.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments-api          # valid: <= 63 chars, [a-zA-Z0-9-_.]\n  title: Payments API         # free text shown in the UI\n  namespace: default\nspec:\n  type: service\n  lifecycle: production\n  owner: group:default/checkout-team\n\n# name: Payments API  -> InputError: metadata.name must match /^[a-zA-Z0-9-_.]{1,63}$/",
+    "diagram": "flowchart TD\n    Y[\"catalog-info.yaml\"] --> V{\"metadata.name matches [a-zA-Z0-9-_.] 1 to 63 chars?\"}\n    V -->|\"yes\"| OK[\"entity accepted\"]\n    V -->|\"no\"| ERR[\"validation error, use metadata.title for display\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format#name-required",
+    "tags": [
+      "cba",
+      "catalog",
+      "validation"
+    ]
+  },
+  {
+    "id": "backstage-023",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Looking at an ingested entity, an engineer sees both `backstage.io/managed-by-location` and `backstage.io/source-location` annotations. What is the difference between them?",
+    "options": [
+      "`managed-by-location` is the location of the descriptor file the catalog read, while `source-location` points at the root of the source code (often the repo) and can be set manually to override the inferred value",
+      "`managed-by-location` is set by the user and `source-location` is generated by the catalog from the Git remote",
+      "They are aliases kept for backwards compatibility and always contain the same URL",
+      "`managed-by-location` is only present for entities created by the Scaffolder, `source-location` for entities registered manually"
+    ],
+    "optionNotes": [
+      "Correct. `managed-by-location` (and `managed-by-origin-location`) are written by the catalog and record where the YAML came from; `source-location` is inferred as the directory of that file but may be set explicitly to point at, for example, the repo root or a subfolder that plugins like TechDocs and the CI plugins use.",
+      "It is the other way round: `managed-by-location` is always written by the catalog and cannot be set by users, while `source-location` is inferable but user-overridable.",
+      "They frequently differ, for example when the descriptor file sits in a `.backstage/` folder but the code lives at the repo root.",
+      "Both annotations exist regardless of how the entity was added; the Scaffolder's `catalog:register` still ends up with a URL-type managed-by location."
+    ],
+    "answer": 0,
+    "explanation": "`backstage.io/managed-by-location` is a catalog-written annotation of the form `url:<file url>` or `file:<path>` identifying the descriptor that produced the entity; `backstage.io/managed-by-origin-location` records the original registration point. `backstage.io/source-location` describes where the source code is, defaults to the directory containing the descriptor, and is commonly overridden with `url:https://github.com/org/repo/tree/main/`.",
+    "example": "metadata:\n  name: payments-api\n  annotations:\n    # written by the catalog, do not set manually:\n    #   backstage.io/managed-by-location: url:https://github.com/acme/payments/blob/main/.backstage/catalog-info.yaml\n    #   backstage.io/managed-by-origin-location: url:https://github.com/acme/payments/blob/main/.backstage/catalog-info.yaml\n    # set manually so plugins know where the code lives:\n    backstage.io/source-location: url:https://github.com/acme/payments/tree/main/",
+    "diagram": "flowchart LR\n    REG[\"Location registered\"] --> CAT[\"catalog processing\"]\n    CAT -->|\"writes\"| MBL[\"managed-by-location: url of yaml\"]\n    CAT -->|\"writes\"| MBO[\"managed-by-origin-location\"]\n    CAT -->|\"infers dir of yaml unless set\"| SRC[\"source-location: repo tree url\"]\n    SRC --> TD[\"TechDocs, CI plugins\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/well-known-annotations",
+    "tags": [
+      "cba",
+      "catalog",
+      "annotations"
+    ]
+  },
+  {
+    "id": "backstage-024",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A developer registers a URL pointing at a `template.yaml` (`kind: Template`) through the Catalog Import page and gets an error saying the entity kind is not allowed at that location. What is the most likely cause?",
+    "options": [
+      "The default `catalog.rules` only allow `Component`, `System`, `API`, `Resource` and `Location` kinds, so `Template` must be allowed explicitly in `app-config.yaml`",
+      "Templates can never be loaded from URLs; they must be placed under `packages/backend/templates/`",
+      "The Scaffolder backend was not installed, so the catalog does not know the `Template` kind",
+      "The template uses `apiVersion: scaffolder.backstage.io/v1beta3`, which the catalog cannot parse"
+    ],
+    "optionNotes": [
+      "Correct. The catalog enforces `catalog.rules`; the default rule set omits `Template`, `Group`, `User`, `Domain` and others, so you add a global rule or a per-location rule (in `catalog.locations[].rules`) to allow them.",
+      "Templates are routinely loaded from Git URLs; the restriction is the rules policy, not the location type.",
+      "Kind validation for templates is done by the catalog's template processor from the scaffolder-backend package, but the reported error is a rules violation, which happens regardless of installed processors.",
+      "`scaffolder.backstage.io/v1beta3` is the current supported template apiVersion and parses fine."
+    ],
+    "answer": 0,
+    "explanation": "The `catalog.rules` policy controls which kinds may come from which locations. Out of the box only `Component`, `System`, `API`, `Resource` and `Location` are allowed globally, so ingesting `Template`, `Group`, `User` or `Domain` entities requires either a global `catalog.rules` entry or a `rules` block on the specific `catalog.locations` item.",
+    "example": "# app-config.yaml\ncatalog:\n  rules:\n    - allow: [Component, System, API, Resource, Location, Template]\n  locations:\n    # per-location override for org data only from this trusted file\n    - type: url\n      target: https://github.com/acme/org-data/blob/main/org.yaml\n      rules:\n        - allow: [User, Group]",
+    "diagram": "flowchart TD\n    L[\"location URL with kind Template\"] --> R{\"catalog.rules allows Template for this location?\"}\n    R -->|\"no (default rules)\"| E[\"error: entity kind not allowed\"]\n    R -->|\"yes\"| I[\"template ingested and shown on Create page\"]\n    G[\"global catalog.rules\"] --> R\n    P[\"per-location rules\"] --> R",
+    "reference": "https://backstage.io/docs/features/software-catalog/configuration#catalog-rules",
+    "tags": [
+      "cba",
+      "catalog",
+      "rules"
+    ]
+  },
+  {
+    "id": "backstage-025",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A company has 400 GitHub repositories and wants every repo containing a `catalog-info.yaml` on its `main` branch to be ingested automatically, without registering each one by hand. Which approach is intended for this?",
+    "options": [
+      "Configure the GitHub entity provider under `catalog.providers.github` with `filters.branch`, `filters.repository` and a `schedule`, and install the GitHub catalog backend module",
+      "Add a `catalog.locations` entry of `type: github-org` pointing at the organisation URL",
+      "Run `yarn backstage-cli catalog:import --org acme` once from the backend package",
+      "Create a Scaffolder template that loops over the organisation and calls `catalog:register` for every repo"
+    ],
+    "optionNotes": [
+      "Correct. `@backstage/plugin-catalog-backend-module-github` adds the `GithubEntityProvider`; it scans the org via the GitHub API on the configured schedule and registers a location for every matching `catalogPath`.",
+      "`github-org` was a legacy location type for users and groups, replaced by the `githubOrg` provider; it never discovered repositories.",
+      "There is no such `catalog:import` CLI command; discovery runs inside the backend on a schedule.",
+      "The Scaffolder is for creating things on demand, not for continuous discovery, and it would not remove entities whose repos were deleted."
+    ],
+    "answer": 0,
+    "explanation": "Entity providers such as the GitHub discovery provider are the scalable way to ingest many repositories. The provider is configured under `catalog.providers.github.<providerId>` with the organisation, optional `catalogPath`, branch and repository filters, and a mandatory `schedule` (frequency and timeout) when using the new backend system. Each run refreshes the set of locations, adding and removing repos as they change.",
+    "example": "# app-config.yaml\ncatalog:\n  providers:\n    github:\n      acmeOrg:\n        organization: acme\n        catalogPath: /catalog-info.yaml\n        filters:\n          branch: main\n          repository: '.*'\n          topic:\n            include: ['backstage-include']\n        schedule:\n          frequency: { minutes: 30 }\n          timeout: { minutes: 3 }\n\n# packages/backend/src/index.ts\nbackend.add(import('@backstage/plugin-catalog-backend-module-github'));",
+    "diagram": "flowchart LR\n    S[\"schedule every 30 min\"] --> P[\"GithubEntityProvider\"]\n    P -->|\"list repos in org\"| GH[\"GitHub API\"]\n    P -->|\"filters branch, repo, topic\"| F[\"matching repos\"]\n    F -->|\"catalogPath locations\"| C[\"catalog: applyMutation full\"]\n    C --> E[\"entities added, updated, removed\"]",
+    "reference": "https://backstage.io/docs/integrations/github/discovery",
+    "tags": [
+      "cba",
+      "catalog",
+      "github-discovery"
+    ]
+  },
+  {
+    "id": "backstage-026",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about how Backstage loads and exposes configuration are accurate? (Select all that apply.)",
+    "options": [
+      "`app-config.local.yaml` is picked up automatically during local development and is git-ignored by the default app template",
+      "An environment variable such as `APP_CONFIG_app_title=Portal` overrides the `app.title` key at runtime",
+      "`$file: ./secret.txt` reads a file's contents into a config value and `$include: other.yaml` inlines another YAML document",
+      "The frontend receives the entire merged configuration, including database passwords, because it is bundled at build time",
+      "The `--config` flag only accepts a single file; additional files must be merged with `$include`"
+    ],
+    "optionNotes": [
+      "Correct. The loader looks for `app-config.yaml` and `app-config.local.yaml` in the repo root by default (plus `app-config.production.yaml` when `NODE_ENV=production` and no `--config` is given), and `.gitignore` excludes the local file.",
+      "Correct. `APP_CONFIG_` prefixed variables are parsed as JSON-ish values and merged with highest precedence, with `_` separating key path segments.",
+      "Correct. `$file`, `$include` and `$env` are the special keys understood by the config loader.",
+      "Only keys whose schema declares `@visibility frontend` are sent to the browser; `secret` and default `backend` visibility keys never leave the backend.",
+      "`--config` can be repeated; files are merged left to right with later files taking precedence."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Config comes from multiple `--config` files merged in order (defaulting to `app-config.yaml` plus `app-config.local.yaml`), `${VAR}` substitution, `$file`/`$include`/`$env` keys, and finally `APP_CONFIG_*` environment overrides. The frontend gets only the subset marked `@visibility frontend` in plugin `config.d.ts` schemas, so secrets are never shipped to the browser.",
+    "example": "# app-config.local.yaml (git-ignored)\nintegrations:\n  github:\n    - host: github.com\n      token: ${GITHUB_TOKEN}\nbackend:\n  database:\n    connection:\n      password:\n        $file: /run/secrets/pg-password\n\n# runtime override without editing files\nAPP_CONFIG_app_title='\"Acme Portal\"' yarn start",
+    "diagram": "flowchart LR\n    A[\"app-config.yaml\"] --> M[\"merged config\"]\n    B[\"app-config.local.yaml\"] --> M\n    C[\"--config extra.yaml\"] --> M\n    ENV[\"APP_CONFIG_ env overrides\"] -->|\"highest precedence\"| M\n    M -->|\"@visibility frontend only\"| FE[\"browser\"]\n    M -->|\"all keys\"| BE[\"backend\"]",
+    "reference": "https://backstage.io/docs/conf/writing",
+    "tags": [
+      "cba",
+      "configuration",
+      "app-config"
+    ]
+  },
+  {
+    "id": "backstage-027",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A template needs a parameter where the user picks an owning Group from the catalog, and the picker should only offer `Group` entities of type `team`. Which parameter definition achieves this?",
+    "options": [
+      "`ui:field: EntityPicker` with `ui:options.catalogFilter` restricting `kind: Group` and `spec.type: team`",
+      "`ui:field: OwnerPicker` with `ui:options.allowedTypes: [team]` and `kind: Group`",
+      "`type: string` with `enum` listing every team name, regenerated nightly by CI",
+      "`ui:field: RepoUrlPicker` with `ui:options.allowedOwners` set to the team names"
+    ],
+    "optionNotes": [
+      "Correct. `EntityPicker` is the generic catalog picker; `catalogFilter` accepts the same filter syntax as the catalog API (`kind`, `spec.type`, and so on) and `ui:options.defaultKind` controls the ref shorthand.",
+      "`OwnerPicker` is a convenience picker that defaults to Group and User kinds and takes `catalogFilter` too, but `allowedTypes` is not one of its options.",
+      "A static `enum` works but goes stale immediately and duplicates data that the catalog already holds.",
+      "`RepoUrlPicker` selects an SCM host, owner and repository name; `allowedOwners` there means GitHub organisations or users, not catalog Groups."
+    ],
+    "answer": 0,
+    "explanation": "Scaffolder parameters are JSON Schema forms rendered with react-jsonschema-form, and custom `ui:field` widgets like `EntityPicker`, `OwnerPicker`, `EntityNamePicker`, `RepoUrlPicker` and `EntityTagsPicker` come from the scaffolder frontend. `EntityPicker` filters the catalog with `ui:options.catalogFilter` so the offered choices always reflect the live catalog.",
+    "example": "parameters:\n  - title: Ownership\n    required: [owner]\n    properties:\n      owner:\n        title: Owner\n        type: string\n        description: Team that will own the service\n        ui:field: EntityPicker\n        ui:options:\n          catalogFilter:\n            - kind: Group\n              spec.type: team\n          defaultKind: Group\n          allowArbitraryValues: false",
+    "diagram": "flowchart LR\n    F[\"template form\"] --> EP[\"EntityPicker field\"]\n    EP -->|\"catalogFilter kind Group, spec.type team\"| API[\"catalog API entities query\"]\n    API --> L[\"filtered list of teams\"]\n    L -->|\"user picks\"| V[\"parameters.owner = group:default/checkout-team\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/ui-options-examples",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "parameters"
+    ]
+  },
+  {
+    "id": "backstage-028",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a Scaffolder template, which built-in `action` id writes a `catalog-info.yaml` file into the workspace from an entity object given in its `input.entity`, so that a later `publish:*` step pushes it with the code?",
+    "answer": [
+      "catalog:write",
+      "catalog:write action"
+    ],
+    "pattern": "^\\s*catalog\\s*:\\s*write\\s*$",
+    "explanation": "`catalog:write` serialises the given entity to YAML at `filePath` (default `catalog-info.yaml`) inside the workspace. It is an alternative to templating the file with `fetch:template`, and is typically followed by `publish:github` and `catalog:register` so the new repository is both created and ingested.",
+    "example": "steps:\n  - id: write-catalog\n    name: Write catalog-info.yaml\n    action: catalog:write\n    input:\n      filePath: catalog-info.yaml\n      entity:\n        apiVersion: backstage.io/v1alpha1\n        kind: Component\n        metadata:\n          name: ${{ parameters.name }}\n        spec:\n          type: service\n          lifecycle: experimental\n          owner: ${{ parameters.owner }}\n  - id: publish\n    action: publish:github\n    input:\n      repoUrl: ${{ parameters.repoUrl }}",
+    "diagram": "flowchart LR\n    P[\"parameters\"] --> W[\"catalog:write\"]\n    W -->|\"catalog-info.yaml in workspace\"| PG[\"publish:github\"]\n    PG -->|\"repoContentsUrl\"| R[\"catalog:register\"]\n    R --> C[\"Software Catalog\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/builtin-actions",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "actions"
+    ]
+  },
+  {
+    "id": "backstage-029",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A `fetch:template` step copies a skeleton that contains Helm chart files using `{{ .Values.image }}` syntax. The scaffolder run fails because Nunjucks tries to render those braces. What is the cleanest fix?",
+    "options": [
+      "List the Helm files in `fetch:template`'s `copyWithoutTemplating` input so they are copied verbatim",
+      "Rename the Helm files with a `.njk` extension so Nunjucks knows to skip them",
+      "Set `input.templateFileExtension: false` to disable all templating for the step",
+      "Escape every brace in the Helm files as `\\{\\{` before committing the skeleton"
+    ],
+    "optionNotes": [
+      "Correct. `copyWithoutTemplating` takes glob patterns; matching files are copied as-is (the older `copyWithoutRender` name is deprecated in favour of it).",
+      "There is no built-in extension that disables templating; `.njk` is just the conventional Nunjucks extension and would still be rendered.",
+      "`templateFileExtension` switches to a mode where only files with a given extension (default `.njk`) are templated and the extension is stripped; setting it to `false` is not a documented way to disable rendering.",
+      "Escaping braces works with `{% raw %}` blocks but litters the chart and makes it unusable outside the scaffolder; glob exclusion is the intended approach."
+    ],
+    "answer": 0,
+    "explanation": "`fetch:template` renders every file through Nunjucks by default, which collides with Helm, Go templates and GitHub Actions expressions. The `copyWithoutTemplating` input (glob list) copies matching files untouched, and `templateFileExtension` offers the inverse model where only `.njk` files are rendered. `cookiecutterCompat: true` is a further option for skeletons that use `{{ cookiecutter.x }}` syntax.",
+    "example": "steps:\n  - id: fetch\n    name: Fetch skeleton\n    action: fetch:template\n    input:\n      url: ./skeleton\n      values:\n        name: ${{ parameters.name }}\n      copyWithoutTemplating:\n        - 'helm/**/*.yaml'\n        - 'helm/**/*.tpl'\n        - '.github/workflows/*.yml'",
+    "diagram": "flowchart TD\n    S[\"skeleton files\"] --> M{\"matches copyWithoutTemplating glob?\"}\n    M -->|\"yes\"| V[\"copied verbatim (helm, workflows)\"]\n    M -->|\"no\"| N[\"rendered by Nunjucks with values\"]\n    V --> W[\"workspace\"]\n    N --> W",
+    "reference": "https://backstage.io/docs/features/software-templates/builtin-actions#fetchtemplate",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "fetch-template"
+    ]
+  },
+  {
+    "id": "backstage-030",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "When you run a template through the Template Editor's dry-run mode, every step executes exactly as in a real run, so a `publish:github` step will create a real repository on GitHub.",
+    "answer": false,
+    "explanation": "Dry-run executes the template's steps against a temporary workspace but passes an `isDryRun` flag to actions. Built-in side-effecting actions such as `publish:*` and `catalog:register` detect the flag and skip their external effects, logging what they would have done, and the editor shows the resulting workspace files and logs. Custom actions should check `ctx.isDryRun` to behave the same way.",
+    "example": "// custom action honouring dry-run\nhandler: async (ctx) => {\n  if (ctx.isDryRun) {\n    ctx.logger.info('Dry run: would create Jira project ' + ctx.input.key);\n    return;\n  }\n  await jira.createProject(ctx.input.key);\n}\n\n// UI: Create -> ... (kebab menu) -> Template Editor -> Try It (dry run)",
+    "diagram": "flowchart LR\n    E[\"Template Editor\"] -->|\"dry run\"| S[\"scaffolder runs steps with isDryRun\"]\n    S --> FT[\"fetch:template renders workspace\"]\n    S --> PG[\"publish:github skips push\"]\n    S --> CR[\"catalog:register skips\"]\n    FT --> OUT[\"logs and file tree shown\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-custom-actions",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "dry-run"
+    ]
+  },
+  {
+    "id": "backstage-031",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A team wants repositories created by a template to be committed as the user who ran the template rather than with the shared integration token. Which combination makes `publish:github` use the user's own credentials?",
+    "options": [
+      "Set `ui:options.requestUserCredentials` on the `RepoUrlPicker` parameter with `secretsKey: USER_OAUTH_TOKEN`, then pass `token: ${{ secrets.USER_OAUTH_TOKEN }}` to the publish step",
+      "Set `spec.owner` on the template to `user:default/${{ user.entity.metadata.name }}` so the scaffolder impersonates the runner",
+      "Add `useUserToken: true` under `scaffolder.github` in `app-config.yaml`",
+      "Configure the GitHub integration with `token: ${{ user.token }}` in `integrations.github`"
+    ],
+    "optionNotes": [
+      "Correct. `requestUserCredentials` triggers an OAuth flow in the form, stores the token under `secrets.<secretsKey>`, and actions that accept a `token` input use it instead of the integration credentials; secrets are never persisted in task logs or the database.",
+      "`spec.owner` on a Template only records ownership of the template entity; it has no effect on which credentials actions use.",
+      "There is no `useUserToken` option; per-user credentials are opt-in per template through secrets.",
+      "`integrations.github` is static configuration read at startup; it cannot reference per-run user context."
+    ],
+    "answer": 0,
+    "explanation": "Scaffolder secrets are a separate input channel that is redacted from logs and not stored with the task. `RepoUrlPicker` can request user credentials for the selected host via `ui:options.requestUserCredentials` (with `secretsKey` and optional `additionalScopes`), and the resulting token is referenced as `${{ secrets.USER_OAUTH_TOKEN }}` in the `token` input of `publish:github`, `github:actions:dispatch` and similar actions.",
+    "example": "parameters:\n  - title: Repository\n    properties:\n      repoUrl:\n        title: Repository Location\n        type: string\n        ui:field: RepoUrlPicker\n        ui:options:\n          allowedHosts: [github.com]\n          requestUserCredentials:\n            secretsKey: USER_OAUTH_TOKEN\n            additionalScopes:\n              github: [workflow]\nsteps:\n  - id: publish\n    action: publish:github\n    input:\n      repoUrl: ${{ parameters.repoUrl }}\n      token: ${{ secrets.USER_OAUTH_TOKEN }}",
+    "diagram": "sequenceDiagram\n    participant U as User\n    participant F as Template form (RepoUrlPicker)\n    participant GH as GitHub OAuth\n    participant S as Scaffolder backend\n    U->>F: fill parameters\n    F->>GH: requestUserCredentials OAuth popup\n    GH-->>F: user token\n    F->>S: task with secrets.USER_OAUTH_TOKEN\n    S->>GH: publish:github using user token",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-templates#using-the-users-oauth-token",
+    "tags": [
+      "cba",
+      "scaffolder",
+      "secrets"
+    ]
+  },
+  {
+    "id": "backstage-032",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "TechDocs builds with MkDocs but requires a specific MkDocs plugin (installed with `pip`) to be listed under `plugins:` in `mkdocs.yml` so that the output is compatible with the TechDocs reader. What is the plugin's name as written in `mkdocs.yml`?",
+    "answer": [
+      "techdocs-core",
+      "mkdocs-techdocs-core"
+    ],
+    "pattern": "^\\s*(mkdocs-)?techdocs-core\\s*$",
+    "explanation": "The `mkdocs-techdocs-core` pip package provides the `techdocs-core` MkDocs plugin, which bundles the Material theme, `mkdocs-monorepo-plugin`, PyMdown extensions and the `techdocs-core` configuration TechDocs expects. When `techdocs.generator.runIn` is `local`, the backend host needs `mkdocs` and `mkdocs-techdocs-core` installed; when it is `docker`, the `spotify/techdocs` image already contains them.",
+    "example": "# mkdocs.yml\nsite_name: Payments API\nnav:\n  - Home: index.md\n  - Runbook: runbook.md\nplugins:\n  - techdocs-core\n\n# local generator prerequisites\npip3 install mkdocs-techdocs-core\n\n# app-config.yaml\ntechdocs:\n  builder: local\n  generator:\n    runIn: local   # or docker (uses spotify/techdocs image)",
+    "diagram": "flowchart LR\n    MD[\"docs/*.md plus mkdocs.yml\"] --> G[\"TechDocs generator\"]\n    G -->|\"runIn docker\"| IMG[\"spotify/techdocs image\"]\n    G -->|\"runIn local\"| PIP[\"mkdocs plus mkdocs-techdocs-core on host\"]\n    IMG --> H[\"static HTML site\"]\n    PIP --> H\n    H --> PUB[\"publisher: local, awsS3, googleGcs...\"]",
+    "reference": "https://backstage.io/docs/features/techdocs/configuration",
+    "tags": [
+      "cba",
+      "techdocs",
+      "mkdocs"
+    ]
+  },
+  {
+    "id": "backstage-033",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "If `permission.enabled` is left unset or set to `false` in `app-config.yaml`, the permission framework authorises every request, so plugins that call `permissions.authorize()` behave as if all users are allowed to do everything.",
+    "answer": true,
+    "explanation": "The permission backend is installed in new apps but is inert until `permission.enabled: true` is set; in that state every `authorize` call returns `ALLOW`, which is why a fresh Backstage instance lets anyone unregister entities or run any template. Enabling it activates the configured policy (the default `AllowAllPolicy` is a safe starting point that you then replace with your own).",
+    "example": "# app-config.yaml\npermission:\n  enabled: true\n\n# packages/backend/src/index.ts\nbackend.add(import('@backstage/plugin-permission-backend'));\n// starting policy, replace with a custom module later:\nbackend.add(import('@backstage/plugin-permission-backend-module-allow-all-policy'));",
+    "diagram": "flowchart TD\n    R[\"plugin calls permissions.authorize()\"] --> E{\"permission.enabled true?\"}\n    E -->|\"no\"| A[\"ALLOW for everyone\"]\n    E -->|\"yes\"| P[\"PermissionPolicy.handle()\"]\n    P --> D[\"ALLOW, DENY or CONDITIONAL\"]",
+    "reference": "https://backstage.io/docs/permissions/getting-started",
+    "tags": [
+      "cba",
+      "permissions",
+      "configuration"
+    ]
+  },
+  {
+    "id": "backstage-034",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In a Backstage app using the new backend system, how is a backend plugin such as the Kubernetes backend added to the running backend?",
+    "options": [
+      "Call `backend.add(import('@backstage/plugin-kubernetes-backend'))` in `packages/backend/src/index.ts` after installing the package",
+      "Create `packages/backend/src/plugins/kubernetes.ts` exporting a `createPlugin` function and register it in `Router.ts`",
+      "Add the package name to `backend.plugins` in `app-config.yaml` so it is loaded at startup",
+      "Import the plugin in `packages/app/src/App.tsx` and mount it under `<FlatRoutes>`"
+    ],
+    "optionNotes": [
+      "Correct. The new backend system is declarative: `createBackend()` builds the backend and `backend.add()` registers plugins and modules by dynamically importing their default export; `backend.start()` then wires services and routes.",
+      "This describes the legacy backend layout with a per-plugin file and manual router wiring, which the new system replaces.",
+      "Backend plugins are code dependencies added in `packages/backend/package.json` and `index.ts`; there is no config-driven plugin list.",
+      "`App.tsx` and `FlatRoutes` are for frontend plugins and pages; backend plugins never appear there."
+    ],
+    "answer": 0,
+    "explanation": "Since the new backend system became the default, `packages/backend/src/index.ts` consists of `const backend = createBackend();` followed by a series of `backend.add(import('...'))` calls for each plugin and module, then `backend.start()`. Plugins pull in the services they need through dependency injection rather than the old manual `PluginEnvironment` plumbing.",
+    "example": "// packages/backend/src/index.ts\nimport { createBackend } from '@backstage/backend-defaults';\n\nconst backend = createBackend();\nbackend.add(import('@backstage/plugin-app-backend'));\nbackend.add(import('@backstage/plugin-catalog-backend'));\nbackend.add(import('@backstage/plugin-kubernetes-backend'));\nbackend.add(import('@backstage/plugin-auth-backend'));\nbackend.add(import('@backstage/plugin-auth-backend-module-github-provider'));\nbackend.start();\n\n// yarn --cwd packages/backend add @backstage/plugin-kubernetes-backend",
+    "diagram": "flowchart TD\n    CB[\"createBackend()\"] --> ADD[\"backend.add(import plugin)\"]\n    ADD --> K[\"kubernetes-backend\"]\n    ADD --> C[\"catalog-backend\"]\n    ADD --> A[\"auth-backend plus provider module\"]\n    K --> ST[\"backend.start() wires services and routes\"]\n    C --> ST\n    A --> ST",
+    "reference": "https://backstage.io/docs/backend-system/building-backends/index",
+    "tags": [
+      "cba",
+      "plugins",
+      "backend-system"
+    ]
+  },
+  {
+    "id": "backstage-035",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A team writes a custom scaffolder action and must register it with the new backend system. Which construct do they use, and how does the action reach the scaffolder plugin?",
+    "options": [
+      "`createBackendModule({ pluginId: 'scaffolder', moduleId: 'acme-actions', register(env) {...} })` that depends on `scaffolderActionsExtensionPoint` and calls `addActions()` in its `init`",
+      "`createBackendPlugin({ pluginId: 'acme-actions' })` whose `init` imports the scaffolder router and calls `router.registerAction()`",
+      "A `createServiceFactory` for `coreServices.scaffolderActions` returning the action so the scaffolder picks it up automatically",
+      "Export the action from `packages/backend/src/plugins/scaffolder.ts` inside `createRouter({ actions: [...] })`"
+    ],
+    "optionNotes": [
+      "Correct. Extensions to an existing plugin are modules: `pluginId` names the plugin being extended, and the module declares a dependency on the plugin's extension point (`scaffolderActionsExtensionPoint` from `@backstage/plugin-scaffolder-node/alpha`) to add actions.",
+      "A backend plugin is an independent unit with its own routes; it cannot reach into another plugin's internals, which is exactly why extension points exist.",
+      "There is no such core service; extension points, not service factories, are the mechanism for plugin-to-module integration.",
+      "This is the legacy backend wiring where the scaffolder router was created by hand in `plugins/scaffolder.ts`; the new system has no such file."
+    ],
+    "answer": 0,
+    "explanation": "In the new backend system a module (`createBackendModule`) extends one plugin identified by `pluginId`. The module's `register(env)` calls `env.registerInit({ deps: { scaffolder: scaffolderActionsExtensionPoint }, async init({ scaffolder }) { scaffolder.addActions(myAction) } })`. The module is then added with `backend.add(myScaffolderModule)` alongside the scaffolder plugin.",
+    "example": "// plugins/scaffolder-backend-module-acme/src/module.ts\nimport { createBackendModule } from '@backstage/backend-plugin-api';\nimport { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node/alpha';\nimport { createJiraProjectAction } from './actions/jira';\n\nexport const scaffolderModuleAcme = createBackendModule({\n  pluginId: 'scaffolder',\n  moduleId: 'acme-actions',\n  register(env) {\n    env.registerInit({\n      deps: { scaffolder: scaffolderActionsExtensionPoint },\n      async init({ scaffolder }) {\n        scaffolder.addActions(createJiraProjectAction());\n      },\n    });\n  },\n});\n\n// packages/backend/src/index.ts\nbackend.add(import('@backstage/plugin-scaffolder-backend'));\nbackend.add(import('@internal/plugin-scaffolder-backend-module-acme'));",
+    "diagram": "flowchart LR\n    M[\"createBackendModule pluginId scaffolder\"] -->|\"deps\"| EP[\"scaffolderActionsExtensionPoint\"]\n    M -->|\"init: addActions()\"| EP\n    EP --> SP[\"scaffolder plugin\"]\n    SP --> REG[\"action registry: acme:jira:create\"]\n    T[\"template.yaml step\"] -->|\"action id\"| REG",
+    "reference": "https://backstage.io/docs/backend-system/building-plugins-and-modules/index",
+    "tags": [
+      "cba",
+      "plugins",
+      "backend-modules"
+    ]
+  },
+  {
+    "id": "backstage-036",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A company wants catalog entities to refresh within seconds of a `catalog-info.yaml` being pushed to GitHub, instead of waiting for the periodic processing loop. Which set of pieces implements this?",
+    "options": [
+      "Install `@backstage/plugin-events-backend` with the GitHub events module, point a GitHub webhook at `/api/events/http/github`, and enable the GitHub catalog module so it subscribes to `github.push` events and refreshes the affected locations",
+      "Set `catalog.processingInterval` to `{ seconds: 5 }` so the loop polls GitHub every five seconds",
+      "Configure `catalog.providers.github.schedule.frequency: { seconds: 1 }` for near-real-time discovery",
+      "Enable `catalog.refresh.webhooks: true`, which makes the catalog register a webhook with every integration automatically"
+    ],
+    "optionNotes": [
+      "Correct. The events backend exposes an HTTP ingress per topic; the GitHub module validates the `X-Hub-Signature-256` header with `events.modules.github.webhookSecret`, publishes `github.push` events, and the catalog GitHub module (and TechDocs, if configured) consume them to trigger targeted refreshes.",
+      "A five second processing interval hammers both the database and GitHub's API for every entity in the catalog; it is polling, not event-driven, and rate limits will bite quickly.",
+      "Provider schedules are for periodic discovery of repositories and are still polling; sub-minute frequencies are not practical against the GitHub API.",
+      "There is no such option; Backstage does not create webhooks for you, you configure them on the SCM side to call the events ingress."
+    ],
+    "answer": 0,
+    "explanation": "The events system (`@backstage/plugin-events-backend` plus provider modules such as `@backstage/plugin-events-backend-module-github`) receives webhooks at `POST /api/events/http/<topic>` and fans them out to subscribers via the `EventsService`. The GitHub catalog backend module listens for `github.push` and calls `refresh` on matching locations, and the GitHub entity provider reacts to repository lifecycle events, giving near-real-time catalog updates without shortening the global processing interval.",
+    "example": "# app-config.yaml\nevents:\n  http:\n    topics:\n      - github\n  modules:\n    github:\n      webhookSecret: ${GITHUB_WEBHOOK_SECRET}\n\n# packages/backend/src/index.ts\nbackend.add(import('@backstage/plugin-events-backend'));\nbackend.add(import('@backstage/plugin-events-backend-module-github'));\nbackend.add(import('@backstage/plugin-catalog-backend-module-github'));\n\n# GitHub webhook: https://backstage.acme.com/api/events/http/github\n#   content type application/json, events: push, repository",
+    "diagram": "sequenceDiagram\n    participant GH as GitHub\n    participant EV as events-backend /api/events/http/github\n    participant ES as EventsService\n    participant CM as catalog github module\n    participant CAT as Catalog\n    GH->>EV: push webhook with X-Hub-Signature-256\n    EV->>ES: publish topic github.push\n    ES->>CM: deliver event\n    CM->>CAT: refresh location for changed repo",
+    "reference": "https://backstage.io/docs/features/software-catalog/configuration#subscribing-to-catalog-errors",
+    "tags": [
+      "cba",
+      "events",
+      "catalog-refresh"
+    ]
+  },
+  {
+    "id": "backstage-037",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An operator hits GitHub API rate limits with a personal access token and wants to switch the Backstage GitHub integration to a GitHub App. Which steps are involved?",
+    "options": [
+      "Run `yarn backstage-cli create-github-app <org>` to create the app and a credentials YAML, then reference that file with `$include` under `integrations.github[].apps`",
+      "Create the app manually and put its client ID and client secret under `auth.providers.github` because integrations and auth share credentials",
+      "Set `integrations.github[].token` to the GitHub App's private key PEM contents",
+      "Add the app's installation ID to `catalog.providers.github.appId`; no other configuration is needed"
+    ],
+    "optionNotes": [
+      "Correct. The CLI walks through the GitHub App manifest flow, writes `github-app-<name>-credentials.yaml` with `appId`, `clientId`, `clientSecret`, `webhookSecret` and `privateKey`, and you include it via `$include` in the `apps` list (keep the file out of Git).",
+      "`auth.providers.github` configures user login (an OAuth App), which is a separate concern from `integrations.github`, which is how the backend reads repositories.",
+      "`token` is for PATs; GitHub Apps authenticate with an `appId` plus `privateKey` to mint short-lived installation tokens, configured in the `apps` array.",
+      "The catalog provider has no `appId` field; it uses whatever credentials the shared `integrations.github` entry provides."
+    ],
+    "answer": 0,
+    "explanation": "GitHub App credentials give higher rate limits and per-installation scoping. `backstage-cli create-github-app <github-org>` generates the app through the manifest flow and emits a credentials file; `integrations.github[].apps` accepts a list of such credential objects, usually pulled in with `$include: github-app-credentials.yaml`, and Backstage exchanges the private key for installation tokens automatically.",
+    "example": "# one-time setup\nyarn backstage-cli create-github-app acme\n# -> writes github-app-backstage-acme-credentials.yaml\n\n# app-config.yaml\nintegrations:\n  github:\n    - host: github.com\n      apps:\n        - $include: github-app-backstage-acme-credentials.yaml\n\n# github-app-backstage-acme-credentials.yaml (git-ignored)\n# appId: 123456\n# clientId: Iv1.abc\n# clientSecret: ...\n# webhookSecret: ...\n# privateKey: |\n#   -----BEGIN RSA PRIVATE KEY-----",
+    "diagram": "flowchart LR\n    CLI[\"backstage-cli create-github-app acme\"] --> GH[\"GitHub App manifest flow\"]\n    GH --> F[\"credentials yaml (appId, privateKey)\"]\n    F -->|\"$include\"| CFG[\"integrations.github apps\"]\n    CFG --> BE[\"backend mints installation tokens\"]\n    BE --> API[\"GitHub API with app rate limits\"]",
+    "reference": "https://backstage.io/docs/integrations/github/github-apps",
+    "tags": [
+      "cba",
+      "integrations",
+      "github-app"
+    ]
+  },
+  {
+    "id": "backstage-038",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A CI job outside Backstage needs to call the catalog API to trigger `POST /api/catalog/refresh`. With the new backend auth system enabled, which statements about giving that external caller access are true? (Select all that apply.)",
+    "options": [
+      "Configure `backend.auth.externalAccess` with a `type: static` entry whose `options.token` is a long random string and `options.subject` names the caller",
+      "The caller sends the token as `Authorization: Bearer <token>` on each request",
+      "Any request without a valid token is rejected by default unless the plugin explicitly marks the endpoint as allowing unauthenticated access",
+      "Adding `backend.auth.dangerouslyDisableDefaultAuthPolicy: true` is the recommended production approach for CI callers",
+      "A `type: legacy` entry with a shared `secret` is required because static tokens only work for user identities"
+    ],
+    "optionNotes": [
+      "Correct. Static tokens are the simplest external access method; the subject becomes the service identity (`external:<subject>`) that permission policies and logs can see, and `accessRestrictions` can limit which plugins it may call.",
+      "Correct. The backend's `httpAuth` service reads the bearer token and, if it matches a configured external access entry, treats the request as a service principal.",
+      "Correct. Since the new auth system was introduced, backend plugins default to requiring credentials; only endpoints that opt in with `allow: ['unauthenticated']` (for example health checks) are open.",
+      "That flag turns off the default auth policy for the entire backend and exists for migration debugging only; it is explicitly discouraged for production.",
+      "`type: legacy` exists only to interoperate with old backends sharing `backend.auth.keys`; `static` tokens are the intended mechanism for external services."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The new backend auth model makes every backend endpoint require a credential by default. External systems get access through `backend.auth.externalAccess`, most commonly `type: static` (or `type: jwks` for tokens issued by an identity provider), and call plugins with `Authorization: Bearer <token>`. `dangerouslyDisableDefaultAuthPolicy` exists for migration debugging and should not be used in production.",
+    "example": "# app-config.production.yaml\nbackend:\n  auth:\n    externalAccess:\n      - type: static\n        options:\n          token: ${CI_BACKSTAGE_TOKEN}   # e.g. node -p 'require(\"crypto\").randomBytes(24).toString(\"base64\")'\n          subject: ci-refresh-job\n        accessRestrictions:\n          - plugin: catalog\n\n# CI job\ncurl -X POST \"https://backstage.acme.com/api/catalog/refresh\" \\\n  -H \"Authorization: Bearer $CI_BACKSTAGE_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"entityRef\":\"component:default/payments-api\"}'",
+    "diagram": "flowchart LR\n    CI[\"CI job\"] -->|\"Authorization: Bearer static token\"| BE[\"backend httpAuth\"]\n    BE --> M{\"matches backend.auth.externalAccess?\"}\n    M -->|\"yes\"| SP[\"service principal external:ci-refresh-job\"]\n    SP -->|\"accessRestrictions plugin catalog\"| CAT[\"catalog refresh endpoint\"]\n    M -->|\"no\"| REJ[\"401 unauthorized\"]",
+    "reference": "https://backstage.io/docs/auth/service-to-service-auth",
+    "tags": [
+      "cba",
+      "auth",
+      "service-to-service"
+    ]
   }
 ]

@@ -1548,5 +1548,380 @@
     "tags": [
       "basics"
     ]
+  },
+  {
+    "id": "git-061",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You rebased a feature branch and need to overwrite its remote copy. Why is `git push --force-with-lease` safer than `git push --force`?",
+    "options": [
+      "It only overwrites the remote branch if it still points at the commit your remote-tracking ref last saw, so it rejects the push when someone else has pushed in the meantime",
+      "It creates a backup branch on the remote before overwriting so the old commits can be restored",
+      "It asks the server to merge your rewritten history with the remote history instead of replacing it",
+      "It only forces the push when the remote branch is protected, otherwise it behaves like a normal push"
+    ],
+    "optionNotes": [
+      "Correct: the 'lease' is the expected value of the remote ref; if the remote has diverged from what you fetched, the push is rejected as stale.",
+      "No backup is made; the old commits remain reachable only through the server-side reflog if the host keeps one.",
+      "The push still replaces the remote ref outright; the safety is a precondition check, not a merge.",
+      "Branch protection is a hosting-platform feature and is unrelated; `--force-with-lease` works against any remote."
+    ],
+    "answer": 0,
+    "explanation": "`--force-with-lease` refuses the push if the remote branch has moved past the commit your remote-tracking ref recorded, which protects teammates' commits pushed since your last fetch. Plain `--force` overwrites the remote unconditionally.",
+    "example": "git fetch origin\ngit rebase -i origin/main\ngit push --force-with-lease origin feature/login\n# ! [rejected] feature/login -> feature/login (stale info)  <- someone pushed meanwhile",
+    "diagram": "flowchart TD\nA[\"git push --force-with-lease\"] --> B{\"Remote ref equals your remote-tracking ref?\"}\nB -->|\"yes\"| C[\"Overwrite remote branch\"]\nB -->|\"no\"| D[\"Rejected: stale info\"]\nD --> E[\"git fetch, inspect new commits, retry\"]\nF[\"git push --force skips this check\"] -.-> C",
+    "reference": "https://git-scm.com/docs/git-push#Documentation/git-push.txt---force-with-leaseltrefnamegt",
+    "tags": [
+      "remotes",
+      "force-push"
+    ]
+  },
+  {
+    "id": "git-062",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You run `git stash` but a newly created, never-added file is still sitting in your working directory afterwards. Which flag makes `git stash` include it?",
+    "options": [
+      "-u (--include-untracked)",
+      "-a (--all)",
+      "-k (--keep-index)",
+      "-p (--patch)"
+    ],
+    "optionNotes": [
+      "Correct: `-u` adds untracked (but not ignored) files to the stash entry, which is the minimal flag for this case.",
+      "`-a` also works but it additionally stashes ignored files such as build output, which is usually more than you want.",
+      "`--keep-index` leaves staged changes in the index after stashing; it does not affect untracked files.",
+      "`--patch` lets you interactively choose hunks of tracked changes to stash; untracked files are not offered."
+    ],
+    "answer": 0,
+    "explanation": "By default `git stash` only saves tracked changes. `git stash -u` (`--include-untracked`) also stashes untracked files, and `git stash -a` (`--all`) additionally includes ignored files.",
+    "example": "touch notes.tmp\ngit stash            # notes.tmp is left behind\ngit stash -u         # tracked changes + untracked files saved\ngit stash show --include-untracked",
+    "diagram": "flowchart LR\nA[\"Working directory\"] --> B[\"Tracked modified files\"]\nA --> C[\"Untracked files\"]\nA --> D[\"Ignored files\"]\nB -->|\"git stash\"| S[\"Stash entry\"]\nC -->|\"git stash -u\"| S\nD -->|\"git stash -a\"| S",
+    "reference": "https://git-scm.com/docs/git-stash",
+    "tags": [
+      "stash"
+    ]
+  },
+  {
+    "id": "git-063",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You keep rebasing a long-lived branch onto `main` and resolving the same conflict in the same file every time. Which Git feature records how you resolved a conflict and replays that resolution automatically next time?",
+    "options": [
+      "git rerere",
+      "git merge -X theirs",
+      "git update-ref",
+      "git replace"
+    ],
+    "optionNotes": [
+      "Correct: rerere stands for 'reuse recorded resolution' and does exactly this once enabled.",
+      "`-X theirs` blindly prefers the other side for every conflicting hunk; it does not remember a custom resolution.",
+      "`git update-ref` writes ref values and has nothing to do with conflict resolution.",
+      "`git replace` substitutes one object for another at read time; it does not record conflict resolutions."
+    ],
+    "answer": 0,
+    "explanation": "`git rerere` (reuse recorded resolution) records conflict hunks and their resolutions under `.git/rr-cache`. Once `rerere.enabled` is true, Git applies the recorded resolution automatically whenever the identical conflict appears again.",
+    "example": "git config --global rerere.enabled true\ngit rebase main\n# CONFLICT in src/config.ts ... resolve, then:\ngit add src/config.ts && git rebase --continue\n# 'Recorded resolution for src/config.ts'\n# next rebase: 'Resolved src/config.ts using previous resolution.'",
+    "diagram": "flowchart TD\nA[\"Conflict appears\"] --> B{\"Resolution recorded in .git/rr-cache?\"}\nB -->|\"no\"| C[\"You resolve manually\"]\nC --> D[\"git add records the resolution\"]\nB -->|\"yes\"| E[\"Resolution applied automatically\"]\nF[\"rerere.enabled = true\"] -.-> A",
+    "reference": "https://git-scm.com/docs/git-rerere",
+    "tags": [
+      "conflicts",
+      "rerere",
+      "rebasing"
+    ]
+  },
+  {
+    "id": "git-064",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the difference between `git log main..feature` and `git log main...feature`?",
+    "options": [
+      "`main..feature` lists commits on `feature` not in `main`; `main...feature` lists commits reachable from either branch but not both",
+      "They are aliases; three dots is just a more explicit spelling of two dots",
+      "`main..feature` lists commits on both branches; `main...feature` lists only the merge base",
+      "`main..feature` lists commits on `main` not in `feature`; `main...feature` lists commits on `feature` not in `main`"
+    ],
+    "optionNotes": [
+      "Correct: `A..B` is `^A B`, while `A...B` is the symmetric difference of the two histories.",
+      "They are different operators; the three-dot form includes commits from both sides since the merge base.",
+      "Neither form lists common commits; `git merge-base` is what returns the merge base.",
+      "The direction of the two-dot form is reversed here: `main..feature` excludes commits reachable from `main`."
+    ],
+    "answer": 0,
+    "explanation": "Two dots selects commits reachable from `feature` but not from `main`. Three dots (symmetric difference) selects commits reachable from either side but not from both, so it shows what each branch has that the other lacks. Note that `git diff` interprets the operators differently.",
+    "example": "git log --oneline main..feature      # only feature's new commits\ngit log --oneline --left-right main...feature\n# < a1b2c3 commit only on main\n# > d4e5f6 commit only on feature",
+    "diagram": "flowchart LR\nB[\"base\"] --> M1[\"m1 (main)\"]\nB --> F1[\"f1\"] --> F2[\"f2 (feature)\"]\nX[\"main..feature = f1, f2\"] -.-> F2\nY[\"main...feature = m1, f1, f2\"] -.-> M1",
+    "reference": "https://git-scm.com/docs/gitrevisions",
+    "tags": [
+      "revisions",
+      "log"
+    ]
+  },
+  {
+    "id": "git-065",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Fill in the `git clone` option that performs a blobless partial clone, downloading commits and trees up front but fetching file contents lazily only when needed: `git clone ___ https://example.com/big.git`",
+    "answer": [
+      "--filter=blob:none",
+      "--filter blob:none",
+      "filter=blob:none",
+      "blob:none"
+    ],
+    "pattern": "^(--?filter[=\\s]+)?blob:none$",
+    "explanation": "`--filter=blob:none` asks a promisor-capable server to omit blobs from the initial transfer. Trees and commits arrive so history operations still work, and missing blobs are fetched on demand during checkout or diff.",
+    "example": "git clone --filter=blob:none https://example.com/big.git\ncd big && git log --oneline | head   # works without fetching blobs\ngit checkout v2.0                    # blobs for that tree are fetched now",
+    "diagram": "flowchart TD\nA[\"git clone --filter=blob:none\"] --> B[\"Download all commits and trees\"]\nB --> C[\"Blobs omitted (promisor remote)\"]\nC --> D[\"git checkout needs file content\"]\nD --> E[\"Missing blobs fetched on demand\"]\nF[\"--depth=1 shallow clone truncates history instead\"] -.-> A",
+    "reference": "https://git-scm.com/docs/partial-clone",
+    "tags": [
+      "clone",
+      "partial-clone",
+      "performance"
+    ]
+  },
+  {
+    "id": "git-066",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "Which modern command creates a new branch `hotfix` and switches to it, as a replacement for `git checkout -b hotfix`?",
+    "options": [
+      "git switch -c hotfix",
+      "git switch -b hotfix",
+      "git branch --switch hotfix",
+      "git restore -c hotfix"
+    ],
+    "optionNotes": [
+      "Correct: `-c` (`--create`) is the `git switch` spelling of checkout's `-b`.",
+      "`git switch` uses `-c`, not `-b`; `-b` is the `git checkout` flag.",
+      "`git branch` has no `--switch` option; it only creates, lists, or deletes branches.",
+      "`git restore` operates on files in the working tree or index, not on branches."
+    ],
+    "answer": 0,
+    "explanation": "Git 2.23 split the overloaded `git checkout` into `git switch` (branches) and `git restore` (files). `git switch -c hotfix` creates and checks out a new branch, and `git switch -` returns to the previous branch.",
+    "example": "git switch -c hotfix          # create and switch\ngit switch main               # switch to existing branch\ngit switch --detach v1.2.0    # detached HEAD at a tag",
+    "diagram": "flowchart LR\nA[\"git checkout (overloaded)\"] --> B[\"git switch: change branches\"]\nA --> C[\"git restore: change files\"]\nB --> D[\"git switch -c hotfix\"]\nB --> E[\"git switch --detach tag\"]\nC --> F[\"git restore --staged path\"]",
+    "reference": "https://git-scm.com/docs/git-switch",
+    "tags": [
+      "branching",
+      "switch"
+    ]
+  },
+  {
+    "id": "git-067",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Running `git restore src/app.ts` with no other flags discards both the staged and unstaged changes to that file, resetting it to match `HEAD`.",
+    "answer": false,
+    "explanation": "False. Without flags `git restore` restores the working tree copy from the index, so staged changes survive. Use `--staged` to restore the index from `HEAD`, or `--staged --worktree` (or `--source=HEAD --staged --worktree`) to discard both.",
+    "example": "git add src/app.ts             # stage a change\ngit restore src/app.ts         # working tree now matches the index; staged change remains\ngit restore --staged src/app.ts             # unstage only\ngit restore --staged --worktree src/app.ts  # discard everything",
+    "diagram": "flowchart LR\nH[\"HEAD\"] -->|\"git restore --staged\"| I[\"Index\"]\nI -->|\"git restore (default)\"| W[\"Working tree\"]\nH -->|\"git restore --staged --worktree\"| W",
+    "reference": "https://git-scm.com/docs/git-restore",
+    "tags": [
+      "restore",
+      "staging"
+    ]
+  },
+  {
+    "id": "git-068",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are things you can configure through a `.gitattributes` file?",
+    "options": [
+      "Line-ending normalization for specific file patterns using `text` and `eol`",
+      "Selecting a custom merge driver for a path with `merge=<driver>`",
+      "Routing matching files through Git LFS with `filter=lfs`",
+      "Excluding files from being tracked, like `.gitignore` does",
+      "Marking files as generated so GitHub's language statistics skip them via `linguist-generated`",
+      "Defining which script runs as the `pre-commit` hook"
+    ],
+    "optionNotes": [
+      "Correct: `*.sh text eol=lf` is the canonical way to force line endings per pattern.",
+      "Correct: the `merge` attribute names a driver defined in config under `merge.<driver>.driver`.",
+      "Correct: `git lfs track` writes exactly this attribute line for you.",
+      "Wrong: `.gitattributes` does not ignore files; that is `.gitignore`, `.git/info/exclude`, or `core.excludesFile`.",
+      "Correct: linguist attributes live in `.gitattributes` and are read by GitHub.",
+      "Wrong: hooks are executables in `.git/hooks` or the directory set by `core.hooksPath`, not attributes."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "`.gitattributes` assigns attributes per pathspec: `text`/`eol` control line-ending normalization, `merge=<driver>` picks a custom merge driver, `filter=lfs` routes files through Git LFS, and `linguist-*` attributes steer GitHub's language stats. Ignoring files and hook scripts are handled elsewhere.",
+    "example": "# .gitattributes\n* text=auto\n*.sh text eol=lf\n*.bat text eol=crlf\n*.png binary\n*.psd filter=lfs diff=lfs merge=lfs -text\npackage-lock.json merge=ours linguist-generated=true",
+    "diagram": "flowchart TD\nA[\".gitattributes\"] --> B[\"text and eol: line ending normalization\"]\nA --> C[\"merge=driver: custom merge driver\"]\nA --> D[\"filter=lfs: Git LFS storage\"]\nA --> E[\"linguist-generated: GitHub language stats\"]\nA --> F[\"diff=driver, export-ignore\"]",
+    "reference": "https://git-scm.com/docs/gitattributes",
+    "tags": [
+      "gitattributes",
+      "eol",
+      "lfs"
+    ]
+  },
+  {
+    "id": "git-069",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Setting `merge.conflictStyle` to `diff3` (or `zdiff3`) changes what appears inside conflict markers. What does it add?",
+    "options": [
+      "A middle section showing the common ancestor version of the conflicting hunk",
+      "A trailing section listing which commits touched the conflicting lines",
+      "Inline word-level highlighting of the differences between the two sides",
+      "The full unified diff of both branches appended to the end of the file"
+    ],
+    "optionNotes": [
+      "Correct: the `|||||||` section holds the merge base so you can see what each side changed relative to the original.",
+      "Commit attribution is what `git blame` or `git log -L` provides; conflict markers never list commits.",
+      "Word-level diffs are a display feature of `git diff --word-diff` and merge tools, not of conflict markers.",
+      "Conflict markers wrap only the conflicting hunks; Git never appends whole diffs to the file."
+    ],
+    "answer": 0,
+    "explanation": "With `diff3`, each conflict shows a third section delimited by `|||||||` containing the merge base (the common ancestor) between the two sides. Seeing the original text makes it far easier to work out what each side changed. `zdiff3` trims lines common to both sides out of the conflict.",
+    "example": "git config --global merge.conflictStyle zdiff3\n<<<<<<< HEAD\nretries = 5\n||||||| merged common ancestors\nretries = 3\n=======\nretries = 10\n>>>>>>> feature",
+    "diagram": "flowchart TD\nA[\"Conflict hunk\"] --> B[\"HEAD side (ours)\"]\nA --> C[\"Merge base section, marked with pipes (diff3 only)\"]\nA --> D[\"Other side (theirs)\"]\nC --> E[\"Shows the original text both sides changed\"]\nF[\"zdiff3 removes lines common to both sides\"] -.-> A",
+    "reference": "https://git-scm.com/docs/git-config#Documentation/git-config.txt-mergeconflictStyle",
+    "tags": [
+      "conflicts",
+      "merging",
+      "config"
+    ]
+  },
+  {
+    "id": "git-070",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Fill in the `git blame` flag that ignores whitespace-only changes, so a reformatting commit is not shown as the last author of every re-indented line: `git blame ___ src/main.py`",
+    "answer": [
+      "-w",
+      "--ignore-all-space",
+      "-w -M",
+      "-w -M -C"
+    ],
+    "pattern": "^(-w|--ignore-all-space)(\\s+-[MC]\\d*)*$",
+    "explanation": "`git blame -w` ignores whitespace when comparing lines. Combine it with `-M` (moved within a file) and `-C` (copied from other files) to attribute lines to their original author rather than to a mass reformat or move. `blame.ignoreRevsFile` can skip whole commits.",
+    "example": "git blame -w src/main.py\ngit blame -w -M -C src/main.py\n# skip an entire reformat commit for every blame:\ngit config blame.ignoreRevsFile .git-blame-ignore-revs",
+    "diagram": "flowchart LR\nA[\"Reformat commit re-indents file\"] --> B[\"git blame shows reformatter everywhere\"]\nA --> C[\"git blame -w ignores whitespace\"]\nC --> D[\"Original authors shown\"]\nE[\"-M and -C follow moves and copies\"] -.-> D",
+    "reference": "https://git-scm.com/docs/git-blame",
+    "tags": [
+      "blame",
+      "history"
+    ]
+  },
+  {
+    "id": "git-071",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "`git merge -X ours feature` and `git merge -s ours feature` are equivalent: both produce a merge commit whose tree is identical to the current branch, discarding every change from `feature`.",
+    "answer": false,
+    "explanation": "False. `-X ours` is an option to the default `ort` strategy: it performs a normal merge and only resolves conflicting hunks in favour of the current side, keeping all non-conflicting changes from `feature`. `-s ours` is a separate strategy that ignores the other branch's content entirely and records a merge whose tree equals `HEAD`.",
+    "example": "git merge -X ours feature   # real merge; conflicts auto-resolved to our side\ngit merge -s ours feature   # tree == HEAD, feature's changes dropped, history joined\ngit merge -X theirs feature # conflicts resolved to feature's side",
+    "diagram": "flowchart TD\nA[\"git merge feature\"] --> B[\"-X ours: ort strategy option\"]\nA --> C[\"-s ours: whole strategy\"]\nB --> D[\"Non-conflicting changes merged, conflicts take our side\"]\nC --> E[\"Result tree identical to HEAD, feature content ignored\"]",
+    "reference": "https://git-scm.com/docs/merge-strategies",
+    "tags": [
+      "merging",
+      "strategies"
+    ]
+  },
+  {
+    "id": "git-072",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "`git describe` on your current commit prints `v2.4.0-17-g9fceb02`. How should this string be read?",
+    "options": [
+      "HEAD is 17 commits after the annotated tag `v2.4.0`, and its abbreviated hash is `9fceb02`",
+      "HEAD is tagged `v2.4.0`, and 17 other branches contain commit `9fceb02`",
+      "Tag `v2.4.0` was created 17 days ago by a user whose name starts with `g`",
+      "HEAD is 17 commits before `v2.4.0`, meaning the tag is on a newer commit than the one checked out"
+    ],
+    "optionNotes": [
+      "Correct: the format is `<tag>-<commits since tag>-g<abbrev hash>`; the `g` prefix just marks it as a git hash.",
+      "If HEAD were exactly on the tag, `git describe` would print only `v2.4.0`; branch counts are not part of the output.",
+      "No time or author information is encoded; the middle number is a commit count.",
+      "`git describe` only looks backwards through ancestors, so the tag is always at or behind HEAD, never ahead."
+    ],
+    "answer": 0,
+    "explanation": "`git describe` finds the nearest reachable tag and reports it, followed by the number of commits since that tag and the abbreviated hash prefixed with `g` (for git). By default only annotated tags are considered; add `--tags` to include lightweight ones. If HEAD is exactly on the tag, only the tag name is printed.",
+    "example": "git describe            # v2.4.0-17-g9fceb02\ngit describe --tags     # also consider lightweight tags\ngit describe --dirty    # appends -dirty when the worktree has changes\ngit describe --exact-match  # fails unless HEAD is tagged",
+    "diagram": "flowchart LR\nT[\"v2.4.0 (annotated tag)\"] --> C1[\"...\"] --> C17[\"17 commits later\"]\nC17 --> H[\"HEAD = 9fceb02\"]\nH --> O[\"v2.4.0-17-g9fceb02\"]\nO --> P[\"tag - count since tag - g plus short hash\"]",
+    "reference": "https://git-scm.com/docs/git-describe",
+    "tags": [
+      "tags",
+      "describe",
+      "versioning"
+    ]
+  },
+  {
+    "id": "git-073",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "When a file is tracked by Git LFS, what does the Git repository itself store for that file?",
+    "options": [
+      "A small pointer text file containing the object's SHA-256 OID and size, while the content is stored on an LFS server",
+      "A compressed copy of the file in a separate packfile that is excluded from clones by default",
+      "Nothing at all; LFS files are listed in `.gitignore` and shared through the LFS server only",
+      "A symbolic link to the file's location in the LFS cache directory under `.git/lfs`"
+    ],
+    "optionNotes": [
+      "Correct: the pointer is a tiny UTF-8 file with `version`, `oid`, and `size` lines; the clean and smudge filters swap it for real content.",
+      "LFS objects never enter Git's object database or packfiles; that is the whole point of the design.",
+      "The file is tracked and committed; it is the pointer that gets versioned, so history and diffs still record which version was used.",
+      "Git stores a regular blob (the pointer), not a symlink; `.git/lfs` is only a local cache."
+    ],
+    "answer": 0,
+    "explanation": "Git LFS replaces large files in the repository with small text pointer files containing the object's SHA-256 OID and size. The real content lives on the LFS server and is downloaded by the LFS client during checkout, keeping clones small.",
+    "example": "git lfs install\ngit lfs track \"*.iso\"      # writes to .gitattributes\ngit add .gitattributes disk.iso && git commit -m \"Add image\"\ngit show HEAD:disk.iso\n# version https://git-lfs.github.com/spec/v1\n# oid sha256:4d7a...\n# size 734003200",
+    "diagram": "flowchart LR\nA[\"disk.iso in working tree\"] -->|\"clean filter on git add\"| B[\"Pointer file committed to Git\"]\nA --> C[\"Content uploaded to LFS server\"]\nB -->|\"smudge filter on checkout\"| D[\"Content downloaded from LFS\"]\nE[\".gitattributes: filter=lfs\"] -.-> A",
+    "reference": "https://git-lfs.com/",
+    "tags": [
+      "lfs",
+      "large-files"
+    ]
+  },
+  {
+    "id": "git-074",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid places or mechanisms Git consults to decide that an untracked file should be ignored?",
+    "options": [
+      "A `.gitignore` file in the repository, including ones in subdirectories",
+      "The per-repository file `.git/info/exclude`",
+      "The global file configured with `core.excludesFile`",
+      "Patterns listed in `.gitattributes` with the `ignore` attribute",
+      "Files marked with `git update-index --assume-unchanged`"
+    ],
+    "optionNotes": [
+      "Correct: `.gitignore` files are read from the directory of the file upward, with the closest file taking precedence.",
+      "Correct: `exclude` behaves like `.gitignore` but is never committed, ideal for editor and personal scratch files.",
+      "Correct: this applies across all repositories for one user, typically holding OS and editor junk patterns.",
+      "Wrong: there is no `ignore` attribute; `.gitattributes` controls line endings, diff, merge, and filters, not ignoring.",
+      "Wrong: `--assume-unchanged` only affects already tracked files and is a performance hint, not an ignore mechanism."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Git reads ignore patterns from `.gitignore` files in the working tree (committed and shared), `.git/info/exclude` (local to one clone), and the file named by `core.excludesFile` (per user, default `~/.config/git/ignore`). `.gitattributes` and `--assume-unchanged` are unrelated to ignoring untracked files.",
+    "example": "echo 'dist/' >> .gitignore                 # shared with the team\necho '.idea/' >> .git/info/exclude        # only this clone\ngit config --global core.excludesFile ~/.gitignore_global\ngit check-ignore -v dist/app.js            # shows which rule matched",
+    "diagram": "flowchart TD\nA[\"Untracked file\"] --> B[\".gitignore in same dir or parent dirs\"]\nA --> C[\".git/info/exclude (local only)\"]\nA --> D[\"core.excludesFile (per user)\"]\nB --> E[\"Deeper .gitignore overrides shallower\"]\nF[\"git check-ignore -v explains the match\"] -.-> A",
+    "reference": "https://git-scm.com/docs/gitignore",
+    "tags": [
+      "gitignore",
+      "config"
+    ]
   }
 ]

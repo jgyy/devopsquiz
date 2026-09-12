@@ -642,5 +642,518 @@
       "limitations"
     ],
     "domain": "gitops"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You want a Kubernetes `Job` that posts an alert to Slack only when an Argo CD sync operation fails. Which value of the `argocd.argoproj.io/hook` annotation runs a resource in that situation?",
+    "options": [
+      "`SyncFail`",
+      "`PostSync`",
+      "`Skip`",
+      "`OnFailure`"
+    ],
+    "optionNotes": [
+      "`SyncFail` hooks run only when the sync operation fails, which is exactly the alerting case.",
+      "`PostSync` hooks run after a successful sync once all resources are healthy; they do not run on failure.",
+      "`Skip` tells Argo CD not to apply the resource at all; it is not a failure handler.",
+      "`OnFailure` is not an Argo CD hook phase; the recognised phases are PreSync, Sync, PostSync, SyncFail, PostDelete and Skip."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD resource hooks are selected with the `argocd.argoproj.io/hook` annotation. `SyncFail` hooks execute only when the sync operation fails, making them the right place for failure notifications or cleanup. `PostSync` runs only after success, and `Skip` suppresses applying the resource.",
+    "example": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: notify-sync-failed\n  annotations:\n    argocd.argoproj.io/hook: SyncFail\n    argocd.argoproj.io/hook-delete-policy: HookSucceeded\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: notify\n        image: curlimages/curl\n        args: [\"-X\", \"POST\", \"$(SLACK_WEBHOOK)\", \"-d\", \"{\\\"text\\\": \\\"sync failed\\\"}\"]",
+    "diagram": "flowchart LR\n    PRE[\"PreSync hooks\"] --> S[\"Sync phase apply manifests\"]\n    S -->|\"success\"| POST[\"PostSync hooks\"]\n    S -->|\"failure\"| F[\"SyncFail hooks e.g. Slack alert Job\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/resource_hooks/",
+    "tags": [
+      "capa",
+      "argocd",
+      "hooks",
+      "syncfail"
+    ],
+    "domain": "gitops",
+    "id": "gitops-025"
+  },
+  {
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Give the exact entry you add under `spec.syncPolicy.syncOptions` so that Argo CD applies manifests with Kubernetes server-side apply instead of client-side `kubectl apply`.",
+    "answer": [
+      "ServerSideApply=true",
+      "ServerSideApply = true"
+    ],
+    "pattern": "^ServerSideApply\\s*=\\s*true$",
+    "explanation": "`ServerSideApply=true` switches the sync to server-side apply, which lets the API server own field management, avoids the 262KB `last-applied-configuration` annotation limit, and allows Argo CD to patch only the fields it manages. It can also be set per resource with the `argocd.argoproj.io/sync-options: ServerSideApply=true` annotation.",
+    "example": "spec:\n  syncPolicy:\n    syncOptions:\n    - ServerSideApply=true\n    - CreateNamespace=true\n# or per resource:\nmetadata:\n  annotations:\n    argocd.argoproj.io/sync-options: ServerSideApply=true",
+    "diagram": "flowchart LR\n    G[\"Manifest in Git\"] --> A[\"Argo CD sync\"]\n    A -->|\"default client-side apply\"| C[\"kubectl apply with last-applied annotation\"]\n    A -->|\"ServerSideApply=true\"| S[\"API server field manager argocd-controller\"]\n    S --> L[\"Live object\"]\n    C --> L",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#server-side-apply",
+    "tags": [
+      "capa",
+      "argocd",
+      "sync-options",
+      "server-side-apply"
+    ],
+    "domain": "gitops",
+    "id": "gitops-026"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An Argo CD sync of a large `CustomResourceDefinition` fails with `metadata.annotations: Too long: must have at most 262144 bytes`. Which sync option is the most targeted fix, and what trade-off does it carry?",
+    "options": [
+      "`Replace=true` on that resource: Argo CD uses `kubectl replace` instead of apply, but the object is recreated on each sync and can lose fields set by other controllers",
+      "`Prune=false` on that resource: Argo CD stops deleting it, but it is still applied client-side",
+      "`Validate=false` on that resource: Argo CD skips schema validation, so the annotation size limit no longer applies",
+      "`PruneLast=true` at the Application level: the CRD is applied in a final wave where the annotation is not written"
+    ],
+    "optionNotes": [
+      "`Replace=true` sends the whole object with `replace`, which never writes the `last-applied-configuration` annotation; the cost is that replace overwrites fields other controllers may have set and can fail on immutable fields. `ServerSideApply=true` is the alternative that avoids the annotation as well.",
+      "`Prune=false` only affects deletion behaviour; the apply still writes the oversized annotation and fails.",
+      "`Validate=false` disables `kubectl --validate`, which is client-side schema validation. The annotation size limit is enforced by the API server regardless.",
+      "`PruneLast=true` changes when pruning happens, not how objects are applied, and does not affect the annotation."
+    ],
+    "answer": 0,
+    "explanation": "The error comes from `kubectl apply` storing the full manifest in the `kubectl.kubernetes.io/last-applied-configuration` annotation, which has a 256KB limit. Setting `argocd.argoproj.io/sync-options: Replace=true` on the resource makes Argo CD use `kubectl replace`, which skips that annotation. Because replace overwrites the entire object, `ServerSideApply=true` is usually the safer modern choice.",
+    "example": "apiVersion: apiextensions.k8s.io/v1\nkind: CustomResourceDefinition\nmetadata:\n  name: prometheuses.monitoring.coreos.com\n  annotations:\n    argocd.argoproj.io/sync-options: Replace=true\n# alternative: ServerSideApply=true",
+    "diagram": "flowchart TD\n    E[\"apply fails: annotation over 262144 bytes\"] --> R[\"Replace=true kubectl replace\"]\n    E --> S[\"ServerSideApply=true field management\"]\n    R --> T[\"Trade-off: whole object overwritten, immutable fields may fail\"]\n    S --> U[\"Trade-off: field ownership conflicts to resolve\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#replace-resource-instead-of-applying-changes",
+    "tags": [
+      "capa",
+      "argocd",
+      "sync-options",
+      "replace",
+      "crd"
+    ],
+    "domain": "gitops",
+    "id": "gitops-027"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An Argo CD `Application` in project `team-a` shows the error `application repo https://github.com/acme/infra.git is not permitted in project 'team-a'`. Which `AppProject` field must be updated to fix this?",
+    "options": [
+      "`spec.sourceRepos`",
+      "`spec.destinations`",
+      "`spec.clusterResourceWhitelist`",
+      "`spec.roles`"
+    ],
+    "optionNotes": [
+      "`spec.sourceRepos` lists the Git or Helm repository URLs (glob patterns allowed) an Application in this project may pull from; the error names exactly this restriction.",
+      "`spec.destinations` limits which cluster/namespace pairs the project may deploy to; a violation there produces a different error about the destination.",
+      "`spec.clusterResourceWhitelist` controls which cluster-scoped kinds (for example `Namespace` or `ClusterRole`) may be created, not which repositories are allowed.",
+      "`spec.roles` defines project-scoped RBAC roles and JWT tokens; it does not gate repository access."
+    ],
+    "answer": 0,
+    "explanation": "An `AppProject` restricts Applications on three axes: `sourceRepos` (where manifests may come from), `destinations` (where they may be deployed) and resource whitelists/blacklists (what kinds may be created). The `not permitted in project` repo error is fixed by adding the URL or a matching glob to `spec.sourceRepos`.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata:\n  name: team-a\n  namespace: argocd\nspec:\n  sourceRepos:\n  - https://github.com/acme/infra.git\n  - https://github.com/acme/team-a-*\n  destinations:\n  - server: https://kubernetes.default.svc\n    namespace: team-a-*\n  clusterResourceWhitelist:\n  - group: \"\"\n    kind: Namespace",
+    "diagram": "flowchart TD\n    P[\"AppProject team-a\"] --> SR[\"sourceRepos allowed repo URLs\"]\n    P --> DS[\"destinations allowed cluster and namespace\"]\n    P --> CW[\"clusterResourceWhitelist allowed cluster-scoped kinds\"]\n    A[\"Application repoURL acme/infra\"] -->|\"checked against\"| SR",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/projects/",
+    "tags": [
+      "capa",
+      "argocd",
+      "appproject",
+      "rbac"
+    ],
+    "domain": "gitops",
+    "id": "gitops-028"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are real generator types available in an Argo CD `ApplicationSet`? (Select all that apply.)",
+    "options": [
+      "`list`",
+      "`cluster`",
+      "`pullRequest`",
+      "`matrix`",
+      "`helm`",
+      "`namespace`"
+    ],
+    "optionNotes": [
+      "The `list` generator takes a static list of key/value elements and produces one Application per element.",
+      "The `cluster` generator produces one Application per cluster registered in Argo CD, optionally filtered by cluster secret labels.",
+      "The `pullRequest` generator creates an Application for each open pull request from GitHub, GitLab, Gitea, Bitbucket and others, commonly used for preview environments.",
+      "The `matrix` generator combines two child generators, producing the cartesian product of their parameters (for example clusters times Git directories).",
+      "There is no `helm` generator; Helm is a source type inside the Application template, not a way to generate parameters.",
+      "There is no `namespace` generator; to fan out over namespaces you would use `list` or a Git files generator."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "ApplicationSet generators supply parameters to a template. The built-in set is `list`, `cluster`, `git` (directories or files), `matrix`, `merge`, `scmProvider`, `pullRequest`, `clusterDecisionResource` and `plugin`. Helm and namespaces are not generators.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: previews\nspec:\n  generators:\n  - pullRequest:\n      github:\n        owner: acme\n        repo: web\n        labels: [preview]\n      requeueAfterSeconds: 60\n  template:\n    metadata:\n      name: 'web-pr-{{number}}'\n    spec:\n      source:\n        repoURL: https://github.com/acme/web.git\n        targetRevision: '{{head_sha}}'\n        path: deploy\n      destination:\n        server: https://kubernetes.default.svc\n        namespace: 'pr-{{number}}'\n      project: default",
+    "diagram": "flowchart LR\n    L[\"list\"] --> T[\"template\"]\n    C[\"cluster\"] --> T\n    G[\"git directories or files\"] --> T\n    PR[\"pullRequest\"] --> T\n    M[\"matrix combines two generators\"] --> T\n    T --> A1[\"Application 1\"]\n    T --> A2[\"Application N\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators/",
+    "tags": [
+      "capa",
+      "argocd",
+      "applicationset",
+      "generators"
+    ],
+    "domain": "gitops",
+    "id": "gitops-029"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team bootstraps a new cluster by creating a single Argo CD `Application` whose source path contains only other `Application` manifests. What is this pattern called?",
+    "options": [
+      "App of Apps",
+      "ApplicationSet",
+      "Multi-source Application",
+      "Project bootstrap"
+    ],
+    "optionNotes": [
+      "App of Apps is a parent Application that manages child Application resources in Git, letting one `argocd app create` bootstrap everything declaratively.",
+      "An `ApplicationSet` is a separate CRD that generates Applications from generators; it is often used instead of App of Apps but is not the name of this pattern.",
+      "A multi-source Application combines several `spec.sources` into one Application; it does not create other Applications.",
+      "Project bootstrap is not an Argo CD term; `AppProject` scopes permissions and does not create Applications."
+    ],
+    "answer": 0,
+    "explanation": "In the App of Apps pattern the parent Application points at a directory of child `Application` manifests, so Argo CD applies them and then reconciles each child in turn. It is a common way to bootstrap a whole cluster from one root Application, and ApplicationSet is the newer, generator-driven alternative.",
+    "example": "# apps/root.yaml\napiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: root\n  namespace: argocd\nspec:\n  project: default\n  source:\n    repoURL: https://github.com/acme/gitops.git\n    targetRevision: main\n    path: apps/children   # contains monitoring.yaml, ingress.yaml, ...\n  destination:\n    server: https://kubernetes.default.svc\n    namespace: argocd\n  syncPolicy:\n    automated: {}",
+    "diagram": "flowchart TD\n    R[\"root Application path apps/children\"] --> M[\"Application monitoring\"]\n    R --> I[\"Application ingress\"]\n    R --> W[\"Application web\"]\n    M --> MK[\"kube-prometheus manifests\"]\n    I --> IK[\"ingress-nginx manifests\"]\n    W --> WK[\"web manifests\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/",
+    "tags": [
+      "capa",
+      "argocd",
+      "app-of-apps",
+      "bootstrapping"
+    ],
+    "domain": "gitops",
+    "id": "gitops-030"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You want one Argo CD Application for every combination of registered cluster labelled `env=prod` and every directory under `addons/` in your Git repo. Which ApplicationSet construction achieves this?",
+    "options": [
+      "A `matrix` generator whose two child generators are a `cluster` generator with a label selector and a `git` directories generator",
+      "A `merge` generator combining a `cluster` generator and a `git` generator on the key `name`",
+      "Two separate generators listed under `spec.generators`, one `cluster` and one `git`, which are automatically multiplied",
+      "A `cluster` generator with `directories` nested under it"
+    ],
+    "optionNotes": [
+      "`matrix` computes the cartesian product of two generators, so N clusters times M directories yields N times M Applications with both parameter sets available to the template.",
+      "`merge` joins parameter sets that share a merge key, overriding fields from the base set; it does not multiply them and the sets here share no common key.",
+      "Listing multiple generators concatenates their outputs (union), it does not combine them; you would get N cluster Applications plus M directory Applications, each missing the other's parameters.",
+      "The `cluster` generator has no `directories` field; directory discovery belongs to the `git` generator."
+    ],
+    "answer": 0,
+    "explanation": "The `matrix` generator is specifically for cartesian products. Its `generators` list takes exactly two child generators, and the template can reference parameters from both, such as `{{.name}}` and `{{.server}}` from the cluster and `{{.path.basename}}` from the git directory. Multiple top-level generators are unioned, not multiplied.",
+    "example": "spec:\n  goTemplate: true\n  generators:\n  - matrix:\n      generators:\n      - clusters:\n          selector:\n            matchLabels:\n              env: prod\n      - git:\n          repoURL: https://github.com/acme/gitops.git\n          revision: main\n          directories:\n          - path: addons/*\n  template:\n    metadata:\n      name: '{{.path.basename}}-{{.name}}'\n    spec:\n      source:\n        repoURL: https://github.com/acme/gitops.git\n        targetRevision: main\n        path: '{{.path.path}}'\n      destination:\n        server: '{{.server}}'\n        namespace: '{{.path.basename}}'\n      project: default",
+    "diagram": "flowchart LR\n    C[\"clusters env=prod: eu, us\"] --> M[\"matrix generator\"]\n    G[\"git directories: cert-manager, ingress\"] --> M\n    M --> A1[\"cert-manager-eu\"]\n    M --> A2[\"cert-manager-us\"]\n    M --> A3[\"ingress-eu\"]\n    M --> A4[\"ingress-us\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Matrix/",
+    "tags": [
+      "capa",
+      "argocd",
+      "applicationset",
+      "matrix"
+    ],
+    "domain": "gitops",
+    "id": "gitops-031"
+  },
+  {
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "Deleting an Argo CD `Application` resource always deletes the Kubernetes resources that the Application was managing.",
+    "answer": false,
+    "explanation": "Whether managed resources are removed depends on the finalizer. With `resources-finalizer.argocd.argoproj.io` on the Application (the default when created with `argocd app create` or the UI cascade option), deletion cascades to the managed resources. Without the finalizer, or when you run `argocd app delete --cascade=false`, only the Application object is removed and the workloads stay in the cluster.",
+    "example": "# cascading delete: resources are removed in the foreground\nmetadata:\n  finalizers:\n  - resources-finalizer.argocd.argoproj.io\n\n$ argocd app delete guestbook            # cascades if finalizer present\n$ argocd app delete guestbook --cascade=false   # keep the workloads",
+    "diagram": "flowchart TD\n    D[\"kubectl delete application guestbook\"] --> Q[\"finalizer resources-finalizer.argocd.argoproj.io present?\"]\n    Q -->|\"yes\"| C[\"controller deletes managed Deployments, Services...\"]\n    C --> R[\"finalizer removed, Application gone\"]\n    Q -->|\"no\"| O[\"only the Application object is removed, workloads remain\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/app_deletion/",
+    "tags": [
+      "capa",
+      "argocd",
+      "finalizer",
+      "deletion"
+    ],
+    "domain": "gitops",
+    "id": "gitops-032"
+  },
+  {
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `argocd` CLI command prints the differences between the live resources in the cluster and the manifests rendered from Git for an application, exiting non-zero when there are differences? Give the command without the application name.",
+    "answer": [
+      "argocd app diff",
+      "app diff"
+    ],
+    "pattern": "^(argocd\\s+)?app\\s+diff$",
+    "explanation": "`argocd app diff <app>` renders the target manifests and compares them with the live state, printing a unified diff and returning exit code 1 when differences exist, which makes it useful in CI checks. Flags like `--revision` and `--local` let you diff against an arbitrary Git revision or a local directory before pushing.",
+    "example": "$ argocd app diff guestbook\n===== apps/Deployment guestbook/guestbook-ui ======\n@@ spec.replicas\n-  1\n+  3\n$ echo $?\n1\n# diff a local checkout before committing\n$ argocd app diff guestbook --local ./guestbook",
+    "diagram": "flowchart LR\n    G[\"Git rendered manifests\"] --> D[\"argocd app diff\"]\n    L[\"Live cluster objects\"] --> D\n    D -->|\"no changes\"| Z[\"exit 0\"]\n    D -->|\"differences\"| O[\"unified diff, exit 1\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_diff/",
+    "tags": [
+      "capa",
+      "argocd",
+      "cli",
+      "diff"
+    ],
+    "domain": "gitops",
+    "id": "gitops-033"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are valid step types inside `spec.strategy.canary.steps` of an Argo Rollouts `Rollout`? (Select all that apply.)",
+    "options": [
+      "`setWeight`",
+      "`pause`",
+      "`analysis`",
+      "`setCanaryScale`",
+      "`promote`",
+      "`rollbackWindow`"
+    ],
+    "optionNotes": [
+      "`setWeight` shifts the given percentage of traffic (or replicas without a traffic router) to the canary ReplicaSet.",
+      "`pause` halts progression either indefinitely (until promoted) or for a `duration`.",
+      "`analysis` runs an inline `AnalysisRun` from an `AnalysisTemplate` at that step; the rollout aborts if it fails.",
+      "`setCanaryScale` decouples the canary replica count from the traffic weight when using a traffic router, using `replicas`, `weight` or `matchTrafficWeight`.",
+      "`promote` is not a step; promotion is done with `kubectl argo rollouts promote` or by finishing the last step.",
+      "`rollbackWindow` is a top-level `spec.rollbackWindow` field that allows fast rollback to recent revisions; it is not a canary step."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "Canary steps are `setWeight`, `pause`, `analysis`, `experiment`, `setCanaryScale`, `setHeaderRoute`, `setMirrorRoute` and `plugin`. Promotion and rollback windows are operations or top-level fields rather than steps.",
+    "example": "strategy:\n  canary:\n    canaryService: web-canary\n    stableService: web-stable\n    trafficRouting:\n      nginx:\n        stableIngress: web\n    steps:\n    - setCanaryScale:\n        weight: 50\n    - setWeight: 10\n    - pause: {duration: 5m}\n    - analysis:\n        templates:\n        - templateName: error-rate\n    - setWeight: 50\n    - pause: {}",
+    "diagram": "flowchart LR\n    S1[\"setWeight 10\"] --> S2[\"pause 5m\"]\n    S2 --> S3[\"analysis error-rate\"]\n    S3 -->|\"pass\"| S4[\"setWeight 50\"]\n    S3 -->|\"fail\"| AB[\"abort, traffic back to stable\"]\n    S4 --> S5[\"pause until promote\"]\n    S5 --> P[\"100 percent stable\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/features/canary/",
+    "tags": [
+      "capa",
+      "argo-rollouts",
+      "canary",
+      "steps"
+    ],
+    "domain": "gitops",
+    "id": "gitops-034"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An Argo Rollouts `AnalysisTemplate` queries Prometheus every 30 seconds for the canary success ratio. You want the analysis to fail the rollout only if the ratio drops below 0.95 on three measurements, while a single bad sample should not abort. Which combination of fields expresses this?",
+    "options": [
+      "`successCondition: result[0] >= 0.95` with `failureLimit: 2` and `interval: 30s`",
+      "`failureCondition: result[0] < 0.95` with `count: 3` and `interval: 30s`",
+      "`successCondition: result[0] >= 0.95` with `consecutiveErrorLimit: 3`",
+      "`successCondition: result[0] >= 0.95` with `inconclusiveLimit: 3`"
+    ],
+    "optionNotes": [
+      "A measurement that violates `successCondition` counts as a failure; `failureLimit: 2` tolerates two failed measurements and the third marks the analysis Failed, aborting the rollout. `interval` sets the 30 second cadence.",
+      "`count: 3` limits the analysis to three measurements in total and then finishes; with the default `failureLimit: 0` the first bad sample already fails the run.",
+      "`consecutiveErrorLimit` counts measurement errors such as Prometheus being unreachable, not measurements that returned a value below the threshold.",
+      "`inconclusiveLimit` applies to measurements that satisfy neither the success nor failure condition; a value below 0.95 with only a `successCondition` is a failure, not inconclusive."
+    ],
+    "answer": 0,
+    "explanation": "In an `AnalysisTemplate` metric, each measurement is evaluated against `successCondition` (and optionally `failureCondition`). `failureLimit` is the number of failed measurements allowed before the whole analysis is marked Failed, so `failureLimit: 2` means the third failure aborts. `consecutiveErrorLimit` and `inconclusiveLimit` handle provider errors and ambiguous results respectively.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: AnalysisTemplate\nmetadata:\n  name: success-rate\nspec:\n  args:\n  - name: service\n  metrics:\n  - name: success-rate\n    interval: 30s\n    failureLimit: 2\n    successCondition: result[0] >= 0.95\n    provider:\n      prometheus:\n        address: http://prometheus.monitoring:9090\n        query: |\n          sum(rate(http_requests_total{service=\"{{args.service}}\",code!~\"5..\"}[2m]))\n          /\n          sum(rate(http_requests_total{service=\"{{args.service}}\"}[2m]))",
+    "diagram": "flowchart LR\n    M[\"measurement every 30s\"] --> E[\"result 0 at least 0.95?\"]\n    E -->|\"yes\"| OK[\"Successful measurement\"]\n    E -->|\"no\"| F[\"failed count plus 1\"]\n    F -->|\"failed count greater than failureLimit 2\"| X[\"AnalysisRun Failed, rollout aborted\"]\n    F -->|\"otherwise\"| M",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/features/analysis/",
+    "tags": [
+      "capa",
+      "argo-rollouts",
+      "analysis",
+      "prometheus"
+    ],
+    "domain": "gitops",
+    "id": "gitops-035"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are real `flux` CLI commands? (Select all that apply.)",
+    "options": [
+      "`flux bootstrap github`",
+      "`flux reconcile kustomization`",
+      "`flux suspend helmrelease`",
+      "`flux apply`",
+      "`flux sync`",
+      "`flux get sources git`"
+    ],
+    "optionNotes": [
+      "`flux bootstrap github` installs the Flux controllers, commits their manifests to a repository and configures Flux to manage itself from that repo.",
+      "`flux reconcile kustomization <name>` triggers an immediate reconciliation instead of waiting for the next interval; `--with-source` also refreshes the source first.",
+      "`flux suspend helmrelease <name>` pauses reconciliation of that release, for example during an incident, and `flux resume` undoes it.",
+      "There is no `flux apply`; Flux applies manifests itself from sources and you commit changes to Git rather than applying with the CLI.",
+      "There is no `flux sync` command; the equivalent is `flux reconcile`.",
+      "`flux get sources git` lists `GitRepository` objects with their revision and readiness."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      5
+    ],
+    "explanation": "The `flux` CLI wraps bootstrap, installation, inspection (`get`, `logs`, `events`, `tree`), and control (`reconcile`, `suspend`, `resume`) of Flux resources. It intentionally has no `apply` because the desired state is meant to come from Git or OCI, not from an operator's terminal.",
+    "example": "$ flux bootstrap github --owner=acme --repository=fleet --path=clusters/prod --personal=false\n$ flux get sources git\n$ flux reconcile kustomization apps --with-source\n$ flux suspend helmrelease ingress-nginx -n flux-system\n$ flux resume helmrelease ingress-nginx -n flux-system",
+    "diagram": "flowchart LR\n    B[\"flux bootstrap\"] --> R[\"Flux controllers plus repo commit\"]\n    R --> G[\"flux get sources git\"]\n    R --> RC[\"flux reconcile kustomization\"]\n    R --> S[\"flux suspend helmrelease\"]\n    S --> RS[\"flux resume helmrelease\"]",
+    "reference": "https://fluxcd.io/flux/cmd/",
+    "tags": [
+      "cgoa",
+      "flux",
+      "cli"
+    ],
+    "domain": "gitops",
+    "id": "gitops-036"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Flux `HelmRelease` upgrade fails because a new chart version has a broken template. You want Flux to roll back to the previous release automatically and try the upgrade again a limited number of times. Which field configures this?",
+    "options": [
+      "`spec.upgrade.remediation.retries`",
+      "`spec.rollback.enable`",
+      "`spec.install.remediation.retries`",
+      "`spec.upgrade.force`"
+    ],
+    "optionNotes": [
+      "`spec.upgrade.remediation.retries: N` makes Flux remediate a failed upgrade (rollback by default, or uninstall with `strategy: uninstall`) and retry up to N times before giving up.",
+      "`spec.rollback` exists but only tunes how a rollback is performed (timeout, cleanupOnFail, force); it does not enable rollbacks by itself.",
+      "`spec.install.remediation` applies to the first install of a release, where the remediation is an uninstall, not to upgrades of an existing release.",
+      "`spec.upgrade.force` passes Helm's `--force` to recreate resources on upgrade; it does not add retries or rollbacks."
+    ],
+    "answer": 0,
+    "explanation": "Flux's helm-controller separates install remediation (uninstall and retry) from upgrade remediation (rollback and retry). Setting `spec.upgrade.remediation.retries` to a positive number enables automatic rollback on failure with that many retries; `remediateLastFailure` controls whether the final failed attempt is also rolled back and defaults to true once retries is greater than zero.",
+    "example": "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: podinfo\n  namespace: default\nspec:\n  interval: 10m\n  chart:\n    spec:\n      chart: podinfo\n      version: '6.x'\n      sourceRef:\n        kind: HelmRepository\n        name: podinfo\n  upgrade:\n    remediation:\n      retries: 3\n      strategy: rollback",
+    "diagram": "flowchart TD\n    U[\"helm upgrade\"] -->|\"fails\"| R[\"remediation strategy rollback\"]\n    R --> C[\"retries remaining?\"]\n    C -->|\"yes\"| U\n    C -->|\"no\"| F[\"HelmRelease Ready=False, stalled until spec changes\"]\n    U -->|\"succeeds\"| OK[\"Ready=True\"]",
+    "reference": "https://fluxcd.io/flux/components/helm/helmreleases/#upgrade-remediation",
+    "tags": [
+      "cgoa",
+      "flux",
+      "helmrelease",
+      "remediation"
+    ],
+    "domain": "gitops",
+    "id": "gitops-037"
+  },
+  {
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A Flux `OCIRepository` source lets Flux pull Kubernetes manifests that were pushed to a container registry as an OCI artifact, so a cluster can be reconciled without any Git access.",
+    "answer": true,
+    "explanation": "`OCIRepository` (source-controller) fetches artifacts published with `flux push artifact` or other OCI tooling to registries such as GHCR, ECR or Harbor. A `Kustomization` or `HelmRelease` can reference it via `sourceRef.kind: OCIRepository`, which lets CI build and sign artifacts while clusters pull from the registry instead of Git.",
+    "example": "$ flux push artifact oci://ghcr.io/acme/manifests/podinfo:v1.2.0 --path=./deploy --source=$(git config --get remote.origin.url) --revision=$(git rev-parse HEAD)\n---\napiVersion: source.toolkit.fluxcd.io/v1\nkind: OCIRepository\nmetadata:\n  name: podinfo\n  namespace: flux-system\nspec:\n  interval: 5m\n  url: oci://ghcr.io/acme/manifests/podinfo\n  ref:\n    tag: v1.2.0\n  verify:\n    provider: cosign",
+    "diagram": "flowchart LR\n    G[\"Git commit\"] --> CI[\"CI: flux push artifact\"]\n    CI --> R[\"OCI registry ghcr.io\"]\n    R -->|\"pull artifact\"| O[\"OCIRepository\"]\n    O --> K[\"Kustomization sourceRef OCIRepository\"]\n    K --> C[\"Cluster\"]",
+    "reference": "https://fluxcd.io/flux/components/source/ocirepositories/",
+    "tags": [
+      "cgoa",
+      "flux",
+      "oci",
+      "source"
+    ],
+    "domain": "gitops",
+    "id": "gitops-038"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "In a Flux-managed cluster, a manual `kubectl edit` to a Deployment applied by a `Kustomization` is reverted within minutes, but the same edit to a Deployment installed by a `HelmRelease` persists indefinitely. What explains the difference?",
+    "options": [
+      "Kustomization always corrects drift with server-side apply, while HelmRelease drift detection is off unless `spec.driftDetection.mode` is set to `enabled` or `warn`",
+      "HelmRelease only reconciles when the chart version changes, so drift can never be corrected for Helm releases",
+      "The HelmRelease is suspended; Flux suspends any release after a manual edit to protect operator changes",
+      "Kustomization uses `prune: true`, which deletes and recreates edited objects, whereas Helm has no prune"
+    ],
+    "optionNotes": [
+      "The kustomize-controller server-side applies every interval and therefore undoes drift. The helm-controller by default only compares the desired release (chart plus values) with the stored Helm release, not with live objects; `spec.driftDetection.mode: enabled` makes it diff and correct cluster state.",
+      "HelmRelease reconciles at `spec.interval` regardless of chart changes, but without drift detection it sees no difference in the Helm release and does nothing.",
+      "Flux never auto-suspends a resource; suspension is explicit via `spec.suspend: true` or `flux suspend`.",
+      "`prune` only removes objects that disappeared from the source; it has nothing to do with correcting field-level drift."
+    ],
+    "answer": 0,
+    "explanation": "Drift correction differs between controllers. Kustomization reconciliation re-applies manifests via server-side apply every interval, so drift is undone. HelmRelease drift detection (helm-controller v0.37 and later, GA in `helm.toolkit.fluxcd.io/v2`) must be turned on with `spec.driftDetection.mode: enabled`; `warn` only logs, and `ignore` rules can exclude fields such as replica counts managed by an HPA.",
+    "example": "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: podinfo\nspec:\n  interval: 10m\n  driftDetection:\n    mode: enabled\n    ignore:\n    - paths: [\"/spec/replicas\"]\n      target:\n        kind: Deployment",
+    "diagram": "flowchart TD\n    E[\"manual kubectl edit\"] --> K[\"Kustomization: server-side apply each interval\"]\n    K --> RV[\"drift reverted\"]\n    E --> H[\"HelmRelease default: compare desired vs stored release only\"]\n    H --> P[\"drift persists\"]\n    H -->|\"driftDetection.mode enabled\"| D[\"diff live objects and patch\"]\n    D --> RV",
+    "reference": "https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection",
+    "tags": [
+      "cgoa",
+      "flux",
+      "drift-detection",
+      "helmrelease"
+    ],
+    "domain": "gitops",
+    "id": "gitops-039"
+  },
+  {
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "When using External Secrets Operator in a GitOps workflow, the actual secret values are stored encrypted inside the `ExternalSecret` manifests committed to Git.",
+    "answer": false,
+    "explanation": "`ExternalSecret` manifests contain only references: which `SecretStore` or `ClusterSecretStore` to use and which keys to read from the backend (AWS Secrets Manager, Vault, GCP Secret Manager and so on). The operator fetches the values at runtime and writes a regular Kubernetes `Secret`, so nothing sensitive lives in Git. That is the main difference from SOPS or Sealed Secrets, which do commit encrypted ciphertext.",
+    "example": "apiVersion: external-secrets.io/v1\nkind: ExternalSecret\nmetadata:\n  name: db-creds\nspec:\n  refreshInterval: 1h\n  secretStoreRef:\n    kind: ClusterSecretStore\n    name: aws-secrets-manager\n  target:\n    name: db-creds   # Kubernetes Secret created by the operator\n  data:\n  - secretKey: password\n    remoteRef:\n      key: prod/db\n      property: password   # value never appears in Git",
+    "diagram": "flowchart LR\n    G[\"Git: ExternalSecret with references only\"] --> A[\"Argo CD or Flux applies it\"]\n    A --> O[\"External Secrets Operator\"]\n    O -->|\"fetch by key\"| V[\"AWS Secrets Manager or Vault\"]\n    V --> O\n    O --> S[\"Kubernetes Secret db-creds\"]",
+    "reference": "https://external-secrets.io/latest/introduction/overview/",
+    "tags": [
+      "cgoa",
+      "secrets",
+      "external-secrets"
+    ],
+    "domain": "gitops",
+    "id": "gitops-040"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Your Helm chart lives in `https://github.com/acme/charts.git` but the environment-specific `values-prod.yaml` lives in a separate `https://github.com/acme/config.git` repository. Which Argo CD feature lets a single Application render the chart with values from the second repo?",
+    "options": [
+      "Multi-source Applications using `spec.sources` with a `ref` on the values repo and `$ref/path` in `helm.valueFiles`",
+      "A Kustomize `helmCharts` entry in the config repo pointing at the chart repo",
+      "`spec.source.helm.values` with a `git::` URL to the remote values file",
+      "An `ApplicationSet` with a `merge` generator joining the two repositories"
+    ],
+    "optionNotes": [
+      "With `spec.sources`, one source can declare `ref: values` and another can reference files from it as `$values/env/prod/values-prod.yaml` in `helm.valueFiles`, which is the documented way to split chart and values across repos.",
+      "Kustomize `helmCharts` renders charts from a Helm repository index, not from a Git repo, and it would move rendering to Kustomize rather than use Argo CD's Helm support.",
+      "`helm.values` accepts inline YAML only; Argo CD does not resolve remote `git::` URLs inside it.",
+      "ApplicationSet generators produce Application parameters; they do not make one Application read files from a second repository."
+    ],
+    "answer": 0,
+    "explanation": "Multi-source Applications (GA since Argo CD 2.6 with continued improvements) let `spec.sources` list several sources. A source with only `repoURL` and `ref` contributes no manifests but exposes its files under `$<ref>/...` so that a Helm source can pull `valueFiles` from it.",
+    "example": "spec:\n  sources:\n  - repoURL: https://github.com/acme/charts.git\n    targetRevision: main\n    path: charts/api\n    helm:\n      valueFiles:\n      - $values/env/prod/values-prod.yaml\n  - repoURL: https://github.com/acme/config.git\n    targetRevision: main\n    ref: values",
+    "diagram": "flowchart LR\n    C[\"charts.git path charts/api\"] --> A[\"Application spec.sources\"]\n    V[\"config.git ref values\"] --> A\n    A -->|\"helm valueFiles $values/env/prod/values-prod.yaml\"| R[\"rendered manifests\"]\n    R --> K[\"Cluster\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/multiple_sources/",
+    "tags": [
+      "capa",
+      "argocd",
+      "multi-source",
+      "helm"
+    ],
+    "domain": "gitops",
+    "id": "gitops-041"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Argo CD Image Updater is configured with `argocd-image-updater.argoproj.io/image-list: api=ghcr.io/acme/api` and `argocd-image-updater.argoproj.io/write-back-method: git`. When a new tag is detected, what does it do?",
+    "options": [
+      "Commits an override file (for example `.argocd-source-<app>.yaml`) with the new image tag to the Application's Git repository, so Argo CD syncs it from Git",
+      "Patches the live Deployment in the cluster directly with the new image and marks the Application as `Synced`",
+      "Updates `spec.source.helm.parameters` on the `Application` resource in the cluster without touching Git",
+      "Opens a pull request that must be merged before the Application changes"
+    ],
+    "optionNotes": [
+      "With the `git` write-back method the updater commits the new tag to the tracked repository and branch (optionally a separate `git-branch`), preserving the Git-as-source-of-truth model and letting Argo CD deploy it through a normal sync.",
+      "Image Updater never modifies workloads directly; that would create drift that Argo CD would revert.",
+      "Updating the Application's parameters in-cluster is the `argocd` write-back method, which is simpler but leaves the actual tag outside Git.",
+      "Opening a pull request is not a built-in write-back method; teams achieve it by pointing `git-branch` at a separate branch and using their SCM's automation."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD Image Updater polls registries for images listed in the `image-list` annotation and applies an update strategy (`semver`, `newest-build`, `digest`, `alphabetical`). The `git` write-back method writes the new tag to the repo, while the default `argocd` method patches the Application's source parameters and is not strictly GitOps.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: api\n  annotations:\n    argocd-image-updater.argoproj.io/image-list: api=ghcr.io/acme/api\n    argocd-image-updater.argoproj.io/api.update-strategy: semver\n    argocd-image-updater.argoproj.io/api.allow-tags: regexp:^v[0-9]+\\.[0-9]+\\.[0-9]+$\n    argocd-image-updater.argoproj.io/write-back-method: git\n    argocd-image-updater.argoproj.io/git-branch: main",
+    "diagram": "flowchart LR\n    R[\"registry ghcr.io/acme/api new tag v1.6.0\"] --> U[\"Image Updater semver strategy\"]\n    U -->|\"write-back git\"| G[\"commit .argocd-source-api.yaml\"]\n    G --> A[\"Argo CD sync\"]\n    A --> C[\"Deployment updated\"]\n    U -.->|\"write-back argocd\"| P[\"patch Application parameters only\"]",
+    "reference": "https://argocd-image-updater.readthedocs.io/en/stable/basics/update-methods/",
+    "tags": [
+      "capa",
+      "argocd",
+      "image-updater"
+    ],
+    "domain": "gitops",
+    "id": "gitops-042"
   }
 ]
