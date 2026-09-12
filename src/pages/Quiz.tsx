@@ -6,7 +6,7 @@ import QuestionCard from "../components/QuestionCard";
 import { correctLabel } from "../lib/labels";
 import Timer from "../components/Timer";
 import { gradeAnswer, isAnswered } from "../lib/grade";
-import { useSession } from "../session/SessionContext";
+import { useSession } from "../session/useSession";
 
 const Terminal = lazy(() => import("../components/Terminal"));
 

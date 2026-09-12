@@ -6,7 +6,7 @@ import { correctLabel, userLabel } from '../lib/labels'
 import { DOMAINS } from '../data/domains'
 import { summarize } from '../lib/score'
 import { saveAttempt } from '../lib/storage'
-import { useSession } from '../session/SessionContext'
+import { useSession } from '../session/useSession'
 
 export default function Results() {
   const { session, start, reset } = useSession()

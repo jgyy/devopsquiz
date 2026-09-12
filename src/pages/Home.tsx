@@ -4,7 +4,8 @@ import { DIFFICULTIES, DOMAINS, type Difficulty, type Domain } from '../data/dom
 import { QUESTIONS } from '../data'
 import { filterQuestions } from '../lib/select'
 import { loadPrefs, savePrefs } from '../lib/storage'
-import { useSession, type Mode } from '../session/SessionContext'
+import { type Mode } from '../session/SessionContext'
+import { useSession } from '../session/useSession'
 
 const COUNTS = [10, 20, 40] as const
 

@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { Question } from '../data/schema'
-import { SessionProvider, useSession, type QuizSettings } from '../session/SessionContext'
+import { SessionProvider, type QuizSettings } from '../session/SessionContext'
+import { useSession } from '../session/useSession'
 import Quiz from './Quiz'
 
 vi.mock('../components/Terminal', () => ({ default: () => <div>TERMINAL PANEL</div> }))
