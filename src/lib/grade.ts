@@ -7,6 +7,17 @@ export function normalizeFill(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/**
+ * Looser form used as a fallback: strips surrounding quotes/backticks and trailing
+ * punctuation, and drops spaces, hyphens and underscores entirely so that
+ * "token bucket", "token-bucket" and "tokenBucket" all compare equal.
+ */
+export function looseFill(s: string): string {
+  return normalizeFill(s)
+    .replace(/^[`'"]+|[`'".,;:!?]+$/g, '')
+    .replace(/[\s\-_]+/g, '')
+}
+
 export function gradeAnswer(q: Question, a: UserAnswer): boolean {
   if (a === null || a === undefined) return false
   switch (q.type) {
@@ -24,8 +35,10 @@ export function gradeAnswer(q: Question, a: UserAnswer): boolean {
       const norm = normalizeFill(a)
       if (norm === '') return false
       if (q.answer.some((acc) => normalizeFill(acc) === norm)) return true
-      if (q.pattern) return new RegExp(q.pattern, 'i').test(a.trim())
-      return false
+      if (q.pattern && new RegExp(q.pattern, 'i').test(a.trim())) return true
+      const loose = looseFill(a)
+      if (loose === '') return false
+      return q.answer.some((acc) => looseFill(acc) === loose)
     }
   }
 }

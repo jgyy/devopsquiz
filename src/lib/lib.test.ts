@@ -77,6 +77,9 @@ describe('grade', () => {
   it('grades fill ignoring case and surrounding/inner whitespace', () => {
     expect(gradeAnswer(fill, '  Git   STATUS ')).toBe(true)
     expect(gradeAnswer(fill, 'git stat')).toBe(false)
+    expect(gradeAnswer(fill, '`git-status`')).toBe(true)
+    expect(gradeAnswer(fill, '"git_status".')).toBe(true)
+    expect(gradeAnswer(fill, 'GitStatus')).toBe(true)
     expect(gradeAnswer(fill, '')).toBe(false)
   })
   it('grades fill by regex pattern when exact match fails', () => {
