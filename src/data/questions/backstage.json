@@ -1004,5 +1004,245 @@
       "auth",
       "service-to-service"
     ]
+  },
+  {
+    "id": "backstage-039",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A team moves `catalog-info.yaml` from the root of the `payments-api` repo into a `backstage/` subfolder and updates the registered Location URL to the new path. The next morning the catalog shows two `payments-api` components: the new one, and the old one whose entity page now carries a warning banner and the annotation `backstage.io/orphan: \"true\"`. Nobody deleted the old entity and it does not disappear on its own. What is the most likely reason and the cleanest fix?",
+    "options": [
+      "The old file is still cached by GitHub; force a refresh with `POST /api/catalog/refresh` and the duplicate will vanish",
+      "The catalog keeps entities that lost their parent location by default (`orphanStrategy: keep`); set `catalog.orphanStrategy: delete` or unregister the stale entity by uid",
+      "Both files were ingested because the repo now has two `catalog-info.yaml` files; delete the `backstage/` copy and register the root file again",
+      "The `metadata.name` must be changed when a file is moved, so rename the component in the new file to avoid the clash"
+    ],
+    "optionNotes": [
+      "A refresh re-reads the new location; it does not touch the orphan because the entity is no longer owned by any location and the default strategy is to keep it.",
+      "Correct. Orphaning is deliberate so that moved or briefly broken locations do not wipe entities; `orphanStrategy: delete` or a manual unregister removes the stale copy.",
+      "The old file was moved, not copied; the duplicate is the orphaned database row from the previous location, not a second file in the repo.",
+      "Entity names are stable identifiers and should not change on a file move; renaming would break every relation that references `component:default/payments-api`."
+    ],
+    "answer": 1,
+    "explanation": "When a location stops emitting an entity, the catalog marks that entity as orphaned instead of removing it, because the default `catalog.orphanStrategy` is `keep`. Setting `catalog.orphanStrategy: delete` makes the processing loop remove entities that no longer have a parent location, and until then the stale entity can be removed manually with `DELETE /api/catalog/entities/by-uid/<uid>` or the Unregister entity button.",
+    "example": "# app-config.yaml\ncatalog:\n  orphanStrategy: delete   # default is keep\n\n# one-off cleanup of the stale copy\ncurl -X DELETE \"https://backstage.acme.com/api/catalog/entities/by-uid/8f1c...\" \\\n  -H \"Authorization: Bearer $TOKEN\"",
+    "diagram": "flowchart TD\n    A[\"Location URL changed to backstage/catalog-info.yaml\"] --> B[\"old path no longer emits payments-api\"]\n    B --> C{\"catalog.orphanStrategy\"}\n    C -->|\"keep (default)\"| D[\"entity kept, annotated backstage.io/orphan true\"]\n    C -->|\"delete\"| E[\"entity removed on next processing run\"]\n    D --> F[\"manual DELETE by-uid or Unregister\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/life-of-an-entity",
+    "tags": [
+      "scenario",
+      "catalog",
+      "orphans",
+      "configuration"
+    ]
+  },
+  {
+    "id": "backstage-040",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "After moving Backstage from a developer laptop into a Kubernetes deployment built from the standard `packages/backend/Dockerfile`, every TechDocs page shows `Building documentation...` for a minute and then fails. The backend log reads `Failed to build the docs page: Error: connect ENOENT /var/run/docker.sock`. `techdocs.builder` is `local` and `techdocs.generator.runIn` is unset. Which change fixes the build with the least infrastructure?",
+    "options": [
+      "Mount the node's Docker socket into the backend pod with a hostPath volume so the generator can start containers",
+      "Set `techdocs.generator.runIn: local` and make sure `mkdocs` and `mkdocs-techdocs-core` are installed in the backend image",
+      "Switch `techdocs.builder` to `external` and keep the current generator settings",
+      "Add the `backstage.io/techdocs-ref: dir:.` annotation to every entity so the builder can find the source"
+    ],
+    "optionNotes": [
+      "This would work on some clusters but exposes the node's Docker daemon to the pod (root-equivalent access) and fails outright on containerd-based nodes; it is the highest-risk option.",
+      "Correct. The local generator runs `mkdocs build` directly with the Python packages baked into the image, which is what the upstream Dockerfile prepares for.",
+      "`external` tells Backstage that CI builds and publishes the docs to object storage; without that pipeline in place nothing is built and every page becomes not found.",
+      "The annotation is already needed for the pages that are trying to build; the error is about how the build runs, not where the source is."
+    ],
+    "answer": 1,
+    "explanation": "With `techdocs.builder: local`, the backend generates docs at request time and `runIn` defaults to `docker`, which spawns the `spotify/techdocs` container through the Docker socket. Inside a Kubernetes pod there is no Docker daemon, so the generator fails. The recommended fix is `techdocs.generator.runIn: local` together with `mkdocs` and `mkdocs-techdocs-core` installed in the backend image (the default Dockerfile already does this).",
+    "example": "# app-config.production.yaml\ntechdocs:\n  builder: local\n  generator:\n    runIn: local   # default is docker\n\n# packages/backend/Dockerfile (already present in the template)\nRUN apt-get update && apt-get install -y python3 python3-pip\nRUN pip3 install mkdocs-techdocs-core==1.*",
+    "diagram": "flowchart TD\n    A[\"user opens TechDocs page\"] --> B[\"techdocs.builder local: build on request\"]\n    B --> C{\"generator.runIn\"}\n    C -->|\"docker (default)\"| D[\"spawn spotify/techdocs via docker.sock\"]\n    D --> E[\"ENOENT /var/run/docker.sock in the pod\"]\n    C -->|\"local\"| F[\"run mkdocs installed in backend image\"]\n    F --> G[\"page renders\"]",
+    "reference": "https://backstage.io/docs/features/techdocs/configuration",
+    "tags": [
+      "scenario",
+      "techdocs",
+      "kubernetes",
+      "configuration"
+    ]
+  },
+  {
+    "id": "backstage-041",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A scaffolder template runs fine in a developer's local Backstage using a personal access token, but in production, where the GitHub integration uses a GitHub App, the `publish:github` step fails with `HttpError: Resource not accessible by integration (403)` right after `fetch:template` succeeds. The App is installed on the target organisation and `catalog` discovery through the same App works. What is the most likely cause?",
+    "options": [
+      "The GitHub App's private key has expired; generate a new key and update `integrations.github.apps[].privateKey`",
+      "The App's repository permissions do not include `Administration: read and write` and `Contents: read and write`, so its installation token cannot create the repository",
+      "The `repoUrl` parameter uses `github.com?owner=acme&repo=new-svc` but Apps require the `organization=` form of the URL",
+      "`publish:github` always requires a user token, so the template must set `token: ${{ secrets.USER_OAUTH_TOKEN }}`"
+    ],
+    "optionNotes": [
+      "An invalid or expired key fails at token minting with a 401 and would also break catalog discovery, which is working.",
+      "Correct. The 403 wording is specific to GitHub App permission scope; a PAT with `repo` scope masks the gap locally, which is why it only appears in production.",
+      "`repoUrl` accepts `owner=` for both users and organisations; the App looks up the installation by owner name, and the request reached GitHub, which is why the error is a 403 and not a lookup failure.",
+      "User tokens are an option for attributing commits to the requester, but Apps are fully supported for `publish:github`; the fix is permission scope, not token type."
+    ],
+    "answer": 1,
+    "explanation": "`Resource not accessible by integration` is GitHub's response when an App's installation token lacks a permission for the operation, here creating a repository. Discovery only needs `Contents: read` and `Metadata: read`, while `publish:github` needs `Administration: read and write` (repository creation, collaborators, branch protection) and `Contents: read and write` to push. After adding permissions in the App settings, an org owner must accept the updated permission request on the installation.",
+    "example": "# GitHub App settings -> Permissions and events -> Repository permissions\n#   Administration: Read and write   (create repo, branch protection)\n#   Contents:       Read and write   (push initial commit)\n#   Metadata:       Read-only\n# then: Organisation -> Installed GitHub Apps -> Review request -> Accept new permissions\n\n# quick check with the installation token\ncurl -s -H \"Authorization: Bearer $INSTALL_TOKEN\" https://api.github.com/orgs/acme/repos -d '{\"name\":\"probe\"}' -o /dev/null -w '%{http_code}\\n'",
+    "diagram": "flowchart TD\n    A[\"publish:github step\"] --> B[\"integration picks GitHub App credentials\"]\n    B --> C[\"POST /orgs/acme/repos with installation token\"]\n    C --> D{\"App has Administration write?\"}\n    D -->|\"no\"| E[\"403 Resource not accessible by integration\"]\n    D -->|\"yes\"| F[\"repo created, contents pushed\"]\n    E --> G[\"add permission and accept it on the installation\"]",
+    "reference": "https://backstage.io/docs/integrations/github/github-apps",
+    "tags": [
+      "scenario",
+      "scaffolder",
+      "github-app",
+      "integrations"
+    ]
+  },
+  {
+    "id": "backstage-042",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A platform team turns on `permission.enabled: true` and registers a custom `PermissionPolicy` that returns `AuthorizeResult.DENY` for anything it does not recognise, plus an explicit rule allowing `catalog.entity.read` only when the user owns the entity. The next day every developer reports that the Software Catalog page is empty, the search box returns nothing, and even entities they own are missing. The backend logs show no errors. Which statements correctly describe what is happening and how to fix it? (Select all that apply.)",
+    "options": [
+      "Ownership-based access must be expressed as a CONDITIONAL decision using `createCatalogConditionalDecision` with `catalogConditions.isEntityOwner`; a plain DENY on the list request hides everything",
+      "Search is empty because the search backend authorises each hit against `catalog.entity.read` too, so fixing the catalog policy fixes search",
+      "The policy should also allow service principals, otherwise scaffolder `catalog:register`, TechDocs and other backends lose read access to entities",
+      "Set `permission.enabled: false` and instead restrict the catalog by adding a `catalog.rules` entry that lists the allowed owners",
+      "Restarting the backend clears the permission cache, after which the owned entities appear"
+    ],
+    "optionNotes": [
+      "Correct. Conditional decisions are compiled by the catalog into a database filter, which is the only way ownership can be evaluated across a list request that has no single resource.",
+      "Correct. The search backend runs results through the permission framework using the same catalog permissions, so a deny-all policy empties search as well.",
+      "Correct. Backend-to-backend calls carry a service principal, and a policy that only reasons about users will deny them, breaking template registration and docs rendering.",
+      "`catalog.rules` controls which entity kinds a location may emit; it has no notion of owners or users and disabling permissions removes the intended access control entirely.",
+      "Policy decisions are evaluated per request and are not cached in a way a restart would change; the logic itself denies the request."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "`catalog.entity.read` is a resource permission, and the catalog list endpoint asks the policy for it without a specific resource. If the policy answers a plain DENY the whole list is filtered to nothing; to filter by ownership it must return a CONDITIONAL decision built with `createCatalogConditionalDecision` and `catalogConditions.isEntityOwner`. Search results are also empty because the search backend authorises each result against the same permission. Locking down the catalog also often needs an explicit ALLOW for service principals (`isServicePrincipal`) so scaffolder and TechDocs can still read entities.",
+    "example": "import { createCatalogConditionalDecision, catalogConditions } from '@backstage/plugin-catalog-backend/alpha';\nimport { isResourcePermission } from '@backstage/plugin-permission-common';\n\nasync handle(request, user) {\n  if (user?.principal && isServicePrincipal(user.principal)) return { result: AuthorizeResult.ALLOW };\n  if (isResourcePermission(request.permission, 'catalog-entity')) {\n    return createCatalogConditionalDecision(\n      request.permission,\n      catalogConditions.isEntityOwner({ claims: user?.info.ownershipEntityRefs ?? [] }),\n    );\n  }\n  return { result: AuthorizeResult.DENY };\n}",
+    "diagram": "flowchart TD\n    A[\"GET /api/catalog/entities\"] --> B[\"catalog asks policy: catalog.entity.read, no resourceRef\"]\n    B --> C{\"policy decision\"}\n    C -->|\"DENY\"| D[\"list filtered to zero entities\"]\n    C -->|\"CONDITIONAL isEntityOwner\"| E[\"catalog turns condition into a DB filter\"]\n    E --> F[\"user sees owned entities\"]\n    D --> G[\"search and scaffolder also empty\"]",
+    "reference": "https://backstage.io/docs/permissions/writing-a-policy",
+    "tags": [
+      "scenario",
+      "permissions",
+      "catalog",
+      "policy"
+    ]
+  },
+  {
+    "id": "backstage-043",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A developer registers `catalog-info.yaml` for `orders-api` with `spec.owner: group:default/orders-team`. The component appears, but on its About card the owner shows as plain grey text instead of a link, the `Owned by` filter on the catalog page does not list `orders-team`, and the org plugin's Explore page has no such group. Which is the most likely cause?",
+    "options": [
+      "No `Group` entity named `orders-team` has been ingested into the catalog, so the reference cannot resolve to an entity",
+      "`spec.owner` must use the short form `orders-team` without the `group:default/` prefix, otherwise the relation is not created",
+      "The catalog only builds `ownedBy` relations for entities registered through discovery providers, not manual Locations",
+      "The `org` plugin has not been added to the frontend, so ownership links are disabled globally"
+    ],
+    "optionNotes": [
+      "Correct. Relations are string references; the UI checks whether the target exists and falls back to plain text when the group is missing.",
+      "Both forms are valid; the fully qualified form is exactly what the catalog normalises the short form into.",
+      "The `BuiltinKindsEntityProcessor` builds ownership relations for every Component regardless of how the location was registered.",
+      "The About card and catalog filters come from the catalog plugin itself; the org plugin only adds group and user pages."
+    ],
+    "answer": 0,
+    "explanation": "An `ownedBy` relation is created from the reference string even when the target does not exist, but the UI can only link to a Group entity that is actually in the catalog. Nothing has ingested a `kind: Group` named `orders-team`, so the reference dangles. Adding the group through an org entity provider (for example GitHub or LDAP org sync) or a hand-written `Group` entity file resolves it.",
+    "example": "# quick check\ncurl -s \"https://backstage.acme.com/api/catalog/entities/by-name/group/default/orders-team\"\n# -> 404 NotFoundError\n\n# fix: add the group (or enable an org provider)\napiVersion: backstage.io/v1alpha1\nkind: Group\nmetadata:\n  name: orders-team\nspec:\n  type: team\n  children: []",
+    "diagram": "flowchart LR\n    C[\"Component orders-api\"] -->|\"ownedBy group:default/orders-team\"| G{\"Group entity exists?\"}\n    G -->|\"no\"| T[\"owner rendered as plain text, filters empty\"]\n    G -->|\"yes\"| L[\"link to Group page, filters populated\"]\n    T --> F[\"ingest Group via org provider or catalog-info.yaml\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format",
+    "tags": [
+      "scenario",
+      "catalog",
+      "groups",
+      "ownership"
+    ]
+  },
+  {
+    "id": "backstage-044",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A monorepo contains `services/billing/catalog-info.yaml`, and the platform team also has a central `all-services.yaml` that lists the same `billing` component copied from that file. Both are registered. The backend log now repeats `Processing failed ... conflicting entity: component:default/billing already exists at url:https://github.com/acme/monorepo/blob/main/services/billing/catalog-info.yaml, refusing to update from url:.../all-services.yaml`, and edits to the file in the monorepo sometimes do not show up. What should the team do?",
+    "options": [
+      "Stop emitting the entity twice: remove the copied definition and make `all-services.yaml` a `kind: Location` whose `spec.targets` point at the per-service files",
+      "Set `metadata.namespace: central` in the copied definition so the two entities no longer collide",
+      "Increase `catalog.processingInterval` so both locations are processed less often and the conflict has time to settle",
+      "Add `backstage.io/managed-by-location` to the monorepo file pointing at `all-services.yaml` so the catalog knows which one wins"
+    ],
+    "optionNotes": [
+      "Correct. A Location entity aggregates sources without duplicating content, so each entity keeps one owning location and updates flow from the real file.",
+      "That creates a second, distinct entity `component:central/billing` that will drift from the real one and confuse owners and relations; it hides the symptom rather than fixing it.",
+      "The conflict is deterministic and independent of timing; slower processing only delays how quickly legitimate edits appear.",
+      "`managed-by-location` is written by the catalog itself and is overwritten during processing; it is not a user-settable precedence switch."
+    ],
+    "answer": 0,
+    "explanation": "Every entity reference must be emitted by exactly one location; when a second location emits the same `kind:namespace/name`, the catalog keeps the first and logs a conflict for the other, so the entity silently follows whichever location won. Removing the duplicate definition (or turning the central file into a `kind: Location` that points at the source file with `spec.targets`) leaves a single owner for the entity.",
+    "example": "# all-services.yaml: point at the sources instead of copying them\napiVersion: backstage.io/v1alpha1\nkind: Location\nmetadata:\n  name: acme-services\nspec:\n  targets:\n    - https://github.com/acme/monorepo/blob/main/services/billing/catalog-info.yaml\n    - https://github.com/acme/monorepo/blob/main/services/orders/catalog-info.yaml",
+    "diagram": "flowchart TD\n    A[\"services/billing/catalog-info.yaml\"] -->|\"emits component:default/billing\"| E[\"stitcher: one row per entity ref\"]\n    B[\"all-services.yaml copy\"] -->|\"emits component:default/billing\"| E\n    E --> C[\"conflict logged, second location ignored\"]\n    C --> F[\"convert central file to kind Location with spec.targets\"]\n    F --> G[\"single source of truth, edits propagate\"]",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format#kind-location",
+    "tags": [
+      "scenario",
+      "catalog",
+      "locations",
+      "conflicts"
+    ]
+  },
+  {
+    "id": "backstage-045",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A template's `parameters` schema declares only `name` and `owner`, but a later `fetch:template` step passes `values: { port: ${{ parameters.port }} }`. Statement: the catalog rejects the template at registration time with a validation error because `parameters.port` is referenced but never declared.",
+    "answer": false,
+    "explanation": "Templates are validated against the Template entity schema, which checks the shape of `spec.parameters` and `spec.steps` but does not cross-check `${{ }}` expressions against declared parameters. The template registers fine; at run time the undeclared value renders as an empty string (or `undefined` in JSON), which usually surfaces later as a broken skeleton or a confusing action error rather than a validation failure. Dry-run in the Template Editor is the practical way to catch this.",
+    "example": "# template.yaml (registers without complaint)\nspec:\n  parameters:\n    - properties:\n        name: { type: string }\n        owner: { type: string }\n  steps:\n    - id: fetch\n      action: fetch:template\n      input:\n        url: ./skeleton\n        values:\n          port: ${{ parameters.port }}   # renders as empty\n\n# skeleton output\nserver:\n  port:   # <- blank, service fails to start",
+    "diagram": "flowchart TD\n    A[\"template registered\"] --> B[\"schema check: parameters and steps shape only\"]\n    B --> C[\"accepted\"]\n    C --> D[\"run: fetch:template renders parameters.port\"]\n    D --> E[\"undeclared value, empty string\"]\n    E --> F[\"broken file or later action error\"]\n    C --> G[\"dry-run in Template Editor catches it early\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-templates",
+    "tags": [
+      "scenario",
+      "scaffolder",
+      "templates",
+      "validation"
+    ]
+  },
+  {
+    "id": "backstage-046",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A company with 3,000 GitHub repositories runs the config-based GitHub entity provider in the new backend system. The catalog is hours behind: new repos appear the next day, the backend log shows `GitHub API rate limit exceeded ... retry after 3402s`, and the database CPU sits at 90 percent. Their config uses a classic personal access token, `schedule.frequency: { minutes: 5 }`, `filters.branch: main`, and no `catalog.processingInterval` override. Which changes would actually help? (Select all that apply.)",
+    "options": [
+      "Lower `schedule.frequency` to 1 minute so each run finds fewer new repos and uses fewer requests",
+      "Replace the PAT with a GitHub App installation, whose rate limit scales with organisation size and is separate from any user's limit",
+      "Raise `schedule.frequency` to a few hours and rely on the events backend with a GitHub webhook to pick up individual repo changes promptly",
+      "Raise `catalog.processingInterval` from its default of about 100 seconds so entities are re-processed less often, reducing database load",
+      "Add a second identical provider entry with another PAT so the two tokens share the load"
+    ],
+    "optionNotes": [
+      "Each run enumerates the entire organisation regardless of how many repos are new, so a shorter interval multiplies the request volume and makes the throttling worse.",
+      "Correct. App installation tokens get a rate limit that grows with the number of repositories and users in the org (up to 12,500 requests per hour), and are the documented way to avoid PAT limits.",
+      "Correct. Webhook-driven refresh through the events system delivers near-instant updates for changed repos, so the full walk can run rarely as a safety net.",
+      "Correct. The processing loop is independent of the provider schedule; with a large catalog the default interval keeps the database busy re-processing unchanged entities.",
+      "Two providers with the same organisation would emit the same entities from two locations, causing conflicts, and reusing multiple personal tokens to evade rate limits violates GitHub's terms."
+    ],
+    "answer": [
+      1,
+      2,
+      3
+    ],
+    "explanation": "The provider walks the whole organisation on every scheduled run, so a 5-minute frequency with a single PAT (5,000 requests per hour) burns the limit and the run is throttled for the remainder of the hour; lengthening the schedule and moving to a GitHub App (rate limit scales per installation) fixes the API side. Independently, the catalog processing loop re-processes every entity every `catalog.processingInterval` (default 100 seconds); with tens of thousands of entities that is what drives database CPU, so raising it or delivering changes through GitHub webhooks via the events system removes the polling load.",
+    "example": "# app-config.production.yaml\ncatalog:\n  processingInterval: { minutes: 45 }   # default 100s\n  providers:\n    github:\n      acme:\n        organization: acme\n        catalogPath: /catalog-info.yaml\n        filters:\n          branch: main\n          repository: '.*'\n        schedule:\n          frequency: { hours: 6 }   # was minutes: 5\n          timeout: { minutes: 50 }\n\nintegrations:\n  github:\n    - host: github.com\n      apps:\n        - $include: github-app-credentials.yaml   # instead of a PAT",
+    "diagram": "flowchart TD\n    A[\"provider schedule every 5 min\"] --> B[\"full org walk: 3000 repos\"]\n    B --> C[\"PAT 5000 req per hour exhausted\"]\n    C --> D[\"retry after 3402s, entities hours late\"]\n    E[\"processingInterval 100s\"] --> F[\"every entity re-processed constantly\"]\n    F --> G[\"DB CPU 90 percent\"]\n    D --> H[\"GitHub App plus longer frequency\"]\n    G --> I[\"raise processingInterval or use webhooks via events\"]",
+    "reference": "https://backstage.io/docs/integrations/github/discovery",
+    "tags": [
+      "scenario",
+      "catalog",
+      "github",
+      "performance"
+    ]
   }
 ]

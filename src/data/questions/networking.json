@@ -1899,5 +1899,246 @@
       "bgp",
       "dns"
     ]
+  },
+  {
+    "id": "networking-075",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A deploy moved `api.internal.example.com` to a new IP and `dig +short api.internal.example.com` on an app host returns the new address `10.20.5.40`. Yet `curl https://api.internal.example.com/health` from the same host still connects to the old `10.20.5.12` and fails with `Connection refused`. What is the most likely cause?",
+    "options": [
+      "The host's stub resolver cache has not expired yet; wait for the record TTL",
+      "There is a stale entry for the name in `/etc/hosts`, which `curl` consults before DNS while `dig` queries DNS directly",
+      "`curl` is using HTTP/2 connection coalescing to an old connection",
+      "The authoritative zone's serial was not bumped so the secondary still serves the old record"
+    ],
+    "optionNotes": [
+      "`dig` already shows the new answer from the resolver, so the resolver's cache is not the problem; the libc lookup path is diverging from it.",
+      "Correct: applications resolve through `getaddrinfo` and `nsswitch.conf` (`files dns`), so an `/etc/hosts` line wins, whereas `dig` talks to the DNS server directly and never reads `/etc/hosts`.",
+      "Connection coalescing reuses an existing open connection; a fresh `curl` process has no prior connection and would still resolve the name.",
+      "If the zone were stale, `dig` would return the old address too; the observed split between `dig` and `curl` points at the local lookup path."
+    ],
+    "answer": 1,
+    "explanation": "`dig` bypasses the system resolver library, while `curl` uses `getaddrinfo`, which follows `/etc/nsswitch.conf` and checks `/etc/hosts` before DNS. Use `getent hosts <name>` or `getent ahosts <name>` to see what applications actually get; if it differs from `dig`, look for a hosts-file override (often left behind by a migration or a debugging session).",
+    "example": "$ dig +short api.internal.example.com\n10.20.5.40\n$ getent hosts api.internal.example.com\n10.20.5.12   api.internal.example.com\n$ grep api.internal /etc/hosts\n10.20.5.12 api.internal.example.com   # stale override, remove it",
+    "diagram": "flowchart TD\n    C[\"curl / app via getaddrinfo\"] --> N[\"nsswitch: files then dns\"]\n    N --> H[\"/etc/hosts stale 10.20.5.12\"]\n    H --> R[\"Connection refused\"]\n    G[\"dig\"] --> S[\"DNS server\"]\n    S --> A[\"10.20.5.40 (correct)\"]",
+    "reference": "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
+    "tags": [
+      "scenario",
+      "dns",
+      "troubleshooting",
+      "nsswitch"
+    ]
+  },
+  {
+    "id": "networking-076",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After rotating the TLS certificate on an Nginx edge host, Chrome and Firefox load `https://shop.example.com` without warnings, but a Python service and `curl` fail with `curl: (60) SSL certificate problem: unable to get local issuer certificate`. `openssl s_client -connect shop.example.com:443` shows a chain of depth 0 only, ending in `verify error:num=20`. What is the most likely cause?",
+    "options": [
+      "The new certificate was issued by a CA that is not in the client's trust store, so the CA bundle must be updated on every client",
+      "The server is sending only the leaf certificate and not the intermediate; browsers recover via AIA fetching or cached intermediates, while `curl` and OpenSSL do not",
+      "The certificate's SAN list does not include `shop.example.com`, which browsers tolerate but OpenSSL rejects",
+      "TLS 1.3 is enabled and the older clients only support TLS 1.2"
+    ],
+    "optionNotes": [
+      "The issuing CA is publicly trusted (browsers accept it); the failing clients cannot build a path because the intermediate link is absent from the handshake, not because the root is missing.",
+      "Correct: a depth-0-only chain means Nginx `ssl_certificate` points at the leaf alone. Browsers fetch the missing intermediate through the certificate's AIA URL or already have it cached; strict clients only use what the server sends and so fail with error 20.",
+      "A SAN mismatch produces a hostname verification error (`num=62` or `certificate name mismatch`), and browsers would reject it too.",
+      "A version mismatch causes a handshake failure or protocol alert, not a certificate verification error after the handshake completes."
+    ],
+    "answer": 1,
+    "explanation": "Error 20 (`unable to get local issuer certificate`) with only the leaf visible in `s_client` means the server is not serving the intermediate CA certificate. Browsers mask this by fetching intermediates via AIA or from cache, which is why it looks like it works. Fix by serving the concatenated full chain (leaf followed by intermediates) and verifying with `s_client -showcerts` or an SSL checker.",
+    "example": "# diagnose\nopenssl s_client -connect shop.example.com:443 -servername shop.example.com -showcerts </dev/null 2>&1 | grep -E 'depth=|verify'\n\n# fix: serve the full chain, not just the leaf\ncat shop.crt intermediate.crt > /etc/nginx/ssl/fullchain.pem\n# nginx.conf\nssl_certificate     /etc/nginx/ssl/fullchain.pem;\nssl_certificate_key /etc/nginx/ssl/shop.key;\nnginx -t && systemctl reload nginx",
+    "diagram": "flowchart TD\n    S[\"Nginx serves leaf only\"] --> B[\"Browser\"]\n    S --> C[\"curl / OpenSSL client\"]\n    B --> AIA[\"fetch intermediate via AIA or cache\"] --> OK[\"chain built, no warning\"]\n    C --> X[\"no intermediate available\"] --> E[\"verify error 20\"]\n    F[\"fix: ssl_certificate = fullchain.pem\"] --> S",
+    "reference": "https://nginx.org/en/docs/http/configuring_https_servers.html#chains",
+    "tags": [
+      "scenario",
+      "tls",
+      "certificates",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "networking-077",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A new version of an API is deployed to a VM. From the load balancer subnet, `curl http://10.0.3.15:8080/health` returns `Failed to connect to 10.0.3.15 port 8080: Connection refused` instantly, while the same command run on the VM itself against `127.0.0.1:8080` returns `200 OK`. The security group allows TCP 8080 from the LB subnet. What is the most likely cause?",
+    "options": [
+      "The security group change has not propagated yet; wait and retry",
+      "The application is bound to `127.0.0.1` instead of `0.0.0.0`, so it only accepts loopback connections",
+      "A firewall on the network path is silently dropping the packets",
+      "The VM's default route is wrong so reply packets never reach the LB"
+    ],
+    "optionNotes": [
+      "A packet filter that blocks the SYN produces a hang and eventual timeout, not an immediate `Connection refused`; the fast RST shows the packets are arriving.",
+      "Correct: `Connection refused` means the host received the SYN and answered with RST because nothing is listening on that address and port. `ss -ltnp` will show `127.0.0.1:8080` rather than `0.0.0.0:8080` or `*:8080`.",
+      "Silent drops cause `Connection timed out` after the retry budget is spent, not an instant refusal.",
+      "With a broken return path the client would never see the RST and would time out instead of being refused immediately."
+    ],
+    "answer": 1,
+    "explanation": "An immediate `Connection refused` is a TCP RST from the target host, which proves reachability and rules out firewalls; the host simply has no socket listening on that interface and port. A timeout, by contrast, points at a filter or routing problem. Check the bind address with `ss -ltnp` and change the listen address to `0.0.0.0` (or the VM's private IP).",
+    "example": "$ ss -ltnp | grep 8080\nLISTEN 0 128 127.0.0.1:8080 0.0.0.0:* users:((\"gunicorn\",pid=2231,fd=5))\n\n# fix: bind to all interfaces\ngunicorn --bind 0.0.0.0:8080 app:app\n# refused (RST) vs timeout (dropped) is the key distinction",
+    "diagram": "flowchart TD\n    L[\"LB sends SYN to 10.0.3.15:8080\"] --> K[\"VM kernel receives SYN\"]\n    K --> Q{\"socket listening on that addr:port?\"}\n    Q -->|\"no, bound to 127.0.0.1\"| R[\"RST: Connection refused\"]\n    Q -->|\"yes\"| A[\"SYN-ACK, connection opens\"]\n    F[\"firewall drop would give timeout instead\"] -.-> K",
+    "reference": "https://man7.org/linux/man-pages/man8/ss.8.html",
+    "tags": [
+      "scenario",
+      "tcp",
+      "troubleshooting",
+      "bind-address"
+    ]
+  },
+  {
+    "id": "networking-078",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "An Nginx reverse proxy on a single VM forwards about 30,000 short requests per second to one upstream at `10.0.1.20:9000`. Under load, the error log fills with `connect() to 10.0.1.20:9000 failed (99: Cannot assign requested address)` and `ss -tan | grep TIME-WAIT | wc -l` shows around 28,000 sockets. Which changes would each help relieve this? (Select all that apply.)",
+    "options": [
+      "Enable upstream keepalive in Nginx (`keepalive` in the `upstream` block plus `proxy_http_version 1.1` and clearing the `Connection` header) so connections are reused instead of opened per request",
+      "Widen `net.ipv4.ip_local_port_range` (for example to `1024 65535`) to increase the number of ephemeral ports",
+      "Set `net.ipv4.tcp_tw_reuse = 1` so the kernel can reuse `TIME_WAIT` sockets for new outgoing connections",
+      "Increase `net.core.somaxconn` on the proxy to enlarge the listen backlog",
+      "Add more upstream addresses or ports (for example the same backend on several ports) so the 4-tuple space is larger"
+    ],
+    "optionNotes": [
+      "Correct: the root cause is a new outbound connection per request, each leaving a `TIME_WAIT` entry for 60 seconds; reusing persistent upstream connections removes most of that churn.",
+      "Correct: the default range of roughly 28,000 ports (32768 to 60999) is exactly the ceiling seen; widening it raises the limit, although keepalive is the real fix.",
+      "Correct: `tcp_tw_reuse` allows the proxy (the active closer) to reuse a `TIME_WAIT` port for a new connection when timestamps show it is safe.",
+      "`somaxconn` controls the accept queue for inbound connections on a listening socket; it does nothing for outbound port exhaustion toward the upstream.",
+      "Correct: ephemeral ports are limited per (source IP, destination IP, destination port); more destination addresses or ports multiply the available tuples."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "`EADDRNOTAVAIL` (errno 99) on `connect()` means the client has run out of local ephemeral ports for that destination because tens of thousands are parked in `TIME_WAIT`. The lasting fix is connection reuse via upstream keepalive; widening the port range, enabling `tcp_tw_reuse`, and spreading across more destination tuples add headroom. `tcp_tw_recycle` is not an option since it was removed from the kernel in 4.12 and broke NAT clients.",
+    "example": "# nginx.conf\nupstream app {\n    server 10.0.1.20:9000;\n    keepalive 64;\n}\nserver {\n    location / {\n        proxy_pass http://app;\n        proxy_http_version 1.1;\n        proxy_set_header Connection \"\";\n    }\n}\n\n# sysctl\nnet.ipv4.ip_local_port_range = 1024 65535\nnet.ipv4.tcp_tw_reuse = 1",
+    "diagram": "flowchart TD\n    R[\"30k req/s, new upstream conn each\"] --> T[\"TIME_WAIT x 28k on proxy\"]\n    T --> P[\"ephemeral ports exhausted\"] --> E[\"connect: Cannot assign requested address\"]\n    K[\"upstream keepalive\"] --> R\n    W[\"wider port range, tcp_tw_reuse\"] --> P\n    M[\"more upstream IP:port tuples\"] --> P",
+    "reference": "https://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive",
+    "tags": [
+      "scenario",
+      "tcp",
+      "time-wait",
+      "nginx"
+    ]
+  },
+  {
+    "id": "networking-079",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A team publishes an `AAAA` record for `www.example.com` pointing at the server's new global IPv6 address. Most browser users notice nothing, but a monitoring probe running `curl -6 https://www.example.com` times out, and a few users on IPv6-only mobile networks report the site is unreachable. `curl -4` works everywhere. What is the most likely cause and the best fix?",
+    "options": [
+      "IPv6 is inherently slower; remove the `AAAA` record permanently and stay IPv4-only",
+      "The server's firewall or cloud security group only allows TCP 443 from `0.0.0.0/0`, not `::/0`; add the IPv6 rule (or remove the `AAAA` record until the IPv6 path is verified)",
+      "The `AAAA` record TTL is too long; lower it so clients fall back to IPv4 sooner",
+      "Dual-stack browsers need an `A` record too and it was deleted; re-add the `A` record"
+    ],
+    "optionNotes": [
+      "IPv6 is not slower by design, and dropping it hides a configuration error rather than fixing it; IPv6-only networks would remain unable to reach the site.",
+      "Correct: a dual-stack browser uses Happy Eyeballs and quietly falls back to IPv4 when the IPv6 connection attempt fails, which is why most users are fine. Forced-IPv6 probes and IPv6-only clients have no fallback. A `0.0.0.0/0` rule does not match IPv6; `::/0` is required.",
+      "TTL affects how long the record is cached, not whether a client can connect; Happy Eyeballs fallback is per-connection and does not depend on TTL.",
+      "`curl -4` works, so the `A` record still exists; the failure is specific to the IPv6 path."
+    ],
+    "answer": 1,
+    "explanation": "Publishing an `AAAA` record advertises an IPv6 path that must be tested independently: firewall rules, security groups, listen addresses, and routing are all separate for IPv6. Happy Eyeballs (RFC 8305) masks a broken IPv6 path for dual-stack clients, so the symptom surfaces only with `curl -6` or IPv6-only networks. Verify with `curl -6 -v` and `ss -ltn` (look for `[::]:443`), then allow `::/0` on port 443.",
+    "example": "$ curl -6 -sv https://www.example.com -o /dev/null --max-time 5\n*   Trying [2001:db8:10::5]:443...\n* Connection timed out after 5001 milliseconds\n\n# on the server\n$ ss -ltn | grep 443\nLISTEN 0 511 *:443 *:*          # listening on v6 too, so it is the filter\n\n# AWS example fix\naws ec2 authorize-security-group-ingress --group-id sg-0abc \\\n  --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,Ipv6Ranges='[{CidrIpv6=::/0}]'",
+    "diagram": "flowchart TD\n    C[\"dual-stack browser\"] --> H[\"Happy Eyeballs tries AAAA first\"]\n    H -->|\"v6 SYN dropped by SG\"| F[\"fallback to A record\"] --> OK[\"works, problem hidden\"]\n    P[\"curl -6 or IPv6-only client\"] --> H6[\"only IPv6 path\"] --> T[\"timeout\"]\n    X[\"fix: allow ::/0 tcp 443\"] --> H6",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc8305",
+    "tags": [
+      "scenario",
+      "ipv6",
+      "firewall",
+      "dns"
+    ]
+  },
+  {
+    "id": "networking-080",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A service behind an AWS Application Load Balancer returns intermittent `502 Bad Gateway` responses (about 0.1% of requests) with no matching error in the application logs. The ALB idle timeout is the default 60 seconds; the backend is Node.js with the default `server.keepAliveTimeout` of 5 seconds. Traffic is bursty with quiet gaps of several seconds. What is the most likely cause?",
+    "options": [
+      "The ALB health check interval is too aggressive and marks targets unhealthy briefly",
+      "The backend closes idle keep-alive connections after 5 seconds while the ALB, whose idle timeout is 60 seconds, still considers them usable and sends the next request into a closing socket",
+      "The target group uses HTTP/1.1 but the backend only speaks HTTP/2",
+      "The ALB is out of capacity and needs pre-warming"
+    ],
+    "optionNotes": [
+      "Health check failures would show as `unhealthy host` metrics and cause sustained errors on that target, not a low, steady background rate correlated with traffic gaps.",
+      "Correct: after a burst, the backend tears down the idle connection at 5 s; a request arriving between 5 s and 60 s of idleness is written to a connection the backend has just closed or is closing, and the ALB reports it as 502. The fix is to make the backend keep-alive timeout longer than the LB idle timeout (for example 65 s), with `headersTimeout` above that.",
+      "A protocol mismatch fails every request consistently, not 0.1% of them.",
+      "Capacity limits show as 503 or elevated latency across the board, and modern ALBs scale without manual pre-warming for most workloads."
+    ],
+    "answer": 1,
+    "explanation": "Load balancers reuse backend connections, and if the backend's keep-alive idle timeout is shorter than the LB's, there is a race where the LB sends a request on a connection the backend is closing, producing a 502 (or 504) with nothing in app logs. Always set the backend keep-alive timeout a few seconds longer than the load balancer's idle timeout so the LB is the one that closes idle connections.",
+    "example": "// Node.js: outlive the ALB's 60 s idle timeout\nconst server = app.listen(8080);\nserver.keepAliveTimeout = 65 * 1000;\nserver.headersTimeout = 66 * 1000;\n\n# confirm the ALB side\naws elbv2 describe-load-balancer-attributes --load-balancer-arn $ARN \\\n  --query \"Attributes[?Key=='idle_timeout.timeout_seconds']\"",
+    "diagram": "flowchart TD\n    B[\"burst ends, connection idle\"] --> N[\"backend keepAliveTimeout 5s: closes socket\"]\n    N --> A[\"ALB idle timeout 60s: still reuses socket\"]\n    A --> R[\"next request hits closed conn\"] --> E[\"502 Bad Gateway, nothing in app log\"]\n    F[\"fix: backend timeout 65s greater than ALB 60s\"] --> N",
+    "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html",
+    "tags": [
+      "scenario",
+      "load-balancing",
+      "keep-alive",
+      "http"
+    ]
+  },
+  {
+    "id": "networking-081",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Two teams need to connect VPC A (`10.0.0.0/16`) and VPC B (`10.0.0.0/16`) in AWS so services in A can reach a database in B. Creating a VPC peering connection fails because the CIDR blocks overlap, and attaching both to a Transit Gateway leaves a routing conflict. Which approaches would let A reach the database in B? (Select all that apply.)",
+    "options": [
+      "Re-address one VPC (for example rebuild B as `10.1.0.0/16`) and then peer normally",
+      "Add a non-overlapping secondary CIDR to VPC B and then create the peering connection",
+      "Expose the database through an interface endpoint service (AWS PrivateLink) with a Network Load Balancer in B and create an interface endpoint in A",
+      "Place a NAT instance or private NAT gateway in a non-overlapping subnet in B that translates traffic from A into B's address space",
+      "Enable DNS resolution on the peering connection so overlapping addresses are resolved by name instead"
+    ],
+    "optionNotes": [
+      "Correct: eliminating the overlap is the cleanest solution and restores normal routing, at the cost of a migration.",
+      "Peering is refused when any CIDR overlaps, including the primary; a secondary CIDR does not change the fact that the two `10.0.0.0/16` blocks collide, and routes for the overlapping range would be ambiguous anyway.",
+      "Correct: PrivateLink does not require routable connectivity between the VPCs; the endpoint in A gets an IP from A's own range and forwards to the NLB in B, so overlapping CIDRs are irrelevant.",
+      "Correct: a private NAT gateway in a dedicated non-overlapping secondary CIDR on B's side (reached over Transit Gateway) translates A's source addresses, which is AWS's documented pattern for overlapping networks.",
+      "DNS is a naming layer on top of routing; a peering connection still cannot be created with overlapping CIDRs, so there is nothing to enable."
+    ],
+    "answer": [
+      0,
+      2,
+      3
+    ],
+    "explanation": "Overlapping CIDRs cannot be routed between directly, so the options are to remove the overlap (re-IP), avoid routing altogether (PrivateLink presents the service at a local address in the consumer VPC), or translate addresses (private NAT gateway in a non-overlapping secondary range). Adding a secondary CIDR alone does not unblock peering because the primary blocks still collide.",
+    "example": "# peering attempt\naws ec2 create-vpc-peering-connection --vpc-id vpc-aaa --peer-vpc-id vpc-bbb\n# then accept fails: 'failed' status, reason: overlapping CIDR blocks\n\n# PrivateLink path instead\naws ec2 create-vpc-endpoint-service-configuration \\\n  --network-load-balancer-arns $NLB_IN_B --acceptance-required\naws ec2 create-vpc-endpoint --vpc-id vpc-aaa --vpc-endpoint-type Interface \\\n  --service-name com.amazonaws.vpce.ap-southeast-1.vpce-svc-0123 --subnet-ids subnet-a1",
+    "diagram": "flowchart LR\n    A[\"VPC A 10.0.0.0/16\"] -->|\"peering rejected: overlap\"| B[\"VPC B 10.0.0.0/16\"]\n    A --> E[\"interface endpoint (IP from A)\"] -->|\"PrivateLink\"| N[\"NLB in B\"] --> DB[\"database\"]\n    A --> T[\"Transit Gateway\"] --> P[\"private NAT in B secondary 100.64.0.0/24\"] --> DB\n    R[\"or re-IP B to 10.1.0.0/16\"] -.-> B",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/peering/invalid-peering-configurations.html",
+    "tags": [
+      "scenario",
+      "vpc",
+      "cidr",
+      "peering"
+    ]
+  },
+  {
+    "id": "networking-082",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A chat frontend opens a WebSocket through an Nginx reverse proxy with the default `proxy_read_timeout` of 60 seconds. Users report that idle chats disconnect after about a minute with close code 1006, while active chats stay up. A colleague argues that since the connection was upgraded with `101 Switching Protocols`, Nginx's HTTP proxy timeouts no longer apply and the disconnects must be coming from the client's network. Is the colleague's statement correct?",
+    "explanation": "The statement is false. After the upgrade, Nginx still proxies the tunnel byte-for-byte and `proxy_read_timeout` (and `proxy_send_timeout`) continue to apply to the tunneled connection: if no data passes for 60 seconds, Nginx closes it, which the browser surfaces as an abnormal close (1006). Fix by raising `proxy_read_timeout` for the WebSocket location and, more robustly, by sending periodic ping/pong frames from the server so the connection is never idle.",
+    "example": "# nginx.conf\nlocation /ws/ {\n    proxy_pass http://chat_backend;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection \"upgrade\";\n    proxy_read_timeout 3600s;   # or keep pings under 60s\n}\n\n# server-side heartbeat (ws library)\nsetInterval(() => wss.clients.forEach(c => c.ping()), 30000);",
+    "diagram": "flowchart TD\n    C[\"browser WebSocket\"] --> N[\"Nginx proxy_read_timeout 60s\"] --> S[\"chat backend\"]\n    N -->|\"no frames for 60s\"| X[\"Nginx closes tunnel\"] --> E[\"close code 1006\"]\n    P[\"server ping every 30s\"] --> N\n    T[\"raise proxy_read_timeout\"] --> N",
+    "answer": false,
+    "reference": "https://nginx.org/en/docs/http/websocket.html",
+    "tags": [
+      "scenario",
+      "websockets",
+      "nginx",
+      "timeouts"
+    ]
   }
 ]

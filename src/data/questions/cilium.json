@@ -1078,5 +1078,244 @@
     ],
     "id": "cilium-040",
     "domain": "cilium"
+  },
+  {
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "On a 12-node cluster running Cilium, every new Pod scheduled to `worker-07` sits in `ContainerCreating`. `kubectl describe pod` shows the event: `Failed to create pod sandbox: rpc error: ... plugin type=\"cilium-cni\" failed (add): unable to connect to Cilium daemon: failed to create cilium agent client after 30.000000 seconds timeout: dial unix /var/run/cilium/cilium.sock: connect: no such file or directory`. Pods on the other 11 nodes start normally. What is the best next step?",
+    "options": [
+      "Inspect the cilium-agent Pod on `worker-07` (`kubectl -n kube-system get pods -o wide --field-selector spec.nodeName=worker-07` and its logs); the CNI plugin cannot reach the local agent socket",
+      "Delete the stuck Pods so the scheduler places them on healthy nodes, then close the ticket",
+      "Reinstall Cilium cluster-wide with `cilium uninstall` and `cilium install` to regenerate the CNI configuration",
+      "Increase the kubelet `--runtime-request-timeout` on `worker-07` so the CNI ADD call has more than 30 seconds"
+    ],
+    "optionNotes": [
+      "Correct. `cilium-cni` is only a thin client that talks to the node-local agent over `/var/run/cilium/cilium.sock`; the socket missing means the agent on that one node is not running or not ready (CrashLoopBackOff, image pull, or failed eBPF load). Its logs point at the real cause.",
+      "Deleting Pods hides the symptom; the scheduler may put them right back on `worker-07`, and any DaemonSet Pods must land there anyway. The node stays broken.",
+      "The other 11 nodes are healthy, so this is a per-node agent failure, not a cluster-wide misconfiguration. A full reinstall causes a cluster-wide datapath disruption for no reason.",
+      "The timeout is the CNI plugin waiting for a socket that never appears; a longer wait just makes the sandbox creation fail more slowly."
+    ],
+    "answer": 0,
+    "explanation": "The CNI binary delegates all work to the local cilium-agent through a Unix socket. When the socket does not exist, the agent on that node has not come up, so the fix is to diagnose that agent Pod (logs, `cilium status` from inside it, kernel or image issues) rather than touching the workload Pods or the whole cluster.",
+    "example": "kubectl -n kube-system get pods -l k8s-app=cilium -o wide | grep worker-07\n# cilium-x7k2p   0/1   CrashLoopBackOff   14   worker-07\nkubectl -n kube-system logs cilium-x7k2p --previous | tail -n 20\n# level=fatal msg=\"failed to start: ... BPF filesystem ... \"",
+    "diagram": "flowchart TD\n    K[\"kubelet CNI ADD on worker-07\"] --> C[\"cilium-cni plugin\"]\n    C -->|\"dial /var/run/cilium/cilium.sock\"| S{\"socket exists?\"}\n    S -->|\"no\"| E[\"Pod stuck ContainerCreating\"]\n    S -->|\"yes\"| A[\"cilium-agent allocates IP + attaches eBPF\"]\n    E --> F[\"check cilium-agent Pod on that node\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/troubleshooting/",
+    "tags": [
+      "scenario",
+      "troubleshooting",
+      "cni",
+      "agent"
+    ],
+    "domain": "cilium",
+    "id": "cilium-041"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A kubeadm cluster was migrated to Cilium with `kubeProxyReplacement=true`, but the `kube-proxy` DaemonSet was left running \"just in case\". Weeks later, connections to a ClusterIP whose backends were rescheduled sometimes hang for a minute, and `cilium status` prints a warning that kube-proxy iptables rules are present alongside the eBPF datapath. The team wants to finish the migration during business hours. Which sequence is correct?",
+    "options": [
+      "Delete the `kube-proxy` DaemonSet and its ConfigMap, then on each node flush the leftover `KUBE-*` iptables rules (for example `iptables-save | grep -v KUBE | iptables-restore`), verifying Service reachability node by node",
+      "Set `kubeProxyReplacement=false` in the Cilium Helm values so kube-proxy is the only Service load balancer again",
+      "Restart every cilium-agent Pod; on startup the agent removes any iptables rules it did not create",
+      "Reboot all nodes at once so both kube-proxy and the stale iptables state are cleared simultaneously"
+    ],
+    "optionNotes": [
+      "Correct. Cilium's eBPF datapath and kube-proxy both try to own Service translation; with both present, iptables DNAT entries and stale conntrack can shadow eBPF decisions. Removing kube-proxy stops new rules, and flushing the `KUBE-*` chains removes the existing ones. Doing it per node keeps the blast radius small.",
+      "This turns the migration backwards: the team loses the eBPF service handling they migrated for, and the intermittent hangs reappear whenever kube-proxy and Cilium disagree in the future.",
+      "cilium-agent manages only its own `CILIUM_*` chains; it deliberately does not remove rules from other owners, so the `KUBE-*` chains stay in place after a restart.",
+      "A simultaneous reboot of every node is a full outage, and it does not stop kube-proxy from re-creating the rules when it comes back."
+    ],
+    "answer": 0,
+    "explanation": "Running kube-proxy next to Cilium's kube-proxy replacement is not supported: both install Service NAT logic and the iptables rules can intercept traffic before or after the eBPF programs. The documented cleanup is to remove the kube-proxy DaemonSet and ConfigMap and then delete the `KUBE-*` iptables rules on every node, since neither kube-proxy's deletion nor a Cilium restart clears them.",
+    "example": "kubectl -n kube-system delete ds kube-proxy\nkubectl -n kube-system delete cm kube-proxy\n# on each node (one at a time):\niptables-save | grep -v KUBE | iptables-restore\nkubectl -n kube-system exec ds/cilium -- cilium-dbg status | grep KubeProxyReplacement\n# KubeProxyReplacement:    True   [eth0 ...]",
+    "diagram": "flowchart LR\n    S[\"Symptom: hanging ClusterIP connections\"] --> C[\"Cause: kube-proxy iptables plus eBPF both translating Services\"]\n    C --> F1[\"delete kube-proxy DaemonSet and ConfigMap\"]\n    F1 --> F2[\"flush KUBE-* iptables rules per node\"]\n    F2 --> V[\"verify cilium status and Service tests\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/",
+    "tags": [
+      "scenario",
+      "kube-proxy-replacement",
+      "migration"
+    ],
+    "domain": "cilium",
+    "id": "cilium-042"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "After enabling WireGuard encryption on a cluster that uses VXLAN tunneling, small HTTP calls between Pods on different nodes still work, but any response larger than a few KB stalls and the client eventually logs `read: connection reset by peer`. `hubble observe --verdict DROPPED` shows nothing for these flows, and `cilium status` reports encryption healthy. What is the most likely cause?",
+    "options": [
+      "The effective path MTU shrank (VXLAN plus WireGuard overhead) but Pod interfaces still use the old MTU, so large packets are fragmented or silently discarded",
+      "WireGuard keys were rotated on one node and peers no longer match, so encrypted packets are dropped",
+      "Hubble is not capturing encrypted flows, so the drops are real but invisible",
+      "The network policy allows the request but not the reply direction, so large responses are cut off once they exceed a single packet"
+    ],
+    "optionNotes": [
+      "Correct. Each encapsulation layer eats bytes: VXLAN adds roughly 50 and WireGuard about 80 more. If the Pod veth MTU is not lowered accordingly, large TCP segments exceed the underlay MTU and get fragmented or dropped without a policy verdict, which is exactly the small-works, large-fails pattern.",
+      "A key mismatch would break all traffic to that node, including the small requests that succeed here, and `cilium status` would show unhealthy encryption.",
+      "Hubble sees flows at the endpoint's eBPF hooks before encryption, so policy drops would still appear; the absence of drops means the datapath is forwarding them.",
+      "Cilium's policy is stateful: the reply of an allowed connection is always permitted, regardless of size, so policy cannot cut off a response mid-stream."
+    ],
+    "answer": 0,
+    "explanation": "MTU problems present as size-dependent failures with no policy drops. Cilium normally derives the Pod MTU automatically from the underlay minus the tunnel and encryption overhead, but nodes with non-standard NIC MTUs or values applied before encryption was turned on can leave Pods with an MTU that is too large. Check `ip link` inside a Pod and on the `cilium_vxlan` and `cilium_wg0` devices, then set the `MTU` Helm value if auto-detection is wrong.",
+    "example": "kubectl exec deploy/web -- ip link show eth0 | grep mtu\n# mtu 1500   <- too large for 1500 underlay with vxlan + wireguard\nkubectl -n kube-system exec ds/cilium -- ip link show cilium_wg0 | grep mtu\n# fix: pin the Pod MTU explicitly\nhelm upgrade cilium cilium/cilium -n kube-system --reuse-values --set MTU=1370",
+    "diagram": "flowchart LR\n    P[\"Pod sends 1500-byte segment\"] --> V[\"VXLAN adds approx 50 bytes\"]\n    V --> W[\"WireGuard adds approx 80 bytes\"]\n    W --> U{\"fits underlay MTU 1500?\"}\n    U -->|\"no\"| D[\"fragmented or dropped, no policy verdict\"]\n    U -->|\"yes\"| R[\"delivered\"]\n    D --> F[\"lower Pod MTU via Helm MTU value\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/performance/tuning/",
+    "tags": [
+      "scenario",
+      "mtu",
+      "encryption",
+      "tunneling"
+    ],
+    "domain": "cilium",
+    "id": "cilium-043"
+  },
+  {
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Cilium LB IPAM is enabled and a `CiliumLoadBalancerIPPool` named `prod-pool` with block `10.20.0.0/24` exists. A new `Service` of type `LoadBalancer` in namespace `shop` stays with `EXTERNAL-IP <pending>`, while an older Service in namespace `payments` got an IP from the same pool within seconds. `kubectl get ciliumloadbalancerippool prod-pool` shows 253 available IPs. The pool spec contains:\n\n```yaml\nserviceSelector:\n  matchLabels:\n    tier: prod\n```\n\nWhat is the most likely reason the new Service has no IP?",
+    "options": [
+      "The new Service lacks the `tier: prod` label, so the pool's `serviceSelector` does not match it",
+      "The pool is exhausted because 253 IPs are reserved for the `payments` namespace",
+      "LB IPAM requires `kubeProxyReplacement=true`, which is not enabled for the `shop` namespace",
+      "The Service needs the annotation `io.cilium/lb-ipam-ips` to pull from a pool"
+    ],
+    "optionNotes": [
+      "Correct. When a pool has a `serviceSelector`, only Services whose labels (plus special `io.kubernetes.service.namespace` and `io.kubernetes.service.name` labels) match receive IPs from it. The `payments` Service was labelled to match; the new one is not, so no pool applies and the Service stays pending.",
+      "The pool shows 253 IPs still available, so exhaustion is ruled out, and pools are not reserved per namespace.",
+      "kube-proxy replacement is a cluster-wide datapath setting, not something enabled per namespace, and LB IPAM only assigns addresses; it works with or without it.",
+      "`io.cilium/lb-ipam-ips` is optional and only used to request specific addresses; ordinary Services get an IP from any matching pool without it."
+    ],
+    "answer": 0,
+    "explanation": "LB IPAM assigns from pools whose `serviceSelector` matches the Service. A pending Service with free addresses in the pool almost always means no pool matches its labels or namespace. Either label the Service to match, or create a pool without a selector as a catch-all.",
+    "example": "kubectl -n shop get svc web -o jsonpath='{.metadata.labels}'\n# {\"app\":\"web\"}     <- no tier=prod\nkubectl -n shop label svc web tier=prod\nkubectl -n shop get svc web\n# web   LoadBalancer   10.96.4.12   10.20.0.3   80:31022/TCP\n# cilium-operator events also show: \"no pool matches service\"",
+    "diagram": "flowchart TD\n    S[\"Service type LoadBalancer created\"] --> O[\"cilium-operator LB IPAM\"]\n    O --> M{\"any pool serviceSelector matches labels?\"}\n    M -->|\"no\"| P[\"EXTERNAL-IP stays pending\"]\n    M -->|\"yes\"| I[\"IP allocated from pool block\"]\n    P --> F[\"label the Service or add a catch-all pool\"]",
+    "reference": "https://docs.cilium.io/en/stable/network/lb-ipam/",
+    "tags": [
+      "scenario",
+      "lb-ipam",
+      "services"
+    ],
+    "domain": "cilium",
+    "id": "cilium-044"
+  },
+  {
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "You must upgrade Cilium from 1.15 to 1.16 on a production cluster with 80 nodes during business hours. The previous upgrade caused a 10-minute outage because agents on all nodes restarted while pulling a new image at the same time, and one CRD was missing. Which steps belong in a safe upgrade procedure? (Select all that apply.)",
+    "options": [
+      "Deploy the `cilium-preflight` DaemonSet from the target version first so every node pre-pulls the new images and validates the configuration, then remove it",
+      "Read the upgrade notes for the target version and apply any required CRD or Helm value changes before running `helm upgrade`",
+      "Run `helm upgrade` with the same values file (or `--reuse-values`) so settings such as IPAM mode and routing mode do not silently change",
+      "Run `cilium connectivity test` after the rollout and keep the previous chart version and values ready for `helm rollback`",
+      "Delete all `CiliumEndpoint` and `CiliumIdentity` objects before upgrading so the new agents start from a clean state",
+      "Scale cilium-operator to zero for the duration of the upgrade to avoid CRD conflicts"
+    ],
+    "optionNotes": [
+      "Correct. The pre-flight DaemonSet pulls the new agent image onto every node and runs validations without touching the datapath, so the real rollout restarts each agent quickly instead of waiting on image pulls.",
+      "Correct. Minor-version upgrades regularly add CRDs and rename or remove Helm values; the upgrade notes list them, and CRDs are installed by Helm only when the chart is applied correctly.",
+      "Correct. Changing IPAM or routing mode mid-upgrade is a rebuild, not an upgrade; passing the same values prevents an accidental change that would break Pod networking.",
+      "Correct. A post-upgrade connectivity test catches datapath regressions, and having the rollback path prepared is what keeps the change reversible.",
+      "Deleting endpoints and identities forces every Pod to be re-identified and policies to be recomputed, causing policy drops during the upgrade; the upgrade does not need it.",
+      "The operator manages IPAM, identity garbage collection and Service synchronization; stopping it during an upgrade can leave new nodes without PodCIDRs and does nothing for CRDs, which Helm handles."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "explanation": "The documented upgrade path is: read the version-specific upgrade notes, run the pre-flight check DaemonSet so images are pulled and configuration is validated on every node, then `helm upgrade` with the same values, and finally verify with `cilium status` and the connectivity test while keeping a rollback ready. Deleting Cilium state or stopping the operator adds risk rather than removing it.",
+    "example": "helm install cilium-preflight cilium/cilium --version 1.16.x -n kube-system --set preflight.enabled=true --set agent=false --set operator.enabled=false\nkubectl -n kube-system rollout status ds/cilium-pre-flight-check\nhelm delete cilium-preflight -n kube-system\nhelm upgrade cilium cilium/cilium --version 1.16.x -n kube-system -f values.yaml\ncilium status --wait && cilium connectivity test",
+    "diagram": "flowchart TD\n    N[\"read upgrade notes for target version\"] --> P[\"deploy cilium-preflight DaemonSet: pre-pull images, validate\"]\n    P --> R[\"remove preflight, helm upgrade with same values\"]\n    R --> W[\"rolling agent restart, fast because images are cached\"]\n    W --> V[\"cilium status and connectivity test\"]\n    V -->|\"failure\"| B[\"helm rollback to previous release\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/upgrade/",
+    "tags": [
+      "scenario",
+      "upgrade",
+      "operations"
+    ],
+    "domain": "cilium",
+    "id": "cilium-045"
+  },
+  {
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A security auditor runs `tcpdump -i any` on a node where WireGuard transparent encryption is enabled and captures plaintext HTTP between two Pods that are both scheduled on that same node. `cilium encrypt status` on the node reports WireGuard enabled with peers for all other nodes. The auditor concludes that encryption is misconfigured. True or false: the plaintext capture proves that Cilium's WireGuard encryption is not working correctly.",
+    "answer": false,
+    "explanation": "Cilium's transparent encryption protects traffic between nodes: packets are encrypted when they leave one node's `cilium_wg0` device and decrypted on the destination node. Traffic between two Pods on the same node never crosses the node boundary and is forwarded locally in plaintext by design, so capturing it says nothing about the health of encryption. To validate, capture on the physical interface for a cross-node flow and confirm only WireGuard UDP packets appear.",
+    "example": "# same-node pod-to-pod: plaintext is expected\nkubectl -n kube-system exec ds/cilium -- cilium-dbg encrypt status\n# Encryption: Wireguard  Interface: cilium_wg0  Public key: ...  Number of peers: 11\n# verify a cross-node flow instead:\ntcpdump -ni eth0 udp port 51871   # only WireGuard datagrams, no HTTP visible",
+    "diagram": "flowchart LR\n    A[\"Pod A on node1\"] -->|\"same node: local forward, plaintext\"| B[\"Pod B on node1\"]\n    A -->|\"cross node\"| W[\"cilium_wg0 encrypt\"]\n    W -->|\"UDP 51871\"| N[\"node2 cilium_wg0 decrypt\"]\n    N --> C[\"Pod C on node2\"]",
+    "reference": "https://docs.cilium.io/en/stable/security/network/encryption-wireguard/",
+    "tags": [
+      "scenario",
+      "encryption",
+      "wireguard"
+    ],
+    "domain": "cilium",
+    "id": "cilium-046"
+  },
+  {
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "After a fresh Cilium install in a private data centre, `cilium connectivity test` finishes with every in-cluster test green but these failures:\n\n```\n[=] Test [pod-to-world] ... FAILED\n[=] Test [to-fqdns] ... FAILED\n  curl: (28) Connection timed out after 5000 milliseconds\n```\n\nWhich are plausible root causes worth checking before blaming Cilium? (Select all that apply.)",
+    "options": [
+      "The nodes have no route or NAT to the public internet, so any egress to external hosts times out regardless of CNI",
+      "Outbound HTTPS is only permitted through a corporate proxy, which the test Pods are not configured to use",
+      "A pre-existing `CiliumClusterwideNetworkPolicy` applies a default-deny egress that allows in-cluster traffic but not `world` entities",
+      "Hubble Relay is not installed, so the connectivity test cannot observe external flows",
+      "kube-proxy replacement is disabled, which prevents Pods from reaching addresses outside the cluster"
+    ],
+    "optionNotes": [
+      "Correct. `pod-to-world` and `to-fqdns` curl real external hosts; an air-gapped or NAT-less network fails them even though Cilium is healthy.",
+      "Correct. A mandatory egress proxy means direct connections from the test Pods time out; the test would need proxy settings or those tests excluded.",
+      "Correct. A clusterwide egress policy that does not include `toEntities: world` (or an FQDN rule) drops external traffic while in-cluster tests pass, which matches this pattern exactly.",
+      "Hubble is optional for the connectivity test; it only enriches failure output. Its absence never makes a curl time out.",
+      "Without kube-proxy replacement, Service handling falls back to kube-proxy, but plain Pod egress to external IPs does not depend on it."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "When only the external-facing tests fail, the diagnosis should start outside Cilium (internet reachability, NAT, proxies) and with any policy that constrains `world` egress. Both are common in private environments, and the fix is either environmental or a policy update, not a Cilium reinstall. Use `--test '!pod-to-world,!to-fqdns'` to skip them deliberately on air-gapped clusters once the cause is confirmed.",
+    "example": "# confirm from a node, not just a Pod\ncurl -m 5 -sI https://one.one.one.one || echo 'node has no internet egress'\nkubectl get ccnp\n# NAME            AGE\n# default-deny    3d\nhubble observe --verdict DROPPED --to-identity world --last 20\n# run the suite without external tests once confirmed\ncilium connectivity test --test '!pod-to-world,!to-fqdns'",
+    "diagram": "flowchart TD\n    T[\"pod-to-world and to-fqdns FAIL, in-cluster tests pass\"] --> Q1{\"node itself can reach internet?\"}\n    Q1 -->|\"no\"| E[\"environment: NAT, routes, proxy\"]\n    Q1 -->|\"yes\"| Q2{\"Hubble shows DROPPED to world?\"}\n    Q2 -->|\"yes\"| P[\"policy: add toEntities world or FQDN rule\"]\n    Q2 -->|\"no\"| D[\"dig deeper: DNS, MTU\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/troubleshooting/#connectivity-test",
+    "tags": [
+      "scenario",
+      "connectivity-test",
+      "troubleshooting",
+      "egress"
+    ],
+    "domain": "cilium",
+    "id": "cilium-047"
+  },
+  {
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A platform team notices `kubectl get ciliumidentities | wc -l` climbing past 40,000 on a cluster with only 3,000 Pods. Policy updates now take minutes to propagate, and cilium-agent logs show `Regenerating all endpoints` repeatedly. Investigation finds a CI system labels every Pod it deploys with `build-id=<unique commit sha>` and `deployed-at=<timestamp>`. What is the correct fix?",
+    "options": [
+      "Configure Cilium's identity-relevant label filter (Helm value `labels`, agent flag `--labels`) to exclude `build-id` and `deployed-at` so they no longer create new identities",
+      "Increase `identityAllocationMode` to `kvstore` so etcd can hold more identities",
+      "Raise the operator's identity garbage collection interval so stale identities are removed faster",
+      "Delete all `CiliumIdentity` objects nightly with a CronJob to keep the count low"
+    ],
+    "optionNotes": [
+      "Correct. A security identity is derived from the full set of identity-relevant labels; a label whose value is unique per Pod or per deploy yields a unique identity per Pod and a policy recomputation storm. Excluding those labels from the identity calculation collapses them back to a small number of identities. `pod-template-hash` is already excluded by default for the same reason.",
+      "The allocation backend changes where identities are stored, not how many are created; the churn and regeneration cost remain.",
+      "Garbage collection only removes identities that no endpoint uses. The problem here is live Pods each holding their own identity, so GC does not shrink the working set.",
+      "Deleting in-use identities forces every endpoint to re-allocate and regenerate, causing policy drops cluster-wide, and the labels recreate them immediately."
+    ],
+    "answer": 0,
+    "explanation": "Cilium computes an identity from labels, so high-cardinality labels turn each Pod into a unique identity, blowing up policy maps and regeneration work on every agent. The documented remedy is to narrow which labels are identity-relevant via the `labels` option (for example `k8s:!build-id k8s:!deployed-at`), which both shrinks the identity count and stops the regeneration churn.",
+    "example": "# Helm values: keep default k8s labels but drop the two high-cardinality ones\nlabels: \"k8s:io.kubernetes.pod.namespace k8s:app k8s:tier k8s:!build-id k8s:!deployed-at\"\n\n# verify after rollout\nkubectl -n kube-system exec ds/cilium -- cilium-dbg identity list | wc -l\nkubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint list | grep -c ready",
+    "diagram": "flowchart TD\n    L[\"Pod labels include build-id=sha\"] --> I[\"unique identity per Pod\"]\n    I --> M[\"40k CiliumIdentity objects\"]\n    M --> R[\"every agent regenerates all endpoints on each change\"]\n    R --> S[\"slow policy propagation\"]\n    F[\"labels filter excludes build-id, deployed-at\"] -->|\"fix\"| C[\"few shared identities\"]",
+    "reference": "https://docs.cilium.io/en/stable/operations/performance/scalability/identity-relevant-labels/",
+    "tags": [
+      "scenario",
+      "identity",
+      "scalability",
+      "labels"
+    ],
+    "domain": "cilium",
+    "id": "cilium-048"
   }
 ]

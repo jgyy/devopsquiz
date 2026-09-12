@@ -2259,5 +2259,251 @@
       "enforce"
     ],
     "domain": "security"
+  },
+  {
+    "id": "security-088",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A GitHub secret-scanning alert reports that an AWS access key `AKIAIOSFODNN7EXAMPLE` belonging to the IAM user `ci-deployer` was pushed to a public repository 40 minutes ago. The key is used by the production deploy pipeline. What is the correct first action?",
+    "options": [
+      "Deactivate the exposed key immediately in IAM, create a new key for the pipeline, then review CloudTrail for any calls made with the old key since the push",
+      "Force-push a rewritten git history that removes the commit, then continue using the key because it is no longer visible",
+      "Add a `deny` policy to `ci-deployer` restricting it to the CI runner's IP range and keep the key until the next scheduled rotation",
+      "Open a support case with AWS asking them to quarantine the key and wait for their response before changing anything"
+    ],
+    "optionNotes": [
+      "Correct: public keys are typically harvested by bots within minutes, so the key must be invalidated first; the pipeline is fixed with a fresh key and CloudTrail `LookupEvents` filtered by access key ID shows whether it was abused.",
+      "Rewriting history does not remove copies already cloned, cached by forks, or indexed by scanners; the key is still live and must be treated as compromised.",
+      "An IP condition limits future abuse but the key remains valid and the attacker may already have used it; it also delays the one action that actually stops the bleeding.",
+      "AWS may automatically apply the `AWSCompromisedKeyQuarantineV2` policy, but that only restricts some actions; you should not wait for anyone else to revoke your own credential."
+    ],
+    "answer": 0,
+    "explanation": "A credential pushed to a public repository must be assumed compromised the moment it is visible, regardless of how quickly the commit is removed. Rotation (deactivate, then delete after the pipeline is switched to the new key) stops further use, and CloudTrail tells you what, if anything, the attacker did in the window before rotation so you can clean up resources such as new IAM users or EC2 instances.",
+    "example": "# 1. kill the key\naws iam update-access-key --user-name ci-deployer \\\n  --access-key-id AKIAIOSFODNN7EXAMPLE --status Inactive\n# 2. issue a replacement and update the CI secret\naws iam create-access-key --user-name ci-deployer\n# 3. audit what the old key did\naws cloudtrail lookup-events \\\n  --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=AKIAIOSFODNN7EXAMPLE \\\n  --start-time 2026-09-12T00:00:00Z",
+    "diagram": "flowchart TD\n    A[\"Secret-scanning alert: AWS key in public repo\"] --> B[\"Deactivate key in IAM\"]\n    B --> C[\"Create new key, update CI secret\"]\n    C --> D[\"Query CloudTrail by AccessKeyId\"]\n    D --> E{\"Unexpected API calls?\"}\n    E -->|\"yes\"| F[\"Incident response: remove attacker resources\"]\n    E -->|\"no\"| G[\"Delete old key, close alert\"]",
+    "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html",
+    "tags": [
+      "scenario",
+      "credential-leak",
+      "aws-iam",
+      "incident-response"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-089",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Your organization is in a two-week release freeze. Trivy's nightly scan of the running `payments-api` image now reports `CVE-2024-3094 CRITICAL` in `liblzma` (the xz backdoor), inherited from the `debian:bookworm` base layer. Fixed base images are already published. The freeze policy says only P1 fixes may deploy. What is the best course of action?",
+    "options": [
+      "Treat the critical CVE as a P1 exception: rebuild the image on the patched base tag, run the normal test suite, and deploy through the standard pipeline with the exception recorded",
+      "Wait until the freeze ends because the application code did not change and rebuilding would violate the freeze",
+      "Add `CVE-2024-3094` to the `.trivyignore` file so the nightly scan is green and revisit after the freeze",
+      "Patch `liblzma` by running `apt-get upgrade` inside the running containers with `kubectl exec` so no new image is needed"
+    ],
+    "optionNotes": [
+      "Correct: release freezes exist to reduce risk, and an exploitable critical vulnerability in a payment service is exactly the kind of risk the P1 exception path is designed for; the change is small, testable and auditable.",
+      "A freeze is a risk-management tool, not a reason to leave a known critical vulnerability running; most freeze policies explicitly carve out security fixes.",
+      "Ignoring the finding hides the risk without removing it and undermines the trustworthiness of the scanner's results for everyone else.",
+      "Changes made with `kubectl exec` are lost on the next restart, are invisible to the image scanner and the SBOM, and bypass the pipeline entirely; this creates drift rather than a fix."
+    ],
+    "answer": 0,
+    "explanation": "A critical, exploitable vulnerability in the base image of a production service should go through the emergency-change process that the freeze policy provides rather than being deferred or hidden. Rebuilding on the patched base tag and shipping through the normal pipeline keeps the fix reproducible and scanned, and the exception record satisfies the freeze's audit requirement.",
+    "example": "# Dockerfile: bump to a patched base digest\nFROM debian:bookworm-20240408-slim@sha256:6e...\n\n# verify before deploy\ntrivy image --severity CRITICAL --exit-code 1 \\\n  registry.acme.io/payments-api:1.8.1\n# -> Total: 0 (CRITICAL: 0)",
+    "diagram": "flowchart TD\n    S[\"Nightly scan: CRITICAL CVE in base layer\"] --> Q{\"Release freeze active?\"}\n    Q -->|\"no\"| R[\"Rebuild and deploy normally\"]\n    Q -->|\"yes\"| P{\"Meets P1 exception criteria?\"}\n    P -->|\"yes\"| X[\"Log exception, rebuild on patched base, deploy via pipeline\"]\n    P -->|\"no\"| D[\"Schedule fix for freeze end, document risk\"]",
+    "reference": "https://aquasecurity.github.io/trivy/latest/docs/scanner/vulnerability/",
+    "tags": [
+      "scenario",
+      "vulnerability-management",
+      "container-scanning",
+      "change-management"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-090",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Pod Security Admission audit log shows the following for a Deployment named `node-collector` in namespace `monitoring`: `would violate PodSecurity \"restricted:latest\": hostPath volumes (volume \"rootfs\"), runAsNonRoot != true (container \"collector\")`. Inspecting the manifest, the container runs as UID 0 and mounts `hostPath: {path: /}` read-write at `/host`. The team says the collector needs to read `/proc` and `/sys` on the node. What is the most significant risk of the current configuration, and what is the right fix?",
+    "options": [
+      "A root process with a writable mount of the node's `/` can modify kubelet files, binaries, or other containers' filesystems, which is a full node compromise; mount only `/proc` and `/sys` as `readOnly: true` and drop root",
+      "The main risk is that the container will be evicted under memory pressure because hostPath volumes count against ephemeral storage; add resource requests to fix it",
+      "The risk is that PSA will delete the Pod at the next restart; add the `pod-security.kubernetes.io/enforce: privileged` label to `monitoring` to silence the warning",
+      "The risk is limited to the `monitoring` namespace because Kubernetes namespaces isolate hostPath mounts; add a NetworkPolicy to contain any lateral movement"
+    ],
+    "optionNotes": [
+      "Correct: a writable root mount of the host plus UID 0 means a compromised collector can write to `/host/etc`, `/host/var/lib/kubelet`, or other containers' overlay directories, which is effectively root on the node; least privilege means narrow paths, `readOnly: true`, and a non-root user with only the capabilities it needs.",
+      "hostPath volumes are not counted as ephemeral storage and eviction is unrelated; this misreads an access-control problem as a resource problem.",
+      "The message says `would violate`, meaning the namespace is only in audit or warn mode; loosening the namespace to `privileged` removes the guardrail rather than the risk.",
+      "Namespaces are a logical API boundary and provide no isolation for hostPath, which is the node's real filesystem; a NetworkPolicy does nothing about filesystem access."
+    ],
+    "answer": 0,
+    "explanation": "hostPath mounts bypass the container filesystem entirely, and mounting the node root read-write as root is equivalent to giving the workload root on the node. The audit-mode violation is a warning that this workload would be blocked under `restricted`. The fix is to mount only the specific paths that are required, mark them `readOnly`, and run as a non-root UID, escalating to a narrowly scoped privileged DaemonSet only if a documented reason exists.",
+    "example": "securityContext:\n  runAsNonRoot: true\n  runAsUser: 65532\n  allowPrivilegeEscalation: false\n  capabilities: {drop: [\"ALL\"]}\nvolumeMounts:\n- {name: proc, mountPath: /host/proc, readOnly: true}\n- {name: sys,  mountPath: /host/sys,  readOnly: true}\nvolumes:\n- {name: proc, hostPath: {path: /proc, type: Directory}}\n- {name: sys,  hostPath: {path: /sys,  type: Directory}}",
+    "diagram": "flowchart LR\n    C[\"collector container UID 0\"] -->|\"rw hostPath /\"| N[\"Node root filesystem\"]\n    N --> K[\"kubelet config and certs\"]\n    N --> O[\"Other containers overlay dirs\"]\n    N --> B[\"System binaries\"]\n    K --> X[\"Node and cluster compromise\"]\n    FIX[\"Fix: non-root, readOnly /proc and /sys only\"] -.-> C",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+    "tags": [
+      "scenario",
+      "pod-security",
+      "hostpath",
+      "least-privilege"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-091",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "During an incident review you find that the `orders` service logs its full environment at startup for debugging, and the line `DB_PASSWORD=Sup3r$ecret` has been shipped to a centralized logging platform that 300 engineers can search. The password is also visible in `kubectl describe pod` output because it is set via `env.value` in the Deployment. Which actions should be part of the remediation? (Select all that apply.)",
+    "options": [
+      "Rotate the database password immediately and treat the old one as compromised",
+      "Purge or redact the affected log entries in the logging platform and check its access audit log for who searched or viewed them",
+      "Remove the startup environment dump and add a redaction rule for known secret keys in the logging pipeline",
+      "Base64-encode the value in the Deployment manifest so it is no longer readable in `kubectl describe`",
+      "Move the credential into a Secret referenced with `valueFrom.secretKeyRef` or a mounted file, and restrict `get` on Secrets with RBAC",
+      "Increase the logging platform's retention period so that the exposure can be investigated for longer"
+    ],
+    "optionNotes": [
+      "Correct: once a secret has been readable by hundreds of people and stored in a searchable index, it is compromised regardless of intent and must be rotated.",
+      "Correct: removing the data limits further exposure, and the platform's audit trail tells you whether anyone actually retrieved it, which informs the incident severity.",
+      "Correct: the root cause is a debugging habit; fixing the code and adding a defensive redaction filter (for keys like `PASSWORD`, `TOKEN`, `SECRET`) prevents recurrence from other services.",
+      "Base64 is encoding, not encryption; anyone with `describe` access can decode it instantly and the value would still be printed by the environment dump.",
+      "Correct: `secretKeyRef` keeps the value out of the Pod spec so `describe` shows only the reference, and RBAC on Secrets narrows who can read the actual value.",
+      "Longer retention keeps the leaked password searchable for longer; investigation should use the audit trail, not the exposed data itself."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "explanation": "A secret that has reached a shared log index is compromised, so the response has both an incident side (rotate, purge, audit who saw it) and a prevention side (stop logging the environment, redact at the pipeline, and stop placing plaintext values in the Pod spec). Encoding tricks and longer retention do not reduce exposure.",
+    "example": "# Deployment: reference the Secret instead of inlining the value\nenv:\n- name: DB_PASSWORD\n  valueFrom:\n    secretKeyRef: {name: orders-db, key: password}\n\n# Fluent Bit redaction filter\n[FILTER]\n    Name    modify\n    Match   kube.*\n    Condition Key_value_matches log (?i)(password|secret|token)=\n    Set     log \"[REDACTED]\"",
+    "diagram": "flowchart TD\n    A[\"Service logs env at startup\"] --> L[\"Central log platform, 300 users\"]\n    E[\"env.value in Deployment\"] --> D[\"kubectl describe pod\"]\n    L --> C[\"Password compromised\"]\n    D --> C\n    C --> R1[\"Rotate password\"]\n    C --> R2[\"Purge logs, audit access\"]\n    C --> R3[\"secretKeyRef plus RBAC\"]\n    C --> R4[\"Remove env dump, add redaction\"]",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-environment-variables",
+    "tags": [
+      "scenario",
+      "secrets-management",
+      "logging",
+      "incident-response"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-092",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "At 09:15 on a Monday customers report `NET::ERR_CERT_DATE_INVALID` on `shop.example.com`. `openssl s_client` shows the leaf certificate expired at 08:59 the same day. Nobody was notified because the renewal was done manually once a year. The immediate fix is to issue and install a new certificate. Which change best prevents this class of outage from recurring?",
+    "options": [
+      "Automate issuance and renewal with an ACME client such as `cert-manager` or `certbot`, and add monitoring that alerts when any served certificate has fewer than 14 days of validity",
+      "Request a certificate with a 10-year validity so renewal becomes a rare event",
+      "Set a yearly calendar reminder for the engineer who renewed it last time",
+      "Disable certificate validation in the load balancer's health checks so expiry does not cause an outage"
+    ],
+    "optionNotes": [
+      "Correct: short-lived, automatically renewed certificates remove the human step, and a validity-window alert catches automation failures well before clients are affected.",
+      "Publicly trusted CAs no longer issue certificates longer than 398 days, and browsers reject longer ones; the industry is moving to shorter lifetimes, not longer.",
+      "A reminder still depends on a single person remembering and being available; it fails on holidays, staff turnover, or a missed email.",
+      "Health checks are not what caused the outage; browsers reject the expired certificate regardless of what the load balancer thinks."
+    ],
+    "answer": 0,
+    "explanation": "Manual annual renewal is fragile because it relies on a single person and a long-forgotten process. ACME-based automation renews certificates well before expiry without human involvement, and an expiry alert (for example the Blackbox exporter's `probe_ssl_earliest_cert_expiry` metric) provides a safety net when automation itself breaks.",
+    "example": "# check expiry from outside\necho | openssl s_client -connect shop.example.com:443 2>/dev/null \\\n  | openssl x509 -noout -enddate\n\n# Prometheus alert\n- alert: TLSCertExpiringSoon\n  expr: probe_ssl_earliest_cert_expiry - time() < 14 * 86400\n  for: 1h",
+    "diagram": "flowchart LR\n    M[\"Manual yearly renewal\"] --> F[\"Missed date\"]\n    F --> O[\"Outage: ERR_CERT_DATE_INVALID\"]\n    A[\"ACME automation (cert-manager)\"] --> R[\"Renew at 2/3 of lifetime\"]\n    R --> OK[\"Always valid\"]\n    W[\"Expiry alert under 14 days\"] -.->|\"safety net\"| OK",
+    "reference": "https://cert-manager.io/docs/usage/certificate/",
+    "tags": [
+      "scenario",
+      "tls",
+      "certificates",
+      "automation"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-093",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A CI build for an internal Node.js service starts failing type checks after a routine `npm install`. `git diff package-lock.json` shows that `@acme/http-utils`, which lives in your private registry, now resolves to `https://registry.npmjs.org/@acme/http-utils/-/http-utils-9.0.1.tgz` instead of `https://npm.acme.internal/...`, and version `9.0.1` is far higher than your latest internal release `2.4.0`. What has most likely happened?",
+    "options": [
+      "A dependency confusion attack: someone published a public package with the same scoped name and a higher version, and the resolver preferred it because the scope was not pinned to the private registry",
+      "The internal registry was briefly unavailable, so npm cached a stale tarball URL; clearing the cache with `npm cache clean --force` will restore the correct resolution",
+      "An internal developer accidentally published `9.0.1` to the private registry with a typo in the version; ask them to unpublish it",
+      "npm's lockfile v3 format changed how `resolved` URLs are written, so the diff is cosmetic and the build failure is unrelated"
+    ],
+    "optionNotes": [
+      "Correct: the `resolved` URL now points at the public registry and the version jump is the classic bait to win resolution; without `@acme:registry=https://npm.acme.internal` in `.npmrc`, npm may consult the public registry for that scope.",
+      "npm does not silently fall back to a different registry URL because of an outage, and a cache issue would not produce a brand-new higher version that has never existed internally.",
+      "The URL clearly shows the tarball came from `registry.npmjs.org`, not the private registry, so an internal publish mistake cannot explain it.",
+      "Lockfile format changes do not switch registries or invent versions; the `resolved` host change is a real, security-relevant difference."
+    ],
+    "answer": 0,
+    "explanation": "Dependency confusion abuses resolvers that check the public registry for a name that is meant to be internal-only. The attacker publishes a package with the same name and a much higher version, and any environment that does not bind the scope to the private registry pulls the malicious package. The fix is to pin the scope in `.npmrc`, use `npm ci` so the lockfile is authoritative, treat the compromised build environment as breached, and register the scope publicly as a placeholder.",
+    "example": "# .npmrc committed to the repo\n@acme:registry=https://npm.acme.internal/\nalways-auth=true\n\n# CI: never re-resolve, fail on lockfile drift\nnpm ci\n\n# detect the substitution\ngrep -n 'registry.npmjs.org/@acme' package-lock.json",
+    "diagram": "flowchart TD\n    R[\"npm install @acme/http-utils\"] --> Q{\"Scope pinned to private registry?\"}\n    Q -->|\"no\"| PUB[\"Public registry: 9.0.1 (attacker)\"]\n    Q -->|\"yes\"| PRIV[\"Private registry: 2.4.0\"]\n    PUB --> M[\"Malicious postinstall runs in CI\"]\n    M --> S[\"CI secrets exfiltrated\"]\n    FIX[\"Fix: .npmrc scope binding, npm ci, rotate CI secrets\"] -.-> Q",
+    "reference": "https://docs.npmjs.com/cli/v10/using-npm/scope#associating-a-scope-with-a-registry",
+    "tags": [
+      "scenario",
+      "supply-chain",
+      "dependency-confusion",
+      "npm"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-094",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Your egress firewall alerts that Pod `image-resizer-7d9f` in namespace `media` opened persistent connections to `185.220.101.4:443` and transferred 2 GB over 20 minutes. The service should only talk to an S3 bucket and an internal queue. `kubectl exec` into the Pod shows an unknown process `/tmp/.x/kdevtmpfsi` consuming CPU. Which actions are appropriate while responding to this incident? (Select all that apply.)",
+    "options": [
+      "Isolate the Pod with a NetworkPolicy that denies all egress, and cordon the node so no new workloads land there while you investigate",
+      "Immediately delete the Pod so the malicious process stops, then continue the investigation from the fresh replica",
+      "Capture evidence first: `kubectl logs`, a filesystem snapshot or `kubectl cp` of `/tmp/.x`, process list, and the node's audit and container runtime logs",
+      "Revoke and rotate the ServiceAccount token and any cloud credentials the Pod could reach, and search CloudTrail for API calls from the Pod's identity",
+      "Add the destination IP to a global deny list and consider the incident closed once traffic stops",
+      "Pull the running image's digest, scan it and compare it with the signed digest in the registry to determine whether the compromise came from the image or from runtime exploitation"
+    ],
+    "optionNotes": [
+      "Correct: cutting egress stops exfiltration and command-and-control immediately while keeping the Pod alive for forensics; cordoning prevents the node from receiving further workloads if it too is suspect.",
+      "Deleting the Pod destroys volatile evidence (processes, memory, `/tmp` contents) and the fresh replica will simply be re-exploited if the entry point is in the image or an exposed vulnerability.",
+      "Correct: evidence collection before remediation is what lets you determine root cause and scope; `kdevtmpfsi` is a known cryptominer name, but that does not tell you how it got in.",
+      "Correct: a compromised Pod may have used its mounted token or instance credentials; rotating them limits blast radius and the cloud audit trail shows whether the attacker moved laterally.",
+      "Blocking one IP is trivially bypassed by the attacker's next server, and stopping traffic does not remove the malware or the vulnerability that allowed it.",
+      "Correct: comparing the running digest with the expected signed digest distinguishes a supply-chain compromise (bad image) from a runtime exploit (for example an RCE in the image-processing library), which drives very different fixes."
+    ],
+    "answer": [
+      0,
+      2,
+      3,
+      5
+    ],
+    "explanation": "The order of operations for a compromised workload is contain without destroying evidence, collect, then eradicate. Network isolation and node cordoning contain the Pod, forensic capture preserves what is needed to find the entry point, credential rotation limits what the attacker can do with anything they already stole, and digest verification tells you whether the image itself was tampered with. Deleting the Pod or only blocking an IP treats the symptom.",
+    "example": "# contain\nkubectl label pod image-resizer-7d9f -n media quarantine=true\nkubectl apply -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: quarantine, namespace: media}\nspec:\n  podSelector: {matchLabels: {quarantine: \"true\"}}\n  policyTypes: [Egress, Ingress]\nEOF\nkubectl cordon ip-10-0-3-17.ec2.internal\n# collect\nkubectl exec -n media image-resizer-7d9f -- ps -eo pid,user,etime,cmd\nkubectl cp media/image-resizer-7d9f:/tmp/.x ./evidence/tmp-x",
+    "diagram": "flowchart TD\n    A[\"Egress alert: 2 GB to unknown IP\"] --> B[\"Contain: deny-all NetworkPolicy, cordon node\"]\n    B --> C[\"Collect: logs, filesystem, processes, runtime logs\"]\n    C --> D[\"Rotate SA token and cloud creds, check CloudTrail\"]\n    D --> E{\"Running digest matches signed image?\"}\n    E -->|\"no\"| F[\"Supply-chain compromise: block image, rebuild\"]\n    E -->|\"yes\"| G[\"Runtime exploit: patch vulnerable component\"]",
+    "reference": "https://kubernetes.io/docs/concepts/security/security-checklist/",
+    "tags": [
+      "scenario",
+      "incident-response",
+      "forensics",
+      "runtime-security"
+    ],
+    "domain": "security"
+  },
+  {
+    "id": "security-095",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A PCI DSS assessor flags that your public Application Load Balancer still accepts TLS 1.0 and TLS 1.1, and the team proposes switching the listener to a TLS 1.2-minimum policy. An engineer objects that this change will break the mobile app for a significant share of users, so the change should be postponed. Given that the ALB access logs show the `ssl_protocol` field is `TLSv1.2` or `TLSv1.3` for 99.98% of requests over the last 30 days, the objection is well founded and the change should wait.",
+    "answer": false,
+    "explanation": "The access-log data directly measures the impact: fewer than 0.02% of requests use the legacy protocols, so the change carries minimal client breakage and removes protocols that PCI DSS has required to be disabled since 2018. The correct move is to identify the remaining legacy clients from the logs (user agents and source IPs), communicate a cutoff, and apply the TLS 1.2-minimum policy; postponing on an unmeasured fear is not justified when the measurement is already available.",
+    "example": "# who is still on legacy TLS?\naws s3 cp s3://alb-logs/prod/ - --recursive | zcat \\\n  | awk '$15 ~ /TLSv1(\\.1)?$/ {print $15, $12}' | sort | uniq -c | sort -rn | head\n\n# apply the policy\naws elbv2 modify-listener --listener-arn $ARN \\\n  --ssl-policy ELBSecurityPolicy-TLS13-1-2-2021-06",
+    "diagram": "flowchart TD\n    F[\"Assessor: TLS 1.0 and 1.1 enabled\"] --> M[\"Measure: ssl_protocol in ALB access logs\"]\n    M --> R{\"Legacy share?\"}\n    R -->|\"0.02 percent\"| A[\"Notify stragglers, apply TLS 1.2 minimum policy\"]\n    R -->|\"large\"| P[\"Plan client upgrade, then cut over\"]\n    A --> C[\"Compliant, minimal breakage\"]",
+    "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html",
+    "tags": [
+      "scenario",
+      "tls",
+      "compliance",
+      "load-balancer"
+    ],
+    "domain": "security"
   }
 ]

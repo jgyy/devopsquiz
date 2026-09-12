@@ -2624,5 +2624,239 @@
       "collector",
       "debugging"
     ]
+  },
+  {
+    "id": "monitoring-100",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An alert `HighErrorRate` with `expr: rate(http_requests_total{code=~\"5..\"}[1m]) / rate(http_requests_total[1m]) > 0.05` and no `for:` clause pages the on-call engineer roughly every four minutes, each time resolving itself within a minute. The dashboard shows the error ratio hovering around 4-6% with sharp one-sample spikes. Which change stops the flapping while still catching a sustained error rate?",
+    "options": [
+      "Widen the `rate()` window to 5m and add `for: 10m` so a single spiky sample cannot fire the alert",
+      "Lower the threshold to 0.02 so the alert stays firing continuously instead of toggling",
+      "Set `repeat_interval: 1h` in Alertmanager so the same alert is not re-sent more often than hourly",
+      "Add `group_wait: 5m` to the Alertmanager route so notifications are batched"
+    ],
+    "optionNotes": [
+      "Correct. A longer `rate()` window smooths one-sample spikes and `for:` requires the condition to hold continuously before the alert leaves `pending`, so short excursions never page; a sustained 5% error rate still fires after 10 minutes.",
+      "Lowering the threshold keeps the alert permanently firing at the current 4-6% level, which hides real changes and is the opposite of reducing noise.",
+      "`repeat_interval` only throttles re-notification of an alert that stays firing; an alert that resolves and fires again is a new notification each time, so the pages continue.",
+      "`group_wait` delays only the first notification of a new group; it does not stop the alert from resolving and re-firing, so each new firing still produces a page after the wait."
+    ],
+    "answer": 0,
+    "explanation": "The alert expression is evaluated on a 1-minute rate, so a single noisy sample crosses the threshold and the next evaluation drops below it, producing fire/resolve pairs (flapping). The fix belongs in the rule: use a longer range for `rate()` and a `for:` duration so the condition must hold for a meaningful period, which is the Prometheus form of hysteresis. Alertmanager settings only shape delivery of alerts that already fired.",
+    "example": "groups:\n- name: api\n  rules:\n  - alert: HighErrorRate\n    expr: |\n      sum(rate(http_requests_total{code=~\"5..\"}[5m]))\n        / sum(rate(http_requests_total[5m])) > 0.05\n    for: 10m\n    labels: {severity: page}\n    annotations:\n      summary: \"5xx ratio above 5% for 10m\"",
+    "diagram": "flowchart TD\n    A[\"1m rate, no for clause\"] --> B[\"single spiky sample crosses 5%\"]\n    B --> C[\"fires, then resolves next eval\"]\n    C --> D[\"page every few minutes (flapping)\"]\n    A --> E[\"fix: rate over 5m plus for: 10m\"]\n    E --> F[\"pending until sustained\"]\n    F --> G[\"one page for a real outage\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/",
+    "tags": [
+      "scenario",
+      "alerting-rules",
+      "prometheus",
+      "flapping"
+    ]
+  },
+  {
+    "id": "monitoring-101",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Thirty minutes after the `checkout` service deployed a change, Prometheus is OOMKilled every few minutes. Before the crash, `prometheus_tsdb_head_series` had climbed from 600k to 18M and the `/tsdb-status` page lists `checkout_request_duration_seconds_bucket` with label `user_id` as the top series contributor. The application team says a rollback needs a change-review meeting tomorrow. What is the best immediate action to stabilize Prometheus?",
+    "options": [
+      "Add a `metric_relabel_configs` entry on the `checkout` scrape job that drops the `user_id` label (or drops the metric), then reload Prometheus",
+      "Double the Prometheus memory limit and set `--storage.tsdb.retention.time=1d` so the head block stays smaller",
+      "Increase `scrape_interval` for the `checkout` job from 15s to 60s so fewer samples are ingested",
+      "Restart Prometheus with `--storage.tsdb.wal-compression` enabled to shrink the write-ahead log"
+    ],
+    "optionNotes": [
+      "Correct. `metric_relabel_configs` runs after the scrape and before ingestion, so dropping the offending label (via `labeldrop`) or the whole metric (`action: drop`) stops the new series from entering the head block at all, and it only needs a config reload rather than an application change.",
+      "Memory scales with the number of active series in the head block, not with retention; 18M series will exhaust a doubled limit just as quickly and retention affects only blocks on disk.",
+      "A longer scrape interval reduces samples per series, but the series count is the problem. All 18M series still exist in the head and memory barely changes.",
+      "WAL compression reduces disk writes for the write-ahead log; it does not change the in-memory series index, which is what is exhausting memory."
+    ],
+    "answer": 0,
+    "explanation": "The deploy added a per-user label to a histogram, multiplying every bucket series by the number of distinct users; Prometheus memory is dominated by active head series, so that is what has to be cut. `metric_relabel_configs` is the operator-side control that removes the label or metric before ingestion without waiting for an application rollback. Once stable, the label should still be removed from the code, since relabeling only hides the cost at the scrape edge.",
+    "example": "scrape_configs:\n- job_name: checkout\n  metric_relabel_configs:\n  - regex: user_id\n    action: labeldrop\n# then: curl -X POST http://prometheus:9090/-/reload\n# verify: topk(5, count by (__name__) ({__name__=~\"checkout_.+\"}))",
+    "diagram": "flowchart TD\n    A[\"deploy adds user_id label to histogram\"] --> B[\"head series 600k to 18M\"]\n    B --> C[\"Prometheus OOMKilled\"]\n    C --> D[\"check /tsdb-status top labels\"]\n    D --> E[\"metric_relabel_configs labeldrop user_id\"]\n    E --> F[\"reload, series count falls\"]\n    F --> G[\"remove label in code later\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/configuration/#metric_relabel_configs",
+    "tags": [
+      "scenario",
+      "cardinality",
+      "prometheus",
+      "relabeling"
+    ]
+  },
+  {
+    "id": "monitoring-102",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A `DiskAlmostFull` alert with labels `severity=critical, team=storage` shows as firing in Alertmanager for two hours but nobody was paged. The Alertmanager route tree is:\n\n```\nroute:\n  receiver: slack-general\n  routes:\n  - matchers: [severity=\"critical\"]\n    receiver: slack-critical\n  - matchers: [team=\"storage\"]\n    receiver: pagerduty-storage\n```\n\nNo silences or inhibitions exist and `amtool config routes test severity=critical team=storage` prints `slack-critical`. What is the root cause?",
+    "options": [
+      "Route matching stops at the first matching sibling, so the `severity=critical` route captured the alert and the `team=storage` PagerDuty route was never evaluated",
+      "The `team` label is a Prometheus rule label rather than an external label, so Alertmanager cannot match on it",
+      "The default `group_by` groups by `alertname` only, which stripped the `team` label before routing",
+      "The PagerDuty receiver requires `severity` to be `page`, so the alert was rejected by the integration"
+    ],
+    "optionNotes": [
+      "Correct. Alertmanager walks sibling routes in order and takes the first match unless that route sets `continue: true`; the critical route matched first and terminated routing, so the alert went to Slack only. Fix by adding `continue: true` on the critical route or placing the team route first.",
+      "Alertmanager matches on every label the alert carries, whether it came from a rule's `labels:` block or from Prometheus external labels.",
+      "`group_by` controls how alerts are batched into notifications; it does not remove labels and routing happens with the full label set.",
+      "PagerDuty integrations map severities but do not reject alerts based on the `severity` label value; the alert simply never reached that receiver."
+    ],
+    "answer": 0,
+    "explanation": "`amtool config routes test` confirms the diagnosis: the alert resolves to `slack-critical` only. Sibling routes are evaluated top to bottom and the first match wins unless `continue: true` is set on it, so the team-specific paging route is unreachable for any critical alert. Adding `continue: true` to the severity route (so the alert is delivered to both) or reordering the routes fixes it.",
+    "example": "route:\n  receiver: slack-general\n  routes:\n  - matchers: [severity=\"critical\"]\n    receiver: slack-critical\n    continue: true\n  - matchers: [team=\"storage\"]\n    receiver: pagerduty-storage\n# amtool config routes test --config.file=alertmanager.yml severity=critical team=storage\n# slack-critical,pagerduty-storage",
+    "diagram": "flowchart TD\n    A[\"alert severity=critical team=storage\"] --> R[\"root route\"]\n    R --> S[\"route 1: severity=critical\"]\n    S -->|\"match, continue false\"| SL[\"slack-critical only\"]\n    S -.->|\"never reached\"| T[\"route 2: team=storage\"]\n    T -.-> PD[\"pagerduty-storage\"]\n    F[\"fix: continue: true on route 1\"] --> T",
+    "reference": "https://prometheus.io/docs/alerting/latest/configuration/#route",
+    "tags": [
+      "scenario",
+      "alertmanager",
+      "routing"
+    ]
+  },
+  {
+    "id": "monitoring-103",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Grafana panel for `node_filesystem_avail_bytes` on one host shows regular gaps of several minutes. The Prometheus Targets page lists that host's `node_exporter` as intermittently `DOWN` with the error `context deadline exceeded`, while `up` for other hosts is steadily 1. The job uses the default `scrape_interval: 15s` and `scrape_timeout: 10s`. `curl -w '%{time_total}' host:9100/metrics` from the Prometheus server takes 12-20 seconds because the host has a hung NFS mount. Which action is the most appropriate fix?",
+    "options": [
+      "Exclude the hung mount from the filesystem collector (for example `--collector.filesystem.mount-points-exclude`) so the scrape completes quickly, and fix the NFS mount",
+      "Set `scrape_timeout: 60s` on the job so Prometheus waits long enough for the slow scrape",
+      "Enable `honor_timestamps: false` so Prometheus fills in the missing samples with the scrape time",
+      "Add the host to a second Prometheus with a longer `scrape_interval` so the two servers cover each other's gaps"
+    ],
+    "optionNotes": [
+      "Correct. The exporter is slow because the filesystem collector blocks on a stat call to the hung NFS mount; excluding it (node_exporter also has a `--collector.filesystem.mount-timeout`) restores fast scrapes, and the underlying mount problem is the real issue to resolve.",
+      "`scrape_timeout` cannot exceed `scrape_interval` (Prometheus refuses the config), and even a 15s timeout would still fail on 20s scrapes. Waiting longer treats a symptom and still ages the data.",
+      "`honor_timestamps` only controls whether exposed sample timestamps are trusted; it does nothing about scrapes that time out and produce no samples.",
+      "A second server does not make the exporter respond faster; both would time out and the extra complexity solves nothing."
+    ],
+    "answer": 0,
+    "explanation": "`context deadline exceeded` on the Targets page means the scrape did not finish within `scrape_timeout`, so no samples were ingested for that interval and the panel shows gaps. The exporter is slow because its filesystem collector hangs on a dead NFS mount, which is the actual cause; excluding the mount (or setting the collector's mount timeout) makes scrapes fast again. Stretching timeouts is bounded by the scrape interval and only masks the problem.",
+    "example": "# on the Prometheus server\ncurl -s -o /dev/null -w '%{time_total}\\n' http://host:9100/metrics\n# 18.42\n# node_exporter flags\n--collector.filesystem.mount-points-exclude='^/(dev|proc|sys|mnt/nfs-archive)($|/)'\n--collector.filesystem.mount-timeout=5s",
+    "diagram": "flowchart LR\n    P[\"Prometheus scrape 10s timeout\"] --> E[\"node_exporter /metrics\"]\n    E --> FS[\"filesystem collector stat()\"]\n    FS --> N[\"hung NFS mount blocks 12-20s\"]\n    N --> T[\"context deadline exceeded\"]\n    T --> G[\"no samples, gaps in Grafana\"]\n    X[\"fix: exclude mount, mount-timeout\"] --> FS",
+    "reference": "https://github.com/prometheus/node_exporter#filesystem-collector",
+    "tags": [
+      "scenario",
+      "node-exporter",
+      "scraping",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "monitoring-104",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A fleet runs two versions of an API: v1 exposes `http_request_duration_seconds` with buckets `0.1, 0.5, 1, 5` and v2 (a canary) uses `0.05, 0.1, 0.25, 0.5, 1, 2.5, 5`. The dashboard query is `histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))`. Because `histogram_quantile` interpolates linearly within each bucket, summing the two bucket layouts by `le` still yields a mathematically correct fleet-wide p99.",
+    "answer": false,
+    "explanation": "Summing by `le` across series with different bucket boundaries produces a merged histogram where the v2-only boundaries (0.05, 0.25, 2.5) contain counts from v2 alone while the shared boundaries contain counts from both, so the cumulative counts are no longer a consistent distribution and the interpolated quantile is skewed. The correct approach is to keep bucket layouts identical across versions, or to compute the quantile per version by adding `version` to the `by` clause until the rollout completes. Prometheus native histograms avoid this by using a shared exponential schema.",
+    "example": "# split by version until both use the same buckets\nhistogram_quantile(0.99,\n  sum by (version, le) (rate(http_request_duration_seconds_bucket[5m])))\n# check bucket layouts in use\ncount by (version, le) (http_request_duration_seconds_bucket)",
+    "diagram": "flowchart TD\n    V1[\"v1 buckets 0.1 0.5 1 5\"] --> S[\"sum by (le)\"]\n    V2[\"v2 buckets 0.05 0.1 0.25 0.5 1 2.5 5\"] --> S\n    S --> M[\"merged cumulative counts inconsistent\"]\n    M --> Q[\"histogram_quantile p99 skewed\"]\n    F[\"fix: same buckets or sum by (version, le)\"] --> Q",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile",
+    "tags": [
+      "scenario",
+      "histograms",
+      "promql"
+    ]
+  },
+  {
+    "id": "monitoring-105",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A Grafana service-overview dashboard has become unusable: each panel runs `histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))` over a 7-day range across 400 pods and 60 routes, and Grafana reports `query timed out` after 60s while Prometheus logs `query processing would load too many samples into memory`. Which changes directly address the problem? (Select all that apply.)",
+    "options": [
+      "Add a Prometheus recording rule such as `route:http_request_duration_seconds_bucket:rate5m` and point the panels at it",
+      "Set a panel `Min interval` (or `Min step`) so the 7-day range is evaluated at a coarser step instead of Grafana's default resolution",
+      "Increase `--query.timeout` and `--query.max-samples` on Prometheus so the query is allowed to finish",
+      "Switch the panels from `rate()` to `irate()` because it processes only two samples per series",
+      "Add `pod` to the `by` clause so Prometheus can parallelise the aggregation across more series"
+    ],
+    "optionNotes": [
+      "Correct. A recording rule pre-aggregates the 400 pods into per-route bucket series on every evaluation, so the dashboard query reads a few hundred series instead of tens of thousands and stays fast regardless of range.",
+      "Correct. Grafana computes the step from the range and panel width; over 7 days a small step multiplies the number of evaluation points. A larger min step cuts the samples loaded proportionally.",
+      "Raising the limits lets the expensive query run longer and consume more memory on the server, which risks affecting every other query. It is a last resort, not a fix for a dashboard everyone opens.",
+      "`irate()` still has to load the range vector for every series over every step and produces spiky, unsmoothed quantiles; it does not reduce the series count that drives the cost.",
+      "Adding `pod` increases the output cardinality (400 times more series) and the rendering cost; PromQL aggregation is not made cheaper by grouping more finely."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "The cost of the query is series count times evaluation steps: 400 pods times many buckets times 60 routes, evaluated at hundreds of steps over 7 days. Recording rules move the expensive aggregation into Prometheus' rule evaluation once per interval, and a coarser panel step reduces the number of evaluations, both of which cut samples loaded. Raising server limits or changing rate functions does not change the amount of work.",
+    "example": "groups:\n- name: api-recording\n  interval: 30s\n  rules:\n  - record: route:http_request_duration_seconds_bucket:rate5m\n    expr: sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))\n# dashboard panel\nhistogram_quantile(0.95, route:http_request_duration_seconds_bucket:rate5m)",
+    "diagram": "flowchart TD\n    Q[\"panel query over 7d, 400 pods\"] --> L[\"too many samples, 60s timeout\"]\n    L --> R[\"recording rule pre-aggregates by route\"]\n    L --> S[\"coarser panel min step\"]\n    R --> F[\"few hundred series per step\"]\n    S --> F\n    F --> OK[\"dashboard loads in under 1s\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/",
+    "tags": [
+      "scenario",
+      "recording-rules",
+      "grafana",
+      "performance"
+    ]
+  },
+  {
+    "id": "monitoring-106",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "multi",
+    "prompt": "A pod `payments-7d9f-x2k1` is in `CrashLoopBackOff`. `kubectl logs payments-7d9f-x2k1` prints only a startup banner because the freshly restarted container has just begun again, and the crash reason is never on screen. A Fluent Bit DaemonSet ships all container stdout to Loki. Which actions retrieve the logs from the crashed run? (Select all that apply.)",
+    "options": [
+      "Run `kubectl logs payments-7d9f-x2k1 --previous` to read the log of the last terminated container",
+      "Query Loki for `{pod=\"payments-7d9f-x2k1\"}` over the last hour, since shipped logs survive container restarts",
+      "Run `kubectl delete pod payments-7d9f-x2k1` so the ReplicaSet creates a new pod with fresh logs",
+      "Run `kubectl logs payments-7d9f-x2k1 -f` and wait for the next crash to appear in the stream"
+    ],
+    "optionNotes": [
+      "Correct. The kubelet keeps the log file of the previous container instance, and `--previous` (`-p`) returns it, including the stack trace or exit message from the crash.",
+      "Correct. Fluent Bit tails the node's container log files and sends every line to Loki as it is written, so the crashed run's output is already stored and queryable by pod label.",
+      "Deleting the pod destroys the previous container's log file on the node and starts a new one that will crash the same way; you lose the evidence you needed.",
+      "Following the live stream works only if you happen to be attached when the crash happens and can be cut off mid-trace; it also does not recover the run that already crashed."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "Each restart in a CrashLoopBackOff creates a new container, and `kubectl logs` shows only the current one by default. The kubelet retains the previous instance's log (readable with `--previous`), and a node-level log shipper such as Fluent Bit has already forwarded the crashed run's output to the log store, where it can be queried by pod label. Both are non-destructive; deleting the pod discards the local evidence.",
+    "example": "kubectl logs payments-7d9f-x2k1 --previous | tail -50\n# panic: dial tcp 10.0.5.12:5432: connect: connection refused\nkubectl describe pod payments-7d9f-x2k1 | grep -A3 'Last State'\n# Loki (logcli): logcli query '{namespace=\"pay\", pod=\"payments-7d9f-x2k1\"}' --since=1h",
+    "diagram": "flowchart TD\n    C[\"container crashes\"] --> K[\"kubelet keeps previous log file\"]\n    C --> R[\"new container starts, kubectl logs shows banner only\"]\n    K --> P[\"kubectl logs --previous\"]\n    C --> FB[\"Fluent Bit tailed stdout\"]\n    FB --> L[\"Loki query by pod label\"]",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/",
+    "tags": [
+      "scenario",
+      "logging",
+      "kubernetes",
+      "loki"
+    ]
+  },
+  {
+    "id": "monitoring-107",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After the `orders` service was migrated from the Zipkin Brave library to the OpenTelemetry Java agent, Tempo shows every `orders` request as its own root trace, while the upstream `gateway` (still on Brave, sending `X-B3-TraceId` and `X-B3-SpanId` headers) shows its client span with no child. Both services export to the same Collector, and `OTEL_SERVICE_NAME` is set correctly. The `orders` trace IDs never match the gateway's. What is the most likely cause and fix?",
+    "options": [
+      "The OTel agent defaults to the `tracecontext,baggage` propagators and ignores B3 headers; set `OTEL_PROPAGATORS=tracecontext,baggage,b3multi` on `orders` (or move the gateway to W3C headers)",
+      "Tempo cannot join spans that arrive from two different instrumentation libraries; both services must use the same SDK before traces are stitched",
+      "The Collector's `batch` processor splits spans from different services into separate traces; add a `groupbytrace` processor before it",
+      "The OTel agent generates a new trace ID whenever `OTEL_TRACES_SAMPLER` is `parentbased_always_on`; switch it to `always_on`"
+    ],
+    "optionNotes": [
+      "Correct. Propagation is the only thing that links the two spans: the incoming request carries B3 headers, but the agent only extracts `traceparent` by default, so it starts a new root. Enabling the `b3multi` extractor (or standardising on W3C Trace Context) restores the parent-child link.",
+      "Tempo joins spans purely by trace ID and parent span ID; mixed instrumentation libraries stitch fine as long as the IDs propagate.",
+      "`batch` groups spans for export efficiency and never rewrites trace or parent IDs; `groupbytrace` only buffers spans of a trace together and would not create a link that was never propagated.",
+      "`parentbased_always_on` respects the parent's sampling decision and reuses its trace ID when a parent exists; the problem is that no parent context was extracted in the first place."
+    ],
+    "answer": 0,
+    "explanation": "Broken stitching between two services is almost always a context propagation mismatch: the child must extract the same header format the parent injects. The gateway still injects B3 multi-headers while the OpenTelemetry Java agent, by default, only understands W3C `traceparent` and `baggage`, so it creates a brand-new trace on every request. Configuring the agent's propagators to include `b3multi` (and eventually moving the gateway to W3C) makes the IDs line up.",
+    "example": "# orders deployment\nenv:\n- name: OTEL_PROPAGATORS\n  value: tracecontext,baggage,b3multi\n# verify: request through gateway, then\ncurl -s http://tempo:3200/api/search?tags=service.name%3Dorders | jq '.traces[0].traceID'\n# should now equal the gateway trace ID",
+    "diagram": "sequenceDiagram\n    participant G as gateway (Brave, B3)\n    participant O as orders (OTel agent)\n    participant T as Tempo\n    G->>O: X-B3-TraceId abc, X-B3-SpanId 1\n    Note over O: default propagators tracecontext,baggage only\n    O->>T: new root trace xyz (unlinked)\n    Note over O: fix OTEL_PROPAGATORS includes b3multi\n    O->>T: child span in trace abc",
+    "reference": "https://opentelemetry.io/docs/languages/java/configuration/#propagators",
+    "tags": [
+      "scenario",
+      "tracing",
+      "context-propagation",
+      "opentelemetry"
+    ]
   }
 ]

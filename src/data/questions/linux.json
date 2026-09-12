@@ -1903,5 +1903,240 @@
       "security"
     ],
     "domain": "linux"
+  },
+  {
+    "id": "linux-075",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A build agent starts failing every job with `tar: ./cache/obj/a1.o: Cannot open: No space left on device`. You log in and run `df -h /var/lib/agent`, which reports `Size 200G  Used 61G  Avail 139G  Use% 31%`. Creating even an empty file with `touch /var/lib/agent/x` fails with the same error. What is the most likely root cause?",
+    "options": [
+      "The filesystem has run out of inodes because millions of tiny cache files were created",
+      "The filesystem was mounted read-only after an I/O error",
+      "A deleted log file is still held open by a running process and is consuming the free space",
+      "The agent user has hit its disk quota on `/var/lib/agent`"
+    ],
+    "optionNotes": [
+      "`ENOSPC` with plenty of free blocks but a failing `touch` is the classic signature of inode exhaustion; `df -i` will show `IUse% 100%` and the fix is to delete or consolidate the tiny files (or rebuild the filesystem with more inodes).",
+      "A read-only remount produces `Read-only file system` (`EROFS`), not `No space left on device`, and `mount | grep agent` would show `ro`.",
+      "Space held by a deleted-but-open file shows up in `df` as used blocks; here `df` says 139G is available, so blocks are not the constraint.",
+      "A quota hit also reports `Disk quota exceeded` (`EDQUOT`) rather than `ENOSPC`, and it would not affect root creating files."
+    ],
+    "answer": 0,
+    "explanation": "ext4 and most filesystems allocate a fixed inode table at `mkfs` time, and every file or directory needs one. Build caches full of tiny object files can exhaust inodes long before the blocks run out, so `df -h` looks healthy while every create fails. Check `df -i`, find the offending directory with `find` or `du --inodes`, and delete the files (XFS grows inodes dynamically, which is one reason it is chosen for such workloads).",
+    "example": "df -i /var/lib/agent\n# Filesystem     Inodes    IUsed IFree IUse% Mounted on\n# /dev/sdb1    13107200 13107200     0  100% /var/lib/agent\n\n# find the directory with the most files\nsudo du --inodes -x -d 2 /var/lib/agent | sort -n | tail -5\n# 12800311 /var/lib/agent/cache/obj\n\nsudo find /var/lib/agent/cache/obj -type f -mtime +7 -delete",
+    "diagram": "flowchart TD\nS[\"write fails: No space left on device\"] --> D[\"df -h: 31% used\"]\nD --> Q{\"df -i ?\"}\nQ -->|\"IUse% 100%\"| I[\"inode table exhausted\"]\nI --> F[\"du --inodes to find the hot directory\"]\nF --> X[\"delete or archive tiny files\"]\nQ -->|\"inodes free\"| O[\"look elsewhere: quota, reserved blocks, ro mount\"]",
+    "reference": "https://man7.org/linux/man-pages/man1/df.1.html",
+    "tags": [
+      "scenario",
+      "disk",
+      "inodes",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "linux-076",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You add a nightly cleanup line to the `deploy` user's crontab: `0 3 * * * /opt/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1`. Running `/opt/scripts/cleanup.sh` by hand as `deploy` works perfectly. The next morning the log contains only `/opt/scripts/cleanup.sh: line 4: aws: command not found`. What is the most likely cause?",
+    "options": [
+      "Cron runs jobs with a minimal environment, so the `PATH` that includes `/usr/local/bin` from the user's shell profile is not set",
+      "Cron jobs run as `root` rather than as the crontab owner, and `root` has no `aws` binary",
+      "The script lacks a shebang line, so cron cannot determine which interpreter to use",
+      "The cron daemon is not running and the log line is from a previous failed manual run"
+    ],
+    "optionNotes": [
+      "`cron` does not source `~/.bashrc` or `/etc/profile`; the job gets a tiny environment where `PATH` is typically `/usr/bin:/bin`, so anything installed in `/usr/local/bin` or `~/.local/bin` is invisible. Set `PATH=` at the top of the crontab or call `/usr/local/bin/aws` by absolute path.",
+      "A user crontab runs as its owner, and the error shows the script did execute, so the account is not the issue.",
+      "A missing shebang would produce a different failure (the shell would still run it, since cron uses `/bin/sh`), and the message shows line 4 of the script executing.",
+      "The log line was written at 03:00 to the file named in the crontab, which proves cron fired the job."
+    ],
+    "answer": 0,
+    "explanation": "Interactive shells build `PATH` from login profiles, while cron supplies only `HOME`, `LOGNAME`, `SHELL=/bin/sh` and a minimal `PATH`. Anything that works at the prompt but not from cron is almost always an environment difference. The robust fixes are to declare `PATH` in the crontab, use absolute paths in the script, or source a known env file explicitly.",
+    "example": "# crontab -e (deploy user)\nPATH=/usr/local/bin:/usr/bin:/bin\nSHELL=/bin/bash\n0 3 * * * /opt/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1\n\n# see exactly what cron sees\n* * * * * env > /tmp/cron-env.txt",
+    "diagram": "flowchart LR\nI[\"interactive shell\"] -->|\"sources .bashrc, profile\"| P1[\"PATH has /usr/local/bin\"]\nC[\"cron daemon\"] -->|\"minimal env\"| P2[\"PATH=/usr/bin:/bin\"]\nP2 --> E[\"aws: command not found\"]\nE --> F[\"set PATH in crontab or use absolute paths\"]",
+    "reference": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+    "tags": [
+      "scenario",
+      "cron",
+      "environment-variables"
+    ]
+  },
+  {
+    "id": "linux-077",
+    "domain": "linux",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Go service that registers itself with Consul on startup has a unit with `After=network.target` and `WantedBy=multi-user.target`. After every reboot `systemctl status app` shows `failed` with `dial tcp 10.0.4.20:8500: connect: network is unreachable`, yet `systemctl start app` a minute later succeeds. Which change is the correct fix?",
+    "options": [
+      "Add `Wants=network-online.target` and `After=network-online.target` so the unit waits until an address and default route are configured",
+      "Add `ExecStartPre=/bin/sleep 30` so the network has time to come up",
+      "Change `After=network.target` to `Requires=network.target`",
+      "Move the unit into `WantedBy=network.target` so it is pulled in as part of networking"
+    ],
+    "optionNotes": [
+      "`network.target` only means the network stack has been initialised, not that any interface has an address. `network-online.target` (with `systemd-networkd-wait-online` or `NetworkManager-wait-online`) is the documented ordering point for services that need a reachable network at start.",
+      "A fixed sleep is a race, slows every boot, and still fails on hosts where DHCP takes longer than the delay.",
+      "`Requires=` adds a dependency but does not change the meaning of `network.target`, which is still reached before addresses are assigned.",
+      "Making the app part of `network.target` would start it earlier in boot, not later, and misuses a synchronisation target."
+    ],
+    "answer": 0,
+    "explanation": "systemd's `network.target` is reached as soon as the network management service has started, before DHCP leases or static routes exist. Services that open outbound connections at start must order after `network-online.target`, which is delayed by the distribution's wait-online service until the network is actually usable. A manual start after boot succeeds only because by then the route exists.",
+    "example": "# /etc/systemd/system/app.service\n[Unit]\nDescription=Order service\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nExecStart=/usr/local/bin/app\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n\nsudo systemctl daemon-reload\nsystemctl is-enabled systemd-networkd-wait-online.service   # or NetworkManager-wait-online",
+    "diagram": "flowchart LR\nB[\"boot\"] --> N[\"network.target: stack up, no address yet\"]\nN --> A1[\"app starts, dial fails\"]\nN --> W[\"wait-online: address and route present\"]\nW --> NO[\"network-online.target\"]\nNO --> A2[\"app starts, connects to Consul\"]",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemd.special.html#network-online.target",
+    "tags": [
+      "scenario",
+      "systemd",
+      "networking",
+      "boot"
+    ]
+  },
+  {
+    "id": "linux-078",
+    "domain": "linux",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Node.js API run by systemd starts returning 500s under load, and its journal fills with `Error: EMFILE: too many open files, open '/srv/uploads/tmp-8812'`. `ulimit -n` in a root shell prints `1048576`, and `/etc/security/limits.conf` already sets `* soft nofile 65536`. `cat /proc/$(pidof node)/limits | grep 'open files'` shows `1024 1024`. What is the best fix?",
+    "options": [
+      "Set `LimitNOFILE=65536` in the `[Service]` section of the unit, then `daemon-reload` and restart the service",
+      "Raise `fs.file-max` with `sysctl -w fs.file-max=2097152`",
+      "Add `ulimit -n 65536` to `/etc/profile` so it applies to every login",
+      "Restart the service so it picks up the new `limits.conf` value"
+    ],
+    "optionNotes": [
+      "systemd services do not go through PAM, so `pam_limits` and `limits.conf` never apply to them; the per-service `LimitNOFILE=` directive (or `DefaultLimitNOFILE=` in `system.conf`) is what sets the process limit, and `/proc/PID/limits` confirms the current value.",
+      "`fs.file-max` is the system-wide ceiling, which is far above 1024 on any modern kernel; it does not raise the per-process soft limit that is being hit.",
+      "`/etc/profile` is read by interactive login shells only; a systemd-launched daemon never sources it.",
+      "`limits.conf` is applied by `pam_limits.so` during a PAM session, which systemd does not create for services, so restarting changes nothing (the 1024 seen in `/proc` proves the file is being ignored)."
+    ],
+    "answer": 0,
+    "explanation": "The key evidence is `/proc/PID/limits` showing 1024 while the shell shows a much larger value: the daemon's limit comes from systemd, not from PAM. `LimitNOFILE=` in the unit (with `daemon-reload`) is the supported way to raise it, and `systemctl show app -p LimitNOFILE` verifies the setting.",
+    "example": "# /etc/systemd/system/api.service (drop-in via systemctl edit api)\n[Service]\nLimitNOFILE=65536\n\nsudo systemctl daemon-reload\nsudo systemctl restart api\nsystemctl show api -p LimitNOFILE\ngrep 'open files' /proc/$(systemctl show -p MainPID --value api)/limits\n# Max open files  65536  65536  files\n\n# how many fds is it actually using?\nsudo ls /proc/$(pidof node)/fd | wc -l",
+    "diagram": "flowchart TD\nE[\"EMFILE: too many open files\"] --> C[\"cat /proc/PID/limits: 1024\"]\nC --> W{\"who set the limit?\"}\nW -->|\"login shell\"| P[\"PAM pam_limits, limits.conf\"]\nW -->|\"systemd service\"| L[\"unit LimitNOFILE= or DefaultLimitNOFILE\"]\nL --> F[\"LimitNOFILE=65536, daemon-reload, restart\"]",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#LimitCPU=",
+    "tags": [
+      "scenario",
+      "systemd",
+      "ulimit",
+      "file-descriptors"
+    ]
+  },
+  {
+    "id": "linux-079",
+    "domain": "linux",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You provision a new server with a config script that copies a public key into `/home/ci/.ssh/authorized_keys`. The CI runner then fails with `Permission denied (publickey)`. On the server, `journalctl -u sshd` shows `Authentication refused: bad ownership or modes for directory /home/ci`, and `ls -ld /home/ci` prints `drwxrwxr-x 5 ci ci 4096 ...`. What is the correct fix?",
+    "options": [
+      "Run `chmod 755 /home/ci && chmod 700 /home/ci/.ssh && chmod 600 /home/ci/.ssh/authorized_keys`",
+      "Set `PubkeyAuthentication yes` in `/etc/ssh/sshd_config` and restart `sshd`",
+      "Regenerate the key pair with `ssh-keygen -t ed25519` and copy the new public key",
+      "Run `chown -R root:root /home/ci/.ssh` so sshd, which runs as root, can read the key"
+    ],
+    "optionNotes": [
+      "sshd's `StrictModes` (on by default) refuses keys when the home directory, `~/.ssh` or `authorized_keys` is writable by group or others. Removing group write from the home directory and tightening the `.ssh` tree resolves the exact error logged.",
+      "The log line proves pubkey auth is enabled and the key was found; the refusal is about file modes, not the sshd option.",
+      "The key itself is fine; sshd never got as far as comparing it because it rejected the directory permissions.",
+      "The files must be owned by the user (or root) and not writable by others; making them root-owned would not fix the group-writable home directory, and sshd already reads them as root."
+    ],
+    "answer": 0,
+    "explanation": "With `StrictModes yes`, sshd checks that the user's home, `.ssh` directory and `authorized_keys` are owned by the user and not group- or world-writable. The server log names the offending path directly, which is why checking `journalctl -u sshd` (or `/var/log/auth.log`) is the first step for any `Permission denied (publickey)`.",
+    "example": "sudo journalctl -u sshd --since '5 min ago' | grep -i refused\n# Authentication refused: bad ownership or modes for directory /home/ci\n\nsudo chmod 755 /home/ci\nsudo chmod 700 /home/ci/.ssh\nsudo chmod 600 /home/ci/.ssh/authorized_keys\nsudo chown -R ci:ci /home/ci/.ssh\n\n# client side, to see which keys were offered\nssh -v ci@server 2>&1 | grep -E 'Offering|Authentications'",
+    "diagram": "flowchart LR\nC[\"ssh client: Permission denied (publickey)\"] --> J[\"journalctl -u sshd\"]\nJ --> M[\"bad ownership or modes for /home/ci\"]\nM --> S[\"StrictModes check failed\"]\nS --> F[\"chmod 755 home, 700 .ssh, 600 authorized_keys\"]\nF --> OK[\"key accepted\"]",
+    "reference": "https://man.openbsd.org/sshd_config#StrictModes",
+    "tags": [
+      "scenario",
+      "ssh",
+      "permissions"
+    ]
+  },
+  {
+    "id": "linux-080",
+    "domain": "linux",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A worker service has `Restart=always` and `RestartSec=1`. After a bad config push it crashes on startup. `systemctl status worker` now shows `failed (Result: start-limit-hit)` and `journalctl -u worker` ends with `worker.service: Start request repeated too quickly`. You have since fixed the config file. Which statements are correct? (Select all that apply.)",
+    "options": [
+      "`systemctl restart worker` will not start it until the start-rate counter is cleared, for example with `systemctl reset-failed worker`",
+      "The rate limit comes from `StartLimitIntervalSec=` and `StartLimitBurst=`, which belong in the `[Unit]` section",
+      "Setting `Restart=always` overrides the start limit, so the unit should have kept restarting",
+      "Raising `RestartSec=` (for example to 10s) is a legitimate way to stay under the default burst of 5 starts per 10 seconds",
+      "The start limit is a systemd-wide setting and cannot be changed per unit"
+    ],
+    "optionNotes": [
+      "Once the limit is hit the unit is placed in `failed` and further start requests are refused until the counter expires or `systemctl reset-failed` clears it; `systemctl restart` alone often still logs `Start request repeated too quickly`.",
+      "`StartLimitIntervalSec=` and `StartLimitBurst=` are `[Unit]` directives (older units put them under `[Service]`, which newer systemd warns about).",
+      "`Restart=` controls whether systemd tries again after an exit; the start limit is a separate guard that stops those retries once they happen too often, precisely so a crash-looping service cannot hammer the host.",
+      "With the default 5 starts in 10 seconds, a `RestartSec` of 10s means at most one start per interval, so the limit is never reached; it is a common tuning alongside `StartLimitBurst=`.",
+      "Both directives are per unit, and `DefaultStartLimitIntervalSec=` / `DefaultStartLimitBurst=` in `system.conf` set the global defaults."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "`start-limit-hit` means the unit exceeded `StartLimitBurst` starts within `StartLimitIntervalSec` (default 5 in 10s) and systemd stopped trying. After fixing the real cause, clear the failed state with `systemctl reset-failed` and start again. If the service legitimately restarts often, tune `RestartSec=` and the `[Unit]` limits rather than fighting the guard.",
+    "example": "systemctl status worker\n#   Active: failed (Result: start-limit-hit)\n\nsudo systemctl reset-failed worker\nsudo systemctl start worker\n\n# drop-in to soften the guard for a flaky dependency\n# /etc/systemd/system/worker.service.d/limits.conf\n[Unit]\nStartLimitIntervalSec=60\nStartLimitBurst=10\n\n[Service]\nRestartSec=5",
+    "diagram": "flowchart TD\nC[\"bad config: worker exits immediately\"] --> R[\"Restart=always after RestartSec=1\"]\nR --> C\nR -->|\"5 starts within 10s\"| H[\"start-limit-hit, unit failed\"]\nH --> F[\"fix config\"]\nF --> X[\"systemctl reset-failed worker\"]\nX --> S[\"systemctl start worker\"]",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#StartLimitIntervalSec=interval",
+    "tags": [
+      "scenario",
+      "systemd",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "linux-081",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "An Ansible playbook run from a CI runner hangs at a task that executes `sudo systemctl restart nginx` on a RHEL host. Running the same command interactively over SSH as the `deploy` user works after typing a password. The CI log eventually shows `sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper`. Which changes would make the automation work? (Select all that apply.)",
+    "options": [
+      "Add a sudoers drop-in such as `deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx` via `visudo -f /etc/sudoers.d/deploy`",
+      "Grant `deploy ALL=(ALL) NOPASSWD: ALL` in `/etc/sudoers.d/deploy`",
+      "Run the CI job with `ssh -t` so sudo gets a pseudo-terminal and the password can be piped in",
+      "Set `Defaults timestamp_timeout=-1` so sudo remembers the password forever",
+      "Run the CI job as `root` over SSH directly and drop `sudo`"
+    ],
+    "optionNotes": [
+      "A scoped `NOPASSWD` rule is the standard approach: it removes the prompt only for the exact command the automation needs, and `visudo -f` validates the file before saving.",
+      "This also works and is very common, but it gives the CI identity unrestricted root; it is functionally correct for the question even though the scoped rule is the better practice.",
+      "Forcing a TTY only lets sudo display the prompt; nobody is there to type, so the job still hangs or times out, and piping secrets through a pty is fragile.",
+      "`timestamp_timeout` extends the cache only after a password has been entered once in that session; a fresh non-interactive SSH session has no cached credential.",
+      "Direct root SSH avoids sudo entirely, but most hardened hosts set `PermitRootLogin no` and it removes the audit trail sudo provides; it is a workaround, not a fix to the sudo configuration the question asks about."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "sudo needs a password unless a matching rule carries the `NOPASSWD` tag, and a non-interactive SSH session has no terminal to prompt on. Adding a `NOPASSWD` rule in `/etc/sudoers.d/` fixes it; scoping the rule to the specific commands limits blast radius. If the host also has `Defaults requiretty`, remove it for the automation user with `Defaults:deploy !requiretty`.",
+    "example": "# on the target host\nsudo visudo -f /etc/sudoers.d/deploy\n# contents:\nDefaults:deploy !requiretty\ndeploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx, /usr/bin/systemctl reload nginx\n\n# verify without running anything\nsudo -l -U deploy\n# from the runner\nssh deploy@web01 'sudo -n systemctl restart nginx'   # -n: never prompt, fail instead of hanging",
+    "diagram": "flowchart LR\nR[\"CI runner ssh, no tty\"] --> S[\"sudo systemctl restart nginx\"]\nS --> P{\"NOPASSWD rule matches?\"}\nP -->|\"no\"| H[\"a terminal is required, job hangs\"]\nP -->|\"yes\"| OK[\"command runs as root\"]\nH --> F[\"visudo -f /etc/sudoers.d/deploy\"]\nF --> P",
+    "reference": "https://www.sudo.ws/docs/man/sudoers.man/#NOPASSWD_and_PASSWD",
+    "tags": [
+      "scenario",
+      "sudo",
+      "automation"
+    ]
+  },
+  {
+    "id": "linux-082",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A long-running importer writes its checkpoint file to `/tmp/importer.state` and reads it back after each batch. On a Fedora host the job intermittently fails with `No such file or directory` on the checkpoint after the host has been up for a couple of weeks. The most likely cause is that `systemd-tmpfiles-clean.timer` removed the file because its age exceeded the `10d` rule for `/tmp` in `/usr/lib/tmpfiles.d/tmp.conf`, and the fix is to store state under `/var/lib/importer` (or set the age with a drop-in in `/etc/tmpfiles.d/`) rather than in `/tmp`.",
+    "answer": true,
+    "explanation": "systemd ships a daily `systemd-tmpfiles-clean.timer` that deletes entries in `/tmp` older than the age in `tmpfiles.d` (`10d` on Fedora, `30d` for `/var/tmp`), based on mtime, atime and ctime. Any process that expects a file in `/tmp` to survive for weeks will eventually lose it; persistent state belongs in `/var/lib/<app>` or a directory with its own `tmpfiles.d` rule. Note that on Fedora `/tmp` is also a tmpfs, so a reboot clears it as well.",
+    "example": "cat /usr/lib/tmpfiles.d/tmp.conf\n# q /tmp 1777 root root 10d\n# q /var/tmp 1777 root root 30d\n\nsystemctl list-timers systemd-tmpfiles-clean.timer\n\n# keep the importer state safe\nsudo install -d -o importer -g importer /var/lib/importer\n# or exempt a path (age '-' means never clean)\necho 'x /tmp/importer.state' | sudo tee /etc/tmpfiles.d/importer.conf",
+    "diagram": "flowchart TD\nW[\"importer writes /tmp/importer.state\"] --> T[\"systemd-tmpfiles-clean.timer, daily\"]\nT -->|\"file older than 10d\"| D[\"file deleted\"]\nD --> E[\"ENOENT on next batch\"]\nE --> F[\"move state to /var/lib/importer or add tmpfiles.d rule\"]",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/tmpfiles.d.html",
+    "tags": [
+      "scenario",
+      "systemd",
+      "tmpfiles",
+      "filesystem"
+    ]
   }
 ]

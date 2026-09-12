@@ -1080,5 +1080,241 @@
       "destinationrule",
       "load-balancing"
     ]
+  },
+  {
+    "id": "istio-041",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A platform team applies a mesh-wide `PeerAuthentication` with `mtls.mode: STRICT` in `istio-system`. Minutes later a legacy batch job running in the `reporting` namespace, which has no sidecar and is not in the mesh, starts failing every call to `orders.shop.svc.cluster.local` with `curl: (56) Recv failure: Connection reset by peer`. The `orders` sidecar access log shows entries with response flags `NR` and `filter_chain_not_found`. What is the most likely root cause?",
+    "options": [
+      "The `orders` sidecar now only accepts mTLS on its inbound listener, and the sidecar-less batch job is sending plaintext that matches no filter chain",
+      "The `orders` Service has no `DestinationRule` with `tls.mode: ISTIO_MUTUAL`, so the client cannot negotiate TLS",
+      "The `reporting` namespace is missing an `AuthorizationPolicy` that allows traffic to `shop`",
+      "The batch job is using HTTP/1.1 while STRICT mode requires HTTP/2"
+    ],
+    "optionNotes": [
+      "Correct. STRICT removes the plaintext filter chain from the inbound listener; a client without a sidecar cannot present a mesh certificate, so Envoy finds no matching filter chain (`NR`) and resets the connection.",
+      "Auto mTLS handles the client side for meshed workloads without a `DestinationRule`; the client here has no sidecar at all, so no `DestinationRule` would help it.",
+      "A missing `AuthorizationPolicy` produces an HTTP 403 `RBAC: access denied`, not a TCP-level reset with `filter_chain_not_found`.",
+      "STRICT mTLS is about transport security, not the HTTP version; HTTP/1.1 works fine over mTLS."
+    ],
+    "answer": 0,
+    "explanation": "`filter_chain_not_found` with the `NR` flag on the server sidecar is the signature of plaintext arriving at a listener that only has an mTLS filter chain. The batch job has no sidecar, so it cannot participate in mTLS; the least risky fix is a workload-scoped `PeerAuthentication` for `orders` (or its port) set to `PERMISSIVE` until the caller is onboarded, or onboarding the caller into the mesh.",
+    "example": "# confirm the effective mode for the orders workload\nistioctl x describe pod orders-7c9d6-abc12 -n shop\n\n# temporary exception while reporting is migrated\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata:\n  name: orders-permissive\n  namespace: shop\nspec:\n  selector:\n    matchLabels:\n      app: orders\n  mtls:\n    mode: PERMISSIVE",
+    "diagram": "flowchart LR\n    J[\"batch job (no sidecar)\"] -->|\"plaintext\"| S[\"orders sidecar inbound listener\"]\n    S -->|\"STRICT: only mTLS chain\"| N[\"NR filter_chain_not_found\"]\n    N --> R[\"connection reset\"]\n    F[\"fix: PERMISSIVE for orders or onboard the job\"] -.-> S",
+    "reference": "https://istio.io/latest/docs/ops/common-problems/security-issues/",
+    "tags": [
+      "scenario",
+      "mtls",
+      "peerauthentication",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "istio-042",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You add an `AuthorizationPolicy` to the `payments` workload allowing only `source.principals: [\"cluster.local/ns/shop/sa/checkout\"]`. Immediately every call from `checkout` fails with HTTP 403 and body `RBAC: access denied`. Both workloads have sidecars and `istioctl x describe pod` reports mTLS `STRICT` on `payments`. Running `kubectl get pod -n shop -l app=checkout -o jsonpath='{.items[0].spec.serviceAccountName}'` prints `default`. What is the best fix?",
+    "options": [
+      "Set `serviceAccountName: checkout` in the `checkout` Deployment (creating the ServiceAccount if needed) and roll the pods",
+      "Change the policy to `action: DENY` so that the rule only blocks non-matching callers",
+      "Switch `payments` to `PeerAuthentication` mode `PERMISSIVE` so the principal check is skipped",
+      "Add `source.namespaces: [\"shop\"]` to the same rule so either condition matches"
+    ],
+    "optionNotes": [
+      "Correct. The SPIFFE identity is derived from the pod's ServiceAccount; the pods run as `default`, so their principal is `cluster.local/ns/shop/sa/default` and does not match. Running them under the intended ServiceAccount makes the identity match the policy.",
+      "A DENY policy that lists the `checkout` principal would block the intended caller once its identity is fixed, and would allow everyone else; it inverts the intent.",
+      "PERMISSIVE only changes what the server accepts on the wire; the sidecars still use mTLS between each other and the principal still evaluates to `sa/default`, so the 403 persists.",
+      "Fields inside one `from.source` block are ANDed, not ORed, so the request would still need to match the wrong principal. It also weakens the policy to a namespace check."
+    ],
+    "answer": 0,
+    "explanation": "Istio derives the peer principal `cluster.local/ns/<ns>/sa/<serviceaccount>` from the client certificate, which is issued per ServiceAccount. Since the `checkout` pods run as the `default` ServiceAccount, the policy's exact principal never matches and Envoy's RBAC filter returns 403. Assigning the intended ServiceAccount is the correct, least privileged fix.",
+    "example": "# see what principal the server actually sees\nkubectl logs payments-5f8b7-xyz -c istio-proxy -n shop | grep 'rbac'\n# ... \"RBAC: access denied\" peer=spiffe://cluster.local/ns/shop/sa/default\n\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: checkout\n  namespace: shop\nspec:\n  template:\n    spec:\n      serviceAccountName: checkout",
+    "diagram": "flowchart LR\n    C[\"checkout pod (sa: default)\"] -->|\"mTLS cert: ns/shop/sa/default\"| P[\"payments sidecar RBAC filter\"]\n    P -->|\"expects ns/shop/sa/checkout\"| X[\"403 RBAC: access denied\"]\n    F[\"fix: serviceAccountName: checkout\"] -.-> C",
+    "reference": "https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source",
+    "tags": [
+      "scenario",
+      "authorizationpolicy",
+      "security"
+    ]
+  },
+  {
+    "id": "istio-043",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A developer labels the `inventory` namespace with `istio-injection=enabled` and restarts the Deployment, but `kubectl get pods` still shows `1/1` containers and `istioctl proxy-status` does not list the pods. The cluster was installed with `istioctl install --revision 1-26` and `istioctl tag list` prints nothing. What is the most likely cause?",
+    "options": [
+      "The control plane is revisioned and no `default` tag exists, so the `istio-injection=enabled` label does not match any injection webhook",
+      "The sidecar injector only runs on pod creation, so the Deployment must be deleted and recreated rather than restarted",
+      "The namespace label must be `istio-injection=true` in recent Istio versions",
+      "The `istiod` pod is not ready, so the mutating webhook was skipped with `failurePolicy: Ignore`"
+    ],
+    "optionNotes": [
+      "Correct. A revisioned install registers a webhook that matches `istio.io/rev=1-26`; `istio-injection=enabled` is served only by the `default` revision or a `default` tag, which does not exist here. Use `istio.io/rev=1-26` or run `istioctl tag set default --revision 1-26`.",
+      "A rollout restart creates brand-new pods, which is exactly when the injection webhook runs; recreating the Deployment changes nothing.",
+      "`istio-injection=enabled` remains the correct value; `true` is not recognized.",
+      "The webhook does use `failurePolicy: Fail` by default, and a missing pod would show as pending or failing, not as a clean `1/1` pod."
+    ],
+    "answer": 0,
+    "explanation": "With a revisioned control plane, the mutating webhook's namespace selector matches `istio.io/rev=<revision>`, not the legacy `istio-injection=enabled` label, unless a `default` tag points at that revision. `istioctl check-inject` on a pod shows which webhooks matched. Either relabel the namespace with `istio.io/rev=1-26` or create the `default` tag so the legacy label works.",
+    "example": "istioctl check-inject -n inventory deploy/inventory\n# WEBHOOK                          REVISION  INJECTED\n# istio-sidecar-injector-1-26      1-26      ✘\n\n# option A: revision label\nkubectl label ns inventory istio-injection- istio.io/rev=1-26\n# option B: make 1-26 serve the legacy label\nistioctl tag set default --revision 1-26\nkubectl rollout restart deploy/inventory -n inventory",
+    "diagram": "flowchart TD\n    L[\"ns label istio-injection=enabled\"] --> W{\"webhook for default revision or tag?\"}\n    W -->|\"none: only rev 1-26\"| N[\"no sidecar injected\"]\n    W -->|\"tag default -> 1-26\"| Y[\"sidecar injected\"]\n    F[\"fix: istioctl tag set default or istio.io/rev=1-26\"] -.-> W",
+    "reference": "https://istio.io/latest/docs/setup/upgrade/canary/#default-tag",
+    "tags": [
+      "scenario",
+      "sidecar-injection",
+      "revisions"
+    ]
+  },
+  {
+    "id": "istio-044",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Requests to `https://shop.example.com/api` through the ingress gateway return `404 Not Found` with no upstream in the gateway access log. The `Gateway` named `shop-gw` lives in `istio-system` with `hosts: [\"shop.example.com\"]`, and the `VirtualService` in namespace `shop` has `hosts: [\"shop.example.com\"]` and `gateways: [\"shop-gw\"]`. `istioctl analyze -n shop` reports `IST0101 Referenced gateway not found: \"shop-gw\"`. Which changes would each, on their own, make the route apply? (Select all that apply.)",
+    "options": [
+      "Change the `VirtualService` to `gateways: [\"istio-system/shop-gw\"]`",
+      "Create the `Gateway` resource in the `shop` namespace with the same `selector` and hosts",
+      "Add `mesh` to the `gateways` list of the `VirtualService`",
+      "Restart the `istio-ingressgateway` Deployment to force a config reload",
+      "Change the `VirtualService` `hosts` to `[\"*\"]`"
+    ],
+    "optionNotes": [
+      "Correct. A bare gateway name resolves in the VirtualService's own namespace; qualifying it as `istio-system/shop-gw` points at the existing Gateway.",
+      "Correct. Gateway resources select proxies by label, so a Gateway in `shop` selecting `istio: ingressgateway` configures the same proxy, and the unqualified reference then resolves locally.",
+      "`mesh` binds the route to sidecars for in-mesh traffic; it does nothing for the ingress gateway and the reference to `shop-gw` would still be dangling.",
+      "The gateway proxy is already synced with istiod; the problem is a config reference that does not resolve, so a restart reproduces the same 404.",
+      "Wildcard hosts do not change gateway binding, and would also be rejected unless the Gateway allows those hosts; the missing gateway reference is the actual fault."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "An unqualified entry in `spec.gateways` is looked up in the VirtualService's namespace, so `shop-gw` resolves to `shop/shop-gw`, which does not exist, and the gateway falls through to its default 404 route. Either qualify the reference with the namespace or place the Gateway resource where the short name resolves.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: VirtualService\nmetadata:\n  name: shop\n  namespace: shop\nspec:\n  hosts:\n  - shop.example.com\n  gateways:\n  - istio-system/shop-gw\n  http:\n  - match:\n    - uri:\n        prefix: /api\n    route:\n    - destination:\n        host: api.shop.svc.cluster.local\n\n# verify the route landed on the gateway\nistioctl proxy-config routes deploy/istio-ingressgateway -n istio-system --name https.443.https.shop-gw.istio-system",
+    "diagram": "flowchart LR\n    U[\"client shop.example.com/api\"] --> G[\"ingress gateway\"]\n    G -->|\"lookup shop/shop-gw\"| M[\"no VirtualService bound\"]\n    M --> E[\"404 Not Found\"]\n    F[\"fix: gateways: istio-system/shop-gw\"] -.-> G",
+    "reference": "https://istio.io/latest/docs/reference/config/networking/virtual-service/#VirtualService",
+    "tags": [
+      "scenario",
+      "virtualservice",
+      "gateway",
+      "ingress"
+    ]
+  },
+  {
+    "id": "istio-045",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "The `catalog` Service exposes port 8080 with `name: api`. In Kiali the edge from `frontend` to `catalog` is drawn as a TCP connection, `istio_requests_total` has no series for `catalog`, and the `VirtualService` retry and header-match rules for `catalog` are ignored. Envoy access logs on the client show a plain TCP proxy entry. What is the most likely cause?",
+    "options": [
+      "The Service port name `api` does not declare a protocol, and sniffing was disabled, so Istio treats the port as opaque TCP",
+      "The `catalog` pods are missing the `version` label required for HTTP telemetry",
+      "The `VirtualService` must be in the `istio-system` namespace to affect sidecar traffic",
+      "The client sidecar is not `SYNCED` with istiod and holds stale configuration"
+    ],
+    "optionNotes": [
+      "Correct. Istio decides the L7 protocol from the port name prefix (`http-`, `grpc-`, `http2-`, `tcp-`) or the `appProtocol` field. With neither and sniffing off, the port is TCP, so HTTP metrics, retries and header routing do not apply.",
+      "Labels feed the `destination_version` label but do not gate whether HTTP telemetry is generated at all.",
+      "VirtualServices apply from any namespace; namespace placement does not turn TCP into HTTP.",
+      "A stale proxy would show mismatched config, but the client log is a TCP proxy entry that matches the current config, which means the listener really is TCP."
+    ],
+    "answer": 0,
+    "explanation": "Envoy only applies HTTP routing, retries and L7 telemetry when the listener is configured as an HTTP connection manager, and Istio selects that from the Service port's protocol. Rename the port to `http-api` (or set `appProtocol: http`) so istiod programs an HTTP listener; the difference is visible in `istioctl proxy-config listeners`.",
+    "example": "apiVersion: v1\nkind: Service\nmetadata:\n  name: catalog\n  namespace: shop\nspec:\n  ports:\n  - name: http-api        # or keep name: api and add appProtocol: http\n    port: 8080\n    targetPort: 8080\n\nistioctl proxy-config listeners deploy/frontend -n shop --port 8080\n# before: ... Cluster: outbound|8080||catalog.shop.svc.cluster.local (TCP)\n# after:  ... Route: 8080 (HTTP)",
+    "diagram": "flowchart LR\n    P[\"Service port name: api\"] --> D{\"protocol known?\"}\n    D -->|\"no\"| T[\"TCP listener: no retries, no L7 metrics\"]\n    D -->|\"http-api or appProtocol\"| H[\"HTTP listener: VirtualService rules apply\"]",
+    "reference": "https://istio.io/latest/docs/ops/configuration/traffic-management/protocol-selection/",
+    "tags": [
+      "scenario",
+      "protocol-selection",
+      "traffic-management"
+    ]
+  },
+  {
+    "id": "istio-046",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "A `VirtualService` for `report-generator` sets `timeout: 10s` and `retries: {attempts: 2, perTryTimeout: 8s}`. The application itself is configured to allow 60 seconds per report and callers now see `504` with response flag `UT` after roughly 10 seconds. True or false: the `504 UT` comes from the client sidecar's route timeout, which caps the total time including all retry attempts, so raising the application's own 60 second limit will not change the observed behaviour.",
+    "answer": true,
+    "explanation": "`UT` (upstream request timeout) is set by the calling Envoy when the route `timeout` expires; that timeout is the overall budget across the original attempt and every retry, and `perTryTimeout` only bounds a single attempt within it. The server-side limit never comes into play because the client proxy abandons the request first, so the fix is to raise or disable the `VirtualService` timeout (for example `timeout: 90s`) or move slow reports to an asynchronous path.",
+    "example": "# client sidecar access log\n[2026-09-11T02:14:07Z] \"POST /reports HTTP/1.1\" 504 UT ... 10001 - \"-\" \"report-generator.shop.svc.cluster.local:8080\"\n\napiVersion: networking.istio.io/v1\nkind: VirtualService\nmetadata:\n  name: report-generator\nspec:\n  hosts: [report-generator]\n  http:\n  - timeout: 90s\n    retries:\n      attempts: 2\n      perTryTimeout: 40s\n      retryOn: connect-failure,refused-stream\n    route:\n    - destination:\n        host: report-generator",
+    "diagram": "flowchart LR\n    C[\"caller\"] --> S[\"client sidecar route timeout 10s\"]\n    S -->|\"attempt 1 (8s)\"| A[\"report-generator (needs 60s)\"]\n    S -->|\"retry budget exhausted\"| X[\"504 UT at 10s\"]\n    F[\"fix: timeout 90s in VirtualService\"] -.-> S",
+    "reference": "https://istio.io/latest/docs/reference/config/networking/virtual-service/#HTTPRoute",
+    "tags": [
+      "scenario",
+      "timeouts",
+      "virtualservice",
+      "retries"
+    ]
+  },
+  {
+    "id": "istio-047",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "You roll out `reviews-v3` behind a `VirtualService` weighting `v1: 90` and `v3: 10`. The `DestinationRule` defines subset `v3` with `labels: {version: v3}` and `istioctl analyze` is clean. After the change, roughly 10% of requests fail with HTTP 503 and response flag `UH`, and `istioctl proxy-config endpoints deploy/productpage --cluster \"outbound|9080|v3|reviews.shop.svc.cluster.local\"` prints no rows. What is the most likely root cause?",
+    "options": [
+      "The `reviews-v3` pods do not carry the `version: v3` label, so the subset cluster has no endpoints",
+      "The `VirtualService` weights must sum to 100 and the current values are being rounded to 0 for `v3`",
+      "The `reviews-v3` Deployment has no sidecar, so Envoy excludes its pods from the mesh registry",
+      "Outlier detection ejected all `v3` endpoints after the first failed health check"
+    ],
+    "optionNotes": [
+      "Correct. `UH` means no healthy upstream in the chosen cluster; an empty endpoint list for the subset cluster while analyze is clean points to the subset selector not matching any pod labels.",
+      "The weights already sum to 100; Istio validates the sum and would report a configuration error rather than silently round.",
+      "Pods without a sidecar are still Service endpoints and appear in EDS; missing injection causes plaintext or mTLS issues, not an empty subset.",
+      "Ejected hosts still show in the endpoint list (with an unhealthy status); a completely empty cluster is a selection problem, not outlier detection."
+    ],
+    "answer": 0,
+    "explanation": "A subset cluster is populated from Service endpoints whose pod labels match the subset's `labels`. If the new Deployment's pod template lacks `version: v3`, the cluster exists but is empty, so the 10% of requests routed to it get `503 UH` while `istioctl analyze` sees a syntactically valid setup. Add the label to the pod template and the endpoints appear immediately.",
+    "example": "kubectl get pods -n shop -l app=reviews --show-labels\n# reviews-v3-6d4f...   app=reviews,pod-template-hash=6d4f   <- no version label\n\n# fix in the Deployment pod template\nspec:\n  template:\n    metadata:\n      labels:\n        app: reviews\n        version: v3\n\nistioctl proxy-config endpoints deploy/productpage -n shop --cluster \"outbound|9080|v3|reviews.shop.svc.cluster.local\"",
+    "diagram": "flowchart LR\n    V[\"VirtualService 10% -> subset v3\"] --> C[\"cluster outbound 9080 v3 reviews\"]\n    C -->|\"selector version=v3\"| E{\"matching pods?\"}\n    E -->|\"pods lack label\"| U[\"503 UH no healthy upstream\"]\n    E -->|\"label present\"| OK[\"reviews-v3 pods\"]",
+    "reference": "https://istio.io/latest/docs/reference/config/networking/destination-rule/#Subset",
+    "tags": [
+      "scenario",
+      "destinationrule",
+      "canary",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "istio-048",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A security review requires the `shop` namespace to enforce `STRICT` mTLS by the end of the quarter. Today the namespace is `PERMISSIVE`, and a few callers are VMs and legacy pods outside the mesh. You must reach STRICT without breaking any caller. Which steps belong in a safe migration plan? (Select all that apply.)",
+    "options": [
+      "Query Prometheus for `istio_requests_total{destination_namespace=\"shop\", connection_security_policy=\"none\"}` to identify callers still sending plaintext",
+      "Onboard the plaintext callers (inject sidecars, or add VMs via `WorkloadEntry`) before changing the mode",
+      "Apply a namespace-scoped `PeerAuthentication` with `mode: STRICT` in `shop` rather than a mesh-wide one, then watch for `NR` errors",
+      "Create a `DestinationRule` with `tls.mode: ISTIO_MUTUAL` for every Service in `shop` so clients start using mTLS",
+      "Switch the mesh-wide policy to `STRICT` first, then fix whichever callers break"
+    ],
+    "optionNotes": [
+      "Correct. The server-side `connection_security_policy` label is `none` for plaintext requests, which gives you an inventory of callers that STRICT would break.",
+      "Correct. STRICT requires every client to present a mesh certificate, so the non-mesh callers must be brought into the mesh (or given a scoped exception) before the switch.",
+      "Correct. Scoping the policy to the namespace limits the blast radius, and monitoring the `NR` response flag on server sidecars catches any caller you missed.",
+      "With auto mTLS, meshed clients already use mTLS toward sidecar-backed destinations; forcing `ISTIO_MUTUAL` in a DestinationRule is unnecessary and breaks calls to any destination that still lacks a sidecar.",
+      "A mesh-wide STRICT switch is the highest-risk option and affects every namespace, including ones that were not part of the requirement."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The safe path is to measure plaintext traffic while still PERMISSIVE, onboard or exempt every plaintext caller, and only then tighten the policy at the smallest scope that meets the requirement. Auto mTLS already upgrades meshed clients, so DestinationRule changes are not part of the server-side enforcement story.",
+    "example": "# 1. who is still plaintext?\nsum by (source_workload, source_workload_namespace) (\n  rate(istio_requests_total{destination_namespace=\"shop\", connection_security_policy=\"none\"}[1h]))\n\n# 2. after onboarding, enforce for the namespace\napiVersion: security.istio.io/v1\nkind: PeerAuthentication\nmetadata:\n  name: default\n  namespace: shop\nspec:\n  mtls:\n    mode: STRICT",
+    "diagram": "flowchart TD\n    A[\"PERMISSIVE today\"] --> B[\"query connection_security_policy=none\"]\n    B --> C[\"onboard sidecars and WorkloadEntry VMs\"]\n    C --> D[\"namespace PeerAuthentication STRICT\"]\n    D --> E{\"NR errors?\"}\n    E -->|\"yes\"| C\n    E -->|\"no\"| G[\"done\"]",
+    "reference": "https://istio.io/latest/docs/tasks/security/authentication/mtls-migration/",
+    "tags": [
+      "scenario",
+      "mtls",
+      "migration",
+      "peerauthentication"
+    ]
   }
 ]

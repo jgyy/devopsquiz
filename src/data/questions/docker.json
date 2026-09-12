@@ -1980,5 +1980,246 @@
       "override",
       "merge"
     ]
+  },
+  {
+    "id": "docker-076",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A developer runs `docker run -d --name web myorg/nginx-custom` and the command prints a container id, but `docker ps` shows nothing. `docker ps -a` shows `web` with status `Exited (0) 2 seconds ago` and `docker logs web` is empty. The Dockerfile ends with `CMD [\"service\", \"nginx\", \"start\"]`. What is the most likely root cause?",
+    "explanation": "A container lives only as long as its main process (PID 1). `service nginx start` daemonizes nginx and returns immediately, so PID 1 exits with code 0 and Docker stops the container. The fix is to run the server in the foreground, for example `nginx -g \"daemon off;\"`.",
+    "example": "docker ps -a --filter name=web\n# CONTAINER ID  IMAGE               STATUS                    NAMES\n# 3f1c9a2b7d0e  myorg/nginx-custom  Exited (0) 2 seconds ago  web\n\n# fix in Dockerfile:\nCMD [\"nginx\", \"-g\", \"daemon off;\"]",
+    "diagram": "flowchart TD\n  A[\"docker run -d web\"] --> B[\"PID 1: service nginx start\"]\n  B --> C[\"nginx forks into background\"]\n  C --> D[\"PID 1 returns, exit 0\"]\n  D --> E[\"container Exited (0)\"]\n  F[\"fix: nginx -g daemon off\"] --> G[\"PID 1 stays in foreground\"]",
+    "options": [
+      "The `-d` flag detaches the terminal, which causes the process to be killed as soon as the shell exits",
+      "The `CMD` starts nginx as a background daemon, so PID 1 finishes immediately and the container stops",
+      "Port 80 is already in use on the host, so nginx cannot bind and exits silently",
+      "The image has no `EXPOSE 80` instruction, so Docker stops the container because nothing is listening"
+    ],
+    "optionNotes": [
+      "`-d` only detaches your terminal from the container's output; it has no effect on the lifetime of PID 1.",
+      "Correct: the container's lifetime is tied to PID 1; `service nginx start` forks nginx and exits, so Docker sees a clean exit code 0 and stops the container.",
+      "A bind failure would produce a non-zero exit and an error in `docker logs`; here the exit code is 0 and logs are empty.",
+      "`EXPOSE` is only documentation and metadata; its absence never stops a container."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/engine/reference/run/#detached-vs-foreground",
+    "tags": [
+      "scenario",
+      "cmd",
+      "pid1",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "docker-077",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A CI runner on an Apple Silicon Mac builds `myapp:1.4` with `docker build -t myapp:1.4 .` and pushes it. When the ops team pulls it on an x86_64 EC2 host, `docker run myapp:1.4` fails with `exec /usr/local/bin/myapp: exec format error`. What is the most likely cause and the correct fix?",
+    "explanation": "The Mac built a `linux/arm64` image by default, and the binary inside cannot execute on an `amd64` kernel, which produces `exec format error`. Build for the target platform with `--platform linux/amd64` or, better, publish a multi-platform image with `docker buildx build --platform linux/amd64,linux/arm64 --push`.",
+    "example": "docker image inspect myapp:1.4 --format '{{.Os}}/{{.Architecture}}'\n# linux/arm64\n\n# fix: build for the target, or both, and push\ndocker buildx build --platform linux/amd64,linux/arm64 -t registry.example.com/myapp:1.4 --push .",
+    "diagram": "flowchart LR\n  A[\"docker build on arm64 Mac\"] --> B[\"image: linux/arm64\"]\n  B --> C[\"pull on amd64 EC2\"]\n  C --> D[\"exec format error\"]\n  E[\"buildx --platform amd64,arm64\"] --> F[\"manifest list\"]\n  F --> G[\"each host pulls its own arch\"]",
+    "options": [
+      "The binary lost its execute bit during `COPY`; add `RUN chmod +x /usr/local/bin/myapp` to the Dockerfile",
+      "The image was built for `linux/arm64`; rebuild with `docker buildx build --platform linux/amd64` (or a multi-platform manifest) and push again",
+      "The EC2 host is missing the `binfmt_misc` QEMU handlers; install `tonistiigi/binfmt` on the server so it can run the image",
+      "The base image tag drifted between build and pull; pin the base image by digest and rebuild"
+    ],
+    "optionNotes": [
+      "A missing execute bit gives `permission denied`, not `exec format error`; the error text points at an architecture mismatch.",
+      "Correct: `docker image inspect` will show `arm64`; building with `--platform linux/amd64` (or a multi-arch manifest via buildx) produces a binary the EC2 kernel can execute.",
+      "QEMU emulation is a build-time convenience for cross-compiling; running production workloads under emulation on the server is slow and the wrong fix.",
+      "Tag drift would change behavior or dependencies, not make the entrypoint binary unexecutable on the CPU."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/build/building/multi-platform/",
+    "tags": [
+      "scenario",
+      "multi-platform",
+      "buildx",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "docker-078",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Dockerfile has `USER app` (uid 1000 created in the image). On the host, the deploy user is uid 1001 and owns `/srv/uploads`. Running `docker run -v /srv/uploads:/data myapp` makes the app log `EACCES: permission denied, open '/data/report.csv'`. The bind mount works fine on a colleague's laptop. What is the most likely cause?",
+    "explanation": "Bind mounts do not remap ownership: the container process runs as uid 1000 but the host directory is owned by uid 1001 with no write permission for others, so the kernel denies the write. Either run the container with `--user $(id -u):$(id -g)`, chown the host directory to uid 1000, or make the image's user id configurable. The colleague's laptop happens to have a uid 1000 owner.",
+    "example": "ls -ln /srv/uploads\n# drwxr-xr-x 2 1001 1001 4096 /srv/uploads\n\ndocker run --rm myapp id\n# uid=1000(app) gid=1000(app)\n\n# fix (choose one):\ndocker run --user 1001:1001 -v /srv/uploads:/data myapp\nsudo chown -R 1000:1000 /srv/uploads",
+    "diagram": "flowchart LR\n  A[\"container process uid 1000\"] -->|\"write /data/report.csv\"| B[\"bind mount /srv/uploads\"]\n  B --> C[\"host dir owned by uid 1001, mode 755\"]\n  C --> D[\"kernel: EACCES\"]\n  E[\"fix: --user 1001 or chown 1000\"] --> F[\"uids match, write allowed\"]",
+    "options": [
+      "SELinux or AppArmor is blocking the write; add the `:z` suffix to the volume flag",
+      "The container's uid 1000 does not match the host directory owner uid 1001, and bind mounts preserve host ownership and permissions",
+      "The `-v` flag creates a read-only mount by default; use `--mount type=bind,readonly=false` instead",
+      "The `USER` instruction only applies to `RUN` steps at build time, so the app is actually running as root and is being blocked by user namespaces"
+    ],
+    "optionNotes": [
+      "An SELinux denial is possible on enforcing hosts, but the `:z` relabel would not fix a plain DAC uid mismatch; the ownership shown by `ls -ln` explains it directly.",
+      "Correct: bind mounts expose the host inode as-is, so file permissions are checked against the numeric uid inside the container; 1000 is not the owner and the mode is 755, so the write fails.",
+      "`-v` mounts are read-write by default; `:ro` must be given explicitly for a read-only mount.",
+      "`USER` sets the runtime user for `CMD`/`ENTRYPOINT` as well, and user namespace remapping is not enabled by default."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/engine/storage/bind-mounts/",
+    "tags": [
+      "scenario",
+      "bind-mounts",
+      "permissions",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "docker-079",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A shared build server that has run nightly `docker build` jobs for months now fails every build with `ERROR: failed to solve: write /var/lib/docker/...: no space left on device`. `df -h /var/lib/docker` shows 100% used. `docker system df` reports `Images 412 (active 9) 61GB reclaimable`, `Build Cache 1.2k 48GB reclaimable`, and containers 0B. Which actions are appropriate to reclaim space safely on this server? (Select all that apply.)",
+    "explanation": "`docker system df` shows the space is held by unused images and BuildKit cache, not by running containers, so pruning those is both safe and effective. `docker buildx prune` (or `docker builder prune`) clears the build cache, `docker image prune -a` removes images not used by any container, and a `--filter until=...` keeps recent layers so tomorrow's build still benefits from cache. Deleting files directly under `/var/lib/docker` corrupts the daemon's storage metadata.",
+    "example": "docker system df\n# TYPE          TOTAL  ACTIVE  SIZE    RECLAIMABLE\n# Images        412    9       68GB    61GB (89%)\n# Containers    3      3       0B      0B\n# Build Cache   1203   0       48GB    48GB\n\ndocker buildx prune --filter until=72h -f\ndocker image prune -a --filter until=168h -f",
+    "diagram": "flowchart TD\n  A[\"no space left on device\"] --> B[\"docker system df\"]\n  B --> C[\"build cache 48GB reclaimable\"]\n  B --> D[\"unused images 61GB reclaimable\"]\n  C --> E[\"docker buildx prune\"]\n  D --> F[\"docker image prune -a\"]\n  E --> G[\"builds succeed again\"]\n  F --> G",
+    "options": [
+      "Run `docker buildx prune --filter until=72h` to drop old BuildKit cache entries while keeping recent layers",
+      "Run `docker image prune -a` to remove images not referenced by any container",
+      "Run `rm -rf /var/lib/docker/overlay2/*` to free the overlay directories immediately",
+      "Run `docker container prune` because stopped containers are the main consumer of space here",
+      "Configure the daemon's `builder.gc` policy in `daemon.json` so BuildKit cache is capped automatically in future"
+    ],
+    "optionNotes": [
+      "Correct: the build cache is 48GB and fully reclaimable; an `until` filter keeps the last few days of layers so cache hits are not lost entirely.",
+      "Correct: 403 of 412 images are unused; `-a` removes all images without a container referencing them, not only dangling ones.",
+      "Deleting overlay directories behind the daemon's back desynchronizes its image and layer metadata and usually requires wiping `/var/lib/docker` entirely to recover.",
+      "Containers account for 0B in the report, so this is harmless but does not address the problem.",
+      "Correct: a `builder.gc` policy with `defaultKeepStorage` makes BuildKit garbage-collect its cache automatically instead of growing until the disk fills."
+    ],
+    "answer": [
+      0,
+      1,
+      4
+    ],
+    "reference": "https://docs.docker.com/build/cache/garbage-collection/",
+    "tags": [
+      "scenario",
+      "cleanup",
+      "buildkit",
+      "storage"
+    ]
+  },
+  {
+    "id": "docker-080",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A security scan flags that `registry.example.com/payments:2.3` contains a private key at `/app/keys/prod.pem`. The Dockerfile has `COPY . /app` followed later by `RUN rm -rf /app/keys`, and `docker run --rm payments:2.3 ls /app/keys` indeed returns `No such file or directory`. Yet `docker history payments:2.3` shows a 2kB `COPY` layer and the scanner extracted the key from the image tarball. What is the correct remediation?",
+    "explanation": "Image layers are immutable: a later `RUN rm` adds a whiteout entry but the key still exists in the earlier `COPY` layer and can be extracted from the pushed image. The key must never enter a layer at all, so exclude `keys/` via `.dockerignore` (or narrow the `COPY`), rotate the leaked key, and rebuild and re-push the image.",
+    "example": "# .dockerignore\nkeys/\n.git/\n.env\n\n# verify the key is not in any layer\ndocker save payments:2.4 | tar -tv | grep -c prod.pem\n# 0\n\n# never forget: rotate the exposed key",
+    "diagram": "flowchart LR\n  A[\"COPY . /app\"] --> B[\"layer 3: contains prod.pem\"]\n  C[\"RUN rm -rf /app/keys\"] --> D[\"layer 4: whiteout only\"]\n  B --> E[\"image tarball still holds key\"]\n  D --> F[\"filesystem view: file gone\"]\n  G[\"fix: .dockerignore keys/\"] --> H[\"key never enters a layer\"]",
+    "options": [
+      "Move the `RUN rm -rf /app/keys` line directly after the `COPY` so the deletion lands in the same layer",
+      "Add `keys/` to `.dockerignore` (or copy only what is needed), rotate the key, and rebuild and re-push the image",
+      "Run `docker image prune` on the registry host so the old layer containing the key is garbage-collected",
+      "Set `--squash` on the next build so the removed file disappears from the final layer"
+    ],
+    "optionNotes": [
+      "Each instruction produces its own layer regardless of adjacency; the `COPY` layer would still contain the key.",
+      "Correct: keeping the secret out of the build context is the only way to ensure it is absent from every layer, and because the key has already been distributed it must be rotated.",
+      "Registry garbage collection removes unreferenced blobs, but the layer is still referenced by the manifest of `payments:2.3`.",
+      "`--squash` is experimental, is not supported by BuildKit, and does not address the fact that the key has already leaked; the image should be rebuilt without the key rather than flattened."
+    ],
+    "answer": 1,
+    "reference": "https://docs.docker.com/build/concepts/context/#dockerignore-files",
+    "tags": [
+      "scenario",
+      "security",
+      "layers",
+      "dockerignore"
+    ]
+  },
+  {
+    "id": "docker-081",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A team adds `HEALTHCHECK --interval=10s --retries=3 CMD curl -f http://localhost:8080/healthz || exit 1` to their Go service image built `FROM gcr.io/distroless/static`. After deploy, `docker ps` shows the container `(unhealthy)` after 30 seconds even though `curl http://host:8080/healthz` from outside returns `200 OK`. `docker inspect --format '{{json .State.Health.Log}}'` shows `ExitCode: 127`. What is the most likely cause?",
+    "explanation": "Exit code 127 means the health command itself could not be found: distroless images ship no shell and no `curl`, so the check fails before it ever contacts the service. Use a health-check mechanism that exists in the image, for example a tiny statically compiled probe binary copied in via multi-stage build, or have the application binary expose a `--healthcheck` subcommand.",
+    "example": "docker inspect --format '{{json .State.Health.Log}}' svc | jq '.[-1]'\n# { \"ExitCode\": 127, \"Output\": \"/bin/sh: 1: curl: not found\" }\n\n# Dockerfile fix (exec form, no shell needed)\nCOPY --from=builder /out/healthprobe /healthprobe\nHEALTHCHECK --interval=10s CMD [\"/healthprobe\", \"http://localhost:8080/healthz\"]",
+    "diagram": "flowchart TD\n  A[\"HEALTHCHECK CMD curl ...\"] --> B[\"docker runs check in container\"]\n  B --> C[\"distroless: no sh, no curl\"]\n  C --> D[\"exit 127: not found\"]\n  D --> E[\"3 failures: unhealthy\"]\n  F[\"fix: static probe binary, exec form\"] --> G[\"exit 0: healthy\"]",
+    "options": [
+      "The service listens only on the container's external IP, so `localhost` inside the container does not reach it",
+      "The `--retries=3` value is too low for the Go service's startup time; increase it or add `--start-period`",
+      "The distroless image contains neither `curl` nor a shell, so the health command cannot execute at all",
+      "Docker health checks run on the host network namespace, so `localhost:8080` refers to the host and is not published"
+    ],
+    "optionNotes": [
+      "A connection refusal would give curl exit code 7 and a message about the connection, not 127; external requests also succeed, so the service is up.",
+      "A slow start would show curl exit codes like 7 or 22 in the log, and `--start-period` would only delay counting; 127 is a command-not-found error.",
+      "Correct: exit code 127 with `curl: not found` in the health log shows the probe never ran; distroless images intentionally omit a shell and tools.",
+      "Health checks are executed inside the container's own namespaces with `docker exec`-like semantics, so `localhost` is the container."
+    ],
+    "answer": 2,
+    "reference": "https://docs.docker.com/reference/dockerfile/#healthcheck",
+    "tags": [
+      "scenario",
+      "healthcheck",
+      "distroless",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "docker-082",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A `compose.yaml` defines `environment: DATABASE_URL: postgres://app:$DB_PASS@db:5432/app` for service `api` and `command: sh -c \"echo cost is $$5\"` for service `job`. On `docker compose up`, Compose warns `WARN[0000] The \"DB_PASS\" variable is not set. Defaulting to a blank string.` and the api fails to authenticate, even though `DB_PASS` is exported in the developer's `~/.bashrc`, and the job prints `cost is $5`. Which statements correctly describe what is happening? (Select all that apply.)",
+    "explanation": "Compose interpolates `$VAR` and `${VAR}` in the file from the shell environment and a `.env` file in the project directory, not from files like `~/.bashrc` that a non-interactive shell (or a different shell) may not source; an unset variable becomes an empty string with a warning. A literal dollar sign must be written as `$$`, which is why the job prints `$5` correctly. `${DB_PASS:?err}` makes an unset variable a hard error instead of a silent blank.",
+    "example": "# .env (next to compose.yaml)\nDB_PASS=s3cret\n\n# compose.yaml\nservices:\n  api:\n    environment:\n      DATABASE_URL: postgres://app:${DB_PASS:?DB_PASS must be set}@db:5432/app\n\ndocker compose config | grep DATABASE_URL   # verify interpolation",
+    "diagram": "flowchart LR\n  A[\"compose.yaml with $DB_PASS\"] --> B[\"Compose interpolation\"]\n  C[\"shell env of docker compose\"] --> B\n  D[\".env in project dir\"] --> B\n  B -->|\"unset\"| E[\"blank string and WARN\"]\n  B -->|\"set\"| F[\"rendered value\"]\n  G[\"$$5 in file\"] --> H[\"literal $5 in container\"]",
+    "options": [
+      "Compose reads variables from the environment of the `docker compose` process and from a `.env` file in the project directory, not from `~/.bashrc` directly",
+      "An unset variable referenced as `$DB_PASS` is substituted with an empty string and only a warning is printed, so the container starts with a broken URL",
+      "The `$$5` in the `command` is correct: `$$` is how a literal dollar sign is written in a Compose file",
+      "Adding `env_file: .env` to the `api` service would make `$DB_PASS` interpolate in the `DATABASE_URL` string",
+      "Writing `${DB_PASS:?DB_PASS is required}` would turn the missing variable into a fatal error instead of a blank"
+    ],
+    "optionNotes": [
+      "Correct: interpolation uses the invoking shell's environment plus the project `.env` file (or `--env-file`); a value only defined in `~/.bashrc` is not seen if that file was not sourced in the shell running Compose.",
+      "Correct: this is Compose's documented behavior for unset variables without a default or `:?` modifier, which is why the failure is silent apart from the warning.",
+      "Correct: `$$` escapes the dollar so the container's shell receives `$5` literally rather than Compose trying to interpolate a variable named `5`.",
+      "`env_file` injects variables into the container at runtime; it does not feed Compose's file interpolation, which happens before the service definition is rendered.",
+      "Correct: the `:?` modifier makes Compose exit with the given message when the variable is unset or empty."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "reference": "https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/",
+    "tags": [
+      "scenario",
+      "compose",
+      "interpolation",
+      "environment"
+    ]
+  },
+  {
+    "id": "docker-083",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "During an incident, an engineer runs `docker run -d -p 5432:5432 --name pg-debug postgres:16` on a production host and gets `Error response from daemon: driver failed programming external connectivity on endpoint pg-debug: Bind for 0.0.0.0:5432 failed: port is already allocated`. `docker ps` shows no container publishing 5432, but `docker ps -a` lists an `Exited (1)` container `pg-old` created with `-p 5432:5432`. True or false: the stopped `pg-old` container is what still holds host port 5432, so `docker rm pg-old` is required before the new container can bind it.",
+    "explanation": "False. Docker releases a published port's proxy and iptables rules when a container stops; an exited container does not hold ports. The error means something else on the host is listening on 5432, typically a host-installed PostgreSQL (`systemd`) or a stale `docker-proxy` process, which `ss -ltnp` will reveal; the fix is to stop that listener or publish to a different host port.",
+    "example": "ss -ltnp 'sport = :5432'\n# LISTEN 0 244 0.0.0.0:5432 users:((\"postgres\",pid=1187,fd=7))\n\n# either use another host port for the debug container...\ndocker run -d -p 15432:5432 --name pg-debug postgres:16\n# ...or stop the host service that owns the port\nsudo systemctl stop postgresql",
+    "diagram": "flowchart TD\n  A[\"port is already allocated\"] --> B[\"docker ps: no container on 5432\"]\n  B --> C[\"ss -ltnp sport 5432\"]\n  C --> D[\"host postgres pid 1187 listening\"]\n  D --> E[\"stop host service or use other host port\"]\n  F[\"Exited pg-old\"] -->|\"holds no ports\"| G[\"not the cause\"]",
+    "answer": false,
+    "reference": "https://docs.docker.com/engine/network/#published-ports",
+    "tags": [
+      "scenario",
+      "networking",
+      "ports",
+      "troubleshooting"
+    ]
   }
 ]

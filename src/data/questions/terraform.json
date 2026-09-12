@@ -1906,5 +1906,242 @@
       "state",
       "refactoring"
     ]
+  },
+  {
+    "id": "terraform-075",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A GitLab CI job running `terraform apply` against an S3 backend with DynamoDB locking was killed by the runner's 60 minute timeout. Every run since fails immediately with `Error: Error acquiring the state lock ... Lock Info: ID: 3f1c9a2e-... Operation: OperationTypeApply Who: gitlab-runner@ci-07 Created: 2025-03-04 01:12:09`. No Terraform process is running anywhere. What is the correct way to recover?",
+    "explanation": "The killed process never released its DynamoDB lock item, so the lock is stale. After confirming nobody is actually applying, `terraform force-unlock <LOCK_ID>` removes that specific lock entry; the ID guards against unlocking a different, live run. Deleting the whole DynamoDB table or the state object would work but risks corrupting state or breaking locking for everyone.",
+    "example": "# confirm no live run, then:\nterraform force-unlock 3f1c9a2e-8b7d-4c1e-9f2a-6d5e4c3b2a10\n# Terraform state has been successfully unlocked!\nterraform plan",
+    "diagram": "flowchart TD\n  A[\"CI job killed mid-apply\"] --> B[\"DynamoDB lock item never deleted\"]\n  B --> C[\"next run: Error acquiring the state lock\"]\n  C --> D{\"any live apply running?\"}\n  D -->|\"no\"| E[\"terraform force-unlock LOCK_ID\"]\n  D -->|\"yes\"| F[\"wait for it to finish\"]\n  E --> G[\"plan and apply succeed\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/force-unlock",
+    "options": [
+      "Verify no apply is in progress, then run `terraform force-unlock 3f1c9a2e-...` with the lock ID from the error",
+      "Delete the DynamoDB lock table and let Terraform recreate it on the next run",
+      "Re-run the pipeline with `terraform apply -lock=false` so the stale lock is bypassed",
+      "Run `terraform init -reconfigure` to reset the backend and clear its lock state"
+    ],
+    "optionNotes": [
+      "Correct: `force-unlock` deletes only the named lock entry, and requiring the ID prevents accidentally unlocking a different in-flight run.",
+      "Terraform does not create the lock table for you, and dropping it would break locking for every workspace that shares it; it is far more destructive than needed.",
+      "`-lock=false` skips locking for that run only, leaves the stale lock in place for everyone else, and sets a dangerous precedent of applying without protection.",
+      "`init -reconfigure` only rewrites the local backend configuration; the lock lives in DynamoDB and is untouched."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "state",
+      "locking",
+      "force-unlock"
+    ]
+  },
+  {
+    "id": "terraform-076",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A module creates three subnets with `count = length(var.cidrs)` where `cidrs = [\"10.0.1.0/24\", \"10.0.2.0/24\", \"10.0.3.0/24\"]`. A colleague removes the middle CIDR and the plan shows `aws_subnet.private[1]` will be replaced and `aws_subnet.private[2]` destroyed, even though subnet `10.0.3.0/24` has running instances. What is the safest way to remove only the middle subnet?",
+    "explanation": "With `count`, instances are identified by position, so deleting element 1 shifts `10.0.3.0/24` from index 2 to index 1 and Terraform sees a changed CIDR at `[1]` plus a missing `[2]`. Converting the resource to `for_each` keyed by CIDR gives each subnet a stable address, and `moved` blocks map the old indexed addresses to the new keys so the plan only destroys the one subnet that was actually removed.",
+    "example": "resource \"aws_subnet\" \"private\" {\n  for_each   = toset(var.cidrs)\n  cidr_block = each.key\n}\n\nmoved {\n  from = aws_subnet.private[0]\n  to   = aws_subnet.private[\"10.0.1.0/24\"]\n}\nmoved {\n  from = aws_subnet.private[2]\n  to   = aws_subnet.private[\"10.0.3.0/24\"]\n}\n# plan: 1 to destroy, 0 to add",
+    "diagram": "flowchart LR\n  A[\"remove cidrs element 1\"] --> B[\"count: index 2 shifts to 1\"]\n  B --> C[\"plan: replace private 1, destroy private 2\"]\n  A --> D[\"for_each keyed by CIDR plus moved blocks\"]\n  D --> E[\"plan: destroy only 10.0.2.0/24\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/for_each",
+    "options": [
+      "Switch the resource to `for_each = toset(var.cidrs)` and add `moved` blocks from `aws_subnet.private[0]` and `[2]` to their CIDR keys before applying",
+      "Apply the plan as shown, since Terraform will recreate the third subnet with the same CIDR and the instances will reattach",
+      "Run `terraform apply -target=aws_subnet.private[1]` so that only the middle subnet is touched",
+      "Add `lifecycle { prevent_destroy = true }` to the subnet resource and then apply"
+    ],
+    "optionNotes": [
+      "Correct: `for_each` gives stable per-CIDR addresses and the `moved` blocks re-bind existing state objects, so only the removed subnet is destroyed.",
+      "A subnet with running instances cannot be deleted, and even if it could, replacement would destroy the instances' network attachment rather than reattach them.",
+      "Targeting `[1]` would still apply the replacement of index 1 (which now holds the third CIDR) and leaves the state inconsistent for the next full run.",
+      "`prevent_destroy` makes the plan error out entirely; it does not fix the index shift and would block even the intended removal of the middle subnet."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "count",
+      "for_each",
+      "moved"
+    ]
+  },
+  {
+    "id": "terraform-077",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "During an incident an engineer created the S3 bucket `acme-prod-audit-logs` by hand in the console. The next day a PR adds `resource \"aws_s3_bucket\" \"audit\" { bucket = \"acme-prod-audit-logs\" }` and the apply fails with `Error: creating S3 Bucket (acme-prod-audit-logs): BucketAlreadyOwnedByYou`. The bucket already holds logs that must be kept. What should be done?",
+    "explanation": "Terraform has no state entry for the bucket, so it tries to create it and the provider refuses because it already exists. An `import` block (Terraform 1.5 and later) binds the existing bucket to `aws_s3_bucket.audit` during the next plan and apply, after which Terraform manages it in place with no data loss.",
+    "example": "import {\n  to = aws_s3_bucket.audit\n  id = \"acme-prod-audit-logs\"\n}\n\n# terraform plan\n# aws_s3_bucket.audit: will be imported\n# Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.",
+    "diagram": "flowchart TD\n  A[\"bucket created by hand\"] --> B[\"no entry in state\"]\n  B --> C[\"apply tries create: BucketAlreadyOwnedByYou\"]\n  C --> D[\"import block: to = aws_s3_bucket.audit, id = bucket name\"]\n  D --> E[\"plan: 1 to import\"]\n  E --> F[\"bucket managed, data kept\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/import",
+    "options": [
+      "Add an `import` block with `to = aws_s3_bucket.audit` and `id = \"acme-prod-audit-logs\"`, then plan and apply",
+      "Delete the bucket in the console so that `terraform apply` can create it cleanly",
+      "Change the resource name in the configuration to `audit2` so it no longer clashes",
+      "Run `terraform state rm aws_s3_bucket.audit` and apply again"
+    ],
+    "optionNotes": [
+      "Correct: importing adopts the existing bucket into state so future applies update it rather than trying to create it.",
+      "Deleting the bucket destroys the audit logs that must be preserved; the conflict is in state, not in the bucket.",
+      "The clash is on the real bucket name in AWS, not on the Terraform resource label, so the create would still fail.",
+      "There is nothing to remove: the address is not in state at all, which is exactly why Terraform attempted a create."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "import",
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-078",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A repo pins `aws = { source = \"hashicorp/aws\", version = \">= 5.0\" }` and commits `.terraform.lock.hcl`. A developer ran `terraform init -upgrade` locally, committed the changed lock file, and now CI fails on plan with `Error: Unsupported argument ... An argument named \"enable_classiclink\" is not expected here` on `aws_vpc`. Which statements about the situation are correct?",
+    "explanation": "`init -upgrade` ignores the lock file and selects the newest provider allowed by the constraint, and `>= 5.0` permits any future major version, so the lock file jumped to a release that removed the deprecated argument. Restoring the previous lock file gets CI green immediately; the durable fix is a pessimistic constraint such as `~> 5.40` so upgrades are deliberate and the schema change is handled in a dedicated PR.",
+    "example": "git checkout origin/main -- .terraform.lock.hcl   # immediate fix\n\nterraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"~> 5.40\"   # allows 5.x, blocks 6.0\n    }\n  }\n}",
+    "diagram": "flowchart TD\n  A[\"version = greater or equal 5.0\"] --> B[\"terraform init -upgrade\"]\n  B --> C[\"lock file now pins aws 6.x\"]\n  C --> D[\"plan: Unsupported argument enable_classiclink\"]\n  D --> E[\"revert lock file\"]\n  D --> F[\"tighten to ~> 5.40 and migrate in own PR\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/files/dependency-lock",
+    "options": [
+      "`terraform init -upgrade` ignores the existing lock file selection and picks the newest version allowed by the constraint",
+      "The constraint `>= 5.0` allows a major version bump to 6.x, which is why the removed argument broke the plan",
+      "Reverting `.terraform.lock.hcl` to the previous commit restores the older provider on the next `terraform init`",
+      "Changing the constraint to `~> 5.40` will allow 5.41 and later 5.x patches but not 6.0",
+      "Running `terraform init -reconfigure` in CI would downgrade the provider automatically",
+      "The lock file only affects the local machine and CI always resolves providers fresh from the registry"
+    ],
+    "optionNotes": [
+      "Correct: `-upgrade` re-evaluates constraints and takes the latest matching version, then rewrites the lock file.",
+      "Correct: a bare lower bound never caps major versions, so breaking releases are silently eligible.",
+      "Correct: `init` without `-upgrade` honors whatever the lock file records, so restoring it restores the old selection.",
+      "Correct: `~> 5.40` means greater than or equal to 5.40 and less than 6.0.",
+      "`-reconfigure` only resets backend configuration; provider selection still comes from the lock file, which currently records the new version.",
+      "The lock file is committed precisely so that CI and every developer install the same provider versions."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tags": [
+      "scenario",
+      "providers",
+      "lock-file",
+      "versions"
+    ]
+  },
+  {
+    "id": "terraform-079",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A team manages `dev` and `prod` from one root module using CLI workspaces and a shared S3 backend. An engineer opens a fresh clone, runs `terraform init` and then `terraform plan -var-file=prod.tfvars`, and is alarmed to see `Plan: 42 to add, 0 to change, 0 to destroy` for resources that clearly already exist in production. Nothing was applied yet. What is the most likely cause?",
+    "explanation": "A fresh clone starts in the `default` workspace, whose state key contains none of the prod resources, so Terraform plans to create everything from scratch even though the variable file says prod. The plan is a symptom of reading the wrong state, not of missing infrastructure; `terraform workspace select prod` before planning shows the expected no-op plan.",
+    "example": "terraform workspace show\n# default\nterraform workspace select prod\nterraform plan -var-file=prod.tfvars\n# No changes. Your infrastructure matches the configuration.",
+    "diagram": "flowchart TD\n  A[\"fresh clone, terraform init\"] --> B[\"workspace: default\"]\n  B --> C[\"state key env: default is empty\"]\n  C --> D[\"plan -var-file=prod.tfvars: 42 to add\"]\n  D --> E[\"terraform workspace select prod\"]\n  E --> F[\"plan: no changes\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/workspaces",
+    "options": [
+      "The clone is in the `default` workspace, so the plan reads an empty state instead of the `prod` workspace state",
+      "The S3 backend state object was deleted and Terraform lost track of the prod resources",
+      "`prod.tfvars` changed resource names, so every resource is being replaced",
+      "The provider credentials point at a different AWS account where the resources do not exist"
+    ],
+    "optionNotes": [
+      "Correct: workspace selection is local to the working directory and a fresh `init` lands in `default`; the variable file does not choose the state.",
+      "A lost state would be a possible cause, but a brand new clone defaulting to `default` is far more likely and should be checked first with `terraform workspace show`.",
+      "Renames would show up as add plus destroy pairs, and the plan shows 0 to destroy.",
+      "Wrong credentials would typically produce a plan showing creates too, but the `-var-file` matching the team's workflow and a fresh clone point to the workspace; also Terraform plans from state, not by scanning the account."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "workspaces",
+      "state"
+    ]
+  },
+  {
+    "id": "terraform-080",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A `terraform apply` creating an `aws_instance` with a `remote-exec` provisioner reports `Error: remote-exec provisioner error ... timeout - last error: dial tcp 10.0.5.12:22: i/o timeout` and the instance now appears in state. On the next `terraform plan`, Terraform will show `aws_instance.app is tainted, so must be replaced` and plan to destroy and recreate it.",
+    "explanation": "When a creation-time provisioner fails, Terraform keeps the resource in state but marks it tainted, because it cannot be sure the object was fully configured. The next plan therefore schedules a replacement; if the instance is actually fine (for example, only the security group blocked SSH), you can run `terraform untaint aws_instance.app` to keep it.",
+    "example": "terraform plan\n# aws_instance.app is tainted, so must be replaced\n# -/+ resource \"aws_instance\" \"app\" {\n\n# keep it instead:\nterraform untaint aws_instance.app",
+    "diagram": "flowchart TD\n  A[\"apply: instance created\"] --> B[\"remote-exec: dial tcp 22 timeout\"]\n  B --> C[\"instance kept in state as tainted\"]\n  C --> D[\"next plan: must be replaced\"]\n  C --> E[\"terraform untaint if instance is healthy\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/resources/provisioners/syntax#failure-behavior",
+    "answer": true,
+    "tags": [
+      "scenario",
+      "provisioners",
+      "taint"
+    ]
+  },
+  {
+    "id": "terraform-081",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After a PR that lets an app security group and a database security group reference each other by `security_group_id` inside their inline `ingress` blocks, `terraform plan` fails with `Error: Cycle: aws_security_group.db, aws_security_group.app`. Both groups must allow traffic from the other. Which change resolves the error while keeping the intended rules?",
+    "explanation": "Inline `ingress` blocks make each group's attributes depend on the other's ID before either exists, which is a true dependency cycle. Moving the cross references into separate `aws_security_group_rule` (or `aws_vpc_security_group_ingress_rule`) resources lets Terraform create both groups first and then the rules, breaking the cycle without changing the resulting policy.",
+    "example": "resource \"aws_security_group\" \"app\" { vpc_id = var.vpc_id }\nresource \"aws_security_group\" \"db\"  { vpc_id = var.vpc_id }\n\nresource \"aws_vpc_security_group_ingress_rule\" \"db_from_app\" {\n  security_group_id            = aws_security_group.db.id\n  referenced_security_group_id = aws_security_group.app.id\n  from_port = 5432\n  to_port   = 5432\n  ip_protocol = \"tcp\"\n}",
+    "diagram": "flowchart LR\n  A[\"sg.app inline ingress refs sg.db.id\"] --> B[\"sg.db inline ingress refs sg.app.id\"]\n  B --> A\n  A -.-> C[\"Error: Cycle\"]\n  D[\"sg.app\"] --> F[\"rule db_from_app\"]\n  E[\"sg.db\"] --> F\n  E --> G[\"rule app_from_db\"]\n  D --> G",
+    "reference": "https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group",
+    "options": [
+      "Remove the inline `ingress` blocks and define the cross references as standalone security group rule resources",
+      "Add `depends_on = [aws_security_group.db]` to the app security group so Terraform knows the order",
+      "Run `terraform apply -target=aws_security_group.app` first and then a full apply",
+      "Set `create_before_destroy = true` in both groups' `lifecycle` blocks"
+    ],
+    "optionNotes": [
+      "Correct: separate rule resources depend on both group IDs, so the graph becomes groups then rules with no cycle.",
+      "`depends_on` adds another edge in the same direction as the existing reference and cannot remove the reverse dependency, so the cycle remains.",
+      "Targeting does not change the graph; the targeted group still references the other's ID, and the cycle error appears during planning regardless.",
+      "`create_before_destroy` only affects replacement ordering and has no effect on a dependency cycle between two resources being created."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "dependency-graph",
+      "cycle"
+    ]
+  },
+  {
+    "id": "terraform-082",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "During an outage an SRE raised an RDS instance from `db.r6g.large` to `db.r6g.xlarge` in the AWS console. The next nightly `terraform plan` shows `~ instance_class = \"db.r6g.xlarge\" -> \"db.r6g.large\"` with `Plan: 0 to add, 1 to change, 0 to destroy`. The team has decided the larger size should stay. Which actions correctly prevent Terraform from shrinking the database?",
+    "explanation": "Terraform detected drift and plans to enforce the configuration, which still says `large`. Making the configuration match reality (`instance_class = \"db.r6g.xlarge\"`) is the normal fix; adding `instance_class` to `ignore_changes` is a valid alternative only if the team genuinely wants sizing managed outside Terraform. A refresh-only apply just records the drift in state and the following plan would still propose the downgrade.",
+    "example": "resource \"aws_db_instance\" \"main\" {\n  instance_class = \"db.r6g.xlarge\"   # match what the SRE set\n  # ...\n}\n\n# alternative if sizing is managed outside Terraform:\n# lifecycle { ignore_changes = [instance_class] }",
+    "diagram": "flowchart TD\n  A[\"console: large to xlarge\"] --> B[\"plan: xlarge to large, 1 to change\"]\n  B --> C[\"edit config to xlarge\"]\n  B --> D[\"ignore_changes instance_class\"]\n  B --> E[\"apply -refresh-only\"]\n  C --> F[\"next plan: no changes\"]\n  D --> F\n  E --> G[\"next plan still downgrades\"]",
+    "reference": "https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes",
+    "options": [
+      "Update `instance_class` in the configuration to `db.r6g.xlarge` and merge the change",
+      "Add `instance_class` to the resource's `lifecycle { ignore_changes = [...] }` list",
+      "Run `terraform apply -refresh-only` so the state records `xlarge` and the diff disappears permanently",
+      "Run `terraform state rm aws_db_instance.main` so Terraform stops interfering with the database",
+      "Apply the plan and then resize the instance again in the console after the maintenance window"
+    ],
+    "optionNotes": [
+      "Correct: configuration is the source of truth, so encoding the new size makes the next plan clean and keeps the resource fully managed.",
+      "Correct: ignoring that attribute stops Terraform from planning changes to it, which is appropriate if resizing is intentionally handled outside Terraform.",
+      "A refresh-only apply updates state to `xlarge`, but the configuration still says `large`, so the very next plan proposes the downgrade again.",
+      "Removing the instance from state orphans it; a later apply would try to create a new database with the same identifier and fail, and the existing one would be unmanaged.",
+      "Applying downgrades the database with a modification and possible restart, causing exactly the capacity loss the team wants to avoid."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "tags": [
+      "scenario",
+      "drift",
+      "lifecycle"
+    ]
   }
 ]

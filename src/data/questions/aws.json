@@ -2264,5 +2264,245 @@
       "iac",
       "deployment"
     ]
+  },
+  {
+    "id": "aws-086",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You launch an EC2 instance in a subnet named `app-private-a` with no public IP. `sudo dnf update` hangs and `curl -m 5 https://example.com` times out, but the instance can reach other instances in the VPC and its security group allows all outbound traffic. The VPC has an Internet Gateway and a NAT gateway in the public subnet. What is the most likely cause?",
+    "options": [
+      "The private subnet's route table has no `0.0.0.0/0` route pointing at the NAT gateway",
+      "The Internet Gateway is not attached to the VPC",
+      "The instance needs an Elastic IP before it can reach the internet",
+      "The security group is missing an inbound rule for return traffic on port 443"
+    ],
+    "optionNotes": [
+      "Correct. Private subnets need an explicit `0.0.0.0/0 -> nat-xxxx` route in their associated route table; without it, internet-bound packets have no route and the connection times out while intra-VPC traffic still works via the `local` route.",
+      "If the IGW were detached, the NAT gateway itself would be unable to reach the internet, but that is a far less common misconfiguration and the symptom described (VPC-local traffic works, no default route) points at the private subnet's route table first.",
+      "Assigning an Elastic IP would make the instance publicly addressable and defeat the purpose of a private subnet; the intended egress path for private instances is the NAT gateway.",
+      "Security groups are stateful, so return traffic for an outbound connection is automatically allowed. No inbound rule is needed for responses."
+    ],
+    "answer": 0,
+    "explanation": "A subnet is only as connected as its route table. Intra-VPC traffic works because of the implicit `local` route, but any destination outside the VPC CIDR needs a route; for a private subnet that is `0.0.0.0/0` targeting the NAT gateway. Adding that route (in the route table associated with `app-private-a`) restores egress immediately.",
+    "example": "aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=subnet-0abc123 \\\n  --query 'RouteTables[].Routes[]'\n# [{\"DestinationCidrBlock\":\"10.0.0.0/16\",\"GatewayId\":\"local\",\"State\":\"active\"}]  <- no default route\naws ec2 create-route --route-table-id rtb-0priv --destination-cidr-block 0.0.0.0/0 \\\n  --nat-gateway-id nat-0abcdef1234567890",
+    "diagram": "flowchart LR\nI[\"EC2 in app-private-a\"] --> RT[\"Private route table\"]\nRT -->|\"10.0.0.0/16 local\"| V[\"Other VPC hosts OK\"]\nRT -->|\"0.0.0.0/0 missing\"| X[\"Packet dropped, curl times out\"]\nRT -.->|\"fix: 0.0.0.0/0 to nat-xxxx\"| N[\"NAT gateway\"]\nN --> IGW[\"Internet Gateway\"]\nIGW --> W[\"Internet\"]",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html",
+    "tags": [
+      "scenario",
+      "vpc",
+      "nat",
+      "routing"
+    ]
+  },
+  {
+    "id": "aws-087",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A security team tightens the network ACL on the `db` subnet so that inbound allows only TCP 5432 from `10.0.1.0/24` and outbound allows only TCP 443 to `0.0.0.0/0`. The RDS security group allows 5432 from the app security group. Immediately afterwards, the app logs `psql: connection to server at 10.0.3.15, port 5432 failed: Connection timed out`. Which change fixes the outage while keeping the NACL restrictive?",
+    "options": [
+      "Add an inbound NACL rule allowing TCP 1024-65535 from `10.0.1.0/24`",
+      "Add an outbound NACL rule allowing TCP 1024-65535 to `10.0.1.0/24`",
+      "Add an inbound rule for port 5432 to the RDS security group from `10.0.1.0/24`",
+      "Reboot the RDS instance so it picks up the new network configuration"
+    ],
+    "optionNotes": [
+      "Inbound is already fine: the SYN from the app arrives on port 5432 and is allowed. The problem is the reply direction, not extra inbound ports.",
+      "Correct. NACLs are stateless, so the SYN-ACK from the database back to the client's ephemeral source port (1024-65535) must be explicitly permitted outbound. Without it, the handshake never completes and the client times out.",
+      "The security group already permits 5432 from the app's security group, and security groups are stateful; the timeout appeared only after the NACL change, so the SG is not the culprit.",
+      "RDS does not need a reboot to honor subnet NACL changes; they apply immediately at the subnet boundary. A reboot would add downtime without fixing anything."
+    ],
+    "answer": 1,
+    "explanation": "Security groups track connection state, but network ACLs evaluate every packet independently. Allowing inbound 5432 lets the client's SYN in, but the database's reply goes to the client's ephemeral port, which the new outbound rule (443 only) drops. Adding an outbound allow for 1024-65535 to the client range restores the handshake.",
+    "example": "aws ec2 create-network-acl-entry --network-acl-id acl-0db123 --egress \\\n  --rule-number 110 --protocol tcp --port-range From=1024,To=65535 \\\n  --cidr-block 10.0.1.0/24 --rule-action allow\n# verify: VPC Reachability Analyzer or flow logs showing REJECT on the return path\naws ec2 describe-network-acls --network-acl-ids acl-0db123 --query 'NetworkAcls[].Entries'",
+    "diagram": "sequenceDiagram\n  participant A as App 10.0.1.20:51234\n  participant N as db subnet NACL\n  participant D as RDS 10.0.3.15:5432\n  A->>N: SYN to 5432\n  N->>D: allowed (inbound rule 100)\n  D->>N: SYN-ACK to port 51234\n  N--xA: dropped (outbound allows 443 only)\n  Note over N: fix: egress allow TCP 1024-65535 to 10.0.1.0/24",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html",
+    "tags": [
+      "scenario",
+      "vpc",
+      "nacl",
+      "security-group"
+    ]
+  },
+  {
+    "id": "aws-088",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After a deploy that enables HTTP keep-alive in a Node.js service behind an Application Load Balancer, roughly 0.1% of requests fail with HTTP 502 from the ALB. Target health checks are green and the application logs show no errors for the failed request IDs. The ALB idle timeout is the default 60 seconds and the app sets `server.keepAliveTimeout = 5000`. What is the most likely cause?",
+    "options": [
+      "The target closes idle keep-alive connections before the ALB does, so the ALB occasionally sends a request on a connection the target just closed",
+      "The ALB health check interval is shorter than the keep-alive timeout, causing health checks to consume all connection slots",
+      "The target group is using HTTP/2 while the application only supports HTTP/1.1",
+      "The security group on the targets is rate limiting connections from the ALB nodes"
+    ],
+    "optionNotes": [
+      "Correct. The ALB reuses backend connections for up to its idle timeout (60s). If the target closes them after 5s, a request forwarded on a connection that the target is closing at that instant fails and the ALB returns 502 with no application-side log entry.",
+      "Health checks use their own connections and are not throttled by keep-alive; they are green here, so they are not the failure path.",
+      "ALB to target uses HTTP/1.1 by default; an HTTP/2 mismatch would fail consistently, not for 0.1% of requests.",
+      "Security groups do not rate limit; they either allow or deny a flow. Intermittent 502 with no app log is a connection reuse race, not a network policy issue."
+    ],
+    "answer": 0,
+    "explanation": "ALB 502 with healthy targets and silent application logs is the classic keep-alive race: the backend's keep-alive timeout is shorter than the ALB's idle timeout, so the ALB reuses a connection the backend is closing. AWS recommends the target's keep-alive timeout be longer than the load balancer's idle timeout. Raise `keepAliveTimeout` (and `headersTimeout`) above 60s, or lower the ALB idle timeout below the app's value.",
+    "example": "// Node.js fix: keep the target's keep-alive longer than the ALB idle timeout (60s)\nserver.keepAliveTimeout = 65000;\nserver.headersTimeout = 66000;\n\n# confirm the pattern from access logs: elb_status_code=502, target_status_code=-\naws elbv2 describe-load-balancer-attributes --load-balancer-arn $ALB_ARN \\\n  --query 'Attributes[?Key==`idle_timeout.timeout_seconds`]'",
+    "diagram": "flowchart TD\nC[\"Client request\"] --> ALB[\"ALB reuses idle backend connection (idle timeout 60s)\"]\nALB --> T[\"Target closed it at 5s keepAliveTimeout\"]\nT --> E[\"Connection reset, ALB returns 502, no app log\"]\nE --> F[\"Fix: target keepAliveTimeout greater than ALB idle timeout\"]",
+    "reference": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html",
+    "tags": [
+      "scenario",
+      "alb",
+      "load-balancer",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "aws-089",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Your monthly AWS bill for a data-processing account jumped 40%. Cost Explorer grouped by usage type shows the growth in `NatGateway-Bytes`, `DataTransfer-Regional-Bytes`, and `EBS:VolumeUsage.gp3`. The workers run in private subnets across three AZs, pull large objects from S3 through a single NAT gateway in `us-east-1a`, and a nightly job creates volumes that are often left behind. Which actions will actually reduce these charges? (Select all that apply.)",
+    "options": [
+      "Add an S3 gateway VPC endpoint and route the workers' S3 traffic through it",
+      "Find and delete EBS volumes whose state is `available` (unattached) and are no longer needed",
+      "Replace the single NAT gateway with one NAT gateway per AZ so workers use a NAT in their own AZ",
+      "Purchase a Compute Savings Plan to cover the NAT gateway hourly and per-GB charges",
+      "Increase the NAT gateway bandwidth by moving it to a larger instance size"
+    ],
+    "optionNotes": [
+      "Correct. A gateway endpoint for S3 removes S3 traffic from the NAT path entirely, eliminating the per-GB NAT data-processing charge for that traffic, and the endpoint itself has no charge.",
+      "Correct. `EBS:VolumeUsage` is billed per GB-month whether or not a volume is attached; orphaned `available` volumes from the nightly job accrue cost until deleted (snapshot first if needed).",
+      "Correct. Workers in `us-east-1b` and `1c` sending traffic to a NAT in `1a` incur cross-AZ `DataTransfer-Regional-Bytes` charges on top of NAT processing; a NAT per AZ removes the cross-AZ hop (and improves resilience).",
+      "Savings Plans cover EC2, Fargate and Lambda compute usage; they do not apply to NAT gateway hourly or data-processing charges.",
+      "NAT gateways are managed and scale automatically; there is no instance size to choose, and more bandwidth would not change the per-GB pricing anyway."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The three usage types map to three distinct fixes: NAT per-GB charges drop when S3 traffic bypasses the NAT via a free gateway endpoint, cross-AZ regional transfer disappears when each AZ has its own NAT, and unattached EBS volumes stop billing only when deleted. Savings Plans and sizing changes do not touch any of these line items.",
+    "example": "# 1. S3 gateway endpoint on the private route tables\naws ec2 create-vpc-endpoint --vpc-id vpc-0abc --service-name com.amazonaws.us-east-1.s3 \\\n  --vpc-endpoint-type Gateway --route-table-ids rtb-0priv-a rtb-0priv-b rtb-0priv-c\n\n# 2. orphaned volumes\naws ec2 describe-volumes --filters Name=status,Values=available \\\n  --query 'Volumes[].{id:VolumeId,gb:Size,created:CreateTime}' --output table",
+    "diagram": "flowchart LR\nW[\"Workers in 3 AZs\"] -->|\"cross-AZ bytes\"| N[\"Single NAT in 1a\"]\nN -->|\"per-GB processing\"| S3[\"S3\"]\nW -.->|\"fix: gateway endpoint\"| S3\nW -.->|\"fix: NAT per AZ\"| N2[\"NAT in each AZ\"]\nJ[\"Nightly job\"] --> V[\"Volumes left available\"]\nV -->|\"GB-month billed\"| B[\"Bill\"]\nV -.->|\"fix: delete\"| D[\"Deleted\"]",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints-s3.html",
+    "tags": [
+      "scenario",
+      "cost",
+      "nat",
+      "ebs"
+    ]
+  },
+  {
+    "id": "aws-090",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A GitHub Actions job runs as the role `ci-runner` in account `111111111111` and must deploy into account `222222222222` by assuming `arn:aws:iam::222222222222:role/deploy`. The `ci-runner` role has an identity policy granting `sts:AssumeRole` on exactly that ARN, yet the job fails with `An error occurred (AccessDenied) when calling the AssumeRole operation: User: arn:aws:sts::111111111111:assumed-role/ci-runner/gha is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::222222222222:role/deploy`. What is the most likely cause?",
+    "options": [
+      "The trust policy of the `deploy` role in account 222222222222 does not list `ci-runner` (or account 111111111111) as a principal",
+      "The `deploy` role's permissions policy is missing `sts:AssumeRole` for itself",
+      "The `ci-runner` role needs `AdministratorAccess` to assume roles in other accounts",
+      "The job must pass `--external-id` because cross-account AssumeRole always requires one"
+    ],
+    "optionNotes": [
+      "Correct. Cross-account role assumption needs both sides to agree: the caller's identity policy must allow `sts:AssumeRole` on the target ARN, and the target role's trust policy must allow the caller as a principal. The error text is identical when either side is missing, and here the caller side is already correct.",
+      "A role's own permissions policy governs what the role can do after it is assumed; it plays no part in deciding who may assume it. That is the trust policy's job.",
+      "Broad permissions in the calling account cannot override the target account's trust policy. The target account must explicitly trust the caller; more power on the caller side changes nothing.",
+      "An external ID is only required when the trust policy contains an `sts:ExternalId` condition; it is a defense against the confused deputy problem, not a general requirement."
+    ],
+    "answer": 0,
+    "explanation": "`AssumeRole` is evaluated in both accounts. Since account 111111111111 already allows the call, the denial comes from account 222222222222: the `deploy` role's trust policy must include the `ci-runner` role ARN (or the account root plus a condition) as a principal. Update the trust policy with `update-assume-role-policy` and the assume succeeds.",
+    "example": "aws iam get-role --role-name deploy --query Role.AssumeRolePolicyDocument   # run in 222222222222\n# trust policy fix:\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Allow\",\n    \"Principal\": {\"AWS\": \"arn:aws:iam::111111111111:role/ci-runner\"},\n    \"Action\": \"sts:AssumeRole\"\n  }]\n}\naws iam update-assume-role-policy --role-name deploy --policy-document file://trust.json",
+    "diagram": "flowchart LR\nC[\"ci-runner in 111111111111\"] -->|\"sts:AssumeRole\"| S[\"STS\"]\nS --> P1[\"Caller identity policy: allowed\"]\nS --> P2[\"deploy trust policy: no matching principal\"]\nP2 --> X[\"AccessDenied\"]\nP2 -.->|\"fix: add ci-runner as Principal\"| OK[\"Credentials issued\"]",
+    "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html",
+    "tags": [
+      "scenario",
+      "iam",
+      "sts",
+      "cross-account"
+    ]
+  },
+  {
+    "id": "aws-091",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A new EKS managed node group was created with a custom node IAM role. Pods scheduled on those nodes are stuck in `ImagePullBackOff`, and `kubectl describe pod` shows `Failed to pull image \"123456789012.dkr.ecr.us-east-1.amazonaws.com/api:1.4.2\": ... 401 Unauthorized`. The same image pulls fine on the older node group. What is the correct fix?",
+    "options": [
+      "Attach the `AmazonEC2ContainerRegistryReadOnly` (or equivalent `ecr:GetAuthorizationToken` and pull) permissions to the new node group's IAM role",
+      "Create an `imagePullSecret` from `aws ecr get-login-password` and reference it in the pod spec",
+      "Add an IRSA service account with ECR permissions to the deployment so the pod can authenticate",
+      "Set the ECR repository to public so no authentication is required"
+    ],
+    "optionNotes": [
+      "Correct. On EKS the kubelet on each node authenticates to ECR using the node's instance role via the ECR credential provider. A custom node role missing the ECR read permissions yields a 401 on pull, which is why only the new node group is affected.",
+      "This works but the ECR authorization token expires after 12 hours, so pulls would begin failing again unless the secret is continually refreshed. It is a workaround, not the fix for a missing node role permission.",
+      "IRSA and Pod Identity grant permissions to the application process inside the container. Image pulls are performed by the kubelet before the container exists, so pod-level credentials do not help.",
+      "Making a private application image public removes authentication entirely and is a security regression; the root cause is a missing IAM permission on the node role."
+    ],
+    "answer": 0,
+    "explanation": "Image pulls are done by the kubelet using the node's instance profile, not by the pod. A managed node group's role must carry `ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer` (the `AmazonEC2ContainerRegistryReadOnly` managed policy). Attaching it to the new node role resolves the 401 without touching the pods.",
+    "example": "aws iam attach-role-policy --role-name eks-nodes-v2 \\\n  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly\n# then retry the pull\nkubectl rollout restart deployment/api\nkubectl get events --field-selector reason=Pulled -w",
+    "diagram": "flowchart TD\nP[\"Pod scheduled on new node\"] --> K[\"kubelet pulls image\"]\nK --> R[\"Node IAM role eks-nodes-v2\"]\nR -->|\"no ecr:GetAuthorizationToken\"| E[\"401 Unauthorized, ImagePullBackOff\"]\nR -.->|\"fix: attach AmazonEC2ContainerRegistryReadOnly\"| OK[\"Image pulled\"]\nOLD[\"Old node group role\"] -->|\"has ECR read\"| OK",
+    "reference": "https://docs.aws.amazon.com/AmazonECR/latest/userguide/ECR_on_EKS.html",
+    "tags": [
+      "scenario",
+      "eks",
+      "ecr",
+      "iam"
+    ]
+  },
+  {
+    "id": "aws-092",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A worker fleet consumes an SQS standard queue whose visibility timeout is 30 seconds, but rendering a job takes 45 to 90 seconds. Downstream you see the same job rendered two or three times. A teammate proposes: \"Raise the visibility timeout to 120 seconds; once the timeout exceeds the processing time, SQS will deliver each message exactly once and the duplicates will stop entirely.\" Is this statement true?",
+    "answer": false,
+    "explanation": "Raising the visibility timeout above the worst-case processing time removes the dominant cause of duplicates here (the message becoming visible again mid-processing), so it is the right first step. But SQS standard queues are at-least-once: rare duplicate deliveries can still occur, so consumers must also be idempotent (or the workload must move to a FIFO queue with deduplication). Claiming the duplicates will stop entirely is wrong.",
+    "example": "aws sqs set-queue-attributes --queue-url $Q --attributes VisibilityTimeout=120\n# for long or variable jobs, extend per message while working:\naws sqs change-message-visibility --queue-url $Q --receipt-handle $RH --visibility-timeout 120\n# and make the render idempotent, e.g. key output by MessageId or job id\n# s3://renders/${jobId}.png  (overwrite is harmless)",
+    "diagram": "flowchart TD\nR[\"Worker receives job (30s visibility)\"] --> P[\"Render takes 45-90s\"]\nP --> V[\"Message visible again at 30s\"]\nV --> R2[\"Second worker renders same job\"]\nR2 --> D[\"Duplicate output\"]\nV -.->|\"fix 1: visibility 120s or extend\"| L[\"Far fewer duplicates\"]\nL -.->|\"fix 2: idempotent consumer\"| Z[\"At-least-once still safe\"]",
+    "reference": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
+    "tags": [
+      "scenario",
+      "sqs",
+      "messaging",
+      "idempotency"
+    ]
+  },
+  {
+    "id": "aws-093",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "An RDS for PostgreSQL Multi-AZ instance failed over at 03:12. The RDS event log shows `Multi-AZ instance failover completed` at 03:13, yet a Java service kept logging `FATAL: the database system is in recovery mode` and then `Connection refused` until it was restarted manually at 03:40. The service connects to `orders-db.abc123.us-east-1.rds.amazonaws.com` via a HikariCP pool. Which statements correctly explain the prolonged outage or describe a valid mitigation? (Select all that apply.)",
+    "options": [
+      "The JVM cached the endpoint's DNS resolution indefinitely, so the app kept connecting to the old primary's IP",
+      "The connection pool handed out existing connections without validating them, so stale sockets to the old primary were reused",
+      "The RDS endpoint hostname changes on failover, so the connection string must be updated after each failover",
+      "Putting Amazon RDS Proxy in front of the instance would let the app keep a stable endpoint and reconnect faster after failover",
+      "Increasing `max_connections` on the new primary would have allowed the existing connections to succeed"
+    ],
+    "optionNotes": [
+      "Correct. With a security manager or default settings, the JVM can cache successful DNS lookups for a long time (`networkaddress.cache.ttl`). RDS failover works by repointing the endpoint's DNS record to the standby, so a cached answer keeps traffic on the dead primary. Set the TTL to a small value such as 60s.",
+      "Correct. Pools that do not test connections on borrow (or have a long `maxLifetime`) will keep returning sockets bound to the old primary; configure `connectionTestQuery` or rely on JDBC4 `isValid` and a shorter `maxLifetime` so broken connections are evicted.",
+      "The endpoint hostname is stable across failovers; only the IP behind it changes. Updating the connection string is unnecessary and would not have fixed anything.",
+      "Correct. RDS Proxy maintains its own pool to the database, tracks the failover, and typically reduces client-visible failover time by up to 66%; clients keep a single proxy endpoint and do not need to manage DNS.",
+      "The problem was connections targeting the wrong host and stale pool entries, not connection limits on the new primary. Raising `max_connections` addresses neither."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "Multi-AZ failover is a DNS change: the same endpoint name starts resolving to the promoted standby. Clients that cache DNS aggressively (the JVM) or keep unvalidated pooled connections will remain glued to the old primary long after RDS reports success. Fix the DNS TTL and pool validation, or front the database with RDS Proxy.",
+    "example": "# JVM: cap DNS caching\n-Dnetworkaddress.cache.ttl=60\n\n# HikariCP\nspring.datasource.hikari.max-lifetime=300000\nspring.datasource.hikari.keepalive-time=60000\nspring.datasource.hikari.connection-test-query=SELECT 1\n\n# confirm which host you actually hit\ndig +short orders-db.abc123.us-east-1.rds.amazonaws.com",
+    "diagram": "flowchart LR\nF[\"Failover 03:12\"] --> DNS[\"Endpoint DNS now points to standby\"]\nJ[\"JVM DNS cache\"] -->|\"still old IP\"| OLD[\"Old primary, refused\"]\nPool[\"HikariCP stale sockets\"] --> OLD\nDNS -.->|\"fix: cache ttl 60s, validate connections\"| NEW[\"New primary\"]\nPrx[\"RDS Proxy\"] -.->|\"alternative\"| NEW",
+    "reference": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html",
+    "tags": [
+      "scenario",
+      "rds",
+      "multi-az",
+      "failover"
+    ]
   }
 ]

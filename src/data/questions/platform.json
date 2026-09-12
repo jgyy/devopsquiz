@@ -1125,5 +1125,244 @@
       "dev-containers",
       "developer-experience"
     ]
+  },
+  {
+    "id": "platform-043",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Six months after launching a golden-path CI/CD template, a platform team reviews adoption: only 4 of 22 services use it. Interviews reveal the template's pipeline takes 38 minutes end to end (mandatory full SAST scan, image rebuild on every commit, serial integration tests), while the teams' hand-rolled pipelines finish in 9 minutes. Several teams copied the template once and then stripped the slow stages. Leadership asks the platform team what to do next. Which response best fits a platform-as-a-product approach?",
+    "options": [
+      "Treat the 38-minute pipeline as the product defect: profile the stages, cache and parallelise, move the full SAST scan to a nightly or merge-time job, and publish a measured target (for example under 10 minutes) before asking anyone to migrate",
+      "Ask leadership to mandate the golden path through an admission policy that blocks images not built by the template pipeline",
+      "Add a second, lighter template with SAST removed so teams can pick whichever they like",
+      "Leave the template as is; 38 minutes is the cost of compliance and the teams that stripped stages should be reported to security"
+    ],
+    "optionNotes": [
+      "Correct. Adoption is the signal that the product is worse than the alternative for its users. Fixing the real bottleneck and measuring it (lead time, pipeline duration) is how a platform earns adoption instead of demanding it.",
+      "A mandate would force teams onto a pipeline that is four times slower, which pushes the cost onto every stream-aligned team and typically produces workarounds and resentment rather than adoption.",
+      "Forking the template doubles maintenance and quietly drops the security control; the goal is one paved road that is both fast and compliant.",
+      "Blaming users for routing around a slow product ignores the evidence; the stripped stages show the template's shape, not the teams, is the problem."
+    ],
+    "answer": 0,
+    "explanation": "When teams bypass a golden path, the paved road is losing to the dirt road on the metric developers actually feel: time to feedback. A product-minded platform team treats low adoption as a defect, instruments the pipeline, removes the slow stages from the inner loop (run heavy scans at merge or on a schedule), and sets a measurable target. Mandates and forks address the symptom, not the cause.",
+    "example": "# Measure where the 38 minutes go before changing anything\n$ gh run view 8123441 --json jobs \\\n    --jq '.jobs[] | {name, minutes: ((.completed_at|fromdate) - (.started_at|fromdate))/60}'\n{\"name\":\"build-image\",\"minutes\":11.2}\n{\"name\":\"sast-full\",\"minutes\":14.8}\n{\"name\":\"integration-tests\",\"minutes\":9.6}\n{\"name\":\"deploy-dev\",\"minutes\":2.1}\n\n# Follow-ups: layer cache for build, sast-full -> nightly + merge queue,\n# integration tests sharded 4 ways. Target: p50 pipeline < 10 min.",
+    "diagram": "flowchart TD\n    A[\"Adoption 4 of 22 services\"] --> B[\"Interview users\"]\n    B --> C[\"Symptom: golden path 38 min vs 9 min DIY\"]\n    C --> D[\"Profile stages: SAST 15 min, build 11 min\"]\n    D --> E[\"Move SAST to merge-time, cache build, shard tests\"]\n    E --> F[\"Publish target under 10 min\"]\n    F --> G[\"Re-measure adoption\"]",
+    "reference": "https://tag-app-delivery.cncf.io/whitepapers/platforms/",
+    "tags": [
+      "scenario",
+      "platform-as-product",
+      "golden-path",
+      "adoption"
+    ]
+  },
+  {
+    "id": "platform-044",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A five-person platform team owns the shared Kubernetes clusters for 30 product teams. Their Jira board shows 140 open tickets, median age 12 days, and 70% of them are variations of three requests: create a namespace with RBAC, add a DNS record and TLS certificate for a new service, and grant a team access to a cloud bucket. The team spends almost all its time executing these tickets by hand and has not shipped a platform improvement in two quarters. Which change addresses the root cause?",
+    "options": [
+      "Turn the three most common requests into self-service capabilities (for example a Backstage software template or a Crossplane claim) that validate input and provision automatically, then measure ticket volume drop",
+      "Hire two more platform engineers to work the queue down",
+      "Add a Jira SLA of 3 business days and an on-call rotation for ticket triage",
+      "Move the platform engineers into the product teams as embedded SREs so each team can do its own provisioning"
+    ],
+    "optionNotes": [
+      "Correct. A platform team that executes repetitive requests by hand has become a ticket queue; the fix is to encode those requests as self-service APIs so the team is removed from the critical path and gets time back for platform work.",
+      "More hands scale the queue linearly at best; demand from 30 teams will keep growing and the work is still manual.",
+      "An SLA makes the queue more predictable but does not shrink it; it formalises the platform team as a service desk.",
+      "Embedding removes the platform team entirely, spreads the same manual work across 30 teams, and loses the economies of a shared platform; Team Topologies would call this dissolving the platform rather than fixing it."
+    ],
+    "answer": 0,
+    "explanation": "Team Topologies distinguishes a platform team, which offers capabilities as self-service via an API or portal (X-as-a-Service interaction), from a team that interacts by handling requests. When three request types make up 70% of a stagnant queue, turning them into templates or claims with validation removes the human from the loop. The success measure is the drop in tickets and the reclaimed platform engineering time.",
+    "example": "# Backstage software template that replaces the namespace ticket\napiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\nmetadata:\n  name: k8s-namespace\n  title: Request a Kubernetes namespace\nspec:\n  parameters:\n    - required: [team, env]\n      properties:\n        team: {type: string, pattern: '^[a-z0-9-]{3,20}$'}\n        env:  {type: string, enum: [dev, staging, prod]}\n  steps:\n    - id: pr\n      action: publish:github:pull-request\n      input:\n        repoUrl: github.com?owner=acme&repo=platform-tenants\n        branchName: ns-${{ parameters.team }}-${{ parameters.env }}\n        title: Add namespace ${{ parameters.team }}-${{ parameters.env }}\n# Argo CD applies the merged tenant manifest; no platform engineer in the loop.",
+    "diagram": "flowchart LR\n    T[\"140 tickets, 70% are 3 request types\"] --> Q[\"Platform team as ticket queue\"]\n    Q --> S[\"Encode requests as self-service templates or claims\"]\n    S --> V[\"Input validation and policy in the template\"]\n    V --> A[\"Automated provisioning via GitOps\"]\n    A --> M[\"Measure: tickets down, platform time reclaimed\"]",
+    "reference": "https://teamtopologies.com/key-concepts",
+    "tags": [
+      "scenario",
+      "team-topologies",
+      "self-service",
+      "backstage"
+    ]
+  },
+  {
+    "id": "platform-045",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A developer applies a Crossplane claim `PostgreSQLInstance/orders-db` in namespace `orders`. Twenty minutes later `kubectl get postgresqlinstance -n orders` shows `SYNCED: True`, `READY: False`. The platform engineer runs `kubectl get managed` and sees `rdsinstance.rds.aws.upbound.io/orders-db-x7k2p  SYNCED: False  READY: False`. `kubectl describe` on that RDSInstance shows the condition `ReconcileError: cannot get AWS credentials: cannot get credentials secret: Secret \"aws-creds\" not found` in the `crossplane-system` namespace. The Composition and XRD are unchanged since last week, when other claims worked. What is the most likely root cause and fix?",
+    "options": [
+      "The `ProviderConfig` the Composition references points to a credentials Secret that has been deleted or rotated under a new name; restore or re-create `aws-creds` in `crossplane-system` (or update `ProviderConfig.spec.credentials.secretRef`) and the managed resource will reconcile",
+      "The claim is in the wrong namespace; claims must be created in `crossplane-system` so the provider can read its credentials",
+      "The Composition's `compositeTypeRef` no longer matches the XRD, so the composite resource cannot be built; re-apply the Composition",
+      "The developer forgot `spec.writeConnectionSecretToRef`, so Crossplane cannot store the connection details and marks the claim not ready"
+    ],
+    "optionNotes": [
+      "Correct. The claim and composite resource were created (SYNCED True on the claim) and the managed RDSInstance was composed, but the provider cannot authenticate because the Secret named in the `ProviderConfig` is missing. Restoring the Secret lets the managed resource reconcile and readiness propagates back up to the claim.",
+      "Claims are namespaced and belong in the tenant namespace; the provider credentials live in `crossplane-system` regardless of where claims are created.",
+      "If `compositeTypeRef` were wrong the composite resource would not have been created and there would be no managed resource to show an AWS error.",
+      "A missing connection secret reference does not block provisioning; the RDSInstance would still become Ready, and the error text is explicitly about provider credentials."
+    ],
+    "answer": 0,
+    "explanation": "A claim that is SYNCED but not READY means Crossplane accepted it and created the composite, and readiness is blocked further down. `kubectl get managed` finds the composed cloud resource, and its `ReconcileError` names the real problem: the provider's `ProviderConfig` references a credentials Secret that no longer exists, typically after a secret rotation or a namespace cleanup. Fixing the Secret or the `secretRef` unblocks the managed resource without touching the claim.",
+    "example": "$ kubectl get postgresqlinstance -n orders\nNAME        SYNCED   READY   CONNECTION-SECRET   AGE\norders-db   True     False   orders-db-conn      21m\n\n$ kubectl get managed\nNAME                                             SYNCED   READY   EXTERNAL-NAME\nrdsinstance.rds.aws.upbound.io/orders-db-x7k2p   False    False\n\n$ kubectl describe rdsinstance orders-db-x7k2p | grep -A2 ReconcileError\n  Reason:  ReconcileError\n  Message: cannot get AWS credentials: cannot get credentials secret: Secret \"aws-creds\" not found\n\n$ kubectl get providerconfig default -o jsonpath='{.spec.credentials.secretRef}'\n{\"key\":\"creds\",\"name\":\"aws-creds\",\"namespace\":\"crossplane-system\"}\n$ kubectl get secret -n crossplane-system aws-creds\nError from server (NotFound): secrets \"aws-creds\" not found\n\n# Fix: restore the secret (for example via External Secrets) and watch reconcile\n$ kubectl get managed -w",
+    "diagram": "flowchart TD\n    C[\"Claim orders-db SYNCED True READY False\"] --> X[\"Composite XPostgreSQLInstance\"]\n    X --> M[\"Managed RDSInstance SYNCED False\"]\n    M --> E[\"ReconcileError: credentials secret not found\"]\n    E --> P[\"ProviderConfig secretRef aws-creds\"]\n    P --> F[\"Restore Secret in crossplane-system\"]\n    F --> R[\"Managed becomes Ready, claim becomes Ready\"]",
+    "reference": "https://docs.crossplane.io/latest/guides/troubleshoot-crossplane/",
+    "tags": [
+      "scenario",
+      "crossplane",
+      "troubleshooting",
+      "providerconfig"
+    ]
+  },
+  {
+    "id": "platform-046",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A platform team flips a Kyverno `ClusterPolicy` named `require-run-as-nonroot` from `Audit` to `Enforce` at 09:30. By 09:45 alerts fire: cert-manager cannot renew certificates, the `kube-system` CoreDNS Deployment cannot roll out a replacement Pod after a node drain, and tenant deploys fail with `admission webhook \"validate.kyverno.svc-fail\" denied the request: ... validation error: Running as root is not allowed`. The team had only reviewed PolicyReports for the tenant namespaces before enforcing. Which actions are appropriate? (Select all that apply.)",
+    "options": [
+      "Immediately set the policy back to `validationFailureAction: Audit` to restore admission, then work from the PolicyReports",
+      "Add an `exclude` block (or a namespace selector) so `kube-system`, `cert-manager`, and other platform namespaces are out of scope for this policy before re-enforcing",
+      "Run `kyverno apply` against the manifests of every namespace, including system ones, in CI so violations are known before a policy is enforced",
+      "Delete the `kyverno-resource-validating-webhook-cfg` ValidatingWebhookConfiguration by hand to stop the blocking",
+      "Set `background: false` on the policy so it stops blocking admission"
+    ],
+    "optionNotes": [
+      "Correct. Returning to Audit is the fastest, lowest-risk rollback: resources are admitted again and the reports show exactly what still violates.",
+      "Correct. System and platform components that legitimately run as root must be excluded explicitly; the blast radius came from enforcing cluster-wide without scoping.",
+      "Correct. Testing policies against real manifests in CI (or reviewing PolicyReports for all namespaces, not just tenants) is how the gap would have been caught before enforcement.",
+      "Kyverno manages that webhook configuration and will re-create it within seconds; hand-deleting it also disables every other policy, which is a far larger change than rolling back one policy.",
+      "`background` only controls scanning of existing resources for reports; admission behaviour is governed by `validationFailureAction`, so this changes nothing about the outage."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "The policy was enforced against the whole cluster while only tenant namespaces had been reviewed, so system workloads that run as root were blocked at admission. The safe sequence is roll back to Audit, scope the policy with `exclude` or namespace selectors, prove the policy against all manifests with `kyverno apply` or complete PolicyReports, then re-enforce. Deleting webhook configurations or changing `background` do not address admission behaviour.",
+    "example": "# Roll back\n$ kubectl patch clusterpolicy require-run-as-nonroot --type merge \\\n    -p '{\"spec\":{\"validationFailureAction\":\"Audit\"}}'\n\n# Scope the policy before enforcing again\nspec:\n  validationFailureAction: Enforce\n  rules:\n    - name: run-as-non-root\n      match:\n        any:\n          - resources:\n              kinds: [Pod]\n      exclude:\n        any:\n          - resources:\n              namespaces: [kube-system, cert-manager, kyverno, monitoring]\n\n# Prove it in CI against rendered manifests\n$ kyverno apply policies/require-run-as-nonroot.yaml --resource rendered/all-namespaces.yaml\n\n# Check what is still failing cluster-wide\n$ kubectl get policyreport -A | grep -v ' 0 '",
+    "diagram": "flowchart TD\n    A[\"Policy set to Enforce cluster-wide\"] --> B[\"System Pods denied: CoreDNS, cert-manager\"]\n    B --> C[\"Roll back to Audit\"]\n    C --> D[\"Review PolicyReports for all namespaces\"]\n    D --> E[\"Add exclude for platform namespaces\"]\n    E --> F[\"kyverno apply in CI\"]\n    F --> G[\"Re-enforce with known scope\"]",
+    "reference": "https://kyverno.io/docs/policy-types/cluster-policy/validate/",
+    "tags": [
+      "scenario",
+      "kyverno",
+      "policy-as-code",
+      "rollback"
+    ]
+  },
+  {
+    "id": "platform-047",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "On a shared cluster, tenants in namespace `analytics` report their batch jobs being `OOMKilled` and `Evicted` with `The node was low on resource: memory` even though the jobs set memory requests and limits. Investigation shows namespace `team-web` has a `ResourceQuota` capping total requests, but its Pods are created by a Helm chart that sets no `resources` at all, so each Pod counts as zero requests against the quota and the scheduler packs dozens of them onto the same nodes as the analytics jobs. Under load, `team-web` Pods consume real memory they never requested. Which change fixes the root cause with the least disruption?",
+    "options": [
+      "Add a `LimitRange` to `team-web` (and by policy to every tenant namespace) that sets `defaultRequest` and `default` for CPU and memory, so Pods without explicit resources get requests the scheduler and quota can account for",
+      "Raise the memory requests on the `analytics` jobs so they reserve more headroom on the node",
+      "Move `team-web` to a dedicated node pool using `nodeSelector` and taints so its Pods never share nodes with `analytics`",
+      "Lower the `ResourceQuota` in `team-web` to `requests.memory: 4Gi` so fewer of its Pods can run"
+    ],
+    "optionNotes": [
+      "Correct. The scheduler and quota only see requests; Pods with none are invisible to both. A `LimitRange` injects default requests and limits at admission, so `team-web` Pods are accounted for, quota becomes meaningful, and node packing stops overcommitting memory. Existing Pods pick up defaults on their next restart.",
+      "Raising the victim's requests does not stop the neighbour from consuming unrequested memory; the node is still overcommitted and the eviction ordering still targets whoever bursts above request first.",
+      "A dedicated pool isolates this one tenant but costs capacity and leaves the underlying problem (unrequested Pods) to recur with the next tenant that omits resources.",
+      "Quota is measured in requests; since these Pods request zero, lowering the quota to 4Gi still admits an unlimited number of them."
+    ],
+    "answer": 0,
+    "explanation": "A `ResourceQuota` only counts declared requests, so Pods with no `resources` stanza consume real memory the scheduler never reserved: the classic noisy neighbour on a shared cluster. A `LimitRange` with `defaultRequest` and `default` values is the admission-time control that gives every Pod a request and limit, making quota and bin-packing accurate. Many platform teams generate one in every tenant namespace with Kyverno so a chart can never opt out.",
+    "example": "# Confirm the neighbour's Pods request nothing\n$ kubectl get pods -n team-web -o custom-columns='NAME:.metadata.name,REQ:.spec.containers[*].resources.requests.memory'\nNAME                 REQ\nweb-7c9f5d8b6-2xk4q  <none>\nweb-7c9f5d8b6-9plz2  <none>\n\n$ kubectl describe node ip-10-0-3-41 | grep -A3 'Allocated resources'\n  memory  6200Mi (39%)   # requests look fine, but actual usage is 15.2Gi of 16Gi\n\n# Fix\napiVersion: v1\nkind: LimitRange\nmetadata:\n  name: defaults\n  namespace: team-web\nspec:\n  limits:\n    - type: Container\n      defaultRequest: {cpu: 100m, memory: 256Mi}\n      default:        {cpu: 500m, memory: 512Mi}\n      max:            {cpu: \"4\",  memory: 8Gi}",
+    "diagram": "flowchart TD\n    H[\"team-web chart sets no resources\"] --> Z[\"Pods request 0, quota counts 0\"]\n    Z --> S[\"Scheduler packs many Pods per node\"]\n    S --> N[\"Node memory pressure\"]\n    N --> V[\"analytics jobs Evicted or OOMKilled\"]\n    L[\"LimitRange defaultRequest and default\"] --> Z2[\"Every Pod gets requests at admission\"]\n    Z2 --> Q[\"Quota and bin-packing become accurate\"]",
+    "reference": "https://kubernetes.io/docs/concepts/policy/limit-range/",
+    "tags": [
+      "scenario",
+      "multi-tenancy",
+      "limitrange",
+      "noisy-neighbour"
+    ]
+  },
+  {
+    "id": "platform-048",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A platform team replaces its deployment tooling with a new GitOps-based flow. The quarter after the change, the DORA dashboard for the 18 teams on the platform shows deployment frequency up from 2.1 to 6.4 deploys per team per day, but change failure rate up from 6% to 19% and mean time to restore roughly unchanged. The platform lead argues the rollout is a clear success because a higher change failure rate is the expected side effect of deploying more often, so no follow-up is needed. Is this reasoning consistent with how the DORA metrics are meant to be read?",
+    "answer": false,
+    "explanation": "The DORA research treats throughput (deployment frequency, lead time) and stability (change failure rate, time to restore) as a paired set that high performers improve together; a tripling of change failure rate is a regression, not an accepted cost. Smaller, more frequent changes should normally lower failure rate, so the jump points at something the new flow introduced, such as missing pre-deploy checks or progressive delivery that the old tooling had. The correct reading is to investigate, not to declare success.",
+    "example": "# Break the aggregate down before concluding anything\n$ dora-cli cfr --since 90d --group-by team | sort -k2 -nr | head\nteam-payments   41%   # was 5%: new flow skips canary stage the old pipeline had\nteam-search     33%\nteam-catalog     7%\n...\n# Hypothesis: the migration template omitted the Argo Rollouts canary step\n# that the previous deploy tool enforced. Restore it, re-measure next 30d.",
+    "diagram": "flowchart LR\n    C[\"Platform change: new GitOps flow\"] --> F[\"Deploy frequency 2.1 to 6.4 per day\"]\n    C --> R[\"Change failure rate 6% to 19%\"]\n    F --> J[\"Throughput improved\"]\n    R --> S[\"Stability regressed\"]\n    J --> D[\"DORA: read throughput and stability together\"]\n    S --> D\n    D --> I[\"Investigate per-team CFR, not declare success\"]",
+    "reference": "https://dora.dev/guides/dora-metrics-four-keys/",
+    "tags": [
+      "scenario",
+      "dora",
+      "measurement"
+    ]
+  },
+  {
+    "id": "platform-049",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A platform team rolls out OpenCost for showback. The first monthly report attributes 43% of cluster spend to `__unallocated__` when aggregated by the `team` label, because many Deployments were created before the label convention existed and some Helm charts never set it. Finance wants accurate numbers next month. What is the best next step?",
+    "options": [
+      "Enforce the `team` label at admission (for example a Kyverno policy that requires it on new workloads) and run a one-off pass to backfill the label on existing Deployments, then re-run the report",
+      "Change the OpenCost aggregation from `label:team` to `namespace` and tell finance to map namespaces to teams manually",
+      "Split the unallocated cost evenly across all teams so the totals add up",
+      "Increase the OpenCost scrape interval so more cost samples carry a label"
+    ],
+    "optionNotes": [
+      "Correct. Missing labels are a data-quality problem at the source; an admission policy prevents new gaps and a backfill closes the existing ones, so the next report allocates cost to the right owners.",
+      "Namespace aggregation only works if every namespace maps cleanly to one team, which is rarely true on shared clusters, and it still leaves the metadata gap unfixed.",
+      "Even spreading is arbitrary and hides the real cost drivers; teams cannot act on numbers that are not theirs.",
+      "Scrape interval affects sample resolution, not whether a workload has a label; the missing metadata is on the Kubernetes objects."
+    ],
+    "answer": 0,
+    "explanation": "Cost allocation tools can only attribute spend to labels that exist on the workloads. A large `__unallocated__` bucket means the labelling convention is not enforced; the durable fix is to require the label at admission and backfill it on existing objects so both new and old workloads carry an owner.",
+    "example": "# Find the offenders\n$ kubectl get deploy -A -o json | jq -r '.items[] | select(.metadata.labels.team==null) | \"\\(.metadata.namespace)/\\(.metadata.name)\"' | head\n\n# Prevent new gaps\napiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: require-team-label\nspec:\n  validationFailureAction: Enforce\n  rules:\n    - name: team-label\n      match: {any: [{resources: {kinds: [Deployment, StatefulSet, CronJob]}}]}\n      validate:\n        message: \"label team is required for cost allocation\"\n        pattern: {metadata: {labels: {team: \"?*\"}}}\n\n# Backfill (label the pod template too so OpenCost sees it on Pods)\n$ kubectl -n checkout label deploy/cart team=payments\n$ kubectl -n checkout patch deploy/cart -p '{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"team\":\"payments\"}}}}}'",
+    "diagram": "flowchart LR\n    R[\"OpenCost report: 43% unallocated\"] --> W[\"Workloads missing team label\"]\n    W --> P[\"Kyverno policy requires label on new workloads\"]\n    W --> B[\"Backfill label on existing Deployments\"]\n    P --> N[\"Next report allocates cost per team\"]\n    B --> N",
+    "reference": "https://www.opencost.io/docs/specification",
+    "tags": [
+      "scenario",
+      "opencost",
+      "finops",
+      "labels"
+    ]
+  },
+  {
+    "id": "platform-050",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A platform team owns a Crossplane XRD `xapps.platform.example.com` whose `v1alpha1` schema is used by 60 claims across 25 teams. They need to ship a `v1beta1` that renames `spec.parameters.size` to `spec.parameters.tier` and changes its allowed values. Last time they changed the schema in place, every existing claim went `Ready: False` with a validation error and three teams paged the platform on-call. Which practices make this rollout safe? (Select all that apply.)",
+    "options": [
+      "Add `v1beta1` as a new entry in the XRD `versions` list while keeping `v1alpha1` served, so existing claims keep validating and teams migrate on their own schedule",
+      "Mark `v1alpha1` with `deprecated: true` and a `deprecationWarning` so `kubectl` prints a warning pointing users to `v1beta1`",
+      "Publish a deprecation policy with a removal date and a migration guide, and check `kubectl get xapps.platform.example.com --show-managed-fields` or API server metrics to confirm no clients still use `v1alpha1` before removing it",
+      "Edit the `v1alpha1` schema in place to the new field names so there is only one version to maintain",
+      "Set `served: false` on `v1alpha1` at the same time `v1beta1` is added so teams are forced to migrate immediately"
+    ],
+    "optionNotes": [
+      "Correct. Serving both versions is the standard Kubernetes API versioning approach: old claims continue to work while new claims can adopt the new schema.",
+      "Correct. `deprecated` and `deprecationWarning` on a served version surface the migration path directly in users' tooling without breaking them.",
+      "Correct. A published policy and evidence that the old version is unused turn removal into a planned, verifiable step instead of a surprise outage.",
+      "Editing the served schema in place is exactly what broke the 60 claims before; existing objects immediately fail validation against fields they do not have.",
+      "Dropping `served` on the old version makes every existing `v1alpha1` claim unreadable through the API and forces a flag-day migration, which is the outage being avoided."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ],
+    "explanation": "Platform APIs are consumed like any Kubernetes API, so breaking changes need versioning rather than in-place edits. Adding a new served version, deprecating the old one with a warning, and removing it only after a communicated window and evidence of zero usage lets 25 teams migrate without a flag day. Note that Crossplane XRDs currently expect a single referenceable version, so the Composition targets the new version while the old one remains served for reads and updates.",
+    "example": "apiVersion: apiextensions.crossplane.io/v1\nkind: CompositeResourceDefinition\nmetadata:\n  name: xapps.platform.example.com\nspec:\n  group: platform.example.com\n  names: {kind: XApp, plural: xapps}\n  claimNames: {kind: App, plural: apps}\n  versions:\n    - name: v1alpha1\n      served: true\n      referenceable: false\n      deprecated: true\n      deprecationWarning: \"platform.example.com/v1alpha1 App is deprecated; migrate to v1beta1 (parameters.size -> parameters.tier) before 2026-12-01\"\n      schema: {openAPIV3Schema: {...}}\n    - name: v1beta1\n      served: true\n      referenceable: true\n      schema: {openAPIV3Schema: {...}}\n\n# Before removal: confirm nobody still writes v1alpha1\n$ kubectl get --raw /metrics | grep 'apiserver_requested_deprecated_apis{group=\"platform.example.com\"'",
+    "diagram": "flowchart TD\n    A[\"Add v1beta1 to versions, keep v1alpha1 served\"] --> B[\"Mark v1alpha1 deprecated with warning\"]\n    B --> C[\"Publish policy, removal date, migration guide\"]\n    C --> D[\"Teams migrate claims over the window\"]\n    D --> E[\"Verify zero v1alpha1 usage via metrics\"]\n    E --> F[\"Set served false, then remove v1alpha1\"]\n    X[\"Edit v1alpha1 schema in place\"] --> O[\"All 60 claims fail validation\"]",
+    "reference": "https://docs.crossplane.io/latest/composition/composite-resource-definitions/",
+    "tags": [
+      "scenario",
+      "crossplane",
+      "api-versioning",
+      "deprecation"
+    ]
   }
 ]

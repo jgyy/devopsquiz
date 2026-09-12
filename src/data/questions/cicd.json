@@ -1806,5 +1806,242 @@
       "path-filters"
     ],
     "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore"
+  },
+  {
+    "id": "cicd-073",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "An open-source project runs integration tests in GitHub Actions using `${{ secrets.STAGING_API_KEY }}` on the `pull_request` event. PRs from maintainers' branches pass, but every PR opened from a fork fails at the auth step with `401 Unauthorized`, and a debug step shows the key resolves to an empty string. Nothing in the workflow changed. What is the most likely cause?",
+    "explanation": "For `pull_request` runs triggered from a forked repository, GitHub does not pass repository secrets (other than `GITHUB_TOKEN`, which is read-only) to the workflow, so any secret expression evaluates to empty. This is deliberate: fork authors could otherwise modify the workflow to exfiltrate secrets. Branch PRs from the same repository do receive secrets, which explains the split.",
+    "example": "# Guard the secret-dependent job so fork PRs skip it cleanly\njobs:\n  integration:\n    if: github.event.pull_request.head.repo.full_name == github.repository\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./run-integration.sh\n        env:\n          STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}",
+    "diagram": "flowchart TD\nA[\"pull_request event\"] --> B{\"Head repo is a fork?\"}\nB -->|\"no (same repo branch)\"| C[\"Secrets injected, tests pass\"]\nB -->|\"yes\"| D[\"Secrets empty, read-only GITHUB_TOKEN\"]\nD --> E[\"401 Unauthorized at auth step\"]\nE --> F[\"Fix: skip job for forks or use pull_request_target with manual approval\"]",
+    "options": [
+      "GitHub withholds repository secrets from `pull_request` workflows triggered by forks, so the expression resolves to empty",
+      "The secret was rotated in the staging environment and the stored value is now stale",
+      "Fork PRs run on a different runner image where the `env` block is not applied to `run` steps",
+      "The workflow lacks `permissions: secrets: read`, which is required to expose secrets to any PR"
+    ],
+    "optionNotes": [
+      "This is the documented behavior: fork-originated `pull_request` runs get no secrets and a read-only `GITHUB_TOKEN`, so the same workflow behaves differently only for forks.",
+      "A stale secret would fail for every PR, including those from maintainers' branches, not only forks.",
+      "Runner images are chosen by `runs-on` regardless of PR origin, and `env` on a step always applies; the empty value comes from the secret not being provided at all.",
+      "There is no `secrets` scope in the `permissions` key; secret availability is governed by the event source, not by token permissions."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "github-actions",
+      "security",
+      "forks"
+    ],
+    "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#using-secrets-in-a-workflow"
+  },
+  {
+    "id": "cicd-074",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A team migrates a deploy workflow from a static AWS key to OIDC. The job has `permissions: id-token: write` and calls `aws-actions/configure-aws-credentials` with `role-to-assume`. It works on pushes to `main` but fails when triggered by the `release` event with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. The IAM trust policy contains `\"token.actions.githubusercontent.com:sub\": \"repo:acme/shop:ref:refs/heads/main\"`. What is the most likely cause?",
+    "explanation": "The `sub` claim in the GitHub OIDC token encodes the context of the run; for a push to a branch it is `repo:OWNER/REPO:ref:refs/heads/BRANCH`, but for a tag or release it becomes `repo:OWNER/REPO:ref:refs/tags/TAG` (or `environment:NAME` when a deployment environment is used). The trust policy's `StringEquals` on the branch form therefore rejects release-triggered runs. Fix by adding the tag pattern with `StringLike` or by binding the job to an environment and trusting `environment:prod`.",
+    "example": "{\n  \"Condition\": {\n    \"StringEquals\": { \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\" },\n    \"StringLike\": {\n      \"token.actions.githubusercontent.com:sub\": [\n        \"repo:acme/shop:ref:refs/heads/main\",\n        \"repo:acme/shop:ref:refs/tags/v*\"\n      ]\n    }\n  }\n}",
+    "diagram": "flowchart LR\nA[\"release event run\"] --> B[\"OIDC token sub = repo:acme/shop:ref:refs/tags/v1.4.0\"]\nB --> C[\"sts:AssumeRoleWithWebIdentity\"]\nC --> D{\"Trust policy sub matches?\"}\nD -->|\"only refs/heads/main listed\"| E[\"Not authorized\"]\nD -->|\"add refs/tags/v* or environment:prod\"| F[\"Temporary credentials issued\"]",
+    "options": [
+      "The `sub` claim for release runs is `ref:refs/tags/...`, which the branch-only trust condition rejects",
+      "`id-token: write` is only honored on `push` events, so no OIDC token is minted for `release`",
+      "The `aud` claim differs for release events, so `sts.amazonaws.com` no longer matches",
+      "Release events run with a read-only `GITHUB_TOKEN`, which cannot be exchanged for an OIDC token"
+    ],
+    "optionNotes": [
+      "Correct: the subject claim reflects the triggering ref, so a tag-based run presents `refs/tags/...` and fails an exact match on `refs/heads/main`.",
+      "`id-token: write` applies to any event type; the token is minted, but STS rejects it because of the subject mismatch.",
+      "The audience is set by the caller (`sts.amazonaws.com` by default in the AWS action) and does not vary by event type.",
+      "The OIDC token is independent of `GITHUB_TOKEN`; the runner requests it directly from GitHub's token service."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "github-actions",
+      "oidc",
+      "aws"
+    ],
+    "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims"
+  },
+  {
+    "id": "cicd-075",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "After an organization admin changed the default workflow permissions to \"Read repository contents and packages\", a release workflow that runs `gh release create v${VERSION} --generate-notes` on tag pushes started failing with `HTTP 403: Resource not accessible by integration`. The step uses `GH_TOKEN: ${{ github.token }}`. Which change fixes it with the least privilege?",
+    "explanation": "Creating a release writes to the repository's contents, so the automatic `GITHUB_TOKEN` needs `contents: write`. With the org default now read-only, the workflow must request that scope explicitly with a `permissions` block, ideally at the job level so other jobs stay read-only. A personal access token would work but grants far more than needed and bypasses the org's tightened default.",
+    "example": "jobs:\n  release:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n      - run: gh release create \"${GITHUB_REF_NAME}\" --generate-notes\n        env:\n          GH_TOKEN: ${{ github.token }}",
+    "diagram": "flowchart TD\nA[\"Org default: GITHUB_TOKEN read-only\"] --> B[\"gh release create\"]\nB --> C{\"contents: write granted?\"}\nC -->|\"no\"| D[\"403 Resource not accessible by integration\"]\nC -->|\"yes (job-level permissions)\"| E[\"Release created\"]",
+    "options": [
+      "Add `permissions: contents: write` to the release job",
+      "Replace `github.token` with a classic PAT stored as a secret that has the `repo` scope",
+      "Add `permissions: write-all` at the workflow level so every job can create releases",
+      "Add `permissions: packages: write`, since releases are stored as packages"
+    ],
+    "optionNotes": [
+      "Releases are part of repository contents; granting `contents: write` on just this job restores the needed scope and nothing more.",
+      "A `repo`-scoped PAT would work but is a long-lived credential with broad access, which is exactly what the org policy tried to avoid.",
+      "`write-all` restores the call but grants every scope to every job, violating least privilege.",
+      "The `packages` scope governs GitHub Packages and the container registry, not releases."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "github-actions",
+      "github-token",
+      "least-privilege"
+    ],
+    "reference": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#permissions-for-the-github_token"
+  },
+  {
+    "id": "cicd-076",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A Node.js workflow uses `actions/cache` with `key: npm-${{ runner.os }}-${{ github.sha }}` and `path: ~/.npm`. Every run logs `Cache not found for input keys: npm-Linux-<sha>` followed by a full `npm ci`, and `Cache saved with key ...` at the end. Cache storage usage in the repo settings keeps growing. Which change makes the cache actually hit?",
+    "explanation": "Keying on `github.sha` produces a unique key per commit, so no later run can ever match a saved entry; each run saves a new orphan. The key should be derived from the lockfile hash so it changes only when dependencies change, with `restore-keys` providing a prefix fallback to the most recent partial match.",
+    "example": "- uses: actions/cache@v4\n  with:\n    path: ~/.npm\n    key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}\n    restore-keys: |\n      npm-${{ runner.os }}-",
+    "diagram": "flowchart TD\nA[\"key = npm-Linux-<sha>\"] --> B[\"Lookup: no entry, every commit is new\"]\nB --> C[\"Full npm ci, then save orphan entry\"]\nD[\"key = npm-Linux-<hash of lockfile>\"] --> E{\"Lockfile changed?\"}\nE -->|\"no\"| F[\"Exact hit\"]\nE -->|\"yes\"| G[\"restore-keys prefix hit, then save new key\"]",
+    "options": [
+      "Key on `hashFiles('**/package-lock.json')` and add a `restore-keys` prefix fallback",
+      "Change `path` to `node_modules` so the installed tree is cached directly",
+      "Increase the repository cache size limit so old entries stop being evicted",
+      "Move the cache step after `npm ci` so the populated directory is saved"
+    ],
+    "optionNotes": [
+      "A lockfile-hash key is stable across commits that do not change dependencies, and `restore-keys` recovers a near match when it does, so the cache is reused.",
+      "Caching `node_modules` is generally discouraged for npm and does nothing about the key, which still changes on every commit.",
+      "Entries are not being evicted; they are never matched because no two runs share a key. Growing storage is a symptom, not the cause.",
+      "`actions/cache` restores at its step position and saves in a post-step regardless of order; the miss is caused by the key, not placement."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "github-actions",
+      "caching"
+    ],
+    "reference": "https://github.com/actions/cache#cache-version"
+  },
+  {
+    "id": "cicd-077",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A test job uses `strategy.matrix` with `node: [18, 20, 22]`. When the Node 22 leg fails an assertion, the logs for the Node 18 and 20 legs end with `The operation was canceled` before their tests finished, so the team cannot tell whether those versions are broken too. Adding `strategy.fail-fast: false` to the job will let all matrix legs run to completion so each version's result is reported independently.",
+    "explanation": "By default `fail-fast` is `true`, so as soon as one matrix job fails GitHub cancels every in-progress and queued sibling. Setting `fail-fast: false` disables that cancellation, so each leg reports its own pass or fail, at the cost of consuming more runner minutes when one leg is already known to fail.",
+    "example": "jobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      fail-fast: false\n      matrix:\n        node: [18, 20, 22]\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n      - run: npm test",
+    "diagram": "flowchart LR\nA[\"Node 22 leg fails\"] --> B{\"fail-fast?\"}\nB -->|\"true (default)\"| C[\"Node 18 and 20 canceled\"]\nB -->|\"false\"| D[\"Node 18 and 20 finish and report\"]",
+    "answer": true,
+    "tags": [
+      "scenario",
+      "github-actions",
+      "matrix"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategyfail-fast"
+  },
+  {
+    "id": "cicd-078",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "A workflow has a `build` job that runs `actions/upload-artifact@v4` with `name: dist` and a `deploy` job that runs `actions/download-artifact@v4` with `name: dist`. The `deploy` job fails immediately with `Error: Unable to download artifact(s): Artifact not found for name: dist`, and the run view shows `build` was still running when `deploy` started. Which changes are required or valid fixes? (Select all that apply.)",
+    "explanation": "Jobs without `needs` run in parallel, so `deploy` tried to download before `build` had uploaded anything; adding `needs: build` orders them. Separately, `download-artifact@v4` can only see artifacts from the same workflow run unless given `run-id` and a token, so cross-run lookups also need those inputs. Uploading and downloading in the same run with matching names is otherwise sufficient.",
+    "example": "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/download-artifact@v4\n        with:\n          name: dist\n          path: dist/",
+    "diagram": "flowchart TD\nA[\"build starts\"] --> B[\"deploy starts in parallel\"]\nB --> C[\"download-artifact: dist not found\"]\nD[\"deploy needs: build\"] --> E[\"build uploads dist\"]\nE --> F[\"deploy downloads dist\"]",
+    "options": [
+      "Add `needs: build` to the `deploy` job",
+      "Ensure both actions use the same `name` value and the same major version (v4)",
+      "Add `retention-days: 1` to the upload so the artifact is available faster",
+      "Move the download step into the `build` job's `post` phase so it runs after upload",
+      "Add `if: always()` to the download step so it retries until the artifact appears"
+    ],
+    "optionNotes": [
+      "Required: `needs` makes `deploy` wait for `build` to succeed, which is the actual ordering bug here.",
+      "Valid: v4 artifacts are immutable and scoped per run, and a v3 upload cannot be read by a v4 download, so consistent names and versions matter.",
+      "`retention-days` controls how long the artifact is kept after the run, not when it becomes visible; it does not help.",
+      "There is no `post` phase for jobs in workflow YAML, and downloading inside `build` defeats the purpose of passing output to `deploy`.",
+      "`if: always()` only controls whether a step runs after earlier failures; it does not retry or wait for an artifact."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "tags": [
+      "scenario",
+      "github-actions",
+      "artifacts",
+      "needs"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow#downloading-or-deleting-artifacts"
+  },
+  {
+    "id": "cicd-079",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A GitLab project's `.gitlab-ci.yml` defines a `publish` job with `rules: - if: $CI_COMMIT_BRANCH == \"main\"`. A maintainer creates and pushes tag `v2.3.0` on the `main` HEAD expecting the tag pipeline to publish, but the tag pipeline runs with only the `test` jobs and `publish` never appears. What is the most likely cause?",
+    "explanation": "In a tag pipeline, `CI_COMMIT_BRANCH` is unset because the pipeline is for a tag ref, not a branch; only `CI_COMMIT_TAG` is populated. The `rules` condition therefore evaluates false and the job is excluded from the pipeline. The rule needs a separate `if: $CI_COMMIT_TAG` clause (optionally with a regex like `=~ /^v\\d+\\.\\d+\\.\\d+$/`).",
+    "example": "publish:\n  stage: release\n  script: ./publish.sh\n  rules:\n    - if: $CI_COMMIT_TAG =~ /^v\\d+\\.\\d+\\.\\d+$/\n    - if: $CI_COMMIT_BRANCH == \"main\"\n      when: manual",
+    "diagram": "flowchart TD\nA[\"git push origin v2.3.0\"] --> B[\"Tag pipeline: CI_COMMIT_TAG=v2.3.0, CI_COMMIT_BRANCH unset\"]\nB --> C{\"rules: CI_COMMIT_BRANCH == main?\"}\nC -->|\"false\"| D[\"publish job not added\"]\nC -->|\"add if: CI_COMMIT_TAG\"| E[\"publish job runs\"]",
+    "options": [
+      "`CI_COMMIT_BRANCH` is unset in tag pipelines, so the rule never matches; the job needs an `if: $CI_COMMIT_TAG` rule",
+      "Tag pipelines are disabled by default and must be enabled under Settings > CI/CD > General pipelines",
+      "The tag is not protected, and `rules` only evaluate on protected refs",
+      "The `publish` job is missing `only: - tags`, which is required in addition to `rules` for tag pipelines"
+    ],
+    "optionNotes": [
+      "Correct: predefined variables are ref-specific, and a tag ref populates `CI_COMMIT_TAG` rather than `CI_COMMIT_BRANCH`, so a branch-only rule silently excludes the job.",
+      "GitLab creates tag pipelines automatically whenever a tag is pushed and the config has jobs that match; there is no global toggle to enable them.",
+      "Tag protection affects who can create tags and whether protected variables are exposed; `rules` evaluate on every pipeline.",
+      "`only`/`except` cannot be combined with `rules` in the same job; doing so is a config error, not a requirement."
+    ],
+    "answer": 0,
+    "tags": [
+      "scenario",
+      "gitlab-ci",
+      "rules",
+      "tags"
+    ],
+    "reference": "https://docs.gitlab.com/ci/variables/predefined_variables/"
+  },
+  {
+    "id": "cicd-080",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A `deploy-prod` workflow triggers on `push` to `main` and runs `terraform apply` followed by a Helm upgrade. Two PRs were merged 40 seconds apart, and both runs executed concurrently: the second run's `terraform apply` failed with `Error acquiring the state lock` while the first was mid-apply, then the Helm step of the first run was overwritten by the second's rollout. The team wants pushes to be deployed strictly one at a time, in order, with none skipped. Which configuration choices are correct? (Select all that apply.)",
+    "explanation": "A `concurrency` group scoped to the workflow serialises runs so only one deploys at a time; leaving `cancel-in-progress` at its default of `false` makes the newer run wait rather than kill a half-finished deploy. The state-lock error is a symptom of the missing serialisation, not something to disable with `-lock=false`. Note that GitHub queues at most one pending run per group and cancels older pending ones, so the requirement of never skipping any push cannot be fully met by concurrency alone; a serial deploy queue or environment-level protection is needed for that.",
+    "example": "name: deploy-prod\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: deploy-prod\n  cancel-in-progress: false\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    environment: production\n    steps:\n      - run: terraform apply -auto-approve\n      - run: helm upgrade --install shop ./chart",
+    "diagram": "flowchart TD\nA[\"push 1 to main\"] --> B[\"run 1: terraform apply (lock held)\"]\nC[\"push 2 to main\"] --> D{\"concurrency group deploy-prod?\"}\nD -->|\"none\"| E[\"run 2 starts now: state lock error, Helm overwrite\"]\nD -->|\"set, cancel-in-progress false\"| F[\"run 2 pending until run 1 finishes\"]\nF --> G[\"run 2 applies in order\"]",
+    "options": [
+      "Add a workflow-level `concurrency.group` such as `deploy-prod`",
+      "Keep `cancel-in-progress: false` so an in-flight deploy is never aborted by a newer push",
+      "Set `cancel-in-progress: true` so only the latest commit is ever deployed",
+      "Pass `terraform apply -lock=false` so concurrent applies no longer collide on the state lock",
+      "Recognise that GitHub keeps only one pending run per group, so three rapid pushes may still skip the middle one"
+    ],
+    "optionNotes": [
+      "Correct: a shared group name is what makes GitHub serialise runs of this workflow instead of letting them overlap.",
+      "Correct: the default `false` queues the newer run; cancelling mid-apply would leave Terraform state and Helm releases half-updated.",
+      "This aborts the running deploy partway through, which is worse than the original overlap for infrastructure changes.",
+      "Disabling the state lock allows two applies to corrupt the same state file; the lock was correctly protecting you.",
+      "Correct and important: concurrency queues at most one pending run and cancels earlier pending ones, so it does not by itself guarantee every push is deployed."
+    ],
+    "answer": [
+      0,
+      1,
+      4
+    ],
+    "tags": [
+      "scenario",
+      "github-actions",
+      "concurrency",
+      "deployment"
+    ],
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs"
   }
 ]

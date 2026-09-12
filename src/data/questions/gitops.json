@@ -1155,5 +1155,243 @@
     ],
     "domain": "gitops",
     "id": "gitops-042"
+  },
+  {
+    "id": "gitops-043",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "After installing Istio with automatic sidecar injection, every Argo CD Application in the `payments` namespace shows `OutOfSync` seconds after each successful sync. `argocd app diff payments-api` shows only the injected `istio-proxy` container and a `sidecar.istio.io/status` annotation on the live Deployment. You add `spec.ignoreDifferences` for `/spec/template/spec/containers` and the diff view goes clean, but with `selfHeal: true` the controller still re-applies the Deployment every few minutes and the Istio webhook re-injects it, so pods keep restarting. What is the missing piece?",
+    "options": [
+      "Add `RespectIgnoreDifferences=true` under `spec.syncPolicy.syncOptions`, because `ignoreDifferences` only affects diffing while sync still applies the full manifest from Git",
+      "Disable `selfHeal`, since Argo CD cannot manage any namespace that has a mutating admission webhook",
+      "Add `argocd.argoproj.io/compare-options: IgnoreExtraneous` to the Deployment so the injected container is not compared",
+      "Switch the Application to `Replace=true` so the live object is recreated exactly as in Git and the webhook is bypassed"
+    ],
+    "optionNotes": [
+      "By default `ignoreDifferences` is only used when computing sync status; during sync Argo CD still applies the Git manifest, so the webhook-mutated fields are overwritten and re-mutated. `RespectIgnoreDifferences=true` makes the sync patch preserve the ignored live fields.",
+      "Turning off `selfHeal` hides the symptom by stopping the automatic re-apply, but any manual sync would still cause the same churn. Mutating webhooks are common and fully supported.",
+      "`IgnoreExtraneous` marks a whole resource that exists in the cluster but not in Git as not affecting sync status; it does not ignore individual fields on a resource that is in Git.",
+      "`Replace=true` deletes and recreates the object, which still passes through the mutating webhook on create. It causes more pod churn, not less."
+    ],
+    "answer": 0,
+    "explanation": "`ignoreDifferences` changes what Argo CD considers OutOfSync, but a sync operation still sends the rendered manifest from Git, which removes the sidecar until the webhook injects it again. The `RespectIgnoreDifferences=true` sync option tells Argo CD to keep the ignored paths from the live object when it patches, so webhook-managed fields are left alone and the sync converges.",
+    "example": "spec:\n  ignoreDifferences:\n  - group: apps\n    kind: Deployment\n    jqPathExpressions:\n    - .spec.template.spec.containers[] | select(.name == \"istio-proxy\")\n    - .metadata.annotations[\"sidecar.istio.io/status\"]\n  syncPolicy:\n    automated:\n      selfHeal: true\n    syncOptions:\n    - RespectIgnoreDifferences=true",
+    "diagram": "flowchart TD\n    S[\"sync applies Git manifest\"] --> W[\"Istio webhook injects sidecar\"]\n    W --> D[\"live differs from Git\"]\n    D -->|\"ignoreDifferences\"| C[\"diff clean, status Synced\"]\n    C -->|\"selfHeal re-applies full manifest\"| S\n    C -->|\"RespectIgnoreDifferences=true\"| P[\"patch keeps ignored live fields\"]\n    P --> OK[\"converged, no pod churn\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#respect-ignore-difference-configs",
+    "tags": [
+      "scenario",
+      "argocd",
+      "ignore-differences",
+      "sync-options"
+    ]
+  },
+  {
+    "id": "gitops-044",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A release PR is merged at 16:30. The Argo CD Application `orders` has been in phase `Running` for 40 minutes; the UI shows the sync operation waiting on `Job/orders-migrate` (a `PreSync` hook) and the Deployment has not been touched. `kubectl get pods -n orders` shows `orders-migrate-x7k2q 0/1 ImagePullBackOff`. The image tag in the Job template has a typo. You have pushed a fix commit, but the Application still shows the old operation running and does not pick up the new commit. What should you do next?",
+    "options": [
+      "Run `argocd app terminate-op orders` to abort the stuck sync, then sync again so the fixed hook Job is created",
+      "Run `argocd app sync orders --force` so the new commit overrides the running operation",
+      "Delete the Application and recreate it, because a hook that fails to start corrupts the operation state",
+      "Wait, because Argo CD retries a failed hook automatically once the new commit is detected"
+    ],
+    "optionNotes": [
+      "Only one sync operation can run at a time and a PreSync hook blocks the sync phase until it completes or fails. `ImagePullBackOff` never terminates the Job, so the operation hangs; terminating it lets the next sync run the corrected hook.",
+      "A new sync request is rejected while another operation is in progress (`another operation is already in progress`); `--force` changes how resources are applied, it does not preempt a running operation.",
+      "Deleting the Application is destructive (with the resources-finalizer it would prune the workload) and unnecessary; the operation state is simply waiting on the hook.",
+      "Argo CD does not start a new sync while one is running, and a pod stuck in `ImagePullBackOff` is neither Succeeded nor Failed from the Job's perspective, so nothing times out by itself unless `activeDeadlineSeconds` is set."
+    ],
+    "answer": 0,
+    "explanation": "Hooks run as part of the sync operation and the operation waits for the Job to reach a terminal state. A Job whose pod cannot pull its image never terminates, so the sync stays `Running` and blocks any further sync, including automated ones. `argocd app terminate-op` cancels the operation; afterwards a normal sync picks up the fixed commit. Setting `activeDeadlineSeconds` on hook Jobs prevents this from hanging forever.",
+    "example": "argocd app terminate-op orders\nargocd app sync orders\n\n# guard against future hangs\napiVersion: batch/v1\nkind: Job\nmetadata:\n  name: orders-migrate\n  annotations:\n    argocd.argoproj.io/hook: PreSync\n    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation\nspec:\n  activeDeadlineSeconds: 600\n  backoffLimit: 1",
+    "diagram": "flowchart TD\n    M[\"merge release PR\"] --> O[\"sync operation starts\"]\n    O --> H[\"PreSync Job orders-migrate\"]\n    H --> I[\"pod ImagePullBackOff, Job never terminal\"]\n    I --> B[\"operation stays Running, new commits blocked\"]\n    B -->|\"argocd app terminate-op\"| T[\"operation aborted\"]\n    T --> R[\"sync again with fixed image\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/resource_hooks/",
+    "tags": [
+      "scenario",
+      "argocd",
+      "hooks",
+      "sync"
+    ]
+  },
+  {
+    "id": "gitops-045",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "During a refactor, a developer moved the `PersistentVolumeClaim` for the `analytics` database into a different Kustomize overlay and accidentally left it out of the rendered output. The Application has `automated: {prune: true, selfHeal: true}`, so Argo CD deleted the PVC and the data was lost. After restoring from backup, the team wants to keep automated pruning for ordinary resources but make sure this specific PVC (and a few other stateful objects) can never be pruned by a sync again. Which changes achieve that? (Select all that apply.)",
+    "options": [
+      "Annotate the PVC manifest with `argocd.argoproj.io/sync-options: Prune=false`",
+      "Set `spec.syncPolicy.automated.prune: false` and rely on `selfHeal` to keep other resources converged",
+      "Add `PruneLast=true` to `spec.syncPolicy.syncOptions` so the PVC is pruned only after everything else",
+      "Add `PrunePropagationPolicy=orphan` to `spec.syncPolicy.syncOptions` so pruned parents leave the PVC behind",
+      "Annotate the PVC with `argocd.argoproj.io/compare-options: IgnoreExtraneous`"
+    ],
+    "optionNotes": [
+      "Correct. A per-resource `Prune=false` sync option makes Argo CD skip that object during pruning even when the Application prunes automatically; it shows as OutOfSync (requires pruning) but is never deleted.",
+      "Correct in effect: with `prune: false` automated syncs never delete anything, so the PVC is safe. It is coarser than the annotation because every removed resource now needs a manual prune, but it does satisfy the requirement.",
+      "`PruneLast` only changes ordering: the resource is still pruned, just as the final step of the sync.",
+      "The propagation policy controls how Kubernetes garbage-collects dependents of a deleted object. The PVC is pruned directly by Argo CD, so this option does not protect it.",
+      "`IgnoreExtraneous` stops a resource that exists in the cluster but not in Git from making the app OutOfSync; it does not stop pruning and is meant for objects created by other controllers."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "Pruning removes any live resource that Argo CD previously tracked but that is missing from the rendered manifests. The targeted fix is the resource-level annotation `argocd.argoproj.io/sync-options: Prune=false`, which exempts that object from every prune, automated or manual. Disabling `automated.prune` at the Application level also prevents the deletion but affects all resources. `PruneLast` and `PrunePropagationPolicy` change when and how deletion happens, not whether it happens.",
+    "example": "apiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: analytics-data\n  annotations:\n    argocd.argoproj.io/sync-options: Prune=false\nspec:\n  accessModes: [\"ReadWriteOnce\"]\n  resources:\n    requests:\n      storage: 200Gi\n\n# check what a sync would prune before enabling it again\nargocd app diff analytics\nargocd app sync analytics --dry-run --prune",
+    "diagram": "flowchart TD\n    G[\"PVC missing from rendered manifests\"] --> A[\"automated sync with prune: true\"]\n    A --> X[\"PVC deleted, data lost\"]\n    G --> N[\"PVC annotated Prune=false\"]\n    N --> K[\"skipped during prune, shown as OutOfSync\"]\n    G --> P[\"automated.prune: false\"]\n    P --> K",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#no-prune-resources",
+    "tags": [
+      "scenario",
+      "argocd",
+      "prune",
+      "sync-options"
+    ]
+  },
+  {
+    "id": "gitops-046",
+    "domain": "gitops",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "An Argo CD Application `search` is `Synced` but `Degraded`, with the Deployment health message `Deployment \"search\" exceeded its progress deadline`. The last commit bumped `resources.requests.cpu` from `500m` to `4`. `kubectl get pods -n search` shows the two new ReplicaSet pods `Pending`, and `kubectl describe pod` ends with `0/6 nodes are available: 6 Insufficient cpu`. The old ReplicaSet is still serving traffic. Which action resolves the Degraded state?",
+    "options": [
+      "Revert or lower the CPU request in Git (or add node capacity) so the new pods can be scheduled, then let Argo CD sync",
+      "Run `argocd app sync search --force` to restart the rollout, which resets the progress deadline",
+      "Increase `progressDeadlineSeconds` on the Deployment so Argo CD stops reporting it as Degraded",
+      "Delete the Pending pods so the ReplicaSet recreates them on nodes with free CPU"
+    ],
+    "optionNotes": [
+      "The pods are unschedulable because no node has 4 free CPUs; the rollout cannot progress until the request fits or capacity is added. Fixing it in Git keeps the cluster and repository in agreement.",
+      "A re-sync applies the same manifest; the pods still cannot be scheduled, so the Deployment times out again and stays Degraded.",
+      "A longer deadline only delays the `ProgressDeadlineExceeded` condition; the pods remain Pending forever and the new version never serves traffic.",
+      "The scheduler already evaluated every node and found none with enough CPU; new pods will be Pending for the same reason."
+    ],
+    "answer": 0,
+    "explanation": "Argo CD derives Deployment health from its conditions: when `Progressing` becomes `False` with reason `ProgressDeadlineExceeded`, the resource is Degraded. Here the underlying cause is a scheduling failure caused by the larger CPU request, so only changing the request or the cluster capacity fixes it; syncing, waiting longer, or deleting pods does not create CPU.",
+    "example": "kubectl -n search get deploy search -o jsonpath='{.status.conditions}'\nkubectl -n search describe pod search-7c9d5-abc12 | tail -3\n# Warning FailedScheduling ... 0/6 nodes are available: 6 Insufficient cpu.\n\n# fix in Git\nresources:\n  requests:\n    cpu: \"1\"",
+    "diagram": "flowchart TD\n    C[\"commit: cpu request 4\"] --> S[\"Argo CD sync, status Synced\"]\n    S --> P[\"new pods Pending: Insufficient cpu\"]\n    P --> D[\"progressDeadlineSeconds exceeded\"]\n    D --> H[\"Application health Degraded\"]\n    H -->|\"lower request or add nodes\"| OK[\"pods scheduled, Healthy\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/health/",
+    "tags": [
+      "scenario",
+      "argocd",
+      "health",
+      "deployment"
+    ]
+  },
+  {
+    "id": "gitops-047",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Security rotated the GitHub deploy keys on Friday. On Monday, `flux get sources git -A` shows the `flux-system` GitRepository as `Ready: False` with `failed to checkout and determine revision: unable to clone 'ssh://git@github.com/acme/fleet.git': ssh: handshake failed: ssh: unable to authenticate`. Nothing has been deployed since Friday. `flux reconcile source git flux-system` fails with the same message. Which action fixes this with the least disruption?",
+    "options": [
+      "Update the `flux-system` Secret referenced by the GitRepository `spec.secretRef` with the new private key (for example `flux create secret git flux-system --url=... --private-key-file=...`), then reconcile the source",
+      "Run `flux bootstrap github ...` again so Flux regenerates and reinstalls a fresh deploy key",
+      "Delete and recreate the GitRepository object so the source-controller re-reads its credentials",
+      "Set `spec.suspend: true` on the GitRepository until GitHub restores the old deploy key"
+    ],
+    "optionNotes": [
+      "The source-controller authenticates with the Secret named in `secretRef`; it still holds the revoked key. Replacing the Secret contents (and registering the matching public key as a deploy key) restores access and the next reconcile succeeds. Nothing else in the cluster changes.",
+      "Re-bootstrapping works but is heavy: it rewrites the Flux components and sync manifests in Git and requires a GitHub token with repo admin rights, which is far more than a credential refresh.",
+      "The controller already re-reads the Secret on every reconcile; recreating the GitRepository resets its status but the credentials are still wrong.",
+      "Suspending stops reconciliation entirely and the key was rotated deliberately; the old key will not come back."
+    ],
+    "answer": 0,
+    "explanation": "Flux stores Git credentials in a Kubernetes Secret referenced by `GitRepository.spec.secretRef` (by default `flux-system` in namespace `flux-system`). When the deploy key is rotated the Secret must be updated with the new private key and the new public key added to the repository. `flux create secret git` generates or imports the key pair and writes the Secret; the source-controller picks it up at the next reconcile.",
+    "example": "flux create secret git flux-system \\\n  --url=ssh://git@github.com/acme/fleet.git \\\n  --private-key-file=./id_ed25519\n# add the printed public key as a read-only deploy key in GitHub\nflux reconcile source git flux-system\nflux get sources git -A",
+    "diagram": "flowchart LR\n    R[\"deploy key rotated in GitHub\"] --> S[\"Secret flux-system still holds old key\"]\n    S --> C[\"source-controller clone fails: unable to authenticate\"]\n    C --> K[\"Kustomizations stall on last known revision\"]\n    S -->|\"update Secret via flux create secret git\"| F[\"reconcile succeeds\"]\n    F --> D[\"deployments resume\"]",
+    "reference": "https://fluxcd.io/flux/components/source/gitrepositories/#secret-reference",
+    "tags": [
+      "scenario",
+      "flux",
+      "gitrepository",
+      "authentication"
+    ]
+  },
+  {
+    "id": "gitops-048",
+    "domain": "gitops",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "An `ApplicationSet` uses the cluster generator with `selector.matchLabels: {env: prod}` to deploy `ingress-nginx` to every production cluster. A platform engineer runs `argocd cluster set eu-prod-1 --label env=production` to align labels with a new naming standard. Within a minute the generated Application `ingress-nginx-eu-prod-1` is deleted and, because it had the `resources-finalizer.argocd.argoproj.io` finalizer, ingress-nginx is removed from the live cluster and traffic drops. Which ApplicationSet settings would have prevented the outage, independent of the label mistake? (Select all that apply.)",
+    "options": [
+      "`spec.syncPolicy.applicationsSync: create-only` so the controller never deletes generated Applications",
+      "`spec.syncPolicy.preserveResourcesOnDeletion: true` so a deleted generated Application does not cascade to its resources",
+      "`spec.strategy.type: RollingSync` so Applications are updated in ordered steps",
+      "`spec.goTemplate: true` so the label selector is evaluated lazily",
+      "Enabling the `--enable-progressive-syncs` flag on the controller"
+    ],
+    "optionNotes": [
+      "Correct. With `create-only` the ApplicationSet controller creates Applications but neither updates nor deletes them, so a generator that stops producing a cluster leaves the existing Application untouched.",
+      "Correct. This makes the controller create Applications without the resources finalizer, so if the Application is removed the ingress-nginx workload stays running in the cluster and can be re-adopted.",
+      "RollingSync controls the order in which Applications are synced during progressive rollout; it does not stop deletion when a generator result disappears.",
+      "`goTemplate` switches the templating engine from fasttemplate to Go text/template; the generator still returns the same set of clusters.",
+      "The progressive syncs feature gate enables `RollingSync`; it has no effect on Application deletion."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "The ApplicationSet controller continuously reconciles the set of Applications to match the generator output; when a cluster no longer matches the selector, its Application is deleted and, with the resources finalizer, all managed resources are pruned. `applicationsSync: create-only` (or `create-update`) prevents the delete, and `preserveResourcesOnDeletion: true` omits the finalizer so a deletion is not destructive. Both are safety nets for exactly this class of mistake.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: ingress-nginx\nspec:\n  syncPolicy:\n    applicationsSync: create-only\n    preserveResourcesOnDeletion: true\n  generators:\n  - clusters:\n      selector:\n        matchLabels:\n          env: prod\n  template:\n    metadata:\n      name: 'ingress-nginx-{{name}}'\n    spec:\n      project: platform\n      destination:\n        server: '{{server}}'\n        namespace: ingress-nginx",
+    "diagram": "flowchart TD\n    L[\"cluster label changed env=production\"] --> G[\"cluster generator no longer matches\"]\n    G --> D[\"Application ingress-nginx-eu-prod-1 deleted\"]\n    D -->|\"resources finalizer\"| X[\"ingress-nginx pruned, traffic drops\"]\n    G -->|\"applicationsSync: create-only\"| K[\"Application kept\"]\n    D -->|\"preserveResourcesOnDeletion: true\"| S[\"resources left running\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Controlling-Resource-Modification/",
+    "tags": [
+      "scenario",
+      "argocd",
+      "applicationset",
+      "deletion"
+    ]
+  },
+  {
+    "id": "gitops-049",
+    "domain": "gitops",
+    "difficulty": "hard",
+    "type": "boolean",
+    "prompt": "The Application `checkout` has `syncPolicy.automated` enabled. Release 12 is throwing 500s and the on-call engineer runs `argocd app rollback checkout 11` to return to the previous deployed revision. Argo CD accepts the command, deploys revision 11, and automatically keeps auto-sync paused until a new commit lands on the tracked branch.",
+    "answer": false,
+    "explanation": "Argo CD refuses to roll back an Application with automated sync enabled (`rollback cannot be initiated when auto-sync is enabled`), because the controller would immediately sync the branch HEAD again and undo the rollback. The engineer must first run `argocd app set checkout --sync-policy none`, then roll back, and re-enable automation later; or, preferably, revert the commit in Git so the desired state itself changes.",
+    "example": "argocd app rollback checkout 11\n# FATA[0000] rpc error: code = FailedPrecondition desc = rollback cannot be initiated when auto-sync is enabled\n\n# emergency path\nargocd app set checkout --sync-policy none\nargocd app rollback checkout 11\n\n# GitOps path\ngit revert <release-12-sha> && git push",
+    "diagram": "flowchart TD\n    I[\"release 12 returns 500s\"] --> R[\"argocd app rollback checkout 11\"]\n    R -->|\"auto-sync enabled\"| E[\"FailedPrecondition: rollback refused\"]\n    E --> O[\"argocd app set --sync-policy none, then rollback\"]\n    I --> G[\"git revert release 12 commit\"]\n    G --> A[\"automated sync deploys reverted state\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_rollback/",
+    "tags": [
+      "scenario",
+      "argocd",
+      "rollback",
+      "auto-sync"
+    ]
+  },
+  {
+    "id": "gitops-050",
+    "domain": "gitops",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A team adds cert-manager to an existing Argo CD Application: the same sync now contains the cert-manager Helm chart (including its CRDs) plus a `ClusterIssuer` manifest. The sync fails immediately with `ClusterIssuer.cert-manager.io \"letsencrypt-prod\" ... the server could not find the requested resource` and nothing is applied, even though the CRD manifest is present in the same commit. Which change makes the sync succeed while keeping everything in one Application?",
+    "options": [
+      "Annotate the `ClusterIssuer` with `argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true` (and optionally a later `sync-wave`) so the dry-run does not fail before the CRD exists",
+      "Add `Replace=true` to the Application sync options so the CRD is force-created first",
+      "Annotate the CRD with `argocd.argoproj.io/sync-wave: \"-1\"`; ordering alone is enough because waves are validated sequentially",
+      "Move the `ClusterIssuer` to `PostSync` hook so it is created after the main sync"
+    ],
+    "optionNotes": [
+      "Argo CD dry-runs every resource before applying any of them, and a dry-run of a custom resource whose CRD is not yet registered fails with `could not find the requested resource`. `SkipDryRunOnMissingResource=true` skips that check for the annotated object; a sync wave then ensures the CRD is applied before the ClusterIssuer.",
+      "`Replace=true` swaps `kubectl apply` for `kubectl replace`/`create`, which matters for oversized CRDs but does not change the fact that the pre-sync dry-run of the ClusterIssuer fails.",
+      "Sync waves order the apply phase, but the whole set is dry-run validated up front before wave -1 is even applied, so the missing-kind error still aborts the operation.",
+      "A `PostSync` hook would work around ordering but turns a declarative resource into a hook, which Argo CD does not track as part of the app state and re-runs on every sync; it is not the intended mechanism."
+    ],
+    "answer": 0,
+    "explanation": "Before applying, Argo CD performs a server-side dry-run of all manifests to catch errors early. A custom resource whose kind is unknown to the API server fails this validation, so shipping a CRD and its CR in the same sync fails regardless of sync waves. The per-resource `SkipDryRunOnMissingResource=true` sync option skips the dry-run for that object; combined with a sync wave placing the CRD earlier, the sync applies the CRD, waits for it to be established, and then applies the ClusterIssuer.",
+    "example": "apiVersion: cert-manager.io/v1\nkind: ClusterIssuer\nmetadata:\n  name: letsencrypt-prod\n  annotations:\n    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true\n    argocd.argoproj.io/sync-wave: \"5\"\nspec:\n  acme:\n    server: https://acme-v02.api.letsencrypt.org/directory\n    privateKeySecretRef:\n      name: letsencrypt-prod\n    solvers:\n    - http01:\n        ingress:\n          class: nginx",
+    "diagram": "flowchart TD\n    C[\"commit: CRD chart plus ClusterIssuer\"] --> V[\"dry-run of all resources\"]\n    V --> E[\"ClusterIssuer kind unknown: server could not find resource\"]\n    E --> F[\"sync fails, nothing applied\"]\n    V -->|\"SkipDryRunOnMissingResource=true\"| W[\"wave 0: CRDs applied and established\"]\n    W --> I[\"wave 5: ClusterIssuer applied\"]\n    I --> OK[\"Synced and Healthy\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#skip-dry-run-for-new-custom-resources-types",
+    "tags": [
+      "scenario",
+      "argocd",
+      "crd",
+      "sync-options"
+    ]
   }
 ]

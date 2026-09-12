@@ -3107,5 +3107,238 @@
       "service-mesh",
       "istio"
     ]
+  },
+  {
+    "id": "kubernetes-116",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A team copies a working Deployment manifest from namespace `staging` to a new namespace `payments`. In `payments` the Pods sit in `ImagePullBackOff` and `kubectl describe pod` shows `Failed to pull image \"ghcr.io/acme/payments-api:1.4.2\": ... unauthorized: authentication required`. The same tag pulls fine in `staging`, and the Pod spec in both namespaces has `imagePullSecrets: [{name: ghcr-creds}]`. What is the most likely cause?",
+    "options": [
+      "The `ghcr-creds` Secret exists only in `staging`; Secrets are namespaced, so the kubelet finds no credentials in `payments` and pulls anonymously",
+      "The image tag was deleted from the registry and the node in `staging` is serving it from its local image cache",
+      "The `payments` namespace is missing a NetworkPolicy that allows egress to `ghcr.io`",
+      "The container runtime on the nodes serving `payments` has not been logged in with `docker login ghcr.io`"
+    ],
+    "optionNotes": [
+      "Correct. `imagePullSecrets` references a Secret by name in the Pod's own namespace. Copying the Deployment without copying the `kubernetes.io/dockerconfigjson` Secret leaves the reference dangling, and the registry answers an anonymous pull with `unauthorized`.",
+      "A missing tag produces `manifest unknown` or `not found`, not `unauthorized: authentication required`; the error text says the registry saw no valid credentials.",
+      "A blocked egress path would surface as a timeout or connection refused while pulling, not an HTTP 401 from the registry, which proves the node reached `ghcr.io`.",
+      "The kubelet passes credentials per pull from the referenced Secret; node-level runtime logins are not the standard mechanism and would not explain why `staging` works on the same nodes."
+    ],
+    "answer": 0,
+    "explanation": "The `unauthorized` message means the node reached the registry but presented no usable credentials. Since `imagePullSecrets` is resolved in the Pod's namespace, the fix is to create the same `dockerconfigjson` Secret in `payments` (or attach it to the namespace's default ServiceAccount) and let the kubelet retry the pull.",
+    "example": "kubectl get secret ghcr-creds -n payments\n# Error from server (NotFound): secrets \"ghcr-creds\" not found\nkubectl create secret docker-registry ghcr-creds -n payments \\\n  --docker-server=ghcr.io --docker-username=ci-bot --docker-password=$GHCR_TOKEN\nkubectl rollout restart deployment/payments-api -n payments",
+    "diagram": "flowchart TD\n    A[\"Pod in namespace payments\"] --> B[\"imagePullSecrets: ghcr-creds\"]\n    B --> C{\"Secret exists in payments?\"}\n    C -->|\"no\"| D[\"anonymous pull: 401 unauthorized\"]\n    D --> E[\"ImagePullBackOff\"]\n    C -->|\"yes\"| F[\"authenticated pull succeeds\"]\n    G[\"create docker-registry Secret in payments\"] --> C",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/",
+    "tags": [
+      "scenario",
+      "troubleshooting",
+      "imagepullbackoff",
+      "secrets"
+    ]
+  },
+  {
+    "id": "kubernetes-117",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "During a scheduled node pool upgrade, `kubectl drain node-3 --ignore-daemonsets` has been printing `error when evicting pods/\"checkout-6f7b-x2k9\" -n \"shop\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget` for twenty minutes. The `checkout` Deployment has `replicas: 2`, both Pods are Ready, and the PodDisruptionBudget has `minAvailable: 2`. The upgrade window closes in one hour. Which action is the safest way to unblock the drain?",
+    "options": [
+      "Scale the `checkout` Deployment to 3 replicas (or lower the PDB to `minAvailable: 1`), wait for the new Pod to be Ready, then re-run the drain",
+      "Re-run the drain with `--force --disable-eviction` so the Pods are deleted instead of evicted",
+      "Delete the PodDisruptionBudget object; PDBs are only advisory and the Deployment will keep 2 replicas anyway",
+      "Restart the checkout Pods with `kubectl rollout restart` so they get rescheduled off the cordoned node"
+    ],
+    "optionNotes": [
+      "Correct. A PDB with `minAvailable` equal to the replica count leaves an allowed disruption count of 0, so the Eviction API can never succeed. Adding a replica (or relaxing the PDB) creates headroom without ever dropping below the intended availability floor.",
+      "`--disable-eviction` bypasses the Eviction API and PDB checks entirely, deleting one of only two Pods and cutting capacity in half during the upgrade; it is a last resort, not the safest option.",
+      "PDBs are enforced by the Eviction API, not advisory. Deleting it does unblock the drain, but it removes protection for every future drain and lets both Pods be evicted at once if they share a node.",
+      "A rollout restart replaces Pods through the Deployment controller, which is not an eviction and does not consult the PDB, but the replacement Pod can land back on the cordoned node's peers and then the old Pod on `node-3` is still evicted through the same blocked PDB path when drain retries."
+    ],
+    "answer": 0,
+    "explanation": "`kubectl drain` uses the Eviction API, which refuses any eviction that would push healthy Pods below the PDB's `minAvailable`. With `replicas: 2` and `minAvailable: 2`, `ALLOWED DISRUPTIONS` is 0 and the drain loops forever. Giving the workload one Pod of slack, either by scaling up or by lowering the budget, lets the eviction proceed while still keeping the service at its required capacity.",
+    "example": "kubectl get pdb checkout -n shop\n# NAME       MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE\n# checkout   2               N/A               0                     90d\nkubectl scale deployment/checkout -n shop --replicas=3\nkubectl rollout status deployment/checkout -n shop\nkubectl drain node-3 --ignore-daemonsets --delete-emptydir-data",
+    "diagram": "flowchart TD\n    A[\"kubectl drain node-3\"] --> B[\"Eviction API request for checkout Pod\"]\n    B --> C{\"healthy Pods minus 1 at least minAvailable?\"}\n    C -->|\"2 - 1 less than 2: no\"| D[\"429 TooManyRequests: PDB violated, retry\"]\n    D --> B\n    E[\"scale to 3 replicas or set minAvailable 1\"] --> C\n    C -->|\"yes\"| F[\"Pod evicted, drain completes\"]",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/configure-pdb/",
+    "tags": [
+      "scenario",
+      "pdb",
+      "drain",
+      "upgrades"
+    ]
+  },
+  {
+    "id": "kubernetes-118",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You created an HPA for the `api` Deployment with `--cpu-percent=60 --min=2 --max=10`. Under load it never scales, and `kubectl get hpa api` shows `TARGETS <unknown>/60%`. `kubectl top pods` returns CPU numbers for every Pod, so metrics-server is working. `kubectl describe hpa api` contains `FailedGetResourceMetric ... missing request for cpu in container api`. What is the fix?",
+    "options": [
+      "Add `resources.requests.cpu` to the `api` container spec; utilization-based HPA is a percentage of the request, so it cannot be computed without one",
+      "Reinstall metrics-server with `--kubelet-insecure-tls`, because the scrape is failing TLS verification",
+      "Change the HPA to `autoscaling/v2` with `type: Value` instead of `Utilization`, which reads raw millicores and does not need requests",
+      "Increase `--horizontal-pod-autoscaler-sync-period` on kube-controller-manager so the HPA waits longer for the metric"
+    ],
+    "optionNotes": [
+      "Correct. The HPA divides observed CPU usage by the container's CPU request to get a utilization percentage; with no request the denominator is missing and the metric is reported as unknown for that Pod.",
+      "`kubectl top pods` succeeding proves metrics-server is scraping kubelets fine; a TLS problem would leave `top` empty as well and the event text would mention the metrics API, not a missing request.",
+      "For a `Resource` metric source, `type: Value` is not supported for CPU utilization on Pods; `AverageValue` exists but switching the metric only hides the real problem of an unbounded container with no request, which also breaks scheduling accuracy.",
+      "The sync period controls how often the HPA loop runs; it has no effect on a metric that can never be calculated."
+    ],
+    "answer": 0,
+    "explanation": "Utilization targets are relative to `resources.requests`, so every container the HPA looks at must declare a CPU request. The describe event names the exact container that is missing it. After adding the request and rolling the Deployment, the HPA reports a real percentage and starts scaling.",
+    "example": "kubectl describe hpa api | grep -A3 Events\n# Warning  FailedGetResourceMetric  ... missing request for cpu in container api of Pod api-7d9f-abc12\nkubectl set resources deployment/api -c api --requests=cpu=250m\nkubectl get hpa api -w\n# api   Deployment/api   84%/60%   2   10   4",
+    "diagram": "flowchart LR\n    M[\"metrics-server: CPU usage 210m\"] --> H[\"HPA controller\"]\n    R[\"container requests.cpu\"] --> H\n    H --> C{\"request present?\"}\n    C -->|\"no\"| U[\"TARGETS unknown, no scaling\"]\n    C -->|\"yes\"| P[\"usage / request = 84 percent\"]\n    P --> S[\"scale replicas toward 60 percent\"]",
+    "reference": "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+    "tags": [
+      "scenario",
+      "hpa",
+      "autoscaling",
+      "resources"
+    ]
+  },
+  {
+    "id": "kubernetes-119",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A Go service calls `api.stripe.com` several thousand times per minute. After moving from a VM to a Pod, p99 latency for those calls jumped by about 100 ms and CoreDNS logs show a burst of `NXDOMAIN` answers for names like `api.stripe.com.payments.svc.cluster.local.` and `api.stripe.com.svc.cluster.local.`. The Pod's `/etc/resolv.conf` contains `options ndots:5`. What is the most direct fix for this service?",
+    "options": [
+      "Use a fully qualified name with a trailing dot (`api.stripe.com.`) or set `dnsConfig.options` with `ndots: 1` in the Pod spec so external names are queried directly",
+      "Scale CoreDNS to more replicas so the extra queries are answered faster",
+      "Switch the Pod to `dnsPolicy: Default` so it inherits the node's resolver and stops using CoreDNS",
+      "Add `hostAliases` entries mapping `api.stripe.com` to its current IP addresses"
+    ],
+    "optionNotes": [
+      "Correct. With `ndots:5`, any name with fewer than five dots is first tried against every `search` suffix, producing three or four NXDOMAIN round trips before the absolute query. A trailing dot or a lower `ndots` makes the resolver try the absolute name first.",
+      "More CoreDNS replicas reduce queue time but the client still issues four wasted lookups per call; it spends money on the symptom instead of removing the extra queries.",
+      "`dnsPolicy: Default` removes the search path and fixes the external latency, but the Pod can then no longer resolve short Service names such as `postgres.payments`, which breaks in-cluster calls.",
+      "`hostAliases` pins a name to fixed IPs in `/etc/hosts`; Stripe's addresses change and the entry would silently go stale, causing outages worse than the latency."
+    ],
+    "answer": 0,
+    "explanation": "Kubernetes sets `ndots:5` so that short Service names like `db.payments` resolve through the search list. The side effect is that external hostnames with fewer than five dots are expanded against every search suffix first, generating NXDOMAIN traffic and added latency. Using an FQDN with a trailing dot, or lowering `ndots` via `dnsConfig` for that workload, removes the wasted lookups while keeping cluster DNS intact.",
+    "example": "kubectl exec deploy/payments -- cat /etc/resolv.conf\n# search payments.svc.cluster.local svc.cluster.local cluster.local\n# options ndots:5\n# fix in Pod spec:\nspec:\n  dnsConfig:\n    options:\n      - name: ndots\n        value: \"1\"",
+    "diagram": "flowchart TD\n    A[\"resolve api.stripe.com (2 dots, ndots 5)\"] --> B[\"api.stripe.com.payments.svc.cluster.local: NXDOMAIN\"]\n    B --> C[\"api.stripe.com.svc.cluster.local: NXDOMAIN\"]\n    C --> D[\"api.stripe.com.cluster.local: NXDOMAIN\"]\n    D --> E[\"api.stripe.com absolute: answer\"]\n    F[\"trailing dot or ndots 1\"] --> E",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#dns-config",
+    "tags": [
+      "scenario",
+      "dns",
+      "coredns",
+      "networking"
+    ]
+  },
+  {
+    "id": "kubernetes-120",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A security review adds this NetworkPolicy to namespace `orders`:\n\n```\nspec:\n  podSelector: {}\n  policyTypes: [Egress]\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels: {kubernetes.io/metadata.name: db}\n    ports: [{protocol: TCP, port: 5432}]\n```\n\nMinutes later the `orders` Pods log `dial tcp: lookup postgres.db.svc.cluster.local: i/o timeout` even though the database is reachable by IP. Which changes are required to make the service work again while keeping egress restricted? (Select all that apply.)",
+    "options": [
+      "Add an egress rule allowing UDP and TCP port 53 to the CoreDNS Pods (for example `namespaceSelector` for `kube-system` plus `podSelector` `k8s-app: kube-dns`)",
+      "Keep the existing rule allowing TCP 5432 to the `db` namespace",
+      "Change `policyTypes` to `[Ingress]` so the egress section is ignored",
+      "Add an ingress rule to the CoreDNS Pods allowing traffic from `orders`",
+      "Restart CoreDNS so it re-reads the NetworkPolicy"
+    ],
+    "optionNotes": [
+      "Correct. Once a Pod is selected by any Egress policy, every egress flow not explicitly listed is dropped, including DNS to CoreDNS. Allowing port 53 (both protocols, since large answers fall back to TCP) restores name resolution.",
+      "Correct. The database rule is what the review wanted; the fix is additive, so this rule stays.",
+      "This removes all egress restriction, which defeats the purpose of the review; the policy would then silently allow every outbound connection.",
+      "The error is on the client's egress side. The `kube-system` namespace has no policy selecting CoreDNS in this scenario, so its ingress is already allow-all; adding an ingress rule there changes nothing.",
+      "CoreDNS does not read NetworkPolicies; they are enforced by the CNI plugin on the data path. Restarting it only causes a brief resolution outage for the whole cluster."
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "The symptom, IP works but the name times out, points at DNS being blocked rather than the database. A default-deny egress policy blocks UDP/TCP 53 to CoreDNS unless a rule allows it, so a DNS egress rule must be added alongside the database rule. Nothing needs to change on the CoreDNS side.",
+    "example": "egress:\n- to:\n  - namespaceSelector:\n      matchLabels: {kubernetes.io/metadata.name: kube-system}\n    podSelector:\n      matchLabels: {k8s-app: kube-dns}\n  ports:\n  - {protocol: UDP, port: 53}\n  - {protocol: TCP, port: 53}\n- to:\n  - namespaceSelector:\n      matchLabels: {kubernetes.io/metadata.name: db}\n  ports: [{protocol: TCP, port: 5432}]",
+    "diagram": "flowchart LR\n    P[\"orders Pod\"] -->|\"UDP 53\"| D[\"CoreDNS in kube-system\"]\n    P -->|\"TCP 5432\"| DB[\"postgres in db\"]\n    E[\"Egress policy: only db 5432 allowed\"] -.->|\"drops\"| D\n    F[\"add rule: kube-dns 53 UDP and TCP\"] --> D",
+    "reference": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+    "tags": [
+      "scenario",
+      "networkpolicy",
+      "dns",
+      "security"
+    ]
+  },
+  {
+    "id": "kubernetes-121",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A GitLab runner deploys with a ServiceAccount token. The job fails with `Error from server (Forbidden): deployments.apps is forbidden: User \"system:serviceaccount:ci:deployer\" cannot patch resource \"deployments\" in API group \"apps\" in the namespace \"prod\"`. The RoleBinding in `prod` correctly references the `deployer` ServiceAccount in `ci`. The bound Role reads:\n\n```\nrules:\n- apiGroups: [\"\"]\n  resources: [\"deployments\", \"pods\"]\n  verbs: [\"get\", \"list\", \"patch\"]\n```\n\nWhat is wrong?",
+    "options": [
+      "`deployments` live in the `apps` API group, not the core group `\"\"`, so the rule never matches; add a rule with `apiGroups: [\"apps\"]`",
+      "The RoleBinding must be a ClusterRoleBinding because the ServiceAccount is in a different namespace than the Role",
+      "The verb `patch` is not a valid RBAC verb for Deployments; `kubectl apply` requires `update` instead",
+      "The ServiceAccount token has expired; regenerate it with `kubectl create token deployer -n ci`"
+    ],
+    "optionNotes": [
+      "Correct. RBAC rules match on group plus resource. The error message spells out `in API group \"apps\"`, and the Role only grants the core group, so Deployments are not covered even though the resource name appears in the rule.",
+      "A RoleBinding can reference a subject from any namespace; it only scopes the permissions to its own namespace (`prod`), which is exactly what is wanted here.",
+      "`patch` is a standard verb and is what server-side and client-side `kubectl apply` use on existing objects; `update` would additionally be needed only for replace operations.",
+      "An expired or invalid token produces `401 Unauthorized`, not a `403 Forbidden` that names the subject and the exact missing permission."
+    ],
+    "answer": 0,
+    "explanation": "The API server authenticated the request (it knows the subject is `system:serviceaccount:ci:deployer`) and then the RBAC authorizer found no rule granting `patch` on `deployments` in group `apps`. Listing `deployments` under `apiGroups: [\"\"]` is a common mistake because Pods do live in the core group. Split the rule so Deployments use `apps`, then confirm with `kubectl auth can-i`.",
+    "example": "kubectl auth can-i patch deployments.apps -n prod --as=system:serviceaccount:ci:deployer\n# no\n# corrected Role:\nrules:\n- apiGroups: [\"apps\"]\n  resources: [\"deployments\"]\n  verbs: [\"get\", \"list\", \"patch\"]\n- apiGroups: [\"\"]\n  resources: [\"pods\"]\n  verbs: [\"get\", \"list\"]",
+    "diagram": "flowchart TD\n    A[\"CI job: kubectl apply deployment\"] --> B[\"authn: system:serviceaccount:ci:deployer\"]\n    B --> C[\"RBAC: patch deployments in group apps?\"]\n    C --> D[\"Role rule: group core, resource deployments\"]\n    D -->|\"group mismatch\"| E[\"403 Forbidden\"]\n    F[\"add rule apiGroups apps\"] --> C\n    C -->|\"match\"| G[\"request allowed\"]",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/",
+    "tags": [
+      "scenario",
+      "rbac",
+      "troubleshooting",
+      "ci"
+    ]
+  },
+  {
+    "id": "kubernetes-122",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A platform team applies a ResourceQuota with `hard: {limits.cpu: \"20\", limits.memory: 40Gi}` to namespace `analytics`. Afterwards a Deployment shows `READY 0/3`, and `kubectl describe replicaset` reports `Error creating: pods \"etl-5b8c-\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: worker; limits.memory for: worker`. Statement: creating a LimitRange in `analytics` that sets `default` CPU and memory limits for containers would let the ReplicaSet create its Pods without editing the Deployment manifest.",
+    "answer": true,
+    "explanation": "When a quota constrains `limits.cpu` or `limits.memory`, every incoming Pod must declare those limits or admission rejects it. A LimitRange's `default` values are injected by the LimitRanger admission plugin before the quota check, so Pods that omit limits get them filled in and pass. The ReplicaSet controller keeps retrying, so the Pods appear once the LimitRange exists.",
+    "example": "apiVersion: v1\nkind: LimitRange\nmetadata: {name: defaults, namespace: analytics}\nspec:\n  limits:\n  - type: Container\n    default: {cpu: \"1\", memory: 1Gi}\n    defaultRequest: {cpu: 250m, memory: 256Mi}\n# then watch the ReplicaSet recover:\nkubectl get rs -n analytics -w",
+    "diagram": "flowchart TD\n    A[\"ReplicaSet creates Pod without limits\"] --> L{\"LimitRange with defaults?\"}\n    L -->|\"no\"| Q[\"ResourceQuota admission: must specify limits\"]\n    Q --> R[\"Pod forbidden, READY 0/3\"]\n    L -->|\"yes\"| I[\"LimitRanger injects default limits\"]\n    I --> P[\"quota check passes, Pod created\"]",
+    "reference": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+    "tags": [
+      "scenario",
+      "resourcequota",
+      "limitrange",
+      "admission"
+    ]
+  },
+  {
+    "id": "kubernetes-123",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "After a routine deploy, the public site returns `502 Bad Gateway` from the NGINX Ingress controller. `kubectl get pods -l app=web` shows all 4 Pods `Running 1/1`, and the Ingress backend is `web-svc:80`. `kubectl get endpoints web-svc` prints `ENDPOINTS <none>`. The PR that was deployed renamed the Deployment's Pod label from `app: web` to `app: web-frontend`. What is the most likely cause?",
+    "options": [
+      "The Service's `selector` still says `app: web`, so it matches no Pods and has no endpoints for the Ingress to proxy to",
+      "The Ingress controller has cached the old Pod IPs and needs to be restarted",
+      "The container is listening on a different port than the Service's `targetPort`",
+      "The readiness probe is failing, so the Pods are excluded from the endpoints list"
+    ],
+    "optionNotes": [
+      "Correct. Endpoints are computed from the Service selector. Since the Pods now carry `app: web-frontend`, the selector `app: web` matches nothing, and the Ingress controller returns 502 because its upstream has no addresses.",
+      "The NGINX controller watches Endpoints and reconfigures automatically; an empty endpoints object means there is nothing to cache in the first place.",
+      "A port mismatch keeps the Pod IPs in the endpoints list but makes connections fail; here the list itself is empty, which rules out a port problem.",
+      "Pods with a failing readiness probe show `0/1` in the READY column, but these are `1/1`, so they are ready and simply not selected."
+    ],
+    "answer": 0,
+    "explanation": "An empty `ENDPOINTS` column with healthy Pods almost always means a selector mismatch. Compare `kubectl get svc web-svc -o yaml` (`spec.selector`) with the Pod labels; either restore the label or update the Service selector to `app: web-frontend`. The controller picks up the new endpoints within seconds and the 502s stop.",
+    "example": "kubectl get endpoints web-svc\n# NAME      ENDPOINTS   AGE\n# web-svc   <none>      120d\nkubectl get svc web-svc -o jsonpath='{.spec.selector}'\n# {\"app\":\"web\"}\nkubectl get pods --show-labels -l app=web-frontend\nkubectl patch svc web-svc -p '{\"spec\":{\"selector\":{\"app\":\"web-frontend\"}}}'",
+    "diagram": "flowchart LR\n    U[\"client\"] --> I[\"NGINX Ingress\"]\n    I --> S[\"Service web-svc selector app=web\"]\n    S -.->|\"no match\"| P[\"Pods labeled app=web-frontend\"]\n    S --> E[\"Endpoints: none\"]\n    E --> B[\"502 Bad Gateway\"]\n    F[\"fix selector to app=web-frontend\"] --> S",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/",
+    "tags": [
+      "scenario",
+      "ingress",
+      "service",
+      "endpoints"
+    ]
   }
 ]

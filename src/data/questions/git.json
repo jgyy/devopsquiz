@@ -1923,5 +1923,234 @@
       "gitignore",
       "config"
     ]
+  },
+  {
+    "id": "git-075",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A developer committed `config/prod.env` containing a live AWS access key to the `payments` repo and pushed it to `origin/main` two hours ago. GitHub's secret scanning has already emailed the security team, and three other engineers have pulled `main` since. Which actions are required to actually contain this incident?",
+    "options": [
+      "Revoke the exposed key in AWS and issue a new one immediately, before any history cleanup",
+      "Rewrite history to remove the file from every commit (for example `git filter-repo --path config/prod.env --invert-paths`) and force-push all affected branches and tags",
+      "Add `config/prod.env` to `.gitignore` and push a commit that deletes the file; the secret is then no longer in the repository",
+      "Tell everyone who pulled to re-clone (or hard-reset to the rewritten refs) and ask the hosting provider to run garbage collection so cached objects are purged",
+      "Run `git revert HEAD` on `main` so the key is undone without rewriting shared history"
+    ],
+    "optionNotes": [
+      "Correct: once pushed, the key must be treated as compromised no matter what happens to the repo; rotation is the only step that removes the risk.",
+      "Correct: removing the blob from all reachable history (filter-repo or BFG) plus a force push is how the secret leaves the repository itself.",
+      "Wrong: a deletion commit leaves the key in every previous commit; anyone can `git show <sha>:config/prod.env` or find it in the history.",
+      "Correct: local clones and server-side caches still hold the old objects; re-cloning and provider-side GC are needed so the blob is not re-pushed or served.",
+      "Wrong: a revert adds a new commit and keeps the original commit (and the key) fully reachable in history."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ],
+    "explanation": "History rewriting alone does not help because the key has been readable for hours and copied into other clones, so rotation comes first. `git filter-repo` removes the blob from every commit, and after the force push every collaborator must reset or re-clone so their stale objects are not pushed back; the host also has to purge cached objects.",
+    "example": "# 1. rotate the credential in AWS first\n# 2. scrub history\npip install git-filter-repo\ngit filter-repo --path config/prod.env --invert-paths\ngit remote add origin git@github.com:acme/payments.git\ngit push --force --all origin && git push --force --tags origin\n# 3. everyone: git fetch && git reset --hard origin/main  (or re-clone)",
+    "diagram": "flowchart TD\nA[\"Secret pushed to origin/main\"] --> B[\"Rotate the key now\"]\nB --> C[\"git filter-repo removes blob from all commits\"]\nC --> D[\"Force push all branches and tags\"]\nD --> E[\"Collaborators reset or re-clone\"]\nD --> F[\"Provider purges cached objects\"]\nG[\"Delete commit or revert\"] -.->|\"key still in history\"| A",
+    "reference": "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository",
+    "tags": [
+      "scenario",
+      "security",
+      "filter-repo",
+      "history-rewrite"
+    ]
+  },
+  {
+    "id": "git-076",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "You meant to start a branch for a new feature but forgot, and have just made three local commits directly on `main`. Nothing has been pushed yet, and `git status` shows `Your branch is ahead of 'origin/main' by 3 commits`. You want those three commits on a new branch `feature/export` and `main` back in sync with the remote. Which sequence does this without losing work?",
+    "options": [
+      "`git branch feature/export` then `git reset --hard origin/main` while still on `main`",
+      "`git switch -c feature/export` then `git rebase origin/main`",
+      "`git stash` then `git switch -c feature/export` then `git stash pop`",
+      "`git reset --hard origin/main` then `git switch -c feature/export` and `git cherry-pick HEAD~3..HEAD`"
+    ],
+    "optionNotes": [
+      "Correct: creating the branch first pins the three commits to a new ref, and the hard reset then moves only `main` back to the remote tip.",
+      "This creates the branch correctly, but `main` still points at the three commits; the rebase is a no-op and `main` remains ahead of origin.",
+      "`git stash` only saves uncommitted changes; the commits already exist and would stay on `main`, leaving nothing to stash.",
+      "Resetting first drops the commits from `main` before any branch points at them; `HEAD~3..HEAD` then refers to the wrong range and the commits are recoverable only via the reflog."
+    ],
+    "answer": 0,
+    "explanation": "Commits are safe as long as some ref points at them, so the order matters: create `feature/export` at the current `HEAD` first, then reset `main` to `origin/main`. Doing the reset first orphans the commits until you dig them out of the reflog.",
+    "example": "git status\n# On branch main\n# Your branch is ahead of 'origin/main' by 3 commits.\ngit branch feature/export        # new ref at current HEAD\ngit reset --hard origin/main     # main back to remote tip\ngit switch feature/export\ngit log --oneline origin/main..  # the 3 commits are here",
+    "diagram": "flowchart LR\nO[\"origin/main\"] --> C1[\"c1\"] --> C2[\"c2\"] --> C3[\"c3\"]\nC3 --> F[\"feature/export (new)\"]\nO --> M[\"main after reset --hard\"]\nS[\"Step 1: git branch feature/export\"] -.-> F\nT[\"Step 2: git reset --hard origin/main\"] -.-> M",
+    "reference": "https://git-scm.com/docs/git-reset#_examples",
+    "tags": [
+      "scenario",
+      "branching",
+      "reset"
+    ]
+  },
+  {
+    "id": "git-077",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A colleague ran `git reset --hard HEAD~4` on their local `feature/billing` branch, thinking it would undo a single commit, and lost four commits of work that were never pushed. `git log` now shows none of them. They have not run `git gc` or anything else since. What is the best next step to get the commits back?",
+    "options": [
+      "Run `git reflog`, find the entry from just before the reset (for example `HEAD@{1}`), and run `git reset --hard HEAD@{1}` or `git branch recovered HEAD@{1}`",
+      "Run `git fsck --lost-found` and copy the dangling blobs out of `.git/lost-found/other/` into the working tree",
+      "Run `git pull origin feature/billing` so the remote copy restores the missing commits",
+      "Run `git revert HEAD~4..HEAD` to reapply the four commits on top of the current tip"
+    ],
+    "optionNotes": [
+      "Correct: the reset only moved the branch pointer; the commits still exist and the reflog records where `HEAD` was before the reset.",
+      "`fsck` can find unreachable objects, but here the commits are still recorded in the reflog, so this is a far more laborious and lossy route than needed.",
+      "The commits were never pushed, so the remote has nothing to give back; the pull would just report the branch is up to date.",
+      "`git revert` needs the commits to be reachable to revert them, and even then it would create inverse commits, not restore the lost ones."
+    ],
+    "answer": 0,
+    "explanation": "`git reset --hard` rewrites the branch ref and working tree but does not delete commit objects. The reflog keeps a per-ref history of where `HEAD` and the branch pointed, so `HEAD@{1}` (the state before the reset) can be checked out or reset to directly.",
+    "example": "git reflog\n# 3f9c2a1 HEAD@{0}: reset: moving to HEAD~4\n# b71e0d4 HEAD@{1}: commit: add invoice PDF export\n# ...\ngit branch recovered b71e0d4      # or: git reset --hard HEAD@{1}\ngit log --oneline recovered -5",
+    "diagram": "flowchart TD\nA[\"git reset --hard HEAD~4\"] --> B[\"Branch ref moves back 4 commits\"]\nB --> C[\"Commits still in object store\"]\nC --> D[\"git reflog lists HEAD@{1} = pre-reset tip\"]\nD --> E[\"git reset --hard HEAD@{1}\"]\nD --> F[\"or git branch recovered HEAD@{1}\"]",
+    "reference": "https://git-scm.com/docs/git-reflog",
+    "tags": [
+      "scenario",
+      "reflog",
+      "reset"
+    ]
+  },
+  {
+    "id": "git-078",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "During a release, a teammate ran `git push --force origin main` after a botched rebase, and the server-side branch `main` now points at commit `a1b2c3d`. Two commits that another engineer had pushed to `main` in the previous hour are gone from the remote. The teammate's own clone never fetched those two commits. Which action recovers them most directly?",
+    "options": [
+      "Ask the engineer who authored the two commits to `git push origin main` again from their clone, which still has them, after merging or rebasing onto the new `main`",
+      "Run `git reflog origin/main` in the teammate's clone to find the previous remote tip and force-push it back",
+      "Run `git revert a1b2c3d` on `main` to undo the force push",
+      "Ask the hosting provider to restore the repository from last night's backup"
+    ],
+    "optionNotes": [
+      "Correct: any clone that fetched the commits (the author's most of all) still holds them and can push them back; hosting-side reflogs or event logs are a fallback if no clone has them.",
+      "Local reflogs only record what that clone saw; this clone never fetched the two commits, so `origin/main`'s reflog has no entry pointing at them.",
+      "`revert` undoes the changes of a commit; it cannot bring back commits that are no longer reachable from any ref.",
+      "A backup restore would also discard everything else pushed since the backup and is a last resort, not the most direct fix."
+    ],
+    "answer": 0,
+    "explanation": "A force push only moves the remote ref; commits are lost from the remote's reachability, not from every clone. The fastest recovery is to find a clone that still has them (the author's, a CI runner, or a colleague who pulled) and push them back, then protect `main` against force pushes.",
+    "example": "# on the author's machine\ngit fetch origin\ngit log --oneline origin/main..main   # shows the 2 missing commits\ngit rebase origin/main               # or merge\ngit push origin main\n# afterwards: enable 'block force pushes' on main in the host's branch protection",
+    "diagram": "flowchart TD\nA[\"git push --force origin main\"] --> B[\"Remote main now at a1b2c3d\"]\nB --> C[\"2 commits unreachable on remote\"]\nC --> D{\"Any clone still has them?\"}\nD -->|\"author's clone\"| E[\"rebase onto new main and push\"]\nD -->|\"none\"| F[\"Host reflog or support ticket\"]\nE --> G[\"Enable force-push protection\"]",
+    "reference": "https://git-scm.com/docs/git-push#Documentation/git-push.txt---force",
+    "tags": [
+      "scenario",
+      "force-push",
+      "remotes",
+      "recovery"
+    ]
+  },
+  {
+    "id": "git-079",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "Clones of the `web-frontend` repo now take 12 minutes and `.git` weighs 3.4 GB. `git rev-list --objects --all | git cat-file --batch-check` sorted by size shows dozens of versions of `assets/demo-video.mp4` (each 80-150 MB) committed over the past year; the current version is still needed by the build. The team wants clones fast again and future versions of that file handled sensibly. What is the best approach?",
+    "options": [
+      "Rewrite history with `git filter-repo` (or BFG) to strip the historical blobs, then track `*.mp4` with Git LFS going forward and have everyone re-clone",
+      "Add `assets/demo-video.mp4` to `.gitignore` and commit a deletion; the old blobs will be pruned on the next `git gc`",
+      "Run `git gc --aggressive --prune=now` on the server so the repository is repacked and the old video versions are compressed away",
+      "Tell developers to use `git clone --depth 1` and leave the history as it is"
+    ],
+    "optionNotes": [
+      "Correct: only a history rewrite removes the blobs from the object store, and LFS keeps future versions as small pointers with the binaries stored out of band.",
+      "Deleting and ignoring the file leaves every historical version reachable from old commits, so `gc` will not prune anything and clone size is unchanged.",
+      "Repacking cannot shrink objects that are still reachable; large binaries barely delta-compress, so the repository stays roughly the same size.",
+      "Shallow clones hide the problem for some workflows but break `git log`, bisect, and many CI tools, and the repository keeps growing with each new video commit."
+    ],
+    "answer": 0,
+    "explanation": "Reachable objects are never garbage collected, so the historical video blobs only disappear if history is rewritten to exclude them. Moving the file to Git LFS afterwards means future revisions store a small pointer in Git and the binary in the LFS store, keeping clones fast.",
+    "example": "git filter-repo --path assets/demo-video.mp4 --invert-paths\ngit lfs install\ngit lfs track 'assets/*.mp4'\ngit add .gitattributes assets/demo-video.mp4\ngit commit -m 'Track demo video with LFS'\ngit push --force --all origin\n# everyone: re-clone; git count-objects -vH to confirm size",
+    "diagram": "flowchart TD\nA[\"3.4 GB .git, slow clones\"] --> B[\"Find large blobs: rev-list + cat-file\"]\nB --> C[\"git filter-repo strips historical versions\"]\nC --> D[\"git lfs track for future versions\"]\nD --> E[\"Force push, team re-clones\"]\nF[\"gitignore or gc alone\"] -.->|\"blobs still reachable\"| A",
+    "reference": "https://git-lfs.com/",
+    "tags": [
+      "scenario",
+      "lfs",
+      "filter-repo",
+      "performance"
+    ]
+  },
+  {
+    "id": "git-080",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A feature branch was merged into `main` with a merge commit `e4f5a6b`, and production now throws errors traced to that feature. You must roll `main` back today without rewriting history because the branch is shared and protected. Running `git revert e4f5a6b` fails with `error: commit e4f5a6b is a merge but no -m option was given`. What is the correct fix?",
+    "options": [
+      "Run `git revert -m 1 e4f5a6b`, which reverts to the first parent (the `main` side) and undoes everything the feature branch brought in",
+      "Run `git revert -m 2 e4f5a6b` so that the feature branch's side of the merge is kept as the mainline",
+      "Run `git reset --hard e4f5a6b~1` and push with `--force-with-lease` to remove the merge from `main`",
+      "Revert each individual commit from the feature branch with `git revert <sha>` one at a time, newest first"
+    ],
+    "optionNotes": [
+      "Correct: `-m 1` picks parent 1 (the `main` tip before the merge) as the mainline, so the revert produces a commit that removes the feature's changes.",
+      "Parent 2 is the feature branch tip; choosing it would instead undo the commits that were on `main` before the merge, which is the opposite of what is wanted.",
+      "This rewrites shared, protected history; the protection rules will reject the force push and collaborators would have to reset their clones.",
+      "This works only if the branch had few commits and no merges of its own; reverting the merge with `-m 1` achieves the same result in one atomic commit."
+    ],
+    "answer": 0,
+    "explanation": "A merge commit has two parents, so Git needs to know which side is the mainline to compute the inverse diff. `-m 1` treats the first parent (the branch you merged into) as the baseline, so the resulting revert commit removes the feature's changes. Note that re-merging the same branch later requires reverting the revert, since Git now considers those commits already merged.",
+    "example": "git log --oneline -1 e4f5a6b\n# e4f5a6b Merge branch 'feature/pricing' into main\ngit revert -m 1 e4f5a6b\ngit push origin main\n# later, to bring the fixed feature back:\n# git revert <sha-of-the-revert-commit>  then re-merge",
+    "diagram": "flowchart LR\nP1[\"parent 1: main before merge\"] --> M[\"merge e4f5a6b\"]\nP2[\"parent 2: feature tip\"] --> M\nM --> R[\"revert -m 1 (mainline = parent 1)\"]\nR --> S[\"main without feature changes\"]\nX[\"-m 2 would undo the main side instead\"] -.-> M",
+    "reference": "https://git-scm.com/docs/git-revert#Documentation/git-revert.txt---mainlineparent-number",
+    "tags": [
+      "scenario",
+      "revert",
+      "merging"
+    ]
+  },
+  {
+    "id": "git-081",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "You run `git push origin feature/search` and get:\n`! [rejected] feature/search -> feature/search (non-fast-forward)`\n`hint: Updates were rejected because the tip of your current branch is behind its remote counterpart.`\nA teammate confirms they pushed a small fix to the same branch this morning. What is the correct next step?",
+    "options": [
+      "Run `git pull --rebase origin feature/search` (or `git fetch` then `git rebase origin/feature/search`), resolve any conflicts, and push again",
+      "Run `git push --force origin feature/search` so your local branch replaces the remote one",
+      "Delete the remote branch with `git push origin --delete feature/search` and push yours fresh",
+      "Run `git reset --hard origin/feature/search` and redo your changes on top"
+    ],
+    "optionNotes": [
+      "Correct: integrating the teammate's commit first makes your branch a descendant of the remote tip, so the push becomes a fast-forward.",
+      "This discards the teammate's fix from the remote branch; the rejection is Git protecting exactly that commit.",
+      "Deleting and re-pushing has the same effect as a force push: the teammate's commit is lost from the remote.",
+      "A hard reset throws away your own local commits; you would have to recover them from the reflog and redo the work needlessly."
+    ],
+    "answer": 0,
+    "explanation": "A non-fast-forward rejection means the remote branch has commits your local branch does not contain. Fetch and rebase (or merge) the remote changes into your branch, then push; both histories are preserved and no force is needed.",
+    "example": "git pull --rebase origin feature/search\n# Successfully rebased and updated refs/heads/feature/search.\ngit push origin feature/search\n# or, to make this the default for pulls:\ngit config --global pull.rebase true",
+    "diagram": "flowchart TD\nA[\"git push rejected: non-fast-forward\"] --> B[\"Remote has commits you lack\"]\nB --> C[\"git pull --rebase origin branch\"]\nC --> D{\"Conflicts?\"}\nD -->|\"yes\"| E[\"resolve, git rebase --continue\"]\nD -->|\"no\"| F[\"git push succeeds\"]\nE --> F\nG[\"git push --force\"] -.->|\"drops teammate's commit\"| B",
+    "reference": "https://git-scm.com/docs/git-push#_note_about_fast_forwards",
+    "tags": [
+      "scenario",
+      "remotes",
+      "rebasing"
+    ]
+  },
+  {
+    "id": "git-082",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A CI job for the `platform` repo fails at checkout with `fatal: remote error: upload-pack: not our ref 7d3e9f0` followed by `Fetched in submodule path 'libs/common', but it did not contain 7d3e9f0`. The last merged PR bumped the `libs/common` submodule pointer. Adding `git submodule update --init --recursive --force` to the CI script will resolve this failure.",
+    "answer": false,
+    "explanation": "The error means the superproject references a submodule commit that does not exist on the submodule's remote, almost always because the developer committed inside `libs/common` and updated the pointer but never pushed the submodule's commit. No checkout flag can fetch a commit the server does not have; the fix is to push the missing commit in the submodule repo (or point the superproject at a commit that exists).",
+    "example": "# in the developer's clone of libs/common\ngit -C libs/common log --oneline -1     # 7d3e9f0 exists locally\ngit -C libs/common push origin HEAD:main # push it so the remote has it\n# guard against repeats in the superproject:\ngit config --global push.recurseSubmodules check",
+    "diagram": "flowchart TD\nA[\"Dev commits in libs/common\"] --> B[\"Superproject pointer set to 7d3e9f0\"]\nB --> C[\"Superproject pushed, submodule commit not pushed\"]\nC --> D[\"CI fetches submodule: not our ref\"]\nD --> E[\"Fix: push commit in submodule repo\"]\nF[\"push.recurseSubmodules=check blocks this\"] -.-> C",
+    "reference": "https://git-scm.com/docs/git-push#Documentation/git-push.txt---recurse-submodulescheckon-demandonlyno",
+    "tags": [
+      "scenario",
+      "submodules",
+      "ci"
+    ]
   }
 ]
