@@ -2043,5 +2043,172 @@
       "deployment"
     ],
     "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs"
+  },
+  {
+    "id": "cicd-081",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a GitHub Actions workflow, which `on:` event lets you start the workflow manually from the Actions tab or via the API, optionally with typed inputs?",
+    "explanation": "`workflow_dispatch` adds a Run workflow button and REST/CLI trigger (`gh workflow run`) and supports an `inputs:` block with choice, boolean, string and environment types. It is the standard way to expose one-off operations such as a hotfix deploy without committing to the repo.",
+    "example": "on:\n  workflow_dispatch:\n    inputs:\n      environment:\n        type: choice\n        options: [staging, production]\n# gh workflow run deploy.yml -f environment=staging",
+    "diagram": "flowchart LR\n  U[\"Engineer clicks Run workflow\"] --> D[\"workflow_dispatch event\"]\n  D --> I[\"inputs.environment\"]\n  I --> J[\"deploy job\"]",
+    "answer": [
+      "workflow_dispatch",
+      "on: workflow_dispatch"
+    ],
+    "pattern": "^(on:\\s*)?workflow[_\\s-]?dispatch$",
+    "reference": "https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch",
+    "tags": [
+      "github-actions",
+      "triggers"
+    ]
+  },
+  {
+    "id": "cicd-082",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which GitHub Actions job-level key lists other jobs that must complete successfully before this job starts, creating the dependency graph between jobs?",
+    "explanation": "`needs` makes a job wait for the named jobs and gives it access to their `outputs`. Without `needs`, all jobs in a workflow run in parallel. A failed dependency skips the dependent job unless it uses `if: always()` or `if: ${{ !cancelled() }}` to run regardless.",
+    "example": "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps: [ ... ]\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    steps: [ ... ]",
+    "diagram": "flowchart LR\n  B[\"build\"] -->|\"needs: build\"| T[\"test\"]\n  T -->|\"needs: test\"| D[\"deploy\"]\n  L[\"lint\"] --> D",
+    "answer": [
+      "needs",
+      "needs:"
+    ],
+    "pattern": "^needs:?$",
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idneeds",
+    "tags": [
+      "github-actions",
+      "jobs"
+    ]
+  },
+  {
+    "id": "cicd-083",
+    "domain": "cicd",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which GitLab CI predefined variable holds the full 40-character SHA of the commit that the pipeline is running for?",
+    "explanation": "`CI_COMMIT_SHA` is set on every job and is commonly used to tag images so each build is traceable to an exact commit; `CI_COMMIT_SHORT_SHA` gives the 8-character prefix. Branch or tag names live in `CI_COMMIT_REF_NAME`, and `CI_COMMIT_REF_SLUG` provides a URL-safe version for hostnames.",
+    "example": "build:\n  script:\n    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .\n    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA",
+    "diagram": "flowchart LR\n  P[\"push commit abc123...\"] --> R[\"GitLab Runner job\"]\n  R -->|\"CI_COMMIT_SHA\"| T[\"image tag abc123...\"]\n  T --> G[\"registry\"]",
+    "answer": [
+      "CI_COMMIT_SHA",
+      "$CI_COMMIT_SHA"
+    ],
+    "pattern": "^\\$?ci_commit_sha$",
+    "reference": "https://docs.gitlab.com/ci/variables/predefined_variables/",
+    "tags": [
+      "gitlab-ci",
+      "variables"
+    ]
+  },
+  {
+    "id": "cicd-084",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which GitHub Actions workflow-level key defines named groups such that only one run per group executes at a time, with `cancel-in-progress: true` to cancel superseded runs?",
+    "explanation": "`concurrency` groups runs by an expression like `${{ github.workflow }}-${{ github.ref }}`; a new run in the same group queues behind or, with `cancel-in-progress`, cancels the running one. It saves runner minutes on busy PR branches and prevents two deploys to the same environment from overlapping.",
+    "example": "concurrency:\n  group: deploy-${{ github.ref }}\n  cancel-in-progress: true",
+    "diagram": "flowchart LR\n  R1[\"run 1 in group main\"] --> Q{\"concurrency group\"}\n  R2[\"run 2 same group\"] --> Q\n  Q -->|\"cancel-in-progress\"| C[\"run 1 cancelled\"]\n  Q --> R[\"run 2 proceeds\"]",
+    "answer": [
+      "concurrency",
+      "concurrency:"
+    ],
+    "pattern": "^concurrency:?$",
+    "reference": "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#concurrency",
+    "tags": [
+      "github-actions",
+      "concurrency"
+    ]
+  },
+  {
+    "id": "cicd-085",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `.gitlab-ci.yml` keyword marks a job as one that should not block the pipeline, so its failure is shown as a warning and the pipeline still passes?",
+    "explanation": "`allow_failure: true` lets exploratory or best-effort jobs (nightly fuzzers, experimental linters) fail without turning the pipeline red. It can also take `exit_codes:` to treat only specific exit codes as acceptable, and it is set implicitly on manual jobs unless overridden.",
+    "example": "experimental-lint:\n  stage: test\n  script: ./lint-next.sh\n  allow_failure: true",
+    "diagram": "flowchart LR\n  J[\"job fails\"] --> A{\"allow_failure?\"}\n  A -->|\"true\"| W[\"warning, pipeline passes\"]\n  A -->|\"false\"| F[\"pipeline failed\"]",
+    "answer": [
+      "allow_failure",
+      "allow_failure: true",
+      "allow-failure"
+    ],
+    "pattern": "^allow[_-]failure(:\\s*true)?$",
+    "reference": "https://docs.gitlab.com/ci/yaml/#allow_failure",
+    "tags": [
+      "gitlab-ci",
+      "yaml"
+    ]
+  },
+  {
+    "id": "cicd-086",
+    "domain": "cicd",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a declarative `Jenkinsfile`, which directive block (one word) wraps steps that must run after the stages regardless of outcome, containing conditions such as `always`, `success` and `failure`?",
+    "explanation": "The `post` section runs at the end of a pipeline or stage and its conditions (`always`, `success`, `failure`, `unstable`, `changed`, `cleanup`) decide which steps execute. It is where teams archive artifacts, publish JUnit results and send notifications so those steps run even after a failing stage.",
+    "example": "pipeline {\n  agent any\n  stages { stage('Test') { steps { sh 'make test' } } }\n  post {\n    always { junit 'reports/**/*.xml' }\n    failure { slackSend channel: '#ci', message: \"Build failed: ${env.BUILD_URL}\" }\n  }\n}",
+    "diagram": "flowchart TD\n  S[\"stages run\"] --> P[\"post\"]\n  P --> A[\"always\"]\n  P --> F[\"failure\"]\n  P --> OK[\"success\"]",
+    "answer": [
+      "post",
+      "post {",
+      "post block",
+      "post section"
+    ],
+    "pattern": "^post(\\s*\\{|\\s+(block|section))?$",
+    "reference": "https://www.jenkins.io/doc/book/pipeline/syntax/#post",
+    "tags": [
+      "jenkins",
+      "declarative-pipeline"
+    ]
+  },
+  {
+    "id": "cicd-087",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Argo CD Application `syncPolicy.automated` field (one word) makes Argo CD revert manual changes made in the cluster so the live state is continually reconciled back to Git?",
+    "explanation": "`selfHeal: true` tells Argo CD to re-sync whenever it detects drift between the live cluster and the desired manifests, not only when Git changes. Paired with `prune: true` it enforces true GitOps: resources edited with `kubectl edit` are reverted and resources removed from Git are deleted.",
+    "example": "spec:\n  syncPolicy:\n    automated:\n      prune: true\n      selfHeal: true\n    syncOptions:\n      - CreateNamespace=true",
+    "diagram": "flowchart LR\n  G[\"Git desired state\"] --> A[\"Argo CD controller\"]\n  K[\"kubectl edit drift\"] --> A\n  A -->|\"selfHeal: true\"| R[\"re-sync to Git\"]",
+    "answer": [
+      "selfHeal",
+      "selfHeal: true",
+      "self-heal",
+      "self heal"
+    ],
+    "pattern": "^self[\\s-]?heal(:\\s*true)?$",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/#automatic-self-healing",
+    "tags": [
+      "argocd",
+      "gitops"
+    ]
+  },
+  {
+    "id": "cicd-088",
+    "domain": "cicd",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which GitHub CLI extension-free subcommand (two words after `gh`) verifies the SLSA build provenance attestation of a downloaded artifact against the repository that produced it, for example `gh <subcommand> ./app.tar.gz --repo acme/app`?",
+    "explanation": "`gh attestation verify` checks the Sigstore-signed provenance created by `actions/attest-build-provenance` and confirms the artifact digest, the signing workflow identity and the source repository. Consumers run it in deploy pipelines so only artifacts built by the trusted workflow can proceed, closing the gap between build and deployment in the supply chain.",
+    "example": "gh attestation verify ./app.tar.gz --repo acme/app\n# in the build workflow:\n- uses: actions/attest-build-provenance@v2\n  with:\n    subject-path: ./app.tar.gz",
+    "diagram": "flowchart LR\n  B[\"build workflow\"] -->|\"attest-build-provenance\"| S[\"Sigstore attestation\"]\n  A[\"artifact\"] --> V[\"gh attestation verify\"]\n  S --> V\n  V --> D[\"deploy allowed\"]",
+    "answer": [
+      "attestation verify",
+      "gh attestation verify",
+      "attestation"
+    ],
+    "pattern": "^(gh\\s+)?attestation(\\s+verify)?$",
+    "reference": "https://cli.github.com/manual/gh_attestation_verify",
+    "tags": [
+      "supply-chain",
+      "slsa",
+      "github"
+    ]
   }
 ]

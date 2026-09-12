@@ -2504,5 +2504,181 @@
       "multi-az",
       "failover"
     ]
+  },
+  {
+    "id": "aws-094",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which AWS CLI subcommand (two words after `aws`) prints the account ID, user ID and ARN of the identity whose credentials the CLI is currently using?",
+    "explanation": "`aws sts get-caller-identity` is the standard first check when credentials or assumed roles behave unexpectedly. It needs no IAM permissions beyond valid credentials and returns the Account, UserId and Arn, so you can confirm which role or user the CLI is really acting as before debugging AccessDenied errors.",
+    "example": "aws sts get-caller-identity\n# {\n#   \"UserId\": \"AROAEXAMPLE:ci-runner\",\n#   \"Account\": \"111111111111\",\n#   \"Arn\": \"arn:aws:sts::111111111111:assumed-role/ci-runner/ci-runner\"\n# }",
+    "diagram": "flowchart LR\n  C[\"aws CLI\"] -->|\"credentials chain\"| S[\"STS\"]\n  S --> I[\"get-caller-identity\"]\n  I --> A[\"Account / UserId / Arn\"]",
+    "answer": [
+      "sts get-caller-identity",
+      "get-caller-identity",
+      "aws sts get-caller-identity"
+    ],
+    "pattern": "^(aws\\s+)?(sts\\s+)?get-caller-identity$",
+    "reference": "https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html",
+    "tags": [
+      "cli",
+      "sts",
+      "iam"
+    ]
+  },
+  {
+    "id": "aws-095",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which environment variable does the AWS CLI and SDKs read to choose the default Region for API calls (for example `us-east-1`)?",
+    "explanation": "`AWS_REGION` (and the older CLI-only `AWS_DEFAULT_REGION`) sets the Region used when no `--region` flag or profile setting is given. Environment variables take precedence over the `~/.aws/config` file, which is why CI jobs usually export it explicitly so every SDK call targets the intended Region.",
+    "example": "export AWS_REGION=ap-southeast-1\naws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId'",
+    "diagram": "flowchart TD\n  F[\"--region flag\"] --> R[\"Resolved Region\"]\n  E[\"AWS_REGION env var\"] --> R\n  P[\"profile in ~/.aws/config\"] --> R\n  R --> API[\"Regional API endpoint\"]",
+    "answer": [
+      "AWS_REGION",
+      "AWS_DEFAULT_REGION",
+      "$AWS_REGION",
+      "$AWS_DEFAULT_REGION"
+    ],
+    "pattern": "^\\$?aws_(default_)?region$",
+    "reference": "https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html",
+    "tags": [
+      "cli",
+      "configuration",
+      "region"
+    ]
+  },
+  {
+    "id": "aws-096",
+    "domain": "aws",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a JSON IAM policy statement, which element (a single word) names the AWS identity or service that the statement applies to, and is required in resource-based policies such as S3 bucket policies?",
+    "explanation": "`Principal` identifies who the statement grants or denies access to, using an account, user, role, federated identity or service ARN. It is required in resource-based policies (bucket policies, KMS key policies, trust policies) and must be omitted in identity-based policies, where the principal is implicitly the identity the policy is attached to.",
+    "example": "{\n  \"Effect\": \"Allow\",\n  \"Principal\": {\"AWS\": \"arn:aws:iam::111111111111:role/ci-runner\"},\n  \"Action\": \"s3:GetObject\",\n  \"Resource\": \"arn:aws:s3:::artifacts/*\"\n}",
+    "diagram": "flowchart LR\n  P[\"Principal - who\"] --> S[\"Statement\"]\n  A[\"Action - what\"] --> S\n  R[\"Resource - on which\"] --> S\n  S --> E[\"Effect Allow or Deny\"]",
+    "answer": [
+      "Principal",
+      "principal"
+    ],
+    "pattern": "^\"?principal\"?$",
+    "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html",
+    "tags": [
+      "iam",
+      "policy"
+    ]
+  },
+  {
+    "id": "aws-097",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Route 53 record type (an AWS extension, not a standard DNS type) lets you map the zone apex such as `example.com` directly to an ALB, CloudFront distribution or S3 website endpoint?",
+    "explanation": "An Alias record is Route 53's answer to the rule that a zone apex cannot be a CNAME. Route 53 resolves the alias target's IPs itself, returns them as A/AAAA answers, and does not charge for alias queries to AWS resources. Aliases also follow the target's health and IP changes automatically.",
+    "example": "aws route53 change-resource-record-sets --hosted-zone-id Z123 --change-batch '{\n \"Changes\":[{\"Action\":\"UPSERT\",\"ResourceRecordSet\":{\n  \"Name\":\"example.com\",\"Type\":\"A\",\n  \"AliasTarget\":{\"HostedZoneId\":\"Z35SXDOTRQ7X7K\",\"DNSName\":\"my-alb-123.us-east-1.elb.amazonaws.com\",\"EvaluateTargetHealth\":true}}}]}'",
+    "diagram": "flowchart LR\n  U[\"Resolver asks example.com A\"] --> R[\"Route 53 alias record\"]\n  R -->|\"looks up target\"| T[\"ALB DNS name\"]\n  T --> IP[\"Current ALB IPs\"]\n  IP --> U",
+    "answer": [
+      "Alias",
+      "alias record",
+      "alias records",
+      "Alias record"
+    ],
+    "pattern": "^alias(\\s+records?)?$",
+    "reference": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html",
+    "tags": [
+      "route53",
+      "dns"
+    ]
+  },
+  {
+    "id": "aws-098",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Amazon S3 storage class delivers the lowest per-GB storage price for archive data that can tolerate retrieval times of up to 12 hours (or 48 hours for bulk)?",
+    "explanation": "S3 Glacier Deep Archive is the cheapest S3 class, priced for data retained for years and retrieved rarely. Standard retrievals take up to 12 hours and bulk up to 48, with a 180-day minimum storage duration, so it suits compliance archives and backups rather than anything needing quick restores.",
+    "example": "aws s3 cp backup-2026-01.tar s3://vault/ --storage-class DEEP_ARCHIVE\n# restore later\naws s3api restore-object --bucket vault --key backup-2026-01.tar \\\n  --restore-request '{\"Days\":7,\"GlacierJobParameters\":{\"Tier\":\"Bulk\"}}'",
+    "diagram": "flowchart LR\n  S[\"S3 Standard\"] --> IA[\"Standard-IA\"]\n  IA --> IR[\"Glacier Instant Retrieval\"]\n  IR --> FR[\"Glacier Flexible Retrieval\"]\n  FR --> DA[\"Glacier Deep Archive - lowest cost, 12h+\"]",
+    "answer": [
+      "Glacier Deep Archive",
+      "S3 Glacier Deep Archive",
+      "Deep Archive",
+      "DEEP_ARCHIVE"
+    ],
+    "pattern": "^(s3\\s+)?(glacier\\s+)?deep[\\s_-]?archive$",
+    "reference": "https://aws.amazon.com/s3/storage-classes/glacier/",
+    "tags": [
+      "s3",
+      "storage-classes",
+      "cost"
+    ]
+  },
+  {
+    "id": "aws-099",
+    "domain": "aws",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which AWS Lambda feature name (two words) keeps a configured number of execution environments initialized and ready so that invocations never incur a cold start?",
+    "explanation": "Provisioned concurrency pre-initializes execution environments including your init code, so requests are served with consistent latency. It is billed for the time it is configured regardless of traffic and can be attached to Application Auto Scaling schedules to match predictable peaks, unlike SnapStart which only accelerates initialization.",
+    "example": "aws lambda put-provisioned-concurrency-config \\\n  --function-name checkout --qualifier live \\\n  --provisioned-concurrent-executions 20",
+    "diagram": "flowchart LR\n  R[\"Request\"] --> W{\"warm env available?\"}\n  W -->|\"yes - provisioned\"| H[\"Handler runs immediately\"]\n  W -->|\"no\"| C[\"Cold start: init runtime + code\"]\n  C --> H",
+    "answer": [
+      "Provisioned concurrency",
+      "provisioned-concurrency",
+      "provisioned concurrency"
+    ],
+    "pattern": "^provisioned[\\s_-]?concurrency$",
+    "reference": "https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html",
+    "tags": [
+      "lambda",
+      "performance"
+    ]
+  },
+  {
+    "id": "aws-100",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which IAM policy condition key must you check in an S3 bucket policy to deny requests that do not use TLS (for example `\"Bool\": {\"<key>\": \"false\"}`)?",
+    "explanation": "`aws:SecureTransport` is a global condition key that is `true` when the request arrived over HTTPS. A Deny statement matching `aws:SecureTransport: false` enforces encryption in transit for every principal, which is required by many compliance baselines and flagged by AWS Config rule `s3-bucket-ssl-requests-only` when missing.",
+    "example": "{\n  \"Sid\": \"DenyInsecureTransport\",\n  \"Effect\": \"Deny\",\n  \"Principal\": \"*\",\n  \"Action\": \"s3:*\",\n  \"Resource\": [\"arn:aws:s3:::logs\", \"arn:aws:s3:::logs/*\"],\n  \"Condition\": {\"Bool\": {\"aws:SecureTransport\": \"false\"}}\n}",
+    "diagram": "flowchart TD\n  Q[\"S3 request\"] --> C{\"aws:SecureTransport?\"}\n  C -->|\"true - HTTPS\"| A[\"Evaluate other statements\"]\n  C -->|\"false - HTTP\"| D[\"Explicit Deny\"]",
+    "answer": [
+      "aws:SecureTransport",
+      "SecureTransport"
+    ],
+    "pattern": "^(aws:)?securetransport$",
+    "reference": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-securetransport",
+    "tags": [
+      "iam",
+      "s3",
+      "security",
+      "condition-keys"
+    ]
+  },
+  {
+    "id": "aws-101",
+    "domain": "aws",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Amazon VPC feature (two words) lets you privately expose your own service behind a Network Load Balancer so that other AWS accounts can connect to it through interface endpoints without VPC peering?",
+    "explanation": "AWS PrivateLink lets a provider create a VPC endpoint service fronted by an NLB or GWLB; consumers then create interface endpoints in their own VPCs and traffic never leaves the AWS network. Unlike peering it is unidirectional, does not require non-overlapping CIDRs, and scales to thousands of consumer accounts.",
+    "example": "aws ec2 create-vpc-endpoint-service-configuration \\\n  --network-load-balancer-arns arn:aws:elasticloadbalancing:...:loadbalancer/net/api/abc \\\n  --acceptance-required\n# consumer side\naws ec2 create-vpc-endpoint --vpc-id vpc-0c --service-name com.amazonaws.vpce.us-east-1.vpce-svc-0123 \\\n  --vpc-endpoint-type Interface --subnet-ids subnet-0a",
+    "diagram": "flowchart LR\n  C[\"Consumer VPC interface endpoint ENI\"] -->|\"PrivateLink\"| E[\"Endpoint service\"]\n  E --> N[\"NLB in provider VPC\"]\n  N --> T[\"Provider targets\"]",
+    "answer": [
+      "PrivateLink",
+      "AWS PrivateLink",
+      "VPC endpoint service",
+      "endpoint service"
+    ],
+    "pattern": "^(aws\\s+)?private\\s?link$|^(vpc\\s+)?endpoint\\s+services?$",
+    "reference": "https://docs.aws.amazon.com/vpc/latest/privatelink/privatelink-share-your-services.html",
+    "tags": [
+      "vpc",
+      "privatelink",
+      "networking"
+    ]
   }
 ]

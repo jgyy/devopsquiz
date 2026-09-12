@@ -1,6 +1,6 @@
 # devopsquiz
 
-A static quiz web app for practising DevOps knowledge. Ten domains, four question
+A static quiz web app for practising DevOps knowledge. Twenty domains, four question
 formats, practice and exam modes, and a question bank that is meant to keep growing
 (target: 1000+).
 

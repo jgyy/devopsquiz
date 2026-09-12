@@ -2138,5 +2138,178 @@
       "tmpfiles",
       "filesystem"
     ]
+  },
+  {
+    "id": "linux-083",
+    "domain": "linux",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "After editing a unit file under `/etc/systemd/system/`, which `systemctl` subcommand must you run so systemd re-reads the unit definitions before restarting the service?",
+    "answer": [
+      "daemon-reload",
+      "systemctl daemon-reload",
+      "sudo systemctl daemon-reload"
+    ],
+    "pattern": "^((sudo\\s+)?systemctl\\s+)?daemon-reload$",
+    "explanation": "systemd caches parsed unit files in memory; `systemctl daemon-reload` rebuilds that dependency tree from disk. Without it, `systemctl restart` uses the old definition and prints a warning that the unit has changed on disk. Drop-in files under `<unit>.d/` need the same reload.",
+    "example": "sudo vim /etc/systemd/system/api.service\nsudo systemctl daemon-reload\nsudo systemctl restart api.service",
+    "diagram": "flowchart LR\nA[\"Edit api.service\"] --> B[\"systemctl daemon-reload\"]\nB --> C[\"systemd re-parses units\"]\nC --> D[\"systemctl restart api\"]\nE[\"Skipped reload: old config still used\"] -.-> A",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html#daemon-reload",
+    "tags": [
+      "systemd"
+    ]
+  },
+  {
+    "id": "linux-084",
+    "domain": "linux",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which command prints the full path of the executable that the shell would run for a given name, for example to learn which `python3` is first in `$PATH`?",
+    "answer": [
+      "which",
+      "command -v",
+      "type",
+      "type -p",
+      "which python3"
+    ],
+    "pattern": "^(which|command\\s+-v|type(\\s+-p)?)(\\s+\\S+)?$",
+    "explanation": "`which python3` searches `$PATH` and prints the first match. The POSIX-portable equivalent is `command -v`, which also reports aliases and builtins; `type -a` lists every match in order. Knowing which binary wins is the first step when a script runs a different version than your terminal.",
+    "example": "which python3        # /usr/bin/python3\ncommand -v python3\ntype -a python3      # lists all matches in PATH order",
+    "diagram": "flowchart LR\nA[\"which python3\"] --> B[\"Walk $PATH left to right\"]\nB --> C[\"/usr/local/bin/python3 ?\"]\nC -->|\"not found\"| D[\"/usr/bin/python3\"]\nC -->|\"found\"| E[\"Print first match\"]",
+    "reference": "https://man7.org/linux/man-pages/man1/which.1.html",
+    "tags": [
+      "shell",
+      "path"
+    ]
+  },
+  {
+    "id": "linux-085",
+    "domain": "linux",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `ln` flag creates a symbolic (soft) link instead of a hard link, as in `ln ___ /opt/app/releases/v2 /opt/app/current`?",
+    "answer": [
+      "-s",
+      "s",
+      "--symbolic",
+      "ln -s"
+    ],
+    "pattern": "^(ln\\s+)?(-s|--symbolic)$",
+    "explanation": "`ln -s TARGET LINK` creates a symlink that stores the target path, so it can point across filesystems and at directories, unlike a hard link. Deploy tooling commonly flips a `current` symlink between release directories for atomic rollouts; combine with `-n` and `-f` to replace an existing link in one step.",
+    "example": "ln -s /opt/app/releases/v2 /opt/app/current\nln -sfn /opt/app/releases/v3 /opt/app/current   # atomically repoint\nls -l /opt/app/current",
+    "diagram": "flowchart LR\nA[\"ln -s releases/v2 current\"] --> B[\"current -> releases/v2\"]\nC[\"ln -sfn releases/v3 current\"] --> D[\"current -> releases/v3\"]\nE[\"Hard link: same inode, no -s\"] -.-> A",
+    "reference": "https://man7.org/linux/man-pages/man1/ln.1.html",
+    "tags": [
+      "filesystem",
+      "symlinks"
+    ]
+  },
+  {
+    "id": "linux-086",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "A batch job with PID 3120 is starving an API on the same host. Which command changes the scheduling priority (niceness) of that already-running process, for example to `+15`?",
+    "answer": [
+      "renice",
+      "renice -n 15 -p 3120",
+      "renice 15 3120"
+    ],
+    "pattern": "^renice(\\s+.*)?$",
+    "explanation": "`renice -n 15 -p 3120` raises the niceness of a running process (higher = lower CPU priority); `nice` only applies at launch time. Unprivileged users can only increase niceness of their own processes, while root can lower it to negative values. For I/O contention use `ionice` instead.",
+    "example": "renice -n 15 -p 3120\nrenice -n 10 -u batch     # all processes of user batch\nps -o pid,ni,cmd -p 3120",
+    "diagram": "flowchart LR\nA[\"renice -n 15 -p 3120\"] --> B[\"Kernel CFS weight lowered\"]\nB --> C[\"Batch job gets less CPU under contention\"]\nD[\"nice applies only at start\"] -.-> A\nE[\"ionice for disk I/O\"] -.-> A",
+    "reference": "https://man7.org/linux/man-pages/man1/renice.1.html",
+    "tags": [
+      "processes",
+      "scheduling"
+    ]
+  },
+  {
+    "id": "linux-087",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "`df -h` shows 40% used, yet writes fail with `No space left on device`. Which `df` flag reports inode usage so you can confirm the filesystem has run out of inodes?",
+    "answer": [
+      "-i",
+      "i",
+      "--inodes",
+      "df -i"
+    ],
+    "pattern": "^(df\\s+)?(-i|--inodes)$",
+    "explanation": "Every file consumes an inode, and ext4 allocates a fixed number at `mkfs` time; millions of tiny files (session caches, mail spools, container layers) can exhaust them while blocks remain free. `df -i` shows IUsed/IFree per filesystem. The fix is deleting or archiving small files or recreating the filesystem with more inodes (XFS allocates dynamically).",
+    "example": "df -i /var\n# Filesystem  Inodes  IUsed  IFree IUse% Mounted on\n# /dev/sda2   1310720 1310720   0  100% /var\nfind /var/cache -xdev -type f | wc -l",
+    "diagram": "flowchart LR\nA[\"Write fails ENOSPC\"] --> B[\"df -h shows space free\"]\nB --> C[\"df -i\"]\nC -->|\"IUse% 100\"| D[\"Inode exhaustion\"]\nD --> E[\"Delete tiny files or remake FS\"]",
+    "reference": "https://man7.org/linux/man-pages/man1/df.1.html",
+    "tags": [
+      "filesystem",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "linux-088",
+    "domain": "linux",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `systemctl` subcommand opens a drop-in override file for a unit (creating `/etc/systemd/system/<unit>.d/override.conf`) so you can change settings without editing the vendor-supplied unit?",
+    "answer": [
+      "edit",
+      "systemctl edit",
+      "sudo systemctl edit"
+    ],
+    "pattern": "^((sudo\\s+)?systemctl\\s+)?edit(\\s+\\S+)?$",
+    "explanation": "`systemctl edit nginx.service` opens an editor on a drop-in that is merged over the original unit at load time and automatically runs `daemon-reload` on save. Overrides survive package upgrades, unlike edits to `/usr/lib/systemd/system`. Use `--full` to copy the whole unit instead, and `systemctl cat` to view the effective result.",
+    "example": "sudo systemctl edit nginx.service\n# [Service]\n# LimitNOFILE=65536\nsystemctl cat nginx.service   # shows unit plus drop-ins",
+    "diagram": "flowchart LR\nA[\"systemctl edit nginx.service\"] --> B[\"/etc/systemd/system/nginx.service.d/override.conf\"]\nB --> C[\"Merged over /usr/lib/systemd/system/nginx.service\"]\nC --> D[\"daemon-reload automatic\"]\nE[\"Package upgrade leaves override intact\"] -.-> B",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html#edit%20UNIT%E2%80%A6",
+    "tags": [
+      "systemd",
+      "configuration"
+    ]
+  },
+  {
+    "id": "linux-089",
+    "domain": "linux",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which command sets the immutable attribute on `/etc/resolv.conf` (`+i`) so that not even root or a DHCP client can modify or delete it until the attribute is cleared?",
+    "answer": [
+      "chattr",
+      "chattr +i",
+      "chattr +i /etc/resolv.conf",
+      "sudo chattr +i /etc/resolv.conf"
+    ],
+    "pattern": "^(sudo\\s+)?chattr(\\s+\\+i(\\s+\\S+)?)?$",
+    "explanation": "`chattr +i` sets an ext4/XFS extended attribute enforced by the kernel: the file cannot be written, renamed, linked or deleted regardless of permissions until `chattr -i` is run by a process with `CAP_LINUX_IMMUTABLE`. `lsattr` shows the flag. It is a common trick to stop network managers from overwriting `resolv.conf`, but it also breaks legitimate updates, so document it.",
+    "example": "sudo chattr +i /etc/resolv.conf\nlsattr /etc/resolv.conf     # ----i--------e------\nsudo chattr -i /etc/resolv.conf   # allow edits again",
+    "diagram": "flowchart LR\nA[\"chattr +i /etc/resolv.conf\"] --> B[\"Immutable flag in inode\"]\nB --> C[\"Writes and deletes rejected, even for root\"]\nD[\"chattr -i\"] --> E[\"Flag cleared\"]\nF[\"lsattr shows i flag\"] -.-> B",
+    "reference": "https://man7.org/linux/man-pages/man1/chattr.1.html",
+    "tags": [
+      "filesystem",
+      "attributes",
+      "hardening"
+    ]
+  },
+  {
+    "id": "linux-090",
+    "domain": "linux",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Boot takes three minutes and you need to find which units are slowest to start. Which `systemd-analyze` subcommand lists every unit ordered by the time it took to initialise?",
+    "answer": [
+      "blame",
+      "systemd-analyze blame"
+    ],
+    "pattern": "^(systemd-analyze\\s+)?blame$",
+    "explanation": "`systemd-analyze blame` prints units sorted by activation time, which quickly exposes a hanging network wait or a slow cloud-init step. Pair it with `systemd-analyze critical-chain` to see the dependency path that actually gated boot, since a slow unit off the critical path does not delay the target.",
+    "example": "systemd-analyze blame | head\n#  1min 30.2s NetworkManager-wait-online.service\n#      12.4s cloud-init.service\nsystemd-analyze critical-chain\nsystemd-analyze plot > boot.svg",
+    "diagram": "flowchart LR\nA[\"systemd-analyze blame\"] --> B[\"Units sorted by start time\"]\nB --> C[\"NetworkManager-wait-online 90s\"]\nC --> D[\"systemd-analyze critical-chain\"]\nD --> E[\"Confirm it is on the boot critical path\"]",
+    "reference": "https://www.freedesktop.org/software/systemd/man/latest/systemd-analyze.html#systemd-analyze%20blame",
+    "tags": [
+      "systemd",
+      "boot",
+      "performance"
+    ]
   }
 ]

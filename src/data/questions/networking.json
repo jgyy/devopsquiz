@@ -2140,5 +2140,197 @@
       "nginx",
       "timeouts"
     ]
+  },
+  {
+    "id": "networking-083",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "On which port number do DNS servers listen for standard queries (over both UDP and TCP)?",
+    "answer": [
+      "53",
+      "port 53",
+      "udp/53",
+      "tcp/53",
+      "udp 53",
+      "tcp 53",
+      "53/udp",
+      "53/tcp"
+    ],
+    "pattern": "^((udp|tcp)[/ ]?)?(port\\s*)?53((/)?(udp|tcp))?$",
+    "explanation": "DNS uses port 53. Most lookups travel over UDP for low latency, but resolvers fall back to TCP 53 for responses larger than the UDP payload limit (marked with the TC bit) and for zone transfers (AXFR/IXFR). Encrypted variants use different ports: DNS over TLS uses 853 and DNS over HTTPS uses 443.",
+    "example": "dig @1.1.1.1 example.com A          # UDP 53\ndig @1.1.1.1 example.com AXFR +tcp  # TCP 53\nss -ulnp | grep ':53 '",
+    "diagram": "flowchart LR\n  C[\"client\"] -->|\"UDP 53 query\"| R[\"resolver\"]\n  R -->|\"TC bit set\"| C\n  C -->|\"retry over TCP 53\"| R\n  R --> A[\"full answer\"]",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc1035",
+    "tags": [
+      "dns",
+      "ports",
+      "basics"
+    ]
+  },
+  {
+    "id": "networking-084",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `dig` option prints only the answer data (for example just the IP address) instead of the full response sections?",
+    "answer": [
+      "+short",
+      "short",
+      "dig +short"
+    ],
+    "pattern": "^(dig\\s+)?\\+?short$",
+    "explanation": "`+short` makes `dig` output terse answers, one record per line, which is what you want in scripts and quick checks. The default verbose output includes the header flags, QUESTION, ANSWER and AUTHORITY sections and query time, which is more useful when debugging TTLs or which server actually answered.",
+    "example": "$ dig +short api.example.com\n203.0.113.10\n$ dig +short api.example.com @10.0.0.2   # ask a specific server\n$ dig +short -x 203.0.113.10             # reverse lookup",
+    "diagram": "flowchart LR\n  Q[\"dig api.example.com\"] --> F{\"+short?\"}\n  F -->|\"no\"| V[\"full sections and flags\"]\n  F -->|\"yes\"| S[\"203.0.113.10\"]",
+    "reference": "https://linux.die.net/man/1/dig",
+    "tags": [
+      "dns",
+      "dig",
+      "cli"
+    ]
+  },
+  {
+    "id": "networking-085",
+    "domain": "networking",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `ss` flag restricts the output to sockets that are listening for incoming connections?",
+    "answer": [
+      "-l",
+      "--listening",
+      "l",
+      "ss -l",
+      "-lntp",
+      "-tlnp",
+      "-tuln"
+    ],
+    "pattern": "^(ss\\s+)?-{0,2}(l|listening|[tunp]*l[tunp]*)$",
+    "explanation": "`ss -l` (long form `--listening`) shows only sockets in LISTEN state. It is almost always combined with other flags: `-t` TCP, `-u` UDP, `-n` numeric ports, `-p` owning process. `ss -tlnp` is the modern replacement for `netstat -tlnp` when checking which service bound a port.",
+    "example": "$ sudo ss -tlnp\nState  Recv-Q Send-Q Local Address:Port Process\nLISTEN 0      4096   0.0.0.0:22         users:((\"sshd\",pid=812,fd=3))\nLISTEN 0      511    0.0.0.0:443        users:((\"nginx\",pid=1401,fd=6))",
+    "diagram": "flowchart LR\n  A[\"ss\"] --> L[\"-l listening only\"]\n  L --> T[\"-t TCP\"]\n  T --> N[\"-n numeric\"]\n  N --> P[\"-p show process\"]",
+    "reference": "https://man7.org/linux/man-pages/man8/ss.8.html",
+    "tags": [
+      "linux",
+      "ss",
+      "cli"
+    ]
+  },
+  {
+    "id": "networking-086",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which HTTP status code should an API return when a client has exceeded its rate limit?",
+    "answer": [
+      "429",
+      "429 too many requests",
+      "http 429",
+      "too many requests"
+    ],
+    "pattern": "^(http\\s*)?429(\\s+too\\s+many\\s+requests)?$|^too\\s+many\\s+requests$",
+    "explanation": "`429 Too Many Requests` (RFC 6585) tells the client it is being throttled; a `Retry-After` header states when it may try again. It is a client error, distinct from `503 Service Unavailable`, which signals that the server itself is overloaded or down regardless of the individual client's behaviour.",
+    "example": "HTTP/1.1 429 Too Many Requests\nRetry-After: 30\nX-RateLimit-Limit: 100\nX-RateLimit-Remaining: 0\nContent-Type: application/json\n\n{\"error\": \"rate limit exceeded\"}",
+    "diagram": "flowchart LR\n  C[\"client 101st request\"] --> G[\"API gateway limiter\"]\n  G -->|\"over quota\"| R[\"429 plus Retry-After\"]\n  G -->|\"within quota\"| B[\"backend 200\"]",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+    "tags": [
+      "http",
+      "status-codes",
+      "rate-limiting"
+    ]
+  },
+  {
+    "id": "networking-087",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What is the IPv6 loopback address (the equivalent of IPv4 `127.0.0.1`)?",
+    "answer": [
+      "::1",
+      "::1/128",
+      "[::1]",
+      "0:0:0:0:0:0:0:1"
+    ],
+    "pattern": "^\\[?(::1|0(:0){6}:1)\\]?(/128)?$",
+    "explanation": "`::1` is the single IPv6 loopback address, unlike IPv4 where the whole `127.0.0.0/8` block loops back. In URLs it must be bracketed (`http://[::1]:8080`). Services that bind only to `127.0.0.1` are unreachable via `::1`, a common cause of 'connection refused' when `localhost` resolves to IPv6 first.",
+    "example": "$ ip -6 addr show lo\n    inet6 ::1/128 scope host\n$ curl http://[::1]:8080/health\n$ getent hosts localhost\n::1         localhost",
+    "diagram": "flowchart LR\n  A[\"localhost\"] --> R{\"resolver order\"}\n  R --> V6[\"::1\"]\n  R --> V4[\"127.0.0.1\"]\n  V6 --> S[\"service must bind :: or ::1\"]",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.3",
+    "tags": [
+      "ipv6",
+      "addressing",
+      "localhost"
+    ]
+  },
+  {
+    "id": "networking-088",
+    "domain": "networking",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which HTTP request header do reverse proxies and load balancers conventionally add to pass the original client's IP address to the upstream server?",
+    "answer": [
+      "x-forwarded-for",
+      "x-forwarded-for header",
+      "xff"
+    ],
+    "pattern": "^(x-forwarded-for(\\s+header)?|xff)$",
+    "explanation": "`X-Forwarded-For` carries a comma-separated list of client and proxy addresses, appended at each hop, so the upstream can log or rate-limit by real client rather than the load balancer's IP. Because any client can send the header, only the entry added by your own trusted proxy should be believed. The standardised alternative is the `Forwarded` header (RFC 7239).",
+    "example": "X-Forwarded-For: 198.51.100.7, 10.0.1.5\nX-Forwarded-Proto: https\n\n# nginx\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nset_real_ip_from 10.0.0.0/8;\nreal_ip_header X-Forwarded-For;",
+    "diagram": "flowchart LR\n  C[\"client 198.51.100.7\"] --> LB[\"load balancer 10.0.1.5\"]\n  LB -->|\"X-Forwarded-For: 198.51.100.7\"| U[\"upstream app\"]\n  U --> L[\"logs real client IP\"]",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For",
+    "tags": [
+      "http",
+      "proxies",
+      "headers"
+    ]
+  },
+  {
+    "id": "networking-089",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "On which TCP port do BGP routers establish peering sessions with each other?",
+    "answer": [
+      "179",
+      "port 179",
+      "tcp/179",
+      "tcp 179",
+      "179/tcp"
+    ],
+    "pattern": "^((tcp)[/ ]?)?(port\\s*)?179(/tcp)?$",
+    "explanation": "BGP runs over TCP port 179, relying on TCP for reliable, ordered delivery of UPDATE messages. Firewalls between peers (including cloud security groups around a Kubernetes cluster running Calico or MetalLB in BGP mode) must allow 179, and eBGP peers usually also need TTL or GTSM tuning because they are directly connected.",
+    "example": "# MetalLB BGP peer to a top-of-rack switch\napiVersion: metallb.io/v1beta2\nkind: BGPPeer\nmetadata: {name: tor, namespace: metallb-system}\nspec:\n  myASN: 64512\n  peerASN: 64513\n  peerAddress: 10.0.0.1\n# verify\nss -tn state established '( dport = :179 or sport = :179 )'",
+    "diagram": "flowchart LR\n  A[\"router AS64512\"] -->|\"TCP 179 session\"| B[\"router AS64513\"]\n  A -->|\"UPDATE prefixes\"| B\n  B -->|\"UPDATE prefixes\"| A\n  B --> T[\"routing table\"]",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc4271",
+    "tags": [
+      "bgp",
+      "routing",
+      "ports"
+    ]
+  },
+  {
+    "id": "networking-090",
+    "domain": "networking",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which IPv4 header flag does Path MTU Discovery set so that routers along the path drop an oversized packet and return an ICMP error instead of fragmenting it?",
+    "answer": [
+      "df",
+      "don't fragment",
+      "dont fragment",
+      "do not fragment",
+      "df flag",
+      "df bit"
+    ],
+    "pattern": "^(df(\\s+(flag|bit))?|do(n'?t|\\s+not)\\s+fragment)$",
+    "explanation": "PMTUD sends packets with the DF (Don't Fragment) bit set; a router whose next hop has a smaller MTU discards the packet and sends back ICMP Type 3 Code 4 'Fragmentation Needed', which tells the sender to lower its path MTU. If a firewall drops that ICMP the sender never learns the limit and large transfers hang, the classic PMTUD black hole.",
+    "example": "$ ping -M do -s 1472 10.0.5.1   # DF set, 1500 byte frame\nping: local error: message too long, mtu=1400\n$ tcpdump -ni eth0 'icmp[0]=3 and icmp[1]=4'",
+    "diagram": "flowchart LR\n  S[\"sender 1500B DF set\"] --> R[\"router next hop MTU 1400\"]\n  R -->|\"ICMP frag needed MTU 1400\"| S\n  S --> T[\"resend at 1400\"]\n  F[\"firewall drops ICMP\"] -.->|\"black hole\"| S",
+    "reference": "https://datatracker.ietf.org/doc/html/rfc1191",
+    "tags": [
+      "mtu",
+      "pmtud",
+      "icmp"
+    ]
   }
 ]

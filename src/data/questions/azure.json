@@ -1,0 +1,1043 @@
+[
+  {
+    "id": "azure-001",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "In Azure, what is a *resource group*?",
+    "explanation": "Every Azure resource must belong to exactly one resource group, which is a logical container used to manage related resources together. The group has its own location (where its metadata is stored) but can hold resources deployed to any region, and it is the most common scope for RBAC assignments, locks and policy.",
+    "example": "az group create --name rg-app-prod --location southeastasia\naz group list --output table\n# Deleting the group deletes everything in it\naz group delete --name rg-app-dev --yes --no-wait",
+    "diagram": "flowchart TD\nS[\"Subscription\"] --> RG[\"Resource group rg-app-prod\"]\nRG --> V[\"VM in East US\"]\nRG --> ST[\"Storage account in West Europe\"]\nRG --> K[\"Key Vault\"]\nRG -.->|\"RBAC, policy, locks apply here\"| A[\"Shared lifecycle\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-resource-manager/management/manage-resource-groups-cli",
+    "tags": [
+      "resource-groups",
+      "arm"
+    ],
+    "options": [
+      "A billing boundary that groups multiple subscriptions",
+      "A logical container that holds related resources sharing a lifecycle, permissions and policies",
+      "A physical datacenter cluster within a region",
+      "A virtual network segment for grouping VMs"
+    ],
+    "optionNotes": [
+      "Billing and subscription grouping is done with management groups and subscriptions, not resource groups; a resource group always lives inside exactly one subscription.",
+      "A resource group is the logical container into which every Azure resource is deployed; it is the natural scope for RBAC, Azure Policy, tags and lifecycle operations such as delete-all-at-once.",
+      "Physical clusters are an infrastructure detail hidden from users; resource groups are purely logical and can even contain resources from different regions.",
+      "Network segmentation is done with VNets and subnets; a resource group does not affect network connectivity at all."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-002",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A company has 40 Azure subscriptions and wants a single RBAC assignment and a single Azure Policy to apply to all of them. Which construct should they use?",
+    "explanation": "Management groups form a hierarchy above subscriptions (up to six levels below the root). Anything assigned at a management group, whether RBAC or Azure Policy, is inherited by all child management groups, subscriptions, resource groups and resources, making them the correct scope for organisation-wide governance.",
+    "example": "az account management-group create --name mg-platform --display-name \"Platform\"\naz account management-group subscription add --name mg-platform --subscription <sub-id>\naz role assignment create --assignee sec-team@contoso.com \\\n  --role \"Reader\" --scope /providers/Microsoft.Management/managementGroups/mg-platform",
+    "diagram": "flowchart TD\nR[\"Tenant root group\"] --> MG[\"Management group mg-platform\"]\nMG --> S1[\"Subscription A\"]\nMG --> S2[\"Subscription B\"]\nS1 --> RG[\"Resource groups\"]\nMG -.->|\"RBAC + Policy inherited downward\"| S2",
+    "reference": "https://learn.microsoft.com/azure/governance/management-groups/overview",
+    "tags": [
+      "management-groups",
+      "governance"
+    ],
+    "options": [
+      "A resource group spanning all subscriptions",
+      "A management group containing the subscriptions",
+      "An Azure Blueprint applied per subscription",
+      "Entra ID tenant-level roles such as Global Administrator"
+    ],
+    "optionNotes": [
+      "Resource groups live inside a single subscription and cannot span subscriptions.",
+      "Management groups sit above subscriptions in the hierarchy; role assignments and policy assignments at a management group are inherited by every subscription and resource beneath it.",
+      "Blueprints are deprecated in favour of template specs and deployment stacks, and applying per subscription is not a single assignment.",
+      "Entra ID directory roles govern the identity tenant, not Azure resource permissions; Global Administrator has no Azure RBAC rights until it elevates access."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-003",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is Bicep in the context of Azure infrastructure as code?",
+    "explanation": "Bicep is Microsoft's declarative language for Azure resources. It compiles to the same ARM JSON that Resource Manager consumes, so it supports every resource type and API version immediately, while offering modules, type safety and far less boilerplate than raw JSON.",
+    "example": "// main.bicep\nparam location string = resourceGroup().location\nresource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {\n  name: 'stapp${uniqueString(resourceGroup().id)}'\n  location: location\n  sku: { name: 'Standard_LRS' }\n  kind: 'StorageV2'\n}\n\n# Deploy\naz deployment group create -g rg-app -f main.bicep",
+    "diagram": "flowchart LR\nB[\"main.bicep\"] -->|\"bicep build\"| J[\"ARM JSON template\"]\nJ --> ARM[\"Azure Resource Manager\"]\nARM --> RP[\"Resource providers\"]\nRP --> R[\"Storage, VNets, AKS ...\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview",
+    "tags": [
+      "bicep",
+      "arm",
+      "iac"
+    ],
+    "options": [
+      "A Terraform provider maintained by Microsoft",
+      "A domain-specific language that transpiles to ARM JSON templates",
+      "A YAML pipeline format for Azure DevOps",
+      "A CLI extension for managing Kubernetes manifests"
+    ],
+    "optionNotes": [
+      "The Microsoft-maintained Terraform provider is `azurerm` / `azapi`; Bicep is a separate Azure-native language, not a Terraform plugin.",
+      "Bicep is a declarative DSL with cleaner syntax than ARM JSON; `bicep build` compiles it into an ARM template that Azure Resource Manager deploys, with day-zero support for every resource type.",
+      "Azure DevOps pipelines use their own YAML schema; Bicep describes Azure resources, not build steps.",
+      "Kubernetes manifests are not what Bicep targets, although Bicep can deploy an AKS cluster resource."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-004",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `az` CLI command group and subcommand sets the active subscription used by subsequent commands (e.g. `az <group> <subcommand> --subscription <id>`)?",
+    "explanation": "`az account set --subscription <id-or-name>` selects the default subscription for the current CLI context. Use `az account list --output table` to see available subscriptions and `az account show` to confirm the active one; forgetting this is a common cause of deploying into the wrong subscription.",
+    "example": "az login\naz account list --output table\naz account set --subscription \"Contoso Prod\"\naz account show --query name -o tsv",
+    "diagram": "flowchart LR\nL[\"az login\"] --> LS[\"az account list\"]\nLS --> S[\"az account set --subscription prod\"]\nS --> C[\"az group create ... lands in prod\"]",
+    "reference": "https://learn.microsoft.com/cli/azure/manage-azure-subscriptions-azure-cli",
+    "tags": [
+      "az-cli",
+      "subscriptions"
+    ],
+    "answer": [
+      "az account set",
+      "account set"
+    ],
+    "pattern": "^(az\\s+)?account\\s+set$"
+  },
+  {
+    "id": "azure-005",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is Microsoft Entra ID?",
+    "explanation": "Microsoft Entra ID (formerly Azure AD) is the cloud-based identity provider behind Azure, Microsoft 365 and any app that federates with it. Every Azure subscription trusts exactly one Entra tenant, which holds the users, groups, app registrations, service principals and managed identities that RBAC assignments refer to.",
+    "example": "# Which tenant am I signed in to?\naz account show --query tenantId -o tsv\n# List groups in the tenant\naz ad group list --query \"[].displayName\" -o tsv\n# Create a service principal for automation\naz ad sp create-for-rbac --name sp-ci --role Contributor --scopes /subscriptions/<id>",
+    "diagram": "flowchart LR\nU[\"Users, groups, service principals, managed identities\"] --> E[\"Entra ID tenant: authentication\"]\nE --> T[\"Token\"]\nT --> R[\"Azure RBAC: authorisation\"]\nR --> RES[\"Azure resources\"]",
+    "reference": "https://learn.microsoft.com/entra/fundamentals/whatis",
+    "tags": [
+      "entra-id",
+      "identity"
+    ],
+    "options": [
+      "The new name for Azure Active Directory, Microsoft's cloud identity and access management service",
+      "A replacement for Azure RBAC that grants resource permissions",
+      "An on-premises Active Directory Domain Services deployment hosted in Azure VMs",
+      "Azure's managed certificate authority"
+    ],
+    "optionNotes": [
+      "Azure Active Directory was renamed Microsoft Entra ID in 2023; it is the identity provider for users, groups, service principals and managed identities.",
+      "Entra ID authenticates identities; Azure RBAC still authorises what those identities can do on Azure resources. They work together rather than one replacing the other.",
+      "Running AD DS on VMs is a different thing; the managed equivalent of domain services is Microsoft Entra Domain Services, not Entra ID itself.",
+      "Certificates are handled by Key Vault and App Service managed certificates, not Entra ID."
+    ],
+    "answer": 0
+  },
+  {
+    "id": "azure-006",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about Azure RBAC built-in roles are correct? (Select all that apply.)",
+    "explanation": "The four fundamental built-in roles are Owner (everything including role assignments), Contributor (everything except managing access), Reader (view only) and User Access Administrator (manage access only). Understanding the split between managing resources and managing access is key to least-privilege on Azure.",
+    "example": "az role definition list --name Contributor --query \"[0].permissions[0].notActions\"\n# [\n#   \"Microsoft.Authorization/*/Delete\",\n#   \"Microsoft.Authorization/*/Write\",\n#   \"Microsoft.Authorization/elevateAccess/Action\", ...\n# ]",
+    "diagram": "flowchart TD\nO[\"Owner: manage resources + assign roles\"]\nC[\"Contributor: manage resources, no role assignment\"]\nR[\"Reader: view only\"]\nU[\"User Access Administrator: assign roles only\"]\nO --> C\nO --> U\nC --> R",
+    "reference": "https://learn.microsoft.com/azure/role-based-access-control/built-in-roles",
+    "tags": [
+      "rbac",
+      "security"
+    ],
+    "options": [
+      "Contributor can create and manage all resources but cannot assign roles to others",
+      "Reader can view resources but not modify them",
+      "Owner includes the ability to assign roles in Azure RBAC",
+      "User Access Administrator can create and delete any resource"
+    ],
+    "optionNotes": [
+      "Contributor grants `*` actions except `Microsoft.Authorization/*/Write` and `Delete`, so it can manage resources but cannot grant access.",
+      "Reader grants `*/read` only; it is the correct role for auditors and dashboards.",
+      "Owner is `*` on actions including `Microsoft.Authorization/*`, so it can both manage resources and assign roles at its scope.",
+      "User Access Administrator manages role assignments only; it has read access but cannot create or delete resources."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "azure-007",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "A developer is granted the Contributor role at the resource group `rg-app` scope. What can they do?",
+    "explanation": "Azure RBAC assignments combine a security principal, a role definition and a scope. Scope can be a management group, subscription, resource group or individual resource, and permissions inherit downward only. Contributor at a resource group therefore covers that group and its children but not the subscription or other groups.",
+    "example": "az role assignment create \\\n  --assignee dev@contoso.com \\\n  --role Contributor \\\n  --scope /subscriptions/<sub>/resourceGroups/rg-app\n# Verify\naz role assignment list --resource-group rg-app --output table",
+    "diagram": "flowchart TD\nS[\"Subscription\"] --> A[\"rg-app: Contributor assigned here\"]\nS --> B[\"rg-other: no access\"]\nA --> W[\"Web app: inherited Contributor\"]\nA --> DB[\"SQL: inherited Contributor\"]\nA -.->|\"cannot\"| RA[\"Create role assignments\"]",
+    "reference": "https://learn.microsoft.com/azure/role-based-access-control/scope-overview",
+    "tags": [
+      "rbac",
+      "scope"
+    ],
+    "options": [
+      "Manage all resources in every resource group of the subscription",
+      "Manage resources inside rg-app only, including creating new ones there",
+      "Only read resources in rg-app",
+      "Assign the Reader role to teammates on rg-app"
+    ],
+    "optionNotes": [
+      "Role assignments are scoped; an assignment on one resource group does not grant anything on sibling resource groups.",
+      "The assignment applies to rg-app and everything in it, so the developer can create, update and delete resources within that group but nowhere else.",
+      "Contributor is a write role; Reader would be the read-only equivalent.",
+      "Contributor explicitly excludes `Microsoft.Authorization/*/Write`, so it cannot create role assignments even within its scope."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-008",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What is the main advantage of using a managed identity for an Azure VM or App Service to access Key Vault, compared with a service principal secret?",
+    "explanation": "Managed identities give an Azure resource an automatically managed identity in Entra ID. Code requests tokens from the local metadata endpoint (or via `DefaultAzureCredential`), so secrets never appear in configuration. System-assigned identities share the resource lifecycle, while user-assigned identities are standalone resources reusable across multiple resources.",
+    "example": "az webapp identity assign -g rg-app -n app-api\n# grant it access to Key Vault secrets via RBAC\naz role assignment create --assignee <principalId> \\\n  --role \"Key Vault Secrets User\" --scope /subscriptions/<sub>/resourceGroups/rg-app/providers/Microsoft.KeyVault/vaults/kv-app\n\n# In code: DefaultAzureCredential() picks up the managed identity automatically",
+    "diagram": "flowchart LR\nA[\"App Service with managed identity\"] -->|\"token request via IMDS\"| E[\"Entra ID\"]\nE -->|\"access token\"| A\nA -->|\"bearer token\"| KV[\"Key Vault\"]\nKV -.->|\"RBAC: Key Vault Secrets User\"| A",
+    "reference": "https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview",
+    "tags": [
+      "managed-identity",
+      "security",
+      "key-vault"
+    ],
+    "options": [
+      "Managed identities are faster because they bypass Entra ID",
+      "No credentials need to be stored or rotated in the application; Azure handles the identity lifecycle",
+      "Managed identities can be used from outside Azure, e.g. from GitHub Actions",
+      "Managed identities automatically get Owner on the subscription"
+    ],
+    "optionNotes": [
+      "Managed identities still authenticate with Entra ID and obtain tokens from the instance metadata endpoint; there is no bypass.",
+      "The platform provisions the identity in Entra ID and injects tokens via IMDS, so there is no client secret to leak, store in config, or rotate.",
+      "Managed identities are only available to resources running in Azure; external workloads use workload identity federation instead.",
+      "A managed identity has no permissions until you assign roles to it; it follows the same RBAC model as any principal."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-009",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "A system-assigned managed identity is deleted automatically when the Azure resource it belongs to is deleted, whereas a user-assigned managed identity is a standalone resource that survives deletion of the resources using it.",
+    "explanation": "System-assigned identities are tied 1:1 to a resource and share its lifecycle, which is simple but means role assignments must be recreated when the resource is rebuilt. User-assigned identities are independent ARM resources that can be attached to many resources (for example every node in an AKS node pool) and keep their role assignments across rebuilds.",
+    "example": "# Standalone identity reusable across resources\naz identity create -g rg-app -n id-app-workload\naz webapp identity assign -g rg-app -n app-api \\\n  --identities /subscriptions/<sub>/resourceGroups/rg-app/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-app-workload",
+    "diagram": "flowchart TD\nS[\"System-assigned\"] --> S1[\"1 resource, same lifecycle\"]\nS1 --> S2[\"Deleted with resource\"]\nU[\"User-assigned\"] --> U1[\"Standalone ARM resource\"]\nU1 --> U2[\"Attach to many resources, survives rebuilds\"]",
+    "reference": "https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview",
+    "tags": [
+      "managed-identity",
+      "identity"
+    ],
+    "answer": true
+  },
+  {
+    "id": "azure-010",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Which Key Vault permission model is recommended for new vaults, and why?",
+    "explanation": "Key Vault supports two data-plane authorisation models: legacy vault access policies and Azure RBAC. Microsoft recommends RBAC for new vaults because it uses the same role assignment system as the rest of Azure, supports scoping down to a single secret, and integrates with PIM and access reviews.",
+    "example": "az keyvault create -g rg-app -n kv-app-prod -l southeastasia --enable-rbac-authorization true\naz role assignment create --assignee <app-principal-id> \\\n  --role \"Key Vault Secrets User\" \\\n  --scope $(az keyvault show -n kv-app-prod --query id -o tsv)/secrets/db-password",
+    "diagram": "flowchart TD\nKV[\"Key Vault permission model\"] --> P[\"Access policies: legacy, per vault\"]\nKV --> R[\"Azure RBAC: recommended\"]\nR --> R1[\"Key Vault Secrets User at secret scope\"]\nR --> R2[\"PIM, access reviews, standard tooling\"]",
+    "reference": "https://learn.microsoft.com/azure/key-vault/general/rbac-guide",
+    "tags": [
+      "key-vault",
+      "rbac",
+      "security"
+    ],
+    "options": [
+      "Access policies, because they support finer granularity than RBAC",
+      "Azure RBAC, because it integrates with the standard role assignment model, supports PIM and can be scoped per secret",
+      "Shared access signatures, because they can be embedded in connection strings",
+      "Anonymous access with network restrictions only"
+    ],
+    "optionNotes": [
+      "Vault access policies are the legacy model; they are per-vault only, cannot be scoped to individual secrets, and are not visible in standard RBAC tooling.",
+      "The RBAC model uses built-in roles such as Key Vault Secrets User and Key Vault Administrator, is managed with the same tooling as every other resource, works with Privileged Identity Management, and can be assigned at the individual secret, key or certificate scope.",
+      "SAS tokens are a Storage concept; Key Vault authenticates every call with an Entra ID token.",
+      "Key Vault never allows anonymous data-plane access; network rules complement, not replace, identity-based authorisation."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-011",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which statements about AKS *system* and *user* node pools are correct? (Select all that apply.)",
+    "explanation": "AKS node pools have a mode of System or User. System pools must run Linux and host add-ons such as CoreDNS, metrics-server and konnectivity, and a cluster must always keep at least one. User pools are for workloads, can run Windows, can scale to zero and can be freely added or removed, so separating them keeps cluster-critical components isolated from noisy application pods.",
+    "example": "az aks nodepool add -g rg-aks --cluster-name aks-prod \\\n  --name apps --mode User --node-count 3 --node-vm-size Standard_D4s_v5\n# Keep app pods off the system pool\naz aks nodepool update -g rg-aks --cluster-name aks-prod --name system \\\n  --node-taints CriticalAddonsOnly=true:NoSchedule",
+    "diagram": "flowchart TD\nC[\"AKS cluster\"] --> S[\"System pool: Linux, CoreDNS, metrics-server, taint CriticalAddonsOnly\"]\nC --> U1[\"User pool apps: Linux D4s_v5\"]\nC --> U2[\"User pool win: Windows Server\"]\nU1 -.->|\"can scale to 0\"| Z[\"0 nodes\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/use-system-pools",
+    "tags": [
+      "aks",
+      "kubernetes",
+      "node-pools"
+    ],
+    "options": [
+      "A cluster must always have at least one system node pool running Linux",
+      "System pools host critical add-ons such as CoreDNS and metrics-server",
+      "User node pools can be scaled to zero nodes",
+      "Windows Server nodes can run in a system node pool"
+    ],
+    "optionNotes": [
+      "AKS requires at least one Linux system pool; the last one cannot be deleted or scaled to zero.",
+      "AKS schedules its own critical pods on system pools, which is why teams taint them with `CriticalAddonsOnly=true:NoSchedule` to keep app workloads off.",
+      "User pools are for workloads and can be scaled to zero or removed entirely, which is useful for GPU or batch pools.",
+      "Windows nodes are only supported in user pools; system pools must be Linux."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "azure-012",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `az aks nodepool update` flag enables the Kubernetes cluster autoscaler on an existing AKS node pool (used together with `--min-count` and `--max-count`)?",
+    "explanation": "The cluster autoscaler watches for pods that cannot be scheduled and adds nodes to the pool, then removes underutilised nodes later. It is enabled per node pool with `--enable-cluster-autoscaler --min-count N --max-count M`; the AKS-managed alternative for burstier scaling is Node Autoprovisioning (Karpenter).",
+    "example": "az aks nodepool update -g rg-aks --cluster-name aks-prod --name apps \\\n  --enable-cluster-autoscaler --min-count 2 --max-count 10\n# Tune behaviour cluster-wide\naz aks update -g rg-aks -n aks-prod \\\n  --cluster-autoscaler-profile scale-down-delay-after-add=5m scan-interval=20s",
+    "diagram": "flowchart LR\nP[\"Pending pods: insufficient CPU\"] --> CA[\"Cluster autoscaler\"]\nCA -->|\"scale VMSS up\"| N[\"New node joins pool\"]\nN --> S[\"Pods scheduled\"]\nCA -->|\"idle nodes after delay\"| D[\"Scale down\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/cluster-autoscaler",
+    "tags": [
+      "aks",
+      "autoscaling"
+    ],
+    "answer": [
+      "--enable-cluster-autoscaler",
+      "enable-cluster-autoscaler"
+    ],
+    "pattern": "^(--)?enable-cluster-autoscaler$"
+  },
+  {
+    "id": "azure-013",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An AKS team hits IP exhaustion because every pod consumes an IP from the VNet subnet. Which networking option keeps pods on VNet-routable IPs while conserving subnet addresses in the node subnet?",
+    "explanation": "Classic Azure CNI pre-allocates IPs for every pod slot on each node from the node subnet, which burns addresses fast. Azure CNI with dynamic IP allocation moves pods to their own subnet, keeping them VNet-routable while decoupling capacity planning. Azure CNI Overlay is the default when pod routability is not needed, and kubenet is retired for new clusters.",
+    "example": "az aks create -g rg-aks -n aks-prod \\\n  --network-plugin azure \\\n  --vnet-subnet-id /.../subnets/snet-nodes \\\n  --pod-subnet-id /.../subnets/snet-pods\n# vs overlay: --network-plugin azure --network-plugin-mode overlay --pod-cidr 192.168.0.0/16",
+    "diagram": "flowchart TD\nQ[\"Pods need VNet-routable IPs?\"] -->|\"no\"| O[\"Azure CNI Overlay: private pod CIDR\"]\nQ -->|\"yes\"| D[\"Azure CNI dynamic: dedicated pod subnet\"]\nK[\"kubenet: retired, NAT + UDR\"] -.->|\"avoid for new clusters\"| Q",
+    "reference": "https://learn.microsoft.com/azure/aks/concepts-network-cni-overview",
+    "tags": [
+      "aks",
+      "networking",
+      "cni"
+    ],
+    "options": [
+      "kubenet, because pods get VNet IPs from a separate pool",
+      "Azure CNI Overlay, because pods use a private overlay CIDR that is not carved from the VNet",
+      "Azure CNI with dynamic IP allocation (pod subnet), because pods get IPs from a dedicated pod subnet instead of the node subnet",
+      "Bring-your-own CNI with Flannel"
+    ],
+    "optionNotes": [
+      "kubenet gives pods IPs from a non-VNet CIDR and uses NAT and UDR routes; pods are not directly VNet-routable, and kubenet is retired for new clusters.",
+      "Overlay does conserve VNet IPs, but pods are on an overlay CIDR reachable only via nodes; they are not directly routable from the VNet, so it fails the requirement of VNet-routable pod IPs.",
+      "Azure CNI with dynamic allocation separates node and pod subnets; pods still receive real VNet IPs and are routable from peered networks, but the pod subnet can be sized independently and nodes do not pre-reserve large IP blocks.",
+      "BYO CNI is for specialised setups and does nothing by itself to address VNet IP planning."
+    ],
+    "answer": 2
+  },
+  {
+    "id": "azure-014",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "How does Microsoft Entra Workload ID let an AKS pod call Azure services without storing credentials?",
+    "explanation": "Workload identity federation replaces the deprecated AAD Pod Identity. AKS publishes an OIDC issuer URL; you create a federated credential on a user-assigned managed identity that trusts `system:serviceaccount:<ns>:<sa>` from that issuer. Pods annotated with the client ID receive a projected token that `DefaultAzureCredential` exchanges for an Entra token, so no secrets exist in the cluster.",
+    "example": "az aks update -g rg-aks -n aks-prod --enable-oidc-issuer --enable-workload-identity\naz identity federated-credential create --name fic-api -g rg-aks \\\n  --identity-name id-api \\\n  --issuer $(az aks show -g rg-aks -n aks-prod --query oidcIssuerProfile.issuerUrl -o tsv) \\\n  --subject system:serviceaccount:api:api-sa\n# ServiceAccount annotation: azure.workload.identity/client-id: <clientId>\n# Pod label: azure.workload.identity/use: \"true\"",
+    "diagram": "flowchart LR\nSA[\"ServiceAccount api-sa projected token\"] --> P[\"Pod\"]\nP -->|\"token exchange\"| E[\"Entra ID\"]\nE -.->|\"trusts AKS OIDC issuer via federated credential\"| MI[\"Managed identity id-api\"]\nE -->|\"access token\"| P\nP --> KV[\"Key Vault / Storage\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/workload-identity-overview",
+    "tags": [
+      "aks",
+      "workload-identity",
+      "security"
+    ],
+    "options": [
+      "The pod uses the node's managed identity automatically",
+      "The Kubernetes service account token is exchanged for an Entra token via OIDC federation configured on a managed identity or app registration",
+      "Kubelet injects a client secret from a Kubernetes Secret",
+      "The pod reads the node's IMDS endpoint through hostNetwork"
+    ],
+    "optionNotes": [
+      "Using the kubelet identity for all pods breaks least privilege; workload identity exists precisely to give each workload its own identity.",
+      "The cluster exposes an OIDC issuer; a federated credential on a managed identity trusts tokens for a specific namespace/service account, and the projected service account token is exchanged for an Entra access token by the Azure SDK.",
+      "No secret is stored anywhere; that is the point of the federated approach.",
+      "Reaching IMDS from pods is the legacy AAD Pod Identity approach, which required NMI interception and is deprecated."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-015",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `az aks update` (or `az aks create`) flag grants the cluster's kubelet identity the AcrPull role on an Azure Container Registry so nodes can pull images without imagePullSecrets?",
+    "explanation": "AKS nodes authenticate to ACR with the kubelet managed identity. `--attach-acr <name-or-id>` assigns AcrPull on the registry to that identity, so no Kubernetes secret is needed and rotation is a non-issue. The admin user on ACR should stay disabled because it is a shared, non-auditable credential.",
+    "example": "az acr create -g rg-app -n acrcontoso --sku Premium\naz aks update -g rg-aks -n aks-prod --attach-acr acrcontoso\n# Build in the cloud without local Docker\naz acr build -r acrcontoso -t api:1.4.0 .",
+    "diagram": "flowchart LR\nK[\"AKS kubelet identity\"] -->|\"AcrPull role via --attach-acr\"| ACR[\"acrcontoso.azurecr.io\"]\nCI[\"Pipeline: az acr build\"] --> ACR\nACR -->|\"pull api:1.4.0\"| N[\"Nodes\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/cluster-container-registry-integration",
+    "tags": [
+      "acr",
+      "aks",
+      "containers"
+    ],
+    "answer": [
+      "--attach-acr",
+      "attach-acr"
+    ],
+    "pattern": "^(--)?attach-acr$"
+  },
+  {
+    "id": "azure-016",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What do App Service *deployment slots* enable?",
+    "explanation": "Deployment slots (Standard tier and above) give you separate live environments for the same app. Deploy to `staging`, run smoke tests, then swap; App Service warms the staging instances before swapping so traffic moves with no downtime. Settings marked *slot setting* stay with the slot, everything else moves with the code.",
+    "example": "az webapp deployment slot create -g rg-app -n app-api --slot staging\naz webapp deploy -g rg-app -n app-api --slot staging --src-path api.zip\naz webapp deployment slot swap -g rg-app -n app-api --slot staging --target-slot production",
+    "diagram": "flowchart LR\nD[\"Deploy zip to staging slot\"] --> T[\"Smoke tests on staging hostname\"]\nT --> W[\"Warm-up\"]\nW --> S[\"Swap VIPs\"]\nS --> P[\"Production serves new build\"]\nP -.->|\"swap back = instant rollback\"| S",
+    "reference": "https://learn.microsoft.com/azure/app-service/deploy-staging-slots",
+    "tags": [
+      "app-service",
+      "deployment"
+    ],
+    "options": [
+      "Running multiple regions from one app for geo-redundancy",
+      "Deploying to a staging instance and swapping it into production with warmed-up instances and instant rollback",
+      "Scaling the app to multiple instances",
+      "Hosting multiple unrelated apps on the same plan"
+    ],
+    "optionNotes": [
+      "Slots live on the same App Service plan in the same region; multi-region needs separate apps behind Front Door or Traffic Manager.",
+      "A slot is a live app with its own hostname; you deploy there, validate, then swap. The swap is a VIP switch after warm-up so production sees no cold start, and swapping back reverts instantly.",
+      "Scale-out is a plan setting (instance count) independent of slots.",
+      "Multiple apps on one plan is possible, but that is separate web apps, not slots of the same app."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-017",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Azure Functions hosting plan (two words) offers serverless pay-per-execution billing with scale-to-zero while also supporting VNet integration, per-instance concurrency and optional always-ready instances?",
+    "explanation": "Flex Consumption is the modern serverless plan for Azure Functions: it bills per execution and GB-second and scales to zero like classic Consumption, but adds VNet integration, configurable per-instance concurrency and always-ready instances. Premium keeps pre-warmed instances (no cold start, never zero) and Dedicated bills like an App Service plan.",
+    "example": "az functionapp create -g rg-app -n func-orders \\\n  --flexconsumption-location southeastasia \\\n  --runtime dotnet-isolated --runtime-version 8.0 \\\n  --storage-account stfuncorders\naz functionapp vnet-integration add -g rg-app -n func-orders --vnet vnet-app --subnet snet-func",
+    "diagram": "flowchart TD\nH[\"Functions hosting\"] --> C[\"Consumption classic: scale to 0, no VNet\"]\nH --> F[\"Flex Consumption: scale to 0 + VNet + concurrency\"]\nH --> P[\"Premium: pre-warmed, no cold start, never 0\"]\nH --> D[\"Dedicated: App Service plan billing\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan",
+    "tags": [
+      "functions",
+      "serverless"
+    ],
+    "answer": [
+      "flex consumption",
+      "flex consumption plan",
+      "flexconsumption"
+    ],
+    "pattern": "^flex\\s*consumption(\\s+plan)?$"
+  },
+  {
+    "id": "azure-018",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "A Network Security Group has an inbound rule allowing TCP 443 from Internet at priority 300 and a rule denying all inbound at priority 200. What happens to HTTPS traffic from the Internet?",
+    "explanation": "NSG rules are processed in priority order (100 is evaluated before 200) and the first matching rule wins; later rules are not evaluated. A common mistake is placing a broad deny with a lower number than the intended allow. Default rules at 65000+ allow VNet and load-balancer traffic and deny everything else inbound.",
+    "example": "az network nsg rule create -g rg-net --nsg-name nsg-web -n allow-https \\\n  --priority 100 --direction Inbound --access Allow --protocol Tcp \\\n  --source-address-prefixes Internet --destination-port-ranges 443\n# Deny catch-all with a HIGHER number so it is evaluated after the allow\naz network nsg rule create -g rg-net --nsg-name nsg-web -n deny-all \\\n  --priority 4000 --direction Inbound --access Deny --protocol '*' --destination-port-ranges '*'",
+    "diagram": "flowchart TD\nP[\"Packet: TCP 443 from Internet\"] --> R1[\"Priority 200: Deny all inbound\"]\nR1 -->|\"match, stop\"| X[\"Dropped\"]\nR1 -.->|\"never reached\"| R2[\"Priority 300: Allow 443\"]",
+    "reference": "https://learn.microsoft.com/azure/virtual-network/network-security-group-how-it-works",
+    "tags": [
+      "networking",
+      "nsg"
+    ],
+    "options": [
+      "Allowed, because allow rules always win over deny rules",
+      "Denied, because the deny rule has a lower priority number and is evaluated first",
+      "Allowed, because port-specific rules beat catch-all rules",
+      "Traffic is logged and then allowed"
+    ],
+    "optionNotes": [
+      "NSGs have no allow-wins rule; processing is strictly by priority number.",
+      "NSG rules are evaluated from the lowest priority number upward and evaluation stops at the first match, so the deny at 200 matches before the allow at 300 is ever considered.",
+      "Rule specificity is irrelevant; only priority order matters.",
+      "NSGs do not have a log-and-allow action; flow logs are a separate feature."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-019",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Azure VNet peering is transitive: if VNet A is peered with VNet B and VNet B is peered with VNet C, then resources in VNet A can reach VNet C by default.",
+    "explanation": "VNet peering is non-transitive; A-B and B-C peerings do not give A a route to C. To achieve hub-and-spoke transit you either deploy an NVA or Azure Firewall in the hub with user-defined routes, use a VPN/ExpressRoute gateway with `allow gateway transit`, or adopt Azure Virtual WAN, which provides transitive routing between spokes natively.",
+    "example": "# Peering A <-> B only\naz network vnet peering create -g rg-net -n a-to-b --vnet-name vnet-a \\\n  --remote-vnet vnet-b --allow-vnet-access\n# For spoke-to-spoke transit via hub firewall: UDR on spoke subnets\naz network route-table route create -g rg-net --route-table-name rt-spoke \\\n  -n to-other-spokes --address-prefix 10.2.0.0/16 --next-hop-type VirtualAppliance --next-hop-ip-address 10.0.1.4",
+    "diagram": "flowchart LR\nA[\"VNet A\"] <-->|\"peering\"| B[\"VNet B hub\"]\nB <-->|\"peering\"| C[\"VNet C\"]\nA -.->|\"no route by default\"| C\nB --> FW[\"Azure Firewall + UDR enables transit\"]",
+    "reference": "https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview",
+    "tags": [
+      "networking",
+      "vnet",
+      "peering"
+    ],
+    "answer": false
+  },
+  {
+    "id": "azure-020",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which Azure load-balancing services operate at Layer 7 (HTTP) and can therefore route on URL path or host header and run a Web Application Firewall? (Select all that apply.)",
+    "explanation": "Choose by layer and scope: Load Balancer is regional L4, Application Gateway is regional L7 inside your VNet, Front Door is global L7 at the edge, and Traffic Manager is global DNS steering. A common production pattern is Front Door in front of per-region Application Gateways or AKS ingress, with Load Balancer underneath VM scale sets.",
+    "example": "az afd profile create -g rg-edge --profile-name fd-contoso --sku Premium_AzureFrontDoor\naz afd endpoint create -g rg-edge --profile-name fd-contoso --endpoint-name www --enabled-state Enabled\naz network application-gateway waf-policy create -g rg-app -n waf-regional",
+    "diagram": "flowchart TD\nU[\"Users worldwide\"] --> FD[\"Front Door: global L7, WAF, cache\"]\nFD --> AG1[\"App Gateway East US: regional L7, WAF\"]\nFD --> AG2[\"App Gateway West Europe\"]\nAG1 --> LB[\"Load Balancer: L4 to VM scale set\"]\nTM[\"Traffic Manager: DNS only\"] -.-> FD",
+    "reference": "https://learn.microsoft.com/azure/architecture/guide/technology-choices/load-balancing-overview",
+    "tags": [
+      "networking",
+      "front-door",
+      "application-gateway",
+      "load-balancer"
+    ],
+    "options": [
+      "Azure Load Balancer",
+      "Azure Application Gateway",
+      "Azure Front Door",
+      "Azure Traffic Manager"
+    ],
+    "optionNotes": [
+      "Load Balancer is a regional Layer 4 service distributing TCP/UDP flows; it cannot inspect HTTP headers or paths.",
+      "Application Gateway is a regional Layer 7 reverse proxy inside your VNet with path and host routing, TLS termination and an optional WAF.",
+      "Front Door is the global Layer 7 entry point at Microsoft edge POPs with anycast, caching, WAF and health-probe based failover across regions.",
+      "Traffic Manager is DNS-based steering; it returns an IP or CNAME and never terminates HTTP, so there is no path routing or WAF."
+    ],
+    "answer": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "azure-021",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Azure Blob Storage access tier is designed for rarely accessed data that can tolerate retrieval latency of hours and has the lowest storage cost (data must stay at least 180 days)?",
+    "explanation": "Blob access tiers are Hot, Cool, Cold and Archive, trading storage cost against access cost and latency. Archive is offline: a blob must be rehydrated (which takes up to 15 hours on standard priority) before it can be read, and early deletion before 180 days incurs a penalty. Lifecycle management policies move blobs between tiers automatically.",
+    "example": "az storage blob set-tier --account-name stlogs --container-name backups --name 2024-q1.tar --tier Archive\n# Rehydrate before reading\naz storage blob set-tier --account-name stlogs -c backups -n 2024-q1.tar --tier Hot --rehydrate-priority High",
+    "diagram": "flowchart LR\nH[\"Hot: frequent access\"] --> C[\"Cool: 30 day min\"]\nC --> CD[\"Cold: 90 day min\"]\nCD --> A[\"Archive: 180 day min, offline, hours to rehydrate\"]\nL[\"Lifecycle policy\"] -.->|\"auto tiering\"| C",
+    "reference": "https://learn.microsoft.com/azure/storage/blobs/access-tiers-overview",
+    "tags": [
+      "storage",
+      "blob"
+    ],
+    "answer": [
+      "archive",
+      "archive tier"
+    ],
+    "pattern": "^archive( tier)?$"
+  },
+  {
+    "id": "azure-022",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "Which storage account redundancy options replicate data to a secondary region? (Select all that apply.)",
+    "explanation": "Redundancy names combine the primary-region layout (L = single datacenter, Z = across zones) with an optional geo copy (G) to the paired region; RA-GRS / RA-GZRS add read access to the secondary. Geo replication is asynchronous, so a failover can lose recently written data (the RPO is typically under 15 minutes).",
+    "example": "az storage account create -g rg-data -n stcontosoprod -l southeastasia --sku Standard_GZRS --kind StorageV2\n# Check last sync time for geo replication\naz storage account show -g rg-data -n stcontosoprod --expand geoReplicationStats --query geoReplicationStats.lastSyncTime",
+    "diagram": "flowchart LR\nL[\"LRS: 3 copies, 1 datacenter\"] --> Z[\"ZRS: 3 zones\"]\nL -->|\"+ async geo copy\"| G[\"GRS\"]\nZ -->|\"+ async geo copy\"| GZ[\"GZRS\"]\nG --> RA[\"RA-GRS: readable secondary\"]",
+    "reference": "https://learn.microsoft.com/azure/storage/common/storage-redundancy",
+    "tags": [
+      "storage",
+      "redundancy",
+      "resilience"
+    ],
+    "options": [
+      "LRS",
+      "ZRS",
+      "GRS",
+      "GZRS"
+    ],
+    "optionNotes": [
+      "Locally redundant storage keeps three synchronous copies within one datacenter; a regional outage loses availability.",
+      "Zone-redundant storage spreads three copies across availability zones in one region, but never leaves the region.",
+      "Geo-redundant storage is LRS in the primary plus asynchronous replication to a paired secondary region.",
+      "Geo-zone-redundant storage is ZRS in the primary region plus asynchronous copy to the paired region, the most resilient standard option."
+    ],
+    "answer": [
+      2,
+      3
+    ]
+  },
+  {
+    "id": "azure-023",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a Kusto Query Language (KQL) query against Log Analytics, which operator filters rows by a condition (the KQL equivalent of SQL's WHERE), as in `ContainerLogV2 | ___ LogLevel == \"error\"`?",
+    "explanation": "KQL pipelines data through operators separated by `|`. `where` filters rows, `summarize` aggregates, `project` selects columns, `extend` adds computed columns and `top`/`sort` order results. Filtering early on indexed columns such as `TimeGenerated` keeps queries cheap, which matters because Log Analytics bills on ingested data and scanned data for some tiers.",
+    "example": "ContainerLogV2\n| where TimeGenerated > ago(1h)\n| where PodNamespace == \"payments\" and LogLevel == \"error\"\n| summarize errors = count() by PodName, bin(TimeGenerated, 5m)\n| order by errors desc",
+    "diagram": "flowchart LR\nT[\"ContainerLogV2 table\"] --> W[\"where: filter rows\"]\nW --> S[\"summarize count by PodName\"]\nS --> O[\"order by errors desc\"]\nO --> R[\"Result\"]",
+    "reference": "https://learn.microsoft.com/azure/data-explorer/kusto/query/where-operator",
+    "tags": [
+      "azure-monitor",
+      "kql",
+      "log-analytics"
+    ],
+    "answer": [
+      "where"
+    ],
+    "pattern": "^\\|?\\s*where$"
+  },
+  {
+    "id": "azure-024",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "In Azure Monitor, what is a *Log Analytics workspace*?",
+    "explanation": "Azure Monitor collects metrics (time-series, stored in a platform metrics store) and logs (ingested into Log Analytics workspaces). Diagnostic settings on each resource route platform logs to a workspace, storage or Event Hub, while Container Insights and Application Insights write into workspaces too. Retention, table plans (Analytics vs Basic) and commitment tiers on the workspace drive cost.",
+    "example": "az monitor log-analytics workspace create -g rg-mon -n law-prod --retention-time 30\naz monitor diagnostic-settings create --name to-law \\\n  --resource $(az keyvault show -n kv-app-prod --query id -o tsv) \\\n  --workspace law-prod --logs '[{\"categoryGroup\":\"audit\",\"enabled\":true}]'",
+    "diagram": "flowchart LR\nR[\"Resource: Key Vault, AKS, VM\"] -->|\"diagnostic settings / AMA\"| W[\"Log Analytics workspace\"]\nW --> Q[\"KQL queries\"]\nW --> A[\"Log alert rules\"]\nW --> G[\"Workbooks, Grafana\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview",
+    "tags": [
+      "azure-monitor",
+      "log-analytics",
+      "observability"
+    ],
+    "options": [
+      "A dashboard for visualising metrics",
+      "The storage and query boundary where logs from diagnostic settings, agents and Container Insights are ingested and queried with KQL",
+      "An alert rule container",
+      "A Grafana instance managed by Azure"
+    ],
+    "optionNotes": [
+      "Dashboards and workbooks visualise data; the workspace is where the data lives.",
+      "A workspace is a resource with its own retention, access control, tables and pricing tier; resources send logs to it via diagnostic settings or agents such as Azure Monitor Agent, and KQL queries and log alerts run against it.",
+      "Alert rules reference a workspace as their data source but are separate resources.",
+      "Azure Managed Grafana is a distinct service that can query a workspace as a data source."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-025",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the default file name Azure DevOps looks for at the repository root when you create a YAML pipeline?",
+    "explanation": "Azure Pipelines conventionally reads `azure-pipelines.yml` from the repo root, though any path can be chosen when the pipeline is created. The file declares triggers, the agent pool, and stages > jobs > steps; templates in other files or repositories can be referenced with `template:` and `extends:`.",
+    "example": "# azure-pipelines.yml\ntrigger:\n  branches: { include: [main] }\npool:\n  vmImage: ubuntu-latest\nsteps:\n  - script: npm ci && npm test\n    displayName: Test",
+    "diagram": "flowchart TD\nF[\"azure-pipelines.yml\"] --> T[\"trigger: main\"]\nF --> P[\"pool: ubuntu-latest\"]\nF --> S[\"stages > jobs > steps\"]\nS --> A[\"Agent runs steps\"]",
+    "reference": "https://learn.microsoft.com/azure/devops/pipelines/yaml-schema/",
+    "tags": [
+      "azure-devops",
+      "pipelines",
+      "cicd"
+    ],
+    "answer": [
+      "azure-pipelines.yml",
+      "azure-pipelines.yaml"
+    ],
+    "pattern": "^azure-pipelines\\.ya?ml$"
+  },
+  {
+    "id": "azure-026",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "What is the recommended authentication method for an Azure DevOps *Azure Resource Manager service connection* in 2025 and why?",
+    "explanation": "Service connections are how pipelines reach external systems. For Azure, the workload identity federation option (automatic or manual) creates a federated credential so pipeline runs obtain tokens via OIDC rather than a stored secret, removing rotation work and secret-leak risk. Existing secret-based connections can be converted in place.",
+    "example": "# azure-pipelines.yml\n- task: AzureCLI@2\n  inputs:\n    azureSubscription: 'sc-prod-federated'   # ARM service connection using workload identity federation\n    scriptType: bash\n    scriptLocation: inlineScript\n    inlineScript: az deployment group create -g rg-app -f infra/main.bicep",
+    "diagram": "flowchart LR\nP[\"Pipeline job\"] -->|\"OIDC token\"| E[\"Entra ID\"]\nE -.->|\"federated credential trusts Azure DevOps issuer\"| A[\"App registration / managed identity\"]\nE -->|\"access token\"| P\nP --> ARM[\"Azure Resource Manager\"]",
+    "reference": "https://learn.microsoft.com/azure/devops/pipelines/library/connect-to-azure",
+    "tags": [
+      "azure-devops",
+      "service-connection",
+      "workload-identity"
+    ],
+    "options": [
+      "Service principal with a client secret, because it is the simplest to set up",
+      "Workload identity federation, because no secret is stored or expires and Azure DevOps exchanges its own OIDC token for an Entra token",
+      "A personal access token of an admin user",
+      "Storing the subscription Owner's password in a variable group"
+    ],
+    "optionNotes": [
+      "Secrets expire (max two years), must be rotated, and can leak from the service connection or logs; Microsoft now steers users away from this.",
+      "With federation, Azure DevOps presents a short-lived OIDC token that a federated credential on the app registration or managed identity trusts; no long-lived secret exists anywhere.",
+      "PATs authenticate to Azure DevOps itself, not to Azure Resource Manager, and tie automation to a person.",
+      "Passwords in variable groups are a serious anti-pattern and break MFA and conditional access."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-027",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "When should you use *self-hosted* agents instead of Microsoft-hosted agents in Azure Pipelines?",
+    "explanation": "Microsoft-hosted agents are convenient but ephemeral, internet-only and capped in run time and parallelism. Self-hosted agents, or the newer Managed DevOps Pools that combine hosted lifecycle with your own VNet, are needed to deploy into private AKS clusters, reach private endpoints, or use specialised software and caches.",
+    "example": "# Register a Linux self-hosted agent\n./config.sh --unattended --url https://dev.azure.com/contoso --auth pat --token $PAT \\\n  --pool 'private-linux' --agent $(hostname) --acceptTeeEula\n# In YAML\npool:\n  name: private-linux\n  demands:\n    - docker",
+    "diagram": "flowchart TD\nJ[\"Pipeline job\"] --> H[\"Microsoft-hosted: fresh VM, public network only\"]\nJ --> S[\"Self-hosted / Managed DevOps Pool: in your VNet\"]\nS --> PE[\"Private AKS API, private endpoints\"]\nS --> C[\"Warm caches, custom tools\"]",
+    "reference": "https://learn.microsoft.com/azure/devops/pipelines/agents/agents",
+    "tags": [
+      "azure-devops",
+      "agents",
+      "cicd"
+    ],
+    "options": [
+      "Never; Microsoft-hosted agents are always faster",
+      "When jobs need access to private networks, custom tooling or hardware, or persistent caches between runs",
+      "Only for Windows builds",
+      "When the pipeline is written in YAML rather than classic"
+    ],
+    "optionNotes": [
+      "Microsoft-hosted agents are fresh VMs per job with no network access to your VNets and limited run time, so they are not always suitable.",
+      "Self-hosted agents (VMs, containers, or Managed DevOps Pools / scale set agents) run where you place them, so they can reach private endpoints, keep warm caches, use GPUs, or run longer than the hosted time limit.",
+      "Hosted agents support Windows, Linux and macOS images.",
+      "Both YAML and classic pipelines can target either agent type."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-028",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "An organisation wants every new storage account to be created with `minimumTlsVersion` set to TLS1_2 *automatically* if the deployer omitted it, rather than rejecting the deployment. Which Azure Policy effect should they use?",
+    "explanation": "Azure Policy effects range from observe (Audit, AuditIfNotExists) to block (Deny, DenyAction) to remediate (Modify, DeployIfNotExists). Modify rewrites the request payload for properties and tags, making it ideal for defaults such as TLS versions or required tags. Remediation tasks can also apply Modify and DeployIfNotExists to existing resources.",
+    "example": "az policy assignment create --name enforce-tls12 \\\n  --policy \"/providers/Microsoft.Authorization/policyDefinitions/fe83a0eb-a853-422d-aac2-1bffd182c5d0\" \\\n  --scope /subscriptions/<sub> --mi-system-assigned --location southeastasia\n# Remediate existing resources\naz policy remediation create --name fix-tls -g rg-data --policy-assignment enforce-tls12",
+    "diagram": "flowchart TD\nR[\"Create storage account request\"] --> P[\"Azure Policy evaluation\"]\nP -->|\"Deny\"| X[\"Rejected\"]\nP -->|\"Audit\"| A[\"Allowed, flagged non-compliant\"]\nP -->|\"Modify\"| M[\"Payload patched: minimumTlsVersion TLS1_2\"]\nM --> C[\"Created compliant\"]",
+    "reference": "https://learn.microsoft.com/azure/governance/policy/concepts/effect-modify",
+    "tags": [
+      "azure-policy",
+      "governance"
+    ],
+    "options": [
+      "Deny",
+      "Audit",
+      "Modify",
+      "DeployIfNotExists"
+    ],
+    "optionNotes": [
+      "Deny blocks the request; it enforces compliance but does not fix the deployment for the user.",
+      "Audit only flags non-compliant resources in the compliance report and lets the deployment proceed unchanged.",
+      "Modify adds, replaces or removes properties or tags on the resource during create or update, so the storage account is corrected before it is created; it requires a managed identity on the assignment.",
+      "DeployIfNotExists deploys a related resource (such as a diagnostic setting) after the primary resource exists, which is overkill for setting a property on the resource itself."
+    ],
+    "answer": 2
+  },
+  {
+    "id": "azure-029",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In Azure Policy, what is the term for a group of policy definitions bundled together and assigned as a single unit (for example the built-in *Microsoft cloud security benchmark*)?",
+    "explanation": "An initiative (called a policy set definition in the API) groups related policy definitions so they can be assigned and tracked together, with shared parameters. Defender for Cloud's regulatory compliance standards and the Microsoft cloud security benchmark are initiatives, and assigning one at a management group applies every contained policy to all subscriptions beneath it.",
+    "example": "az policy set-definition create --name tagging-baseline \\\n  --definitions '[{\"policyDefinitionId\":\"/providers/Microsoft.Authorization/policyDefinitions/871b6d14-10aa-478d-b590-94f262ecfa99\",\"parameters\":{\"tagName\":{\"value\":\"cost-center\"}}}]'\naz policy assignment create --name tagging --policy-set-definition tagging-baseline --scope /providers/Microsoft.Management/managementGroups/mg-platform",
+    "diagram": "flowchart TD\nI[\"Initiative: tagging-baseline\"] --> P1[\"Policy: require cost-center tag\"]\nI --> P2[\"Policy: inherit tag from RG\"]\nI --> P3[\"Policy: audit missing owner tag\"]\nI -->|\"single assignment\"| MG[\"Management group\"]",
+    "reference": "https://learn.microsoft.com/azure/governance/policy/concepts/initiative-definition-structure",
+    "tags": [
+      "azure-policy",
+      "governance"
+    ],
+    "answer": [
+      "initiative",
+      "policy initiative",
+      "policy set",
+      "policy set definition",
+      "initiative definition"
+    ],
+    "pattern": "^(policy\\s+)?(initiative|set)(\\s+definition)?$"
+  },
+  {
+    "id": "azure-030",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "After creating a private endpoint for an Azure SQL server, a VM in the VNet still connects to the public IP and gets blocked by the firewall. What is the most likely missing piece?",
+    "explanation": "A private endpoint gives a PaaS service a private IP inside your VNet, but clients still connect by hostname. The Azure-provided DNS split works only if the `privatelink.*` private DNS zone is linked to the VNet (or your custom DNS forwards to 168.63.129.16). Missing or unlinked zones are the number one Private Link troubleshooting issue; `nslookup` returning a public IP confirms it.",
+    "example": "az network private-endpoint create -g rg-net -n pe-sql --vnet-name vnet-app --subnet snet-pe \\\n  --private-connection-resource-id $(az sql server show -g rg-data -n sql-contoso --query id -o tsv) \\\n  --group-id sqlServer --connection-name sql-conn\naz network private-dns zone create -g rg-net -n privatelink.database.windows.net\naz network private-dns link vnet create -g rg-net -z privatelink.database.windows.net -n link-app --virtual-network vnet-app --registration-enabled false\naz network private-endpoint dns-zone-group create -g rg-net --endpoint-name pe-sql -n default \\\n  --private-dns-zone privatelink.database.windows.net --zone-name sql",
+    "diagram": "flowchart LR\nV[\"VM resolves sql-contoso.database.windows.net\"] --> Z{\"Private DNS zone linked?\"}\nZ -->|\"yes\"| P[\"10.0.3.5 private endpoint\"]\nZ -->|\"no\"| PUB[\"Public IP, blocked by firewall\"]\nP --> SQL[\"Azure SQL over Private Link\"]",
+    "reference": "https://learn.microsoft.com/azure/private-link/private-endpoint-dns",
+    "tags": [
+      "private-link",
+      "networking",
+      "dns",
+      "troubleshooting"
+    ],
+    "options": [
+      "The private endpoint needs a public IP attached",
+      "A Private DNS zone `privatelink.database.windows.net` linked to the VNet so the server FQDN resolves to the private endpoint's IP",
+      "An NSG rule allowing outbound 1433",
+      "The VM must be moved into the private endpoint's subnet"
+    ],
+    "optionNotes": [
+      "Private endpoints are NICs with private IPs only; there is nothing public to attach.",
+      "Private Link works by DNS: the FQDN `server.database.windows.net` must CNAME to `server.privatelink.database.windows.net`, which the private DNS zone resolves to the endpoint's private IP. Without the zone (or a matching custom DNS forwarder) the name still resolves to the public IP.",
+      "Outbound is allowed by default in NSGs; the symptom (reaching the public IP) shows connectivity works, just to the wrong address.",
+      "Private endpoints are reachable from any subnet in the VNet and from peered VNets; subnet placement is irrelevant."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-031",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "single",
+    "prompt": "What is an Azure *availability zone*?",
+    "explanation": "Availability zones are physically separate facilities within a region. Zone-redundant deployments (AKS node pools spanning zones 1-3, ZRS storage, zone-redundant load balancers) survive the loss of a whole zone, which is the recommended baseline for production. Region pairs or multi-region designs address larger geographic disasters.",
+    "example": "az aks create -g rg-aks -n aks-prod --zones 1 2 3 --node-count 3\naz vm create -g rg-app -n vm-web --zone 2 --image Ubuntu2404 --size Standard_D2s_v5\naz network public-ip create -g rg-app -n pip-lb --sku Standard --zone 1 2 3",
+    "diagram": "flowchart TD\nR[\"Region: Southeast Asia\"] --> Z1[\"Zone 1: datacenter\"]\nR --> Z2[\"Zone 2: datacenter\"]\nR --> Z3[\"Zone 3: datacenter\"]\nZ1 --- Z2\nZ2 --- Z3\nZ1 -.->|\"zone-redundant workload spans all three\"| Z3",
+    "reference": "https://learn.microsoft.com/azure/reliability/availability-zones-overview",
+    "tags": [
+      "availability-zones",
+      "regions",
+      "resilience"
+    ],
+    "options": [
+      "A separate Azure region used for disaster recovery",
+      "A physically separate datacenter (or group of datacenters) within a region, with independent power, cooling and networking",
+      "A logical grouping of VMs on the same physical host",
+      "A pricing tier for reserved instances"
+    ],
+    "optionNotes": [
+      "Regions are geographically distant; DR across regions uses region pairs or a chosen secondary region, not zones.",
+      "Zones are isolated locations inside one region connected by low-latency links; spreading VMs, AKS nodes or zone-redundant services across zones protects against a datacenter-level failure while keeping synchronous replication practical.",
+      "Grouping on the same host is the opposite of the isolation zones provide; fault domains and availability sets deal with host-level placement.",
+      "Zones have nothing to do with pricing models."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-032",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "multi",
+    "prompt": "Which of the following are effective ways to reduce Azure compute cost for predictable, long-running production workloads? (Select all that apply.)",
+    "explanation": "Cost optimisation follows an order: eliminate waste (right-size, deallocate idle resources, tag for accountability), then commit (reservations or savings plans) for the stable baseline, and apply licence benefits. Spot pricing is a separate lever for interruptible workloads. Cost Management budgets with action-group alerts keep spend visible.",
+    "example": "# See Advisor cost recommendations\naz advisor recommendation list --category Cost --output table\n# Budget with alert at 80%\naz consumption budget create --budget-name monthly-prod --amount 5000 --category cost \\\n  --time-grain monthly --start-date 2026-01-01 --end-date 2027-01-01",
+    "diagram": "flowchart LR\nW[\"1. Remove waste: right-size, deallocate\"] --> C[\"2. Commit: reservations or savings plan\"]\nC --> L[\"3. Licences: Hybrid Benefit\"]\nL --> M[\"4. Monitor: budgets + alerts\"]\nS[\"Spot VMs\"] -.->|\"only interruptible work\"| W",
+    "reference": "https://learn.microsoft.com/azure/cost-management-billing/costs/cost-mgt-best-practices",
+    "tags": [
+      "cost",
+      "finops"
+    ],
+    "options": [
+      "Purchase Azure Reservations or a Savings Plan for compute",
+      "Use Spot VMs for the primary production database",
+      "Apply Azure Hybrid Benefit for eligible Windows Server or SQL licences",
+      "Right-size VMs based on Azure Advisor recommendations"
+    ],
+    "optionNotes": [
+      "Reservations (one or three year, specific SKU/region) and Savings Plans (hourly commitment, flexible across SKUs) give up to 65-72% off pay-as-you-go for steady workloads.",
+      "Spot VMs can be evicted at any time with 30 seconds notice, so they suit batch or fault-tolerant work, not a primary stateful database.",
+      "Hybrid Benefit lets you apply existing on-premises licences with Software Assurance, removing the licence component from the VM price.",
+      "Advisor cost recommendations identify under-utilised VMs; downsizing or shutting them down is the cheapest win and should precede commitments so you do not reserve the wrong size."
+    ],
+    "answer": [
+      0,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "azure-033",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Azure Bastion must be deployed into a dedicated subnet with a specific, reserved name (at least /26). What is that subnet name?",
+    "explanation": "Azure Bastion is a managed jump host that terminates TLS on 443 and brokers RDP/SSH to VMs by private IP, so VMs need no public IP and management ports stay closed to the Internet. The service requires a subnet named exactly `AzureBastionSubnet` of /26 or larger; the Standard and Premium SKUs add native client tunnelling, file transfer and session recording.",
+    "example": "az network vnet subnet create -g rg-net --vnet-name vnet-app -n AzureBastionSubnet --address-prefixes 10.0.250.0/26\naz network bastion create -g rg-net -n bas-app --vnet-name vnet-app --public-ip-address pip-bastion --sku Standard\n# SSH via native client tunnel\naz network bastion ssh -g rg-net -n bas-app --target-resource-id <vm-id> --auth-type ssh-key --username azureuser --ssh-key ~/.ssh/id_ed25519",
+    "diagram": "flowchart LR\nU[\"Admin browser or az CLI\"] -->|\"HTTPS 443\"| B[\"Azure Bastion in AzureBastionSubnet /26\"]\nB -->|\"SSH 22 / RDP 3389 private IP\"| V[\"VM with no public IP\"]\nI[\"Internet\"] -.->|\"22/3389 closed\"| V",
+    "reference": "https://learn.microsoft.com/azure/bastion/configuration-settings",
+    "tags": [
+      "bastion",
+      "security",
+      "networking"
+    ],
+    "answer": [
+      "AzureBastionSubnet"
+    ],
+    "pattern": "^azurebastionsubnet$"
+  },
+  {
+    "id": "azure-034",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "single",
+    "prompt": "What does the *Secure Score* in Microsoft Defender for Cloud represent?",
+    "explanation": "Defender for Cloud has two halves: cloud security posture management (recommendations, Secure Score, regulatory compliance, attack path analysis) and workload protection plans that detect threats on servers, containers, storage, databases and Key Vault. Secure Score is the posture KPI teams track over time.",
+    "example": "az security secure-scores list --output table\naz security assessment list --query \"[?status.code=='Unhealthy'].{name:displayName, sev:metadata.severity}\" -o table\n# Enable Defender for Containers on the subscription\naz security pricing create -n Containers --tier standard",
+    "diagram": "flowchart TD\nD[\"Defender for Cloud\"] --> C[\"CSPM: recommendations, Secure Score, attack paths\"]\nD --> W[\"Workload protection: Servers, Containers, Storage, Key Vault\"]\nC --> S[\"Secure Score: weighted % of remediated controls\"]\nW --> A[\"Security alerts to SIEM / Sentinel\"]",
+    "reference": "https://learn.microsoft.com/azure/defender-for-cloud/secure-score-security-controls",
+    "tags": [
+      "defender-for-cloud",
+      "security"
+    ],
+    "options": [
+      "The percentage of VMs with antivirus installed",
+      "An aggregate measure of your security posture based on how many security recommendations across subscriptions are remediated",
+      "The number of Defender plans purchased",
+      "A compliance percentage against ISO 27001 only"
+    ],
+    "optionNotes": [
+      "Antivirus coverage is one of many recommendations feeding the score, not the score itself.",
+      "Secure Score is CSPM: Defender continuously assesses resources against the Microsoft cloud security benchmark and weights unresolved recommendations by severity into a single percentage you can drive toward 100.",
+      "Paid Defender plans (for Servers, Containers, Key Vault and so on) add threat protection; the score is available even on the free foundational CSPM tier.",
+      "Regulatory compliance dashboards cover many standards separately; Secure Score is benchmark-based, not tied to one standard."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-035",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "boolean",
+    "prompt": "Deploying an ARM or Bicep template with `--mode Complete` to a resource group deletes any existing resources in that group that are not defined in the template.",
+    "explanation": "Resource Manager supports Incremental mode (default: adds or updates resources, leaves others alone) and Complete mode (makes the resource group match the template, deleting unlisted resources). Complete mode is powerful for drift removal but dangerous if a template is partial; the newer Deployment Stacks feature offers similar cleanup with explicit deny settings and unmanage actions.",
+    "example": "# Preview first\naz deployment group what-if -g rg-app -f main.bicep --mode Complete\n# Then apply\naz deployment group create -g rg-app -f main.bicep --mode Complete\n# Modern alternative with lifecycle management\naz stack group create -g rg-app -n app-stack -f main.bicep --action-on-unmanage deleteResources --deny-settings-mode none",
+    "diagram": "flowchart TD\nT[\"Template defines A, B\"] --> I[\"Incremental: A, B updated; C untouched\"]\nT --> C[\"Complete: A, B updated; C deleted\"]\nC -.->|\"run what-if first\"| W[\"az deployment group what-if\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-resource-manager/templates/deployment-modes",
+    "tags": [
+      "arm",
+      "bicep",
+      "iac"
+    ],
+    "answer": true
+  },
+  {
+    "id": "azure-036",
+    "domain": "azure",
+    "difficulty": "easy",
+    "type": "boolean",
+    "prompt": "A `CanNotDelete` resource lock on a resource group prevents users with the Owner role from deleting the group or its resources until the lock is removed.",
+    "explanation": "Management locks apply regardless of RBAC role: `CanNotDelete` blocks delete operations and `ReadOnly` blocks all modifications, including for Owners. Removing a lock requires `Microsoft.Authorization/locks/*` permission (Owner or User Access Administrator), which adds a deliberate extra step that protects production resources from accidental deletion by scripts or humans.",
+    "example": "az lock create --name protect-prod --lock-type CanNotDelete --resource-group rg-app-prod\naz group delete -n rg-app-prod   # fails: ScopeLocked\naz lock delete --name protect-prod --resource-group rg-app-prod",
+    "diagram": "flowchart LR\nO[\"Owner runs az group delete\"] --> L{\"CanNotDelete lock present?\"}\nL -->|\"yes\"| X[\"ScopeLocked error\"]\nL -->|\"no\"| D[\"Group deleted\"]\nX -.->|\"remove lock deliberately\"| L",
+    "reference": "https://learn.microsoft.com/azure/azure-resource-manager/management/lock-resources",
+    "tags": [
+      "resource-locks",
+      "governance"
+    ],
+    "answer": true
+  },
+  {
+    "id": "azure-037",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "Pods on an AKS cluster with Azure CNI (classic, node subnet) are stuck in `ContainerCreating` with the event `Failed to allocate address: No available addresses`. The subnet is /24 with 2 nodes. What is the root cause?",
+    "explanation": "With classic Azure CNI the subnet must be sized as `(nodes + surge) * (maxPods + 1)`, and upgrades temporarily add surge nodes that need their own allocation. A /24 (251 usable) supports only about 8 nodes at the default 30 pods. Azure CNI Overlay removes this coupling by giving pods a separate private CIDR, which is why it is now the recommended default for new clusters.",
+    "example": "kubectl describe pod api-7c9 -n payments | grep -A3 Events\n# Warning  FailedCreatePodSandBox ... Failed to allocate address: No available addresses\naz network vnet subnet show -g rg-net --vnet-name vnet-aks -n snet-nodes --query \"{prefix:addressPrefix, ipConfigs:length(ipConfigurations)}\"\n# Migrate to overlay (supported in-place for many clusters)\naz aks update -g rg-aks -n aks-prod --network-plugin-mode overlay --pod-cidr 192.168.0.0/16",
+    "diagram": "flowchart TD\nS[\"Subnet /24: 251 usable IPs\"] --> N1[\"Node 1 reserves 31\"]\nS --> N2[\"Node 2 reserves 31\"]\nS --> O[\"ILB frontends, private endpoints, surge nodes\"]\nS --> E[\"Exhausted\"]\nE --> P[\"Pod stuck ContainerCreating\"]\nP -.->|\"fix\"| OV[\"Azure CNI Overlay or larger subnet\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/azure-cni-overlay",
+    "tags": [
+      "aks",
+      "networking",
+      "troubleshooting"
+    ],
+    "options": [
+      "The cluster autoscaler is disabled",
+      "Each node pre-reserves `--max-pods` IPs (default 30) from the subnet, and the /24 is exhausted by node reservations plus internal load balancers and private endpoints sharing it",
+      "CoreDNS has run out of memory",
+      "The NSG is blocking DHCP"
+    ],
+    "optionNotes": [
+      "Autoscaling adds nodes, which would consume even more subnet IPs and worsen the problem.",
+      "Classic Azure CNI allocates IPs for every pod slot on each node up front; with maxPods 30 two nodes reserve 62 addresses, and scale operations, surge nodes during upgrades, and other resources in the shared subnet can drain a /24 quickly. Fix by moving to Azure CNI Overlay or dynamic pod subnet allocation, or by enlarging the subnet.",
+      "CoreDNS issues cause DNS resolution failures in running pods, not IP allocation failures at sandbox creation.",
+      "Azure VNets do not use DHCP in the classic sense for pod IPs; the CNI plugin allocates from the reserved pool."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-038",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "single",
+    "prompt": "A pipeline just created a role assignment granting its managed identity `Storage Blob Data Contributor`, then immediately tried to upload a blob and received `AuthorizationPermissionMismatch` (403). The assignment is visible in the portal. What is the most likely explanation?",
+    "explanation": "Azure RBAC assignments are eventually consistent: the control plane accepts the assignment instantly but data-plane services may take minutes to observe it. Pipelines that assign and use permissions in the same run should poll or retry with exponential backoff. `AuthorizationPermissionMismatch` specifically means the identity authenticated fine but lacks the required data action at that moment.",
+    "example": "az role assignment create --assignee-object-id $ID --assignee-principal-type ServicePrincipal \\\n  --role \"Storage Blob Data Contributor\" --scope $STORAGE_ID\n# Retry until propagation completes\nfor i in $(seq 1 12); do\n  az storage blob upload --auth-mode login --account-name stapp -c artifacts -f build.tgz -n build.tgz && break\n  sleep 10\ndone",
+    "diagram": "flowchart LR\nA[\"Role assignment created\"] -->|\"instant\"| CP[\"Control plane: visible in portal\"]\nA -->|\"minutes\"| DP[\"Storage data plane sees assignment\"]\nU[\"Immediate upload\"] --> DP\nDP -->|\"not yet propagated\"| E[\"403 AuthorizationPermissionMismatch\"]\nE -.->|\"retry with backoff\"| U",
+    "reference": "https://learn.microsoft.com/azure/role-based-access-control/troubleshooting",
+    "tags": [
+      "rbac",
+      "storage",
+      "troubleshooting"
+    ],
+    "options": [
+      "The identity also needs the Contributor role on the storage account",
+      "Role assignments can take several minutes to propagate to the data plane, and the identity's cached token was issued before the assignment existed",
+      "Blob uploads require a SAS token in addition to RBAC",
+      "The storage account's public network access must be enabled for RBAC to work"
+    ],
+    "optionNotes": [
+      "Contributor grants control-plane rights only; data-plane blob access needs a `Storage Blob Data *` role, which was already assigned.",
+      "RBAC changes propagate asynchronously (documented as up to several minutes), and tokens include no permissions so the storage data plane checks assignments at request time; retrying with backoff or acquiring a fresh token after a short wait resolves it.",
+      "SAS and Entra RBAC are alternative authorisation mechanisms; either is sufficient.",
+      "Network rules produce a different error (403 with `AuthorizationFailure` or a network-specific message), not a permission mismatch."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "azure-039",
+    "domain": "azure",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Bicep keyword declares a reusable module by referencing another `.bicep` file or a registry artifact, as in `___ vnet 'modules/vnet.bicep' = { ... }`?",
+    "explanation": "`module` composes Bicep files: each module is deployed as a nested deployment with its own parameters and outputs. Modules can reference local files, a private Azure Container Registry (`br:acr.azurecr.io/modules/vnet:1.0`), or the public Azure Verified Modules registry (`br/public:avm/res/network/virtual-network:0.5.0`), which is the recommended way to consume well-tested building blocks.",
+    "example": "module vnet 'br/public:avm/res/network/virtual-network:0.5.0' = {\n  name: 'vnet-deploy'\n  params: {\n    name: 'vnet-app'\n    addressPrefixes: ['10.0.0.0/16']\n    subnets: [{ name: 'snet-app', addressPrefix: '10.0.1.0/24' }]\n  }\n}\noutput vnetId string = vnet.outputs.resourceId",
+    "diagram": "flowchart LR\nM[\"main.bicep\"] -->|\"module\"| V[\"vnet module from AVM registry\"]\nM -->|\"module\"| A[\"aks module local file\"]\nV -->|\"outputs.resourceId\"| A\nM --> D[\"Nested deployments in ARM\"]",
+    "reference": "https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules",
+    "tags": [
+      "bicep",
+      "iac",
+      "modules"
+    ],
+    "answer": [
+      "module"
+    ],
+    "pattern": "^module$"
+  },
+  {
+    "id": "azure-040",
+    "domain": "azure",
+    "difficulty": "hard",
+    "type": "multi",
+    "prompt": "A Bicep deployment to a private AKS cluster environment fails intermittently with `RequestDisallowedByPolicy`, and separately the pipeline cannot reach the cluster API with `kubectl`. Which actions correctly address these two problems? (Select all that apply.)",
+    "explanation": "Two distinct failure modes are common in Azure CI/CD: governance denials and network reachability. Policy errors are resolved by reading the error's `policyAssignmentId`, fixing the resource definition, or creating a targeted exemption; they cannot be bypassed with RBAC. Private clusters require either network-adjacent agents or the `command invoke` proxy.",
+    "example": "# Which policy blocked me?\naz deployment group create -g rg-aks -f main.bicep 2>&1 | grep -o 'policyAssignmentId[^,]*'\n# Reach a private cluster from a hosted agent\naz aks command invoke -g rg-aks -n aks-prod --command \"kubectl get nodes\"",
+    "diagram": "flowchart TD\nE1[\"RequestDisallowedByPolicy\"] --> W[\"what-if + read policyAssignmentId\"]\nW --> F[\"Fix template or scoped exemption\"]\nE2[\"kubectl timeout to private API\"] --> A[\"Agent inside VNet with private DNS\"]\nE2 --> C[\"az aks command invoke\"]\nE1 -.->|\"RBAC cannot bypass\"| X[\"Owner role: no effect\"]",
+    "reference": "https://learn.microsoft.com/azure/aks/private-clusters",
+    "tags": [
+      "aks",
+      "azure-policy",
+      "azure-devops",
+      "troubleshooting"
+    ],
+    "options": [
+      "Run `az deployment group what-if` and inspect the policy evaluation to see which Azure Policy assignment denies the resource, then fix the template or request an exemption",
+      "Grant the pipeline identity the Owner role so policy no longer applies",
+      "Run the deployment step on a self-hosted agent or Managed DevOps Pool inside a VNet that can resolve and reach the private API server endpoint",
+      "Use `az aks command invoke` to run kubectl commands through the managed control plane without network line-of-sight"
+    ],
+    "optionNotes": [
+      "`RequestDisallowedByPolicy` names the policy assignment in its error detail; what-if surfaces policy-denied changes before deploying, and the fix is compliance or a scoped exemption, not bypass.",
+      "Azure Policy Deny effects apply to every principal, including Owners; RBAC cannot override policy, and over-privileging the pipeline is a security anti-pattern.",
+      "A private cluster exposes its API only on a private endpoint with a `privatelink.<region>.azmk8s.io` DNS zone, so the agent must run in (or be peered to) that VNet with DNS resolution to reach it.",
+      "`az aks command invoke` runs commands inside a pod in the cluster via the control plane, which is a supported way for hosted agents to reach private clusters without VNet connectivity."
+    ],
+    "answer": [
+      0,
+      2,
+      3
+    ]
+  }
+]

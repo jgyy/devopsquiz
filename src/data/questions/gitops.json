@@ -1393,5 +1393,175 @@
       "crd",
       "sync-options"
     ]
+  },
+  {
+    "id": "gitops-051",
+    "domain": "gitops",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `flux` CLI command installs the Flux controllers into a cluster and commits their manifests to a Git repository so that Flux manages itself?",
+    "answer": [
+      "flux bootstrap",
+      "bootstrap",
+      "flux bootstrap github",
+      "flux bootstrap git"
+    ],
+    "pattern": "^(flux\\s+)?bootstrap(\\s+\\S+)*$",
+    "explanation": "`flux bootstrap` (with a provider such as `github`, `gitlab` or generic `git`) installs the controllers, pushes the install manifests plus a `GitRepository` and `Kustomization` to the repo, and configures a deploy key. From then on Flux reconciles its own installation from Git, which is what makes upgrades GitOps-driven.",
+    "example": "flux bootstrap github \\\n  --owner=acme --repository=fleet \\\n  --branch=main --path=clusters/prod --personal=false",
+    "diagram": "flowchart LR\nA[\"flux bootstrap github\"] --> B[\"Install controllers in flux-system\"]\nA --> C[\"Commit gotk-components.yaml and gotk-sync.yaml\"]\nC --> D[\"GitRepository + Kustomization point back at repo\"]\nD --> E[\"Flux reconciles itself from Git\"]",
+    "reference": "https://fluxcd.io/flux/cmd/flux_bootstrap/",
+    "tags": [
+      "flux",
+      "install"
+    ]
+  },
+  {
+    "id": "gitops-052",
+    "domain": "gitops",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `argocd` CLI command manually triggers a sync of an Application so the live cluster is reconciled to the manifests in Git?",
+    "answer": [
+      "argocd app sync",
+      "app sync",
+      "sync"
+    ],
+    "pattern": "^(argocd\\s+)?(app\\s+)?sync(\\s+\\S+)*$",
+    "explanation": "`argocd app sync <name>` starts a sync operation immediately instead of waiting for the automated policy or the refresh interval. Flags such as `--prune`, `--dry-run` and `--resource` let you scope the operation; `argocd app wait` blocks until it reaches Healthy/Synced.",
+    "example": "argocd app sync orders --prune\nargocd app wait orders --health --timeout 300",
+    "diagram": "flowchart LR\nA[\"argocd app sync orders\"] --> B[\"Application controller starts operation\"]\nB --> C[\"kubectl apply of rendered manifests\"]\nC --> D[\"Status: Synced\"]\nE[\"argocd app wait\"] -.-> D",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_sync/",
+    "tags": [
+      "argo-cd",
+      "cli"
+    ]
+  },
+  {
+    "id": "gitops-053",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Argo CD resource kind groups Applications and restricts which source repositories, destination clusters/namespaces and resource kinds they may use?",
+    "answer": [
+      "AppProject",
+      "appproject",
+      "app project",
+      "project"
+    ],
+    "pattern": "^(app\\s?project|project)$",
+    "explanation": "An `AppProject` is Argo CD's multi-tenancy boundary: `sourceRepos`, `destinations`, `clusterResourceWhitelist` and `namespaceResourceBlacklist` fence what its Applications can deploy. Every Application must reference a project via `spec.project`; the built-in `default` project allows everything, so production setups define stricter ones per team.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata:\n  name: team-a\n  namespace: argocd\nspec:\n  sourceRepos: [\"https://github.com/acme/team-a-*\"]\n  destinations:\n    - namespace: team-a-*\n      server: https://kubernetes.default.svc\n  clusterResourceWhitelist: []",
+    "diagram": "flowchart LR\nA[\"AppProject team-a\"] -->|\"sourceRepos\"| B[\"Allowed Git repos\"]\nA -->|\"destinations\"| C[\"Allowed clusters and namespaces\"]\nA -->|\"clusterResourceWhitelist\"| D[\"Allowed cluster-scoped kinds\"]\nE[\"Application spec.project: team-a\"] --> A",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/projects/",
+    "tags": [
+      "argo-cd",
+      "multi-tenancy"
+    ]
+  },
+  {
+    "id": "gitops-054",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `flux` CLI subcommand forces an immediate reconciliation of a source or Kustomization (for example `flux ______ kustomization apps --with-source`) instead of waiting for the next interval?",
+    "answer": [
+      "reconcile",
+      "flux reconcile"
+    ],
+    "pattern": "^(flux\\s+)?reconcile(\\s+\\S+)*$",
+    "explanation": "`flux reconcile` annotates the object with `reconcile.fluxcd.io/requestedAt`, which the controller treats as a trigger to run now. `--with-source` first refreshes the upstream `GitRepository`/`OCIRepository` so a freshly pushed commit is picked up before the Kustomization or HelmRelease is applied.",
+    "example": "flux reconcile source git flux-system\nflux reconcile kustomization apps --with-source\nflux reconcile helmrelease podinfo -n apps",
+    "diagram": "flowchart LR\nA[\"flux reconcile kustomization apps --with-source\"] --> B[\"Annotate GitRepository requestedAt\"]\nB --> C[\"source-controller fetches latest commit\"]\nC --> D[\"kustomize-controller applies manifests\"]",
+    "reference": "https://fluxcd.io/flux/cmd/flux_reconcile/",
+    "tags": [
+      "flux",
+      "cli"
+    ]
+  },
+  {
+    "id": "gitops-055",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "An Argo Rollouts canary is paused at a `pause: {}` step waiting for a human. Which `kubectl argo rollouts` subcommand advances it to the next step?",
+    "answer": [
+      "promote",
+      "kubectl argo rollouts promote",
+      "argo rollouts promote",
+      "rollouts promote"
+    ],
+    "pattern": "^((kubectl\\s+)?argo\\s+rollouts\\s+)?promote(\\s+\\S+)*$",
+    "explanation": "`kubectl argo rollouts promote <rollout>` resumes a paused rollout and moves to the next step; `--full` skips every remaining step and shifts 100% to the new ReplicaSet. `abort` is the opposite, returning traffic to the stable version. Indefinite pauses are how you gate promotion on manual verification.",
+    "example": "kubectl argo rollouts get rollout checkout --watch\nkubectl argo rollouts promote checkout\nkubectl argo rollouts promote checkout --full   # skip remaining steps",
+    "diagram": "flowchart LR\nA[\"setWeight: 20\"] --> B[\"pause: {}\"]\nB -->|\"kubectl argo rollouts promote\"| C[\"setWeight: 60\"]\nB -->|\"abort\"| D[\"Back to stable\"]\nC --> E[\"Fully promoted\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/generated/kubectl-argo-rollouts/kubectl-argo-rollouts_promote/",
+    "tags": [
+      "argo-rollouts",
+      "canary"
+    ]
+  },
+  {
+    "id": "gitops-056",
+    "domain": "gitops",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a Flux `Kustomization`, `spec.decryption.provider` tells the kustomize-controller how to decrypt secrets committed to Git. What is the only supported value for that field today?",
+    "answer": [
+      "sops",
+      "SOPS"
+    ],
+    "pattern": "^sops$",
+    "explanation": "Flux integrates natively with Mozilla SOPS: setting `decryption.provider: sops` and pointing `secretRef` at a Secret holding age or GPG keys lets the controller decrypt `sops`-encrypted YAML at apply time. Values stay encrypted in Git, and only the cluster holds the private key. Cloud KMS keys work too via workload identity.",
+    "example": "apiVersion: kustomize.toolkit.fluxcd.io/v1\nkind: Kustomization\nmetadata:\n  name: apps\nspec:\n  path: ./apps\n  sourceRef: {kind: GitRepository, name: flux-system}\n  decryption:\n    provider: sops\n    secretRef:\n      name: sops-age",
+    "diagram": "flowchart LR\nA[\"Secret encrypted with sops + age\"] --> B[\"Committed to Git\"]\nB --> C[\"kustomize-controller reads decryption.provider: sops\"]\nC --> D[\"Decrypts with key from sops-age Secret\"]\nD --> E[\"Plain Secret applied to cluster\"]",
+    "reference": "https://fluxcd.io/flux/guides/mozilla-sops/",
+    "tags": [
+      "flux",
+      "secrets",
+      "sops"
+    ]
+  },
+  {
+    "id": "gitops-057",
+    "domain": "gitops",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Argo CD manages a namespace that other tools also populate, so you want one specific resource never to be deleted during a sync even with prune enabled. Which value do you put in the `argocd.argoproj.io/sync-options` annotation on that resource?",
+    "answer": [
+      "Prune=false",
+      "prune=false",
+      "argocd.argoproj.io/sync-options: Prune=false"
+    ],
+    "pattern": "^(argocd\\.argoproj\\.io\\/sync-options:\\s*)?prune=false$",
+    "explanation": "Per-resource sync options override the Application-level policy. `Prune=false` tells Argo CD to leave the object alone when it disappears from Git; the app will still show it as `OutOfSync` (requires pruning) unless you also add `PruneLast` or `ignoreDifferences`. Other values in the same annotation include `Delete=false`, `Replace=true` and `SkipDryRunOnMissingResource=true`.",
+    "example": "metadata:\n  annotations:\n    argocd.argoproj.io/sync-options: Prune=false\n# multiple options are comma separated:\n#   argocd.argoproj.io/sync-options: Prune=false,Delete=false",
+    "diagram": "flowchart LR\nA[\"Resource removed from Git\"] --> B[\"Sync with prune enabled\"]\nB -->|\"annotation Prune=false\"| C[\"Resource kept, marked OutOfSync\"]\nB -->|\"no annotation\"| D[\"Resource deleted\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#no-prune-resources",
+    "tags": [
+      "argo-cd",
+      "sync-options"
+    ]
+  },
+  {
+    "id": "gitops-058",
+    "domain": "gitops",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Give the exact finalizer string you add to an Argo CD `Application` so that deleting the Application also cascades and deletes all the Kubernetes resources it manages.",
+    "answer": [
+      "resources-finalizer.argocd.argoproj.io",
+      "resources-finalizer.argocd.argoproj.io/foreground",
+      "resources-finalizer"
+    ],
+    "pattern": "^resources-finalizer(\\.argocd\\.argoproj\\.io(\\/foreground|\\/background)?)?$",
+    "explanation": "Without the finalizer, deleting an Application only removes the Argo CD record and orphans the deployed objects. `resources-finalizer.argocd.argoproj.io` makes the controller delete the managed resources first (foreground by default; a `/background` suffix delegates to Kubernetes garbage collection). `argocd app delete --cascade` adds the same finalizer on the fly.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: orders\n  namespace: argocd\n  finalizers:\n    - resources-finalizer.argocd.argoproj.io\nspec: {}",
+    "diagram": "flowchart LR\nA[\"kubectl delete application orders\"] --> B{\"finalizer present?\"}\nB -->|\"yes\"| C[\"Controller deletes managed resources\"]\nC --> D[\"Finalizer removed, Application gone\"]\nB -->|\"no\"| E[\"Application removed, resources orphaned\"]",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/app_deletion/",
+    "tags": [
+      "argo-cd",
+      "deletion"
+    ]
   }
 ]

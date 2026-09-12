@@ -1244,5 +1244,173 @@
       "github",
       "performance"
     ]
+  },
+  {
+    "id": "backstage-047",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which file at the root of a Backstage app holds the main configuration such as `app.baseUrl`, `backend.database` and `catalog.locations`?",
+    "explanation": "`app-config.yaml` is the primary configuration file read by both the frontend and backend. Backstage layers additional files such as `app-config.local.yaml` (git-ignored, for developer overrides) and `app-config.production.yaml` on top of it, and `${ENV_VAR}` substitution keeps secrets out of the checked-in file.",
+    "example": "# app-config.yaml\napp:\n  baseUrl: http://localhost:3000\nbackend:\n  baseUrl: http://localhost:7007\n  database:\n    client: pg\n    connection: ${POSTGRES_URL}",
+    "diagram": "flowchart LR\n  A[\"app-config.yaml\"] --> M[\"merged config\"]\n  L[\"app-config.local.yaml\"] --> M\n  P[\"app-config.production.yaml\"] --> M\n  M --> B[\"backend + frontend\"]",
+    "answer": [
+      "app-config.yaml",
+      "app-config.yml",
+      "app-config"
+    ],
+    "pattern": "^app-config(\\.ya?ml)?$",
+    "reference": "https://backstage.io/docs/conf/",
+    "tags": [
+      "configuration",
+      "app-config"
+    ]
+  },
+  {
+    "id": "backstage-048",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "On which TCP port does the Backstage backend listen by default when you run `yarn start` locally?",
+    "explanation": "The backend's default `backend.listen.port` is 7007 while the frontend dev server runs on 3000; the frontend proxies `/api/*` calls to 7007. Knowing the split matters when debugging CORS errors, because `backend.cors.origin` must match the frontend origin and `backend.baseUrl` must point at the port the backend actually serves.",
+    "example": "curl http://localhost:7007/api/catalog/entities?filter=kind=component | jq length",
+    "diagram": "flowchart LR\n  B[\"Browser\"] -->|\"3000\"| F[\"Frontend dev server\"]\n  F -->|\"/api proxy\"| K[\"Backend :7007\"]\n  K --> D[\"PostgreSQL\"]",
+    "answer": [
+      "7007",
+      ":7007",
+      "port 7007"
+    ],
+    "pattern": "^(port\\s*)?:?7007$",
+    "reference": "https://backstage.io/docs/conf/defining/#backend",
+    "tags": [
+      "backend",
+      "ports",
+      "local-dev"
+    ]
+  },
+  {
+    "id": "backstage-049",
+    "domain": "backstage",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which catalog entity `kind` represents a deployable unit such as a website, service or library owned by a team?",
+    "explanation": "`Component` is the workhorse kind of the Software Catalog; its `spec.type` (service, website, library) and `spec.lifecycle` classify it and `spec.owner` links it to a Group or User. Other kinds such as API, Resource, System and Domain model what a Component provides, depends on and belongs to.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments-api\nspec:\n  type: service\n  lifecycle: production\n  owner: group:default/payments",
+    "diagram": "flowchart TD\n  D[\"Domain\"] --> S[\"System\"]\n  S --> C[\"Component\"]\n  C -->|\"providesApis\"| A[\"API\"]\n  C -->|\"dependsOn\"| R[\"Resource\"]",
+    "answer": [
+      "Component",
+      "kind: Component",
+      "components"
+    ],
+    "pattern": "^(kind:\\s*)?components?$",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format#kind-component",
+    "tags": [
+      "catalog",
+      "entity-kinds"
+    ]
+  },
+  {
+    "id": "backstage-050",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which catalog entity `kind` describes an infrastructure dependency such as a database, S3 bucket or message queue that Components can declare via `spec.dependsOn`?",
+    "explanation": "`Resource` models infrastructure that software depends on but that is not itself code. Declaring `dependsOn: [resource:default/orders-db]` on a Component builds the dependency graph shown in the entity page and lets tooling answer blast-radius questions such as which services are affected if a database is migrated.",
+    "example": "apiVersion: backstage.io/v1alpha1\nkind: Resource\nmetadata:\n  name: orders-db\nspec:\n  type: database\n  owner: group:default/orders\n  system: ordering",
+    "diagram": "flowchart LR\n  C[\"Component orders-api\"] -->|\"dependsOn\"| R[\"Resource orders-db\"]\n  R -->|\"ownedBy\"| G[\"Group orders\"]",
+    "answer": [
+      "Resource",
+      "kind: Resource",
+      "resources"
+    ],
+    "pattern": "^(kind:\\s*)?resources?$",
+    "reference": "https://backstage.io/docs/features/software-catalog/descriptor-format#kind-resource",
+    "tags": [
+      "catalog",
+      "entity-kinds"
+    ]
+  },
+  {
+    "id": "backstage-051",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Scaffolder built-in `action` id fetches a skeleton directory and renders its files through the Nunjucks templating engine with the user's parameter values?",
+    "explanation": "`fetch:template` copies a directory from the template repo or a URL, substituting `${{ values.name }}` expressions in file contents and paths. It differs from `fetch:plain`, which copies files verbatim, so binary or already-templated files that must not be rendered should use `fetch:plain` or the `copyWithoutTemplating` option.",
+    "example": "steps:\n  - id: fetch\n    name: Fetch skeleton\n    action: fetch:template\n    input:\n      url: ./skeleton\n      values:\n        name: ${{ parameters.name }}\n        owner: ${{ parameters.owner }}",
+    "diagram": "flowchart LR\n  P[\"parameters\"] --> T[\"fetch:template\"]\n  S[\"skeleton dir\"] --> T\n  T -->|\"Nunjucks render\"| W[\"workspace files\"]\n  W --> G[\"publish:github\"]",
+    "answer": [
+      "fetch:template",
+      "fetch template"
+    ],
+    "pattern": "^fetch[:\\s]template$",
+    "reference": "https://backstage.io/docs/features/software-templates/builtin-actions",
+    "tags": [
+      "scaffolder",
+      "actions"
+    ]
+  },
+  {
+    "id": "backstage-052",
+    "domain": "backstage",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which CLI subcommand of `backstage-cli` (after `backstage-cli repo`) does the standard Backstage app run via `yarn` to type-check and produce the production bundle of every package in the monorepo?",
+    "explanation": "`backstage-cli repo build` builds all packages and, with `--all`, also the app and backend bundles; the standard `yarn build:backend` and Dockerfile invoke it. It runs each package's build in dependency order using the workspace graph, which is why a broken shared plugin fails the whole build rather than only the package that imports it.",
+    "example": "yarn tsc\nyarn backstage-cli repo build --all\nyarn build-image  # docker build -f packages/backend/Dockerfile",
+    "diagram": "flowchart LR\n  S[\"source packages\"] --> T[\"yarn tsc\"]\n  T --> B[\"backstage-cli repo build --all\"]\n  B --> D[\"dist bundles\"]\n  D --> I[\"Docker image\"]",
+    "answer": [
+      "build",
+      "repo build",
+      "backstage-cli repo build"
+    ],
+    "pattern": "^(backstage-cli\\s+)?(repo\\s+)?build(\\s+--all)?$",
+    "reference": "https://backstage.io/docs/tooling/cli/commands#repo-build",
+    "tags": [
+      "cli",
+      "build"
+    ]
+  },
+  {
+    "id": "backstage-053",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which environment variable, when set, makes the Backstage backend load `app-config.<name>.yaml` files automatically. For example setting it to `production` adds `app-config.production.yaml` to the merged configuration. Give the variable name.",
+    "explanation": "Setting `APP_CONFIG_ENV` (for example to `production`) tells the config loader to include `app-config.production.yaml` after `app-config.yaml`. Alternatively you can pass `--config` flags explicitly. This lets a single image ship multiple config files while the deployment selects which override applies. Note that `NODE_ENV=production` affects only the bundler and logger, not config file selection.",
+    "example": "# container\nENV NODE_ENV=production\n# choose config overlay\ndocker run -e APP_CONFIG_ENV=production -e POSTGRES_URL=... backstage:latest\n# equivalent explicit form\nnode packages/backend --config app-config.yaml --config app-config.production.yaml",
+    "diagram": "flowchart LR\n  E[\"APP_CONFIG_ENV=production\"] --> L[\"config loader\"]\n  A[\"app-config.yaml\"] --> L\n  P[\"app-config.production.yaml\"] --> L\n  L --> C[\"effective config\"]",
+    "answer": [
+      "APP_CONFIG_ENV",
+      "$APP_CONFIG_ENV"
+    ],
+    "pattern": "^\\$?app_config_env$",
+    "reference": "https://backstage.io/docs/conf/writing/#configuration-files",
+    "tags": [
+      "configuration",
+      "deployment",
+      "env-vars"
+    ]
+  },
+  {
+    "id": "backstage-054",
+    "domain": "backstage",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `metadata.annotations` key tells the Backstage GitHub Actions plugin (and other SCM-aware plugins) which repository an entity's source lives in, with a value like `github.com/acme/payments-api`?",
+    "explanation": "`github.com/project-slug` is the well-known annotation that the GitHub Actions, Pull Requests and Insights plugins read to locate the repo. It is normally added automatically by the `catalog:write` action or the GitHub entity provider, and `backstage.io/source-location` complements it with a full URL for non-GitHub SCMs.",
+    "example": "metadata:\n  name: payments-api\n  annotations:\n    github.com/project-slug: acme/payments-api\n    backstage.io/source-location: url:https://github.com/acme/payments-api/tree/main/",
+    "diagram": "flowchart LR\n  E[\"Entity annotations\"] -->|\"github.com/project-slug\"| P[\"GitHub Actions plugin\"]\n  P --> API[\"GitHub REST API\"]\n  API --> W[\"Workflow runs tab\"]",
+    "answer": [
+      "github.com/project-slug",
+      "project-slug"
+    ],
+    "pattern": "^(github\\.com/)?project-slug$",
+    "reference": "https://backstage.io/docs/features/software-catalog/well-known-annotations#githubcomproject-slug",
+    "tags": [
+      "catalog",
+      "annotations",
+      "github"
+    ]
   }
 ]

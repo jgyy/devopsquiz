@@ -2221,5 +2221,171 @@
       "ports",
       "troubleshooting"
     ]
+  },
+  {
+    "id": "docker-084",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Dockerfile instruction sets the working directory for the `RUN`, `CMD`, `ENTRYPOINT`, `COPY` and `ADD` instructions that follow it?",
+    "explanation": "`WORKDIR` creates the directory if needed and makes later relative paths resolve against it, avoiding fragile `cd` chains inside `RUN`. Using an absolute `WORKDIR` such as `/app` is recommended over relying on the base image's default of `/`.",
+    "example": "FROM node:22-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY . .\nCMD [\"node\", \"server.js\"]",
+    "diagram": "flowchart LR\n  W[\"WORKDIR /app\"] --> C[\"COPY . . lands in /app\"]\n  W --> R[\"RUN npm ci runs in /app\"]\n  W --> M[\"CMD starts in /app\"]",
+    "answer": [
+      "WORKDIR",
+      "workdir"
+    ],
+    "pattern": "^workdir$",
+    "reference": "https://docs.docker.com/reference/dockerfile/#workdir",
+    "tags": [
+      "dockerfile"
+    ]
+  },
+  {
+    "id": "docker-085",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `docker` subcommand creates a new tag such as `registry.example.com/app:1.4` that points at an existing local image, without copying any layers?",
+    "explanation": "`docker tag SOURCE TARGET` just adds another name to the same image ID, so retagging is instant and free. It is the required step before `docker push` to a private registry, because the registry hostname is part of the image name.",
+    "example": "docker tag app:1.4 registry.example.com/team/app:1.4\ndocker push registry.example.com/team/app:1.4",
+    "diagram": "flowchart LR\n  I[\"image sha256:abc\"] --> T1[\"app:1.4\"]\n  I --> T2[\"registry.example.com/team/app:1.4\"]\n  T2 --> P[\"docker push\"]",
+    "answer": [
+      "tag",
+      "docker tag",
+      "docker image tag",
+      "image tag"
+    ],
+    "pattern": "^(docker\\s+)?(image\\s+)?tag$",
+    "reference": "https://docs.docker.com/reference/cli/docker/image/tag/",
+    "tags": [
+      "images",
+      "registry"
+    ]
+  },
+  {
+    "id": "docker-086",
+    "domain": "docker",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `docker run` flag (name only) automatically removes the container's filesystem when the container exits, keeping one-off runs from leaving stopped containers behind?",
+    "explanation": "`--rm` deletes the container (and its anonymous volumes) on exit, which is ideal for CLI tools and test runs. It cannot be combined with restart policies, because a restarting container must persist between runs.",
+    "example": "docker run --rm -it -v \"$PWD\":/work -w /work golang:1.24 go test ./...",
+    "diagram": "flowchart LR\n  R[\"docker run --rm\"] --> P[\"process runs\"]\n  P --> E[\"exit\"]\n  E --> D[\"container removed automatically\"]",
+    "answer": [
+      "--rm",
+      "rm"
+    ],
+    "pattern": "^(--)?rm$",
+    "reference": "https://docs.docker.com/reference/cli/docker/container/run/#rm",
+    "tags": [
+      "cli",
+      "containers"
+    ]
+  },
+  {
+    "id": "docker-087",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Compose CLI subcommand (after `docker compose`) prints the fully resolved configuration after merging override files, profiles and variable interpolation, useful for debugging what will actually run?",
+    "explanation": "`docker compose config` validates and outputs the canonical merged file, expanding `${VAR}` values and applying every `-f` override, so you can see the exact ports, environment and volumes a service will get. Adding `--services` or `--images` lists just those components.",
+    "example": "docker compose -f compose.yaml -f compose.prod.yaml --profile debug config\ndocker compose config --images",
+    "diagram": "flowchart LR\n  A[\"compose.yaml\"] --> C[\"docker compose config\"]\n  O[\"compose.override.yaml\"] --> C\n  E[\".env interpolation\"] --> C\n  C --> R[\"resolved YAML\"]",
+    "answer": [
+      "config",
+      "docker compose config",
+      "compose config"
+    ],
+    "pattern": "^((docker\\s+)?compose\\s+)?config$",
+    "reference": "https://docs.docker.com/reference/cli/docker/compose/config/",
+    "tags": [
+      "compose",
+      "debugging"
+    ]
+  },
+  {
+    "id": "docker-088",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `docker` subcommand shows the layers of an image together with the Dockerfile instruction and size that produced each layer?",
+    "explanation": "`docker history IMAGE` lists every layer newest-first with its creating command and size, which is the quickest way to spot a bloated `RUN` step or a secret baked into a layer. Use `--no-trunc` to see full commands and `--format` for scripting.",
+    "example": "docker history --no-trunc --format '{{.Size}}\\t{{.CreatedBy}}' myapp:1.4 | head",
+    "diagram": "flowchart TD\n  H[\"docker history myapp\"] --> L1[\"CMD  0B\"]\n  H --> L2[\"COPY . .  12MB\"]\n  H --> L3[\"RUN npm ci  180MB\"]\n  H --> L4[\"FROM node  120MB\"]",
+    "answer": [
+      "history",
+      "docker history",
+      "docker image history",
+      "image history"
+    ],
+    "pattern": "^(docker\\s+)?(image\\s+)?history$",
+    "reference": "https://docs.docker.com/reference/cli/docker/image/history/",
+    "tags": [
+      "images",
+      "layers",
+      "debugging"
+    ]
+  },
+  {
+    "id": "docker-089",
+    "domain": "docker",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `docker buildx build` flag (name only) tells the builder to stop at a named stage of a multi-stage Dockerfile, for example to build only the `test` stage in CI?",
+    "explanation": "`--target STAGE` builds up to and including the stage named with `FROM ... AS STAGE`, skipping later stages. It lets one Dockerfile serve dev, test and production images, and BuildKit only executes stages the target depends on.",
+    "example": "docker build --target test -t app:test .\ndocker build --target runtime -t app:1.4 .",
+    "diagram": "flowchart LR\n  B[\"FROM node AS build\"] --> T[\"FROM build AS test\"]\n  B --> R[\"FROM alpine AS runtime\"]\n  X[\"--target test\"] --> T",
+    "answer": [
+      "--target",
+      "target"
+    ],
+    "pattern": "^(--)?target$",
+    "reference": "https://docs.docker.com/reference/cli/docker/buildx/build/#target",
+    "tags": [
+      "buildkit",
+      "multi-stage"
+    ]
+  },
+  {
+    "id": "docker-090",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `docker run` flag (name only) mounts a Docker Compose-style secret or arbitrary file, using the syntax `type=bind,src=...,dst=...,readonly`? Give the flag that accepts these `type=` key-value mount specifications.",
+    "explanation": "`--mount` is the explicit, typed alternative to `-v`; it supports `type=bind`, `volume`, `tmpfs` and options like `readonly`, `bind-propagation` and volume driver options, and it errors on a missing host path instead of silently creating a directory. The Docker docs recommend it for new work because the syntax is unambiguous.",
+    "example": "docker run --rm \\\n  --mount type=bind,src=/etc/app/config.yaml,dst=/config.yaml,readonly \\\n  --mount type=volume,src=appdata,dst=/data \\\n  myapp:1.4",
+    "diagram": "flowchart LR\n  M[\"--mount type=bind,src=/etc/app,dst=/config,readonly\"] --> C[\"container /config\"]\n  V[\"--mount type=volume,src=appdata,dst=/data\"] --> D[\"container /data\"]",
+    "answer": [
+      "--mount",
+      "mount"
+    ],
+    "pattern": "^(--)?mount$",
+    "reference": "https://docs.docker.com/engine/storage/bind-mounts/",
+    "tags": [
+      "storage",
+      "mounts"
+    ]
+  },
+  {
+    "id": "docker-091",
+    "domain": "docker",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `docker run` flag (name only) applies a Linux seccomp profile or, with the value `unconfined`, disables the default syscall filter for a container?",
+    "explanation": "`--security-opt seccomp=profile.json` loads a custom seccomp profile and `--security-opt seccomp=unconfined` removes Docker's default filter, which blocks around 40 dangerous syscalls. The same flag sets AppArmor (`apparmor=`), SELinux labels and `no-new-privileges`, so it is the central knob for container hardening.",
+    "example": "docker run --rm --security-opt no-new-privileges --security-opt seccomp=/etc/docker/strict.json myapp\n# debugging only, never in prod:\ndocker run --rm --security-opt seccomp=unconfined strace-image",
+    "diagram": "flowchart LR\n  S[\"--security-opt seccomp=profile.json\"] --> K[\"kernel seccomp BPF filter\"]\n  K -->|\"allowed syscall\"| A[\"proceeds\"]\n  K -->|\"blocked syscall\"| E[\"EPERM\"]",
+    "answer": [
+      "--security-opt",
+      "security-opt",
+      "security opt"
+    ],
+    "pattern": "^(--)?security[\\s-]opt$",
+    "reference": "https://docs.docker.com/engine/security/seccomp/",
+    "tags": [
+      "security",
+      "seccomp"
+    ]
   }
 ]

@@ -2505,5 +2505,186 @@
       "load-balancer"
     ],
     "domain": "security"
+  },
+  {
+    "id": "security-096",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Trivy subcommand (command and subcommand, no flags) scans a container image for known vulnerabilities and misconfigurations?",
+    "answer": [
+      "trivy image",
+      "image",
+      "trivy i",
+      "i"
+    ],
+    "pattern": "^(trivy\\s+)?(image|i)$",
+    "explanation": "`trivy image <ref>` pulls or reads the image, identifies OS packages and language dependencies (npm, pip, Go modules and so on), and reports CVEs from its vulnerability database, optionally with secrets and misconfiguration checks. Other subcommands cover different targets: `trivy fs` for a directory, `trivy config` for IaC, `trivy k8s` for a live cluster, and `trivy sbom` to scan an existing SBOM.",
+    "example": "trivy image --severity HIGH,CRITICAL --ignore-unfixed ghcr.io/acme/orders:1.4.2\ntrivy image --exit-code 1 --severity CRITICAL ghcr.io/acme/orders:1.4.2  # fail CI\ntrivy image --format cyclonedx --output sbom.json ghcr.io/acme/orders:1.4.2",
+    "diagram": "flowchart LR\n  I[\"container image\"] --> T[\"trivy image\"]\n  T --> OS[\"OS packages\"]\n  T --> L[\"language deps\"]\n  OS --> DB[\"vuln DB match\"]\n  L --> DB\n  DB --> R[\"report or CI exit code\"]",
+    "reference": "https://trivy.dev/latest/docs/target/container_image/",
+    "tags": [
+      "trivy",
+      "image-scanning",
+      "supply-chain"
+    ]
+  },
+  {
+    "id": "security-097",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a container `securityContext`, which single value should be listed under `capabilities.drop` to remove every Linux capability, as required by the `restricted` Pod Security Standard?",
+    "answer": [
+      "all",
+      "ALL",
+      "\"all\"",
+      "- all",
+      "drop: [all]",
+      "capabilities.drop: [\"all\"]"
+    ],
+    "pattern": "^(-\\s*)?(capabilities\\.)?(drop:\\s*)?\\[?\\\"?all\\\"?\\]?$",
+    "explanation": "`capabilities.drop: [\"ALL\"]` strips the default capability set (CHOWN, NET_RAW, SETUID and about a dozen more) that container runtimes grant even to non-root processes. The `restricted` profile requires it and only allows `NET_BIND_SERVICE` to be added back. Dropping everything means a compromised process cannot sniff traffic, change file ownership or escalate via setuid tricks.",
+    "example": "securityContext:\n  runAsNonRoot: true\n  allowPrivilegeEscalation: false\n  capabilities:\n    drop: [\"ALL\"]\n    add: [\"NET_BIND_SERVICE\"]   # only if you must bind port 80/443\n  seccompProfile:\n    type: RuntimeDefault",
+    "diagram": "flowchart LR\n  D[\"runtime default caps\"] -->|\"drop ALL\"| Z[\"no capabilities\"]\n  Z -->|\"add NET_BIND_SERVICE\"| M[\"minimal set\"]\n  M --> P[\"passes restricted PSS\"]",
+    "reference": "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+    "tags": [
+      "kubernetes",
+      "securitycontext",
+      "pod-security"
+    ]
+  },
+  {
+    "id": "security-098",
+    "domain": "security",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Name the CNCF graduated runtime security tool that watches Linux system calls via a kernel driver or eBPF and raises alerts when a container does something suspicious, such as spawning a shell.",
+    "answer": [
+      "falco",
+      "falco security",
+      "falcosecurity"
+    ],
+    "pattern": "^falco(\\s*security)?$",
+    "explanation": "Falco consumes the kernel syscall stream (eBPF probe or kernel module) plus Kubernetes audit events and evaluates them against rules like 'Terminal shell in container' or 'Write below /etc'. It is detection, not prevention: alerts go to stdout, Falcosidekick, Slack or a SIEM, and a response engine (or a human) decides what to do. It complements admission-time controls such as Kyverno, which cannot see runtime behaviour.",
+    "example": "# alert example\n14:02:11.455 Notice A shell was spawned in a container with an attached terminal\n  (user=root container=orders-7d9f shell=bash parent=runc cmdline=bash)\n\nhelm install falco falcosecurity/falco -n falco --create-namespace \\\n  --set driver.kind=modern_ebpf",
+    "diagram": "flowchart LR\n  K[\"kernel syscalls via eBPF\"] --> F[\"Falco rules engine\"]\n  A[\"Kubernetes audit log\"] --> F\n  F -->|\"match\"| AL[\"alert\"]\n  AL --> S[\"Slack or SIEM\"]",
+    "reference": "https://falco.org/docs/",
+    "tags": [
+      "falco",
+      "runtime-security",
+      "cncf"
+    ]
+  },
+  {
+    "id": "security-099",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "What is the Kubernetes Secret `type` value used for storing a TLS certificate and private key under the `tls.crt` and `tls.key` keys?",
+    "answer": [
+      "kubernetes.io/tls",
+      "tls",
+      "type: kubernetes.io/tls"
+    ],
+    "pattern": "^(type:\\s*)?(kubernetes\\.io/)?tls$",
+    "explanation": "Secrets of type `kubernetes.io/tls` must carry `tls.crt` and `tls.key`; the API server validates the keys exist and Ingress controllers, Gateway API listeners and cert-manager all expect this shape. `kubectl create secret tls` builds one from PEM files, and cert-manager's `Certificate` resource writes issued certificates into a Secret of this type so rotation is transparent to the consumer.",
+    "example": "kubectl create secret tls shop-tls -n shop --cert=fullchain.pem --key=privkey.pem\n\napiVersion: v1\nkind: Secret\nmetadata: {name: shop-tls, namespace: shop}\ntype: kubernetes.io/tls\ndata:\n  tls.crt: LS0tLS1CRUdJTi...\n  tls.key: LS0tLS1CRUdJTi...",
+    "diagram": "flowchart LR\n  CM[\"cert-manager Certificate\"] --> S[\"Secret type kubernetes.io/tls\"]\n  S --> I[\"Ingress tls.secretName\"]\n  S --> G[\"Gateway listener certificateRefs\"]\n  I --> C[\"HTTPS to clients\"]",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets",
+    "tags": [
+      "kubernetes",
+      "secrets",
+      "tls"
+    ]
+  },
+  {
+    "id": "security-100",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which HashiCorp Vault CLI command (command and subcommands, no path) reads a secret from a KV secrets engine, e.g. from `secret/app/db`?",
+    "answer": [
+      "vault kv get",
+      "kv get",
+      "vault read"
+    ],
+    "pattern": "^(vault\\s+)?(kv\\s+get|read)$",
+    "explanation": "`vault kv get secret/app/db` reads the latest version from a KV v2 engine and handles the `data/` path prefix and version metadata for you; `-version=N` fetches an older revision and `-field=password` prints one value for scripts. The lower-level `vault read` works too but for KV v2 you must spell out `secret/data/app/db` yourself, which is why `kv` subcommands are the recommended interface.",
+    "example": "vault kv put secret/app/db username=app password='s3cr3t'\nvault kv get secret/app/db\nvault kv get -field=password secret/app/db\nvault kv get -version=2 -format=json secret/app/db",
+    "diagram": "flowchart LR\n  C[\"vault kv get secret/app/db\"] --> T[\"token policy check\"]\n  T -->|\"read allowed\"| E[\"KV v2 engine secret/data/app/db\"]\n  E --> V[\"latest version data\"]",
+    "reference": "https://developer.hashicorp.com/vault/docs/commands/kv/get",
+    "tags": [
+      "vault",
+      "secrets-management",
+      "cli"
+    ]
+  },
+  {
+    "id": "security-101",
+    "domain": "security",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which HTTP response header lets a site declare which origins may supply scripts, styles, images and other resources, mitigating cross-site scripting?",
+    "answer": [
+      "content-security-policy",
+      "csp",
+      "content-security-policy header",
+      "content security policy"
+    ],
+    "pattern": "^(content[- ]security[- ]policy(\\s+header)?|csp)$",
+    "explanation": "`Content-Security-Policy` (CSP) gives the browser an allow-list per resource type (`script-src`, `img-src`, `connect-src`, `frame-ancestors` and so on). Even if an attacker injects markup, inline or third-party scripts that are not allowed by the policy will not execute. Roll out with `Content-Security-Policy-Report-Only` plus a `report-to` endpoint first so legitimate resources are not broken.",
+    "example": "Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-r4nd0m'; img-src 'self' https://cdn.example.com; object-src 'none'; frame-ancestors 'none'\n\n# nginx\nadd_header Content-Security-Policy \"default-src 'self'\" always;",
+    "diagram": "flowchart LR\n  S[\"server response with CSP\"] --> B[\"browser\"]\n  B --> A{\"script src allowed?\"}\n  A -->|\"yes\"| R[\"execute\"]\n  A -->|\"no\"| X[\"block and report\"]",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP",
+    "tags": [
+      "http-headers",
+      "xss",
+      "web-security"
+    ]
+  },
+  {
+    "id": "security-102",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which boolean field in a container `securityContext` must be set to `false` to stop a process from gaining more privileges than its parent, for example through setuid binaries or file capabilities?",
+    "answer": [
+      "allowprivilegeescalation",
+      "allowprivilegeescalation: false",
+      "securitycontext.allowprivilegeescalation"
+    ],
+    "pattern": "^(securitycontext\\.)?allowprivilegeescalation(:\\s*false)?$",
+    "explanation": "`allowPrivilegeEscalation: false` sets the `no_new_privs` flag on the process, so `execve` of a setuid or capability-bearing binary cannot raise its effective privileges. It defaults to true unless the container is already non-privileged with all capabilities dropped, and the `restricted` Pod Security Standard requires it to be explicitly false. Together with `runAsNonRoot` and `capabilities.drop: [ALL]` it closes the classic in-container escalation routes.",
+    "example": "containers:\n  - name: app\n    securityContext:\n      allowPrivilegeEscalation: false\n      runAsNonRoot: true\n      capabilities: {drop: [\"ALL\"]}\n\n# verify inside a pod\ngrep NoNewPrivs /proc/1/status   # NoNewPrivs: 1",
+    "diagram": "flowchart LR\n  P[\"process uid 1000\"] -->|\"execve setuid binary\"| K{\"no_new_privs set?\"}\n  K -->|\"yes\"| N[\"stays uid 1000\"]\n  K -->|\"no\"| R[\"becomes root\"]",
+    "reference": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container",
+    "tags": [
+      "kubernetes",
+      "securitycontext",
+      "privilege-escalation"
+    ]
+  },
+  {
+    "id": "security-103",
+    "domain": "security",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which RBAC verb must a Role grant on the `pods/exec` subresource for a user to run `kubectl exec` into a Pod?",
+    "answer": [
+      "create",
+      "verbs: [create]",
+      "create on pods/exec"
+    ],
+    "pattern": "^(verbs:\\s*\\[?)?create(\\]|\\s+on\\s+pods/exec)?$",
+    "explanation": "`kubectl exec` opens a streaming session by POSTing to `/api/v1/namespaces/<ns>/pods/<pod>/exec`, which RBAC models as the `create` verb on the `pods/exec` subresource (likewise `pods/attach` and `pods/portforward`). The `get` verb on `pods` is not enough, and granting `create` on `pods/exec` is effectively granting code execution in every container the role can reach, so audit it carefully.",
+    "example": "apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata: {name: pod-exec, namespace: debug}\nrules:\n  - apiGroups: [\"\"]\n    resources: [\"pods\"]\n    verbs: [\"get\", \"list\"]\n  - apiGroups: [\"\"]\n    resources: [\"pods/exec\"]\n    verbs: [\"create\"]\n\nkubectl auth can-i create pods/exec -n debug --as=jane",
+    "diagram": "flowchart LR\n  U[\"kubectl exec\"] -->|\"POST pods/name/exec\"| A[\"API server\"]\n  A --> R{\"RBAC create on pods/exec?\"}\n  R -->|\"yes\"| S[\"stream to container\"]\n  R -->|\"no\"| F[\"403 Forbidden\"]",
+    "reference": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-resources",
+    "tags": [
+      "kubernetes",
+      "rbac",
+      "least-privilege"
+    ]
   }
 ]

@@ -2858,5 +2858,186 @@
       "context-propagation",
       "opentelemetry"
     ]
+  },
+  {
+    "id": "monitoring-108",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "On which TCP port does the Prometheus server listen by default for its web UI and HTTP API?",
+    "answer": [
+      "9090",
+      ":9090",
+      "port 9090",
+      "tcp/9090"
+    ],
+    "pattern": "^(tcp/|port\\s*)?:?9090$",
+    "explanation": "Prometheus binds to `0.0.0.0:9090` unless `--web.listen-address` overrides it. The same port serves the expression browser, the `/api/v1` HTTP API, `/-/healthy` and `/-/ready` probes, and Prometheus's own `/metrics` endpoint, which is why the default `prometheus` scrape job targets `localhost:9090`.",
+    "example": "prometheus --config.file=prometheus.yml \\\n  --web.listen-address=0.0.0.0:9090\n\ncurl -s http://localhost:9090/-/ready\ncurl -s 'http://localhost:9090/api/v1/query?query=up'",
+    "diagram": "flowchart LR\n  U[\"Grafana or curl\"] -->|\"HTTP :9090\"| P[\"Prometheus server\"]\n  P --> API[\"/api/v1/query\"]\n  P --> UI[\"expression browser\"]\n  P --> M[\"/metrics self-scrape\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/command-line/prometheus/",
+    "tags": [
+      "prometheus",
+      "ports",
+      "basics"
+    ]
+  },
+  {
+    "id": "monitoring-109",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "On which TCP port does the Prometheus `node_exporter` expose host metrics by default?",
+    "answer": [
+      "9100",
+      ":9100",
+      "port 9100",
+      "tcp/9100"
+    ],
+    "pattern": "^(tcp/|port\\s*)?:?9100$",
+    "explanation": "`node_exporter` listens on `:9100` and serves `/metrics` with CPU, memory, disk, filesystem and network gauges and counters for the host. Most exporters follow the community port-allocation list (9100 node, 9104 mysqld, 9113 nginx, and so on), so a scrape config for a fleet of hosts usually targets `<host>:9100`.",
+    "example": "scrape_configs:\n  - job_name: node\n    static_configs:\n      - targets: ['web-1:9100', 'web-2:9100', 'db-1:9100']\n\ncurl -s http://web-1:9100/metrics | grep node_load1",
+    "diagram": "flowchart LR\n  H[\"Linux host\"] --> NE[\"node_exporter :9100\"]\n  NE -->|\"/metrics\"| P[\"Prometheus scrape\"]\n  P --> G[\"Grafana node dashboard\"]",
+    "reference": "https://github.com/prometheus/node_exporter",
+    "tags": [
+      "prometheus",
+      "exporters",
+      "ports"
+    ]
+  },
+  {
+    "id": "monitoring-110",
+    "domain": "monitoring",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the name of the query language used to select and filter log streams in Grafana Loki, e.g. `{app=\"api\"} |= \"error\"`?",
+    "answer": [
+      "logql",
+      "log ql",
+      "loki logql"
+    ],
+    "pattern": "^(loki\\s+)?log\\s?ql$",
+    "explanation": "LogQL is Loki's PromQL-inspired query language. A stream selector in braces picks streams by label, then a pipeline of filters (`|=`, `!=`, `|~`), parsers (`| json`, `| logfmt`) and formatters narrows the lines; metric queries such as `rate({app=\"api\"} |= \"error\" [5m])` turn logs into time series for alerting.",
+    "example": "{namespace=\"prod\", app=\"api\"} |= \"error\" | json | status >= 500\n\nsum by (pod) (rate({app=\"api\"} |= \"error\" [5m]))",
+    "diagram": "flowchart LR\n  S[\"stream selector {app=api}\"] --> F[\"line filter |= error\"]\n  F --> P[\"parser | json\"]\n  P --> M[\"rate over 5m\"]\n  M --> G[\"Grafana panel or alert\"]",
+    "reference": "https://grafana.com/docs/loki/latest/query/",
+    "tags": [
+      "loki",
+      "logql",
+      "logs"
+    ]
+  },
+  {
+    "id": "monitoring-111",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In an Alertmanager route, which configuration key lists the label names used to bundle related alerts into a single notification?",
+    "answer": [
+      "group_by",
+      "group by",
+      "groupby",
+      "group_by:"
+    ],
+    "pattern": "^group[_ ]?by:?$",
+    "explanation": "`group_by` on a route names the labels whose distinct values define a notification group; alerts sharing those label values are batched into one message instead of one page per firing series. `group_wait`, `group_interval` and `repeat_interval` then control how long Alertmanager waits to collect alerts into the group and how often it re-sends. `group_by: ['...']` disables grouping entirely.",
+    "example": "route:\n  receiver: oncall\n  group_by: ['alertname', 'cluster']\n  group_wait: 30s\n  group_interval: 5m\n  repeat_interval: 4h",
+    "diagram": "flowchart TD\n  A[\"50 firing DiskFull alerts\"] --> R[\"route group_by alertname cluster\"]\n  R --> G1[\"group cluster=eu\"]\n  R --> G2[\"group cluster=us\"]\n  G1 --> N[\"one notification each\"]\n  G2 --> N",
+    "reference": "https://prometheus.io/docs/alerting/latest/configuration/#route",
+    "tags": [
+      "alertmanager",
+      "routing",
+      "grouping"
+    ]
+  },
+  {
+    "id": "monitoring-112",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "On which TCP port does the OpenTelemetry Collector's OTLP receiver listen for gRPC by default?",
+    "answer": [
+      "4317",
+      ":4317",
+      "port 4317",
+      "tcp/4317"
+    ],
+    "pattern": "^(tcp/|port\\s*)?:?4317$",
+    "explanation": "The OTLP receiver opens `4317` for OTLP over gRPC and `4318` for OTLP over HTTP (protobuf or JSON). SDKs default `OTEL_EXPORTER_OTLP_ENDPOINT` to `http://localhost:4317` when the protocol is gRPC, so a collector that changes these ports must be matched on the application side.",
+    "example": "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\n      http:\n        endpoint: 0.0.0.0:4318\n\nexport OTEL_EXPORTER_OTLP_PROTOCOL=grpc\nexport OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317",
+    "diagram": "flowchart LR\n  A[\"app SDK\"] -->|\"OTLP gRPC :4317\"| C[\"Collector otlp receiver\"]\n  B[\"browser or curl\"] -->|\"OTLP HTTP :4318\"| C\n  C --> E[\"exporters\"]",
+    "reference": "https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver",
+    "tags": [
+      "opentelemetry",
+      "collector",
+      "ports"
+    ]
+  },
+  {
+    "id": "monitoring-113",
+    "domain": "monitoring",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a Prometheus rule group, which field name (instead of `alert`) declares a recording rule and holds the new metric name it will write, e.g. `job:http_requests:rate5m`?",
+    "answer": [
+      "record",
+      "record:"
+    ],
+    "pattern": "^record:?$",
+    "explanation": "A rule with `record:` evaluates `expr` on every group interval and stores the result as a new time series under the given name, so dashboards and alerts can query a cheap precomputed series instead of re-aggregating raw data. The `level:metric:operations` naming convention makes it clear what was aggregated. Rules with `alert:` share the same file format but produce alerts rather than series.",
+    "example": "groups:\n  - name: api\n    interval: 30s\n    rules:\n      - record: job:http_requests:rate5m\n        expr: sum by (job) (rate(http_requests_total[5m]))",
+    "diagram": "flowchart LR\n  R[\"raw http_requests_total\"] --> E[\"expr sum by job rate 5m\"]\n  E -->|\"record\"| N[\"job:http_requests:rate5m\"]\n  N --> D[\"dashboard\"]\n  N --> A[\"alert rule\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/",
+    "tags": [
+      "prometheus",
+      "recording-rules",
+      "promql"
+    ]
+  },
+  {
+    "id": "monitoring-114",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which PromQL function fits a linear regression to a gauge's range vector and extrapolates its value a given number of seconds into the future, commonly used to alert on disk filling up?",
+    "answer": [
+      "predict_linear",
+      "predict_linear()",
+      "predict linear"
+    ],
+    "pattern": "^predict[_ ]?linear(\\(\\))?$",
+    "explanation": "`predict_linear(v range-vector, t scalar)` uses simple linear regression over the samples in the range and returns the value expected `t` seconds from now. It only makes sense for gauges (for counters use `rate`/`increase`). Alerting on `predict_linear(node_filesystem_avail_bytes[6h], 4*3600) < 0` pages before the disk is actually full instead of after.",
+    "example": "- alert: DiskWillFillIn4h\n  expr: predict_linear(node_filesystem_avail_bytes{mountpoint=\"/\"}[6h], 4 * 3600) < 0\n  for: 30m\n  labels:\n    severity: warning",
+    "diagram": "flowchart LR\n  S[\"6h of avail_bytes samples\"] --> F[\"fit linear trend\"]\n  F --> X[\"extrapolate 4h ahead\"]\n  X --> C{\"below zero?\"}\n  C -->|\"yes\"| A[\"alert before disk is full\"]",
+    "reference": "https://prometheus.io/docs/prometheus/latest/querying/functions/#predict_linear",
+    "tags": [
+      "promql",
+      "forecasting",
+      "alerting"
+    ]
+  },
+  {
+    "id": "monitoring-115",
+    "domain": "monitoring",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which top-level Alertmanager configuration key defines rules that mute a set of alerts whenever another matching alert (for example a cluster-wide outage) is already firing?",
+    "answer": [
+      "inhibit_rules",
+      "inhibit rules",
+      "inhibit_rules:",
+      "inhibition rules",
+      "inhibit_rule"
+    ],
+    "pattern": "^inhibit(ion)?[_ ]?rules?:?$",
+    "explanation": "`inhibit_rules` pairs a `source_matchers` set with a `target_matchers` set: while any alert matching the source is firing, alerts matching the target are suppressed, provided the labels listed in `equal` have the same values on both. This stops one root cause (a datacenter down) from paging for every dependent symptom alert. It differs from silences, which are ad-hoc, time-boxed and created by humans.",
+    "example": "inhibit_rules:\n  - source_matchers: ['alertname = ClusterDown']\n    target_matchers: ['severity = warning']\n    equal: ['cluster']",
+    "diagram": "flowchart TD\n  S[\"ClusterDown firing cluster=eu\"] --> I[\"inhibit rule equal cluster\"]\n  W[\"PodCrashLooping warning cluster=eu\"] --> I\n  I -->|\"muted\"| X[\"no notification\"]\n  S -->|\"notified\"| N[\"on-call page\"]",
+    "reference": "https://prometheus.io/docs/alerting/latest/configuration/#inhibit_rule",
+    "tags": [
+      "alertmanager",
+      "inhibition",
+      "alert-fatigue"
+    ]
   }
 ]

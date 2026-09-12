@@ -1317,5 +1317,175 @@
     ],
     "domain": "cilium",
     "id": "cilium-048"
+  },
+  {
+    "id": "cilium-049",
+    "domain": "cilium",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Cilium CLI subcommand deploys Hubble server components and the Hubble Relay into an existing Cilium installation (for example `cilium <subcommand> --ui`)?",
+    "explanation": "`cilium hubble enable` patches the Cilium config to turn on Hubble in every agent and deploys Hubble Relay (and optionally the UI with `--ui`). On Helm installs the equivalent is `hubble.relay.enabled=true` and `hubble.ui.enabled=true`; the CLI is the fastest path in a lab.",
+    "example": "cilium hubble enable --ui\ncilium hubble port-forward &\nhubble observe --namespace shop --last 20",
+    "diagram": "flowchart LR\n  C[\"cilium hubble enable\"] --> A[\"Hubble in each agent\"]\n  A --> R[\"Hubble Relay\"]\n  R --> U[\"Hubble UI / hubble CLI\"]",
+    "answer": [
+      "hubble enable",
+      "cilium hubble enable",
+      "enable"
+    ],
+    "pattern": "^(cilium\\s+)?(hubble\\s+)?enable$",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/setup/",
+    "tags": [
+      "hubble",
+      "cli"
+    ]
+  },
+  {
+    "id": "cilium-050",
+    "domain": "cilium",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Kubernetes resource `kind` does Cilium create for every managed Pod to record its security identity, IP addresses and policy state, visible with `kubectl get cep`?",
+    "explanation": "A `CiliumEndpoint` (short name `cep`) mirrors each Pod's datapath state, so `kubectl get cep -n shop` shows identities and whether ingress or egress policy is enforced. When `CiliumEndpointSlice` is enabled these are batched, but the per-endpoint view remains the first stop when a Pod has no connectivity.",
+    "example": "kubectl get cep -n shop\n# NAME        SECURITY IDENTITY   ENDPOINT STATE   IPV4\n# web-7d9f    12345               ready            10.0.1.23",
+    "diagram": "flowchart LR\n  P[\"Pod\"] --> A[\"cilium-agent\"]\n  A --> E[\"CiliumEndpoint\"]\n  E --> I[\"CiliumIdentity\"]",
+    "answer": [
+      "CiliumEndpoint",
+      "cep",
+      "ciliumendpoints",
+      "CiliumEndpoints"
+    ],
+    "pattern": "^(cilium\\s?endpoints?|cep)$",
+    "reference": "https://docs.cilium.io/en/stable/network/kubernetes/ciliumendpoint/",
+    "tags": [
+      "crd",
+      "endpoints"
+    ]
+  },
+  {
+    "id": "cilium-051",
+    "domain": "cilium",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `cilium` CLI subcommand (one word) removes Cilium from the cluster, deleting its DaemonSet, operator and config?",
+    "explanation": "`cilium uninstall` reverses `cilium install`, removing the Helm release and cleaning up CRDs when asked. It does not restore kube-proxy or reset node routing, so on kube-proxy-replacement clusters you must redeploy kube-proxy or another CNI before Pods regain networking.",
+    "example": "cilium uninstall --wait\n# then reinstall with a different config\ncilium install --set kubeProxyReplacement=true",
+    "diagram": "flowchart LR\n  I[\"cilium install\"] --> R[\"running cluster\"]\n  R --> U[\"cilium uninstall\"]\n  U --> N[\"no CNI - Pods pending\"]",
+    "answer": [
+      "uninstall",
+      "cilium uninstall"
+    ],
+    "pattern": "^(cilium\\s+)?uninstall$",
+    "reference": "https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/",
+    "tags": [
+      "cli",
+      "install"
+    ]
+  },
+  {
+    "id": "cilium-052",
+    "domain": "cilium",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Helm value (dotted key) enables Cilium's WireGuard-based transparent encryption of pod-to-pod traffic when combined with `encryption.enabled=true`?",
+    "explanation": "`encryption.type=wireguard` selects WireGuard instead of the older IPsec mode. Each agent creates a `cilium_wg0` interface, keys are exchanged through CiliumNode objects, and traffic between nodes is encrypted with no per-Pod configuration. `encryption.nodeEncryption=true` extends it to host-to-host traffic.",
+    "example": "cilium install --set encryption.enabled=true --set encryption.type=wireguard\ncilium status | grep Encryption\n# Encryption: Wireguard [NodeEncryption: Disabled, cilium_wg0 (Pubkey: ...)]",
+    "diagram": "flowchart LR\n  P1[\"Pod on node A\"] --> W1[\"cilium_wg0\"]\n  W1 -->|\"WireGuard tunnel\"| W2[\"cilium_wg0\"]\n  W2 --> P2[\"Pod on node B\"]",
+    "answer": [
+      "encryption.type=wireguard",
+      "encryption.type",
+      "wireguard",
+      "--set encryption.type=wireguard"
+    ],
+    "pattern": "^(--set\\s+)?(encryption\\.type(=)?)?\\s*wireguard$|^encryption\\.type$",
+    "reference": "https://docs.cilium.io/en/stable/security/network/encryption-wireguard/",
+    "tags": [
+      "encryption",
+      "wireguard",
+      "helm"
+    ]
+  },
+  {
+    "id": "cilium-053",
+    "domain": "cilium",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "In a `CiliumNetworkPolicy`, which field under an `ingress` rule selects peer Pods by label (the counterpart of `toEndpoints` in egress rules)?",
+    "explanation": "`fromEndpoints` takes a list of label selectors and matches Pod identities across the cluster; an empty selector `{}` matches all endpoints in the same namespace. It is identity-based rather than IP-based, so it stays correct as Pods are rescheduled, unlike `fromCIDR` which is meant for non-Cilium sources.",
+    "example": "apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata:\n  name: allow-frontend\nspec:\n  endpointSelector:\n    matchLabels: {app: backend}\n  ingress:\n    - fromEndpoints:\n        - matchLabels: {app: frontend}\n      toPorts:\n        - ports: [{port: \"8080\", protocol: TCP}]",
+    "diagram": "flowchart LR\n  F[\"frontend identity\"] -->|\"fromEndpoints match\"| B[\"backend endpointSelector\"]\n  O[\"other Pod\"] -->|\"no match\"| D[\"dropped\"]",
+    "answer": [
+      "fromEndpoints",
+      "from endpoints",
+      "fromEndpoints:"
+    ],
+    "pattern": "^from[\\s_-]?endpoints:?$",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/#endpoints-based",
+    "tags": [
+      "network-policy",
+      "ingress"
+    ]
+  },
+  {
+    "id": "cilium-054",
+    "domain": "cilium",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `hubble observe` flag (name only) limits output to flows involving a specific Pod, given as `namespace/pod-name`?",
+    "explanation": "`--pod shop/web-7d9f` matches flows where the named Pod is source or destination; `--from-pod` and `--to-pod` narrow the direction. Combining it with `--verdict DROPPED` and `--follow` is the quickest way to watch policy denials for one workload without grepping the whole cluster's flow stream.",
+    "example": "hubble observe --pod shop/web-7d9f --verdict DROPPED --follow\nhubble observe --to-pod shop/api --protocol tcp --port 8080",
+    "diagram": "flowchart LR\n  S[\"all flows via Relay\"] --> F[\"--pod shop/web\"]\n  F --> V[\"--verdict DROPPED\"]\n  V --> O[\"filtered output\"]",
+    "answer": [
+      "--pod",
+      "pod"
+    ],
+    "pattern": "^(--)?pod$",
+    "reference": "https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/",
+    "tags": [
+      "hubble",
+      "cli",
+      "troubleshooting"
+    ]
+  },
+  {
+    "id": "cilium-055",
+    "domain": "cilium",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Cilium resource `kind` defines how Cilium's BGP Control Plane (v2 API) peers with an upstream router, holding the node selector and the list of peer addresses and ASNs?",
+    "explanation": "`CiliumBGPClusterConfig` is the top-level v2 BGP resource: it selects nodes and declares BGP instances with peers, each referencing a `CiliumBGPPeerConfig` for timers and auth and a `CiliumBGPAdvertisement` for what to announce. It replaced the v1 `CiliumBGPPeeringPolicy`, which is deprecated.",
+    "example": "apiVersion: cilium.io/v2alpha1\nkind: CiliumBGPClusterConfig\nmetadata:\n  name: tor-peering\nspec:\n  nodeSelector:\n    matchLabels: {rack: a}\n  bgpInstances:\n    - name: instance-65001\n      localASN: 65001\n      peers:\n        - name: tor-a\n          peerASN: 65000\n          peerAddress: 10.0.0.1\n          peerConfigRef: {name: default-peer}",
+    "diagram": "flowchart LR\n  C[\"CiliumBGPClusterConfig\"] --> P[\"CiliumBGPPeerConfig\"]\n  C --> A[\"CiliumBGPAdvertisement\"]\n  C -->|\"peers\"| T[\"ToR router\"]",
+    "answer": [
+      "CiliumBGPClusterConfig",
+      "cilium bgp cluster config"
+    ],
+    "pattern": "^cilium\\s?bgp\\s?cluster\\s?config$",
+    "reference": "https://docs.cilium.io/en/stable/network/bgp-control-plane/bgp-control-plane-v2/",
+    "tags": [
+      "bgp",
+      "crd"
+    ]
+  },
+  {
+    "id": "cilium-056",
+    "domain": "cilium",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `CiliumNetworkPolicy` egress field name lets you allow traffic to the `world` or `cluster` special targets by name rather than by CIDR or label (the counterpart of `fromEntities` in ingress)?",
+    "explanation": "`toEntities` accepts reserved identities such as `world`, `cluster`, `host`, `remote-node`, `kube-apiserver` and `all`. Using `toEntities: [kube-apiserver]` is the reliable way to allow control-plane access in managed clusters where the API server IPs change, instead of hard-coding CIDRs.",
+    "example": "egress:\n  - toEntities:\n      - kube-apiserver\n  - toEntities:\n      - world\n    toPorts:\n      - ports: [{port: \"443\", protocol: TCP}]",
+    "diagram": "flowchart LR\n  P[\"Pod\"] -->|\"toEntities: world\"| W[\"Internet\"]\n  P -->|\"toEntities: kube-apiserver\"| K[\"API server\"]\n  P -->|\"no rule\"| X[\"dropped\"]",
+    "answer": [
+      "toEntities",
+      "to entities",
+      "toEntities:"
+    ],
+    "pattern": "^to[\\s_-]?entities:?$",
+    "reference": "https://docs.cilium.io/en/stable/security/policy/language/#entities-based",
+    "tags": [
+      "network-policy",
+      "egress",
+      "entities"
+    ]
   }
 ]

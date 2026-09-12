@@ -3340,5 +3340,173 @@
       "service",
       "endpoints"
     ]
+  },
+  {
+    "id": "kubernetes-124",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `kubectl` subcommand runs a command inside a running container, for example to open an interactive shell with `kubectl ______ -it web-1 -- sh`?",
+    "answer": [
+      "exec",
+      "kubectl exec"
+    ],
+    "pattern": "^(kubectl\\s+)?exec$",
+    "explanation": "`kubectl exec` streams a process into an existing container via the API server and kubelet, so you can inspect a live filesystem or run a one-off diagnostic. `-i` keeps stdin open and `-t` allocates a TTY; `-c` picks the container in a multi-container Pod. Use `kubectl debug` when the image has no shell.",
+    "example": "kubectl exec -it web-1 -- sh\nkubectl exec web-1 -c sidecar -- cat /etc/config/app.yaml\nkubectl exec deploy/api -- env | grep DB_",
+    "diagram": "flowchart LR\nA[\"kubectl exec -it web-1 -- sh\"] --> B[\"API server\"]\nB --> C[\"kubelet on node\"]\nC --> D[\"Process started inside container\"]\nE[\"kubectl debug when no shell in image\"] -.-> A",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/",
+    "tags": [
+      "kubectl",
+      "debugging"
+    ]
+  },
+  {
+    "id": "kubernetes-125",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `kubectl` subcommand tunnels a local port to a Pod or Service so you can reach a ClusterIP service from your laptop without exposing it, for example `kubectl ______ svc/grafana 3000:80`?",
+    "answer": [
+      "port-forward",
+      "kubectl port-forward",
+      "port forward"
+    ],
+    "pattern": "^(kubectl\\s+)?port[-\\s]?forward$",
+    "explanation": "`kubectl port-forward` opens a connection through the API server to a Pod (or a Pod selected by a Service/Deployment) and forwards traffic from a local port. It is meant for ad-hoc access and debugging, not production exposure; the tunnel ends when the command stops.",
+    "example": "kubectl port-forward svc/grafana 3000:80\nkubectl port-forward -n monitoring pod/prometheus-0 9090\ncurl http://localhost:3000",
+    "diagram": "flowchart LR\nA[\"localhost:3000\"] -->|\"kubectl port-forward\"| B[\"API server\"]\nB --> C[\"kubelet\"]\nC --> D[\"Pod port 80\"]",
+    "reference": "https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/",
+    "tags": [
+      "kubectl",
+      "networking"
+    ]
+  },
+  {
+    "id": "kubernetes-126",
+    "domain": "kubernetes",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "On which TCP port does the Kubernetes API server listen for HTTPS by default (the port you see in `https://<control-plane>:____` in a kubeconfig)?",
+    "answer": [
+      "6443",
+      "port 6443",
+      ":6443"
+    ],
+    "pattern": "^(port\\s*)?:?6443$",
+    "explanation": "kube-apiserver serves its secure endpoint on 6443 by default (`--secure-port`). kubeadm, kind and most distributions keep it, though managed clouds usually front it with 443 on a load balancer. Worker nodes, kubectl and controllers all talk to this port, so it must be reachable from every node.",
+    "example": "kubectl cluster-info\n# Kubernetes control plane is running at https://10.0.0.10:6443\nss -tlnp | grep 6443   # on a control-plane node",
+    "diagram": "flowchart LR\nA[\"kubectl\"] -->|\"https :6443\"| B[\"kube-apiserver\"]\nC[\"kubelet on every node\"] -->|\"https :6443\"| B\nD[\"controller-manager and scheduler\"] --> B\nB --> E[\"etcd :2379\"]",
+    "reference": "https://kubernetes.io/docs/reference/networking/ports-and-protocols/",
+    "tags": [
+      "control-plane",
+      "ports"
+    ]
+  },
+  {
+    "id": "kubernetes-127",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `kubectl` subcommand prints the documentation and type of any manifest field straight from the API schema, for example `kubectl ______ pod.spec.containers.resources`?",
+    "answer": [
+      "explain",
+      "kubectl explain"
+    ],
+    "pattern": "^(kubectl\\s+)?explain$",
+    "explanation": "`kubectl explain` reads the OpenAPI schema served by the cluster, so it always matches the exact API version you are running, including CRDs. Dotted paths drill into nested fields and `--recursive` prints the whole tree, making it faster than searching docs when writing YAML.",
+    "example": "kubectl explain pod.spec.containers.resources\nkubectl explain deployment.spec.strategy --recursive\nkubectl explain certificates.cert-manager.io   # works for CRDs",
+    "diagram": "flowchart LR\nA[\"kubectl explain pod.spec.containers.resources\"] --> B[\"Fetch OpenAPI schema from API server\"]\nB --> C[\"Print field type and description\"]\nC --> D[\"Nested fields via dotted path\"]",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/generated/kubectl_explain/",
+    "tags": [
+      "kubectl",
+      "api"
+    ]
+  },
+  {
+    "id": "kubernetes-128",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which environment variable does `kubectl` read to locate one or more kubeconfig files (colon-separated) instead of the default `~/.kube/config`?",
+    "answer": [
+      "KUBECONFIG",
+      "$KUBECONFIG",
+      "kubeconfig"
+    ],
+    "pattern": "^\\$?kubeconfig$",
+    "explanation": "`KUBECONFIG` overrides the default path and may list several files separated by `:` (`;` on Windows); kubectl merges them, with earlier files winning on conflicts. CI pipelines and multi-cluster setups rely on it so that credentials never have to be copied into `~/.kube/config`.",
+    "example": "export KUBECONFIG=~/.kube/prod.yaml:~/.kube/staging.yaml\nkubectl config get-contexts\nkubectl config view --flatten > merged.yaml",
+    "diagram": "flowchart LR\nA[\"KUBECONFIG=prod.yaml:staging.yaml\"] --> B[\"kubectl merges files in order\"]\nB --> C[\"Contexts from both available\"]\nD[\"Unset: ~/.kube/config\"] -.-> B",
+    "reference": "https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/",
+    "tags": [
+      "kubectl",
+      "kubeconfig"
+    ]
+  },
+  {
+    "id": "kubernetes-129",
+    "domain": "kubernetes",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `kubectl` subcommand shows the current CPU and memory usage of Pods or nodes (it requires metrics-server to be installed)?",
+    "answer": [
+      "top",
+      "kubectl top",
+      "kubectl top pods",
+      "kubectl top nodes"
+    ],
+    "pattern": "^(kubectl\\s+)?top(\\s+(pods?|nodes?|po|no))?$",
+    "explanation": "`kubectl top pod` and `kubectl top node` query the `metrics.k8s.io` API that metrics-server populates from each kubelet. The numbers are point-in-time samples, useful for spotting a Pod near its limit or a saturated node; use `--containers` for per-container breakdown and `--sort-by=memory` to rank.",
+    "example": "kubectl top nodes\nkubectl top pods -n payments --containers --sort-by=memory\n# error: Metrics API not available  -> install metrics-server",
+    "diagram": "flowchart LR\nA[\"kubectl top pods\"] --> B[\"metrics.k8s.io API\"]\nB --> C[\"metrics-server\"]\nC --> D[\"kubelet /metrics/resource on each node\"]",
+    "reference": "https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/",
+    "tags": [
+      "kubectl",
+      "metrics"
+    ]
+  },
+  {
+    "id": "kubernetes-130",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "A distroless container has no shell. Which `kubectl` subcommand attaches an ephemeral container (for example `--image=busybox --target=app`) to the running Pod so you can troubleshoot it in place?",
+    "answer": [
+      "debug",
+      "kubectl debug"
+    ],
+    "pattern": "^(kubectl\\s+)?debug$",
+    "explanation": "`kubectl debug` adds an ephemeral container to the Pod spec; `--target` joins the process namespace of the named container so you can see its processes and filesystem under `/proc/<pid>/root`. The same command can also copy a Pod with a changed image (`--copy-to`) or start a privileged Pod on a node (`node/<name>`).",
+    "example": "kubectl debug -it api-7d9f -n payments --image=busybox:1.36 --target=app -- sh\nkubectl debug node/worker-2 -it --image=ubuntu\nkubectl debug api-7d9f --copy-to=api-debug --set-image=app=api:debug",
+    "diagram": "flowchart LR\nA[\"kubectl debug --target=app\"] --> B[\"Ephemeral container added to Pod\"]\nB --> C[\"Shares PID namespace with app\"]\nC --> D[\"Inspect processes and files without restart\"]\nE[\"node/name variant for host debugging\"] -.-> A",
+    "reference": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/#ephemeral-container",
+    "tags": [
+      "kubectl",
+      "debugging",
+      "ephemeral-containers"
+    ]
+  },
+  {
+    "id": "kubernetes-131",
+    "domain": "kubernetes",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Pod `spec` field lets you require replicas to be spread evenly across zones or nodes using `maxSkew` and `topologyKey`?",
+    "answer": [
+      "topologySpreadConstraints",
+      "topologyspreadconstraints",
+      "spec.topologySpreadConstraints",
+      "topology spread constraints"
+    ],
+    "pattern": "^(spec\\.)?topology\\s?spread\\s?constraints$",
+    "explanation": "`topologySpreadConstraints` tells the scheduler how unevenly Pods matching a label selector may be distributed across a topology domain. `maxSkew: 1` with `topologyKey: topology.kubernetes.io/zone` and `whenUnsatisfiable: DoNotSchedule` guarantees zone balance; `ScheduleAnyway` makes it a soft preference. It is more flexible than pod anti-affinity for large replica counts.",
+    "example": "spec:\n  topologySpreadConstraints:\n    - maxSkew: 1\n      topologyKey: topology.kubernetes.io/zone\n      whenUnsatisfiable: DoNotSchedule\n      labelSelector:\n        matchLabels: {app: api}",
+    "diagram": "flowchart LR\nA[\"topologySpreadConstraints maxSkew 1\"] --> B[\"Scheduler counts pods per zone\"]\nB -->|\"zone a: 2, zone b: 1\"| C[\"Next pod goes to zone b\"]\nB -->|\"would exceed skew\"| D[\"DoNotSchedule: Pending\"]",
+    "reference": "https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/",
+    "tags": [
+      "scheduling",
+      "high-availability"
+    ]
   }
 ]

@@ -1316,5 +1316,175 @@
       "migration",
       "peerauthentication"
     ]
+  },
+  {
+    "id": "istio-049",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the name of the sidecar container that Istio's injection webhook adds to every Pod in sidecar mode (the container running Envoy)?",
+    "answer": [
+      "istio-proxy",
+      "istio proxy"
+    ],
+    "pattern": "^istio[-\\s]?proxy$",
+    "explanation": "The injector adds a container named `istio-proxy` (image `proxyv2`, running Envoy via `pilot-agent`) plus an `istio-init` init container (or the CNI plugin) that sets up iptables redirection. Knowing the name matters for `kubectl logs <pod> -c istio-proxy` and for per-container resource requests.",
+    "example": "kubectl get pod reviews-v1-abc -o jsonpath='{.spec.containers[*].name}'\n# reviews istio-proxy\nkubectl logs reviews-v1-abc -c istio-proxy --tail=50",
+    "diagram": "flowchart LR\nA[\"Pod created in injected namespace\"] --> B[\"Mutating webhook\"]\nB --> C[\"istio-init sets iptables\"]\nB --> D[\"istio-proxy runs Envoy\"]\nD --> E[\"App container traffic redirected through Envoy\"]",
+    "reference": "https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/",
+    "tags": [
+      "sidecar",
+      "injection"
+    ]
+  },
+  {
+    "id": "istio-050",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In Istio ambient mode, what is the name of the per-node L4 proxy (deployed as a DaemonSet) that handles mTLS and identity without sidecars?",
+    "answer": [
+      "ztunnel",
+      "z tunnel",
+      "zero trust tunnel"
+    ],
+    "pattern": "^z(ero[-\\s]?trust)?[-\\s]?tunnel$",
+    "explanation": "`ztunnel` (zero-trust tunnel) is a Rust-based node agent that tunnels Pod traffic over HBONE with mTLS, enforces L4 authorization and emits TCP telemetry. L7 features such as HTTP routing and header-based policy require a waypoint proxy in addition to ztunnel.",
+    "example": "kubectl get ds -n istio-system ztunnel\nistioctl ztunnel-config workloads\nistioctl ztunnel-config certificates",
+    "diagram": "flowchart LR\nA[\"Pod A\"] --> B[\"ztunnel on node 1\"]\nB -->|\"HBONE mTLS\"| C[\"ztunnel on node 2\"]\nC --> D[\"Pod B\"]\nE[\"Waypoint for L7 policy\"] -.-> B",
+    "reference": "https://istio.io/latest/docs/ambient/architecture/data-plane/",
+    "tags": [
+      "ambient",
+      "ztunnel"
+    ]
+  },
+  {
+    "id": "istio-051",
+    "domain": "istio",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In a `DestinationRule`, which top-level `spec` field defines named versions of a service (for example `v1` and `v2` selected by Pod labels) that a `VirtualService` can route to?",
+    "answer": [
+      "subsets",
+      "subset",
+      "spec.subsets"
+    ],
+    "pattern": "^(spec\\.)?subsets?$",
+    "explanation": "`spec.subsets` maps a name to a label selector, so `VirtualService` routes can reference `destination.subset: v2`. Traffic policy such as load balancing or connection pools can be set per subset. Without the DestinationRule the subset name is unknown and Envoy returns 503 `NR`/no cluster.",
+    "example": "apiVersion: networking.istio.io/v1\nkind: DestinationRule\nmetadata:\n  name: reviews\nspec:\n  host: reviews\n  subsets:\n    - name: v1\n      labels: {version: v1}\n    - name: v2\n      labels: {version: v2}",
+    "diagram": "flowchart LR\nA[\"VirtualService route subset: v2\"] --> B[\"DestinationRule host: reviews\"]\nB -->|\"subsets\"| C[\"v2 = labels version=v2\"]\nC --> D[\"Envoy cluster reviews v2 endpoints\"]",
+    "reference": "https://istio.io/latest/docs/reference/config/networking/destination-rule/#Subset",
+    "tags": [
+      "destination-rule",
+      "routing"
+    ]
+  },
+  {
+    "id": "istio-052",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which namespace label (key and value) enrolls all Pods in that namespace into Istio's ambient mesh instead of using sidecar injection?",
+    "answer": [
+      "istio.io/dataplane-mode=ambient",
+      "istio.io/dataplane-mode: ambient",
+      "istio.io/dataplane-mode",
+      "dataplane-mode=ambient"
+    ],
+    "pattern": "^(istio\\.io\\/)?dataplane-mode(\\s*[=:]\\s*ambient)?$",
+    "explanation": "`istio.io/dataplane-mode=ambient` tells the Istio CNI node agent to redirect the namespace's Pod traffic to ztunnel; no restart is required because redirection is set up on the live Pod. The same label on an individual Pod can opt it in or set `none` to opt out. Sidecar injection uses a different label, `istio-injection=enabled`.",
+    "example": "kubectl label namespace shop istio.io/dataplane-mode=ambient\nkubectl label pod legacy-1 istio.io/dataplane-mode=none   # opt one pod out",
+    "diagram": "flowchart LR\nA[\"kubectl label ns shop istio.io/dataplane-mode=ambient\"] --> B[\"istio-cni node agent\"]\nB --> C[\"Redirect Pod traffic to ztunnel\"]\nC --> D[\"mTLS and L4 policy without restart\"]\nE[\"istio-injection=enabled is sidecar mode\"] -.-> A",
+    "reference": "https://istio.io/latest/docs/ambient/usage/add-workloads/",
+    "tags": [
+      "ambient",
+      "labels"
+    ]
+  },
+  {
+    "id": "istio-053",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `istioctl` subcommand deploys or lists waypoint proxies for a namespace in ambient mode, for example `istioctl ______ apply -n shop`?",
+    "answer": [
+      "waypoint",
+      "istioctl waypoint",
+      "istioctl waypoint apply"
+    ],
+    "pattern": "^(istioctl\\s+)?waypoint(\\s+\\S+)*$",
+    "explanation": "`istioctl waypoint apply` generates a Kubernetes Gateway API `Gateway` with `gatewayClassName: istio-waypoint`, which istiod turns into an L7 proxy Deployment. Adding `--enroll-namespace` also labels the namespace with `istio.io/use-waypoint`, so traffic to its services traverses the waypoint for HTTP routing, retries and L7 authorization.",
+    "example": "istioctl waypoint apply -n shop --enroll-namespace\nistioctl waypoint list -n shop\nkubectl get gateway -n shop",
+    "diagram": "flowchart LR\nA[\"istioctl waypoint apply -n shop\"] --> B[\"Gateway with class istio-waypoint\"]\nB --> C[\"istiod creates waypoint Deployment\"]\nC --> D[\"istio.io/use-waypoint label routes L7 traffic\"]",
+    "reference": "https://istio.io/latest/docs/ambient/usage/waypoint/",
+    "tags": [
+      "ambient",
+      "waypoint"
+    ]
+  },
+  {
+    "id": "istio-054",
+    "domain": "istio",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "You want every sidecar in the mesh to write Envoy access logs to the container's standard output. What value do you set for `meshConfig.accessLogFile` in the Istio install configuration?",
+    "answer": [
+      "/dev/stdout",
+      "dev/stdout",
+      "stdout"
+    ],
+    "pattern": "^(\\/?dev\\/)?stdout$",
+    "explanation": "Istio ships with access logging disabled. Setting `meshConfig.accessLogFile: /dev/stdout` makes each `istio-proxy` container print one line per request in the default format, which `kubectl logs -c istio-proxy` and any log shipper pick up. For selective or richer logging use the `Telemetry` API with an `accessLogging` provider instead.",
+    "example": "istioctl install --set meshConfig.accessLogFile=/dev/stdout\n# or in IstioOperator:\nspec:\n  meshConfig:\n    accessLogFile: /dev/stdout\n    accessLogEncoding: JSON",
+    "diagram": "flowchart LR\nA[\"meshConfig.accessLogFile: /dev/stdout\"] --> B[\"istiod pushes config to proxies\"]\nB --> C[\"Envoy access log per request\"]\nC --> D[\"kubectl logs pod -c istio-proxy\"]\nE[\"Telemetry API for per-namespace scope\"] -.-> B",
+    "reference": "https://istio.io/latest/docs/tasks/observability/logs/access-log/",
+    "tags": [
+      "observability",
+      "access-logs"
+    ]
+  },
+  {
+    "id": "istio-055",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "On which TCP port does the Envoy sidecar expose its local admin interface (the one behind `istioctl proxy-config` and `curl localhost:____/stats`)?",
+    "answer": [
+      "15000",
+      "port 15000",
+      ":15000"
+    ],
+    "pattern": "^(port\\s*)?:?15000$",
+    "explanation": "Envoy's admin API listens on `localhost:15000` inside the Pod's network namespace, serving `/config_dump`, `/stats`, `/clusters` and `/logging`. It is bound to loopback only, so you reach it with `kubectl exec ... -c istio-proxy -- curl localhost:15000`. Other well-known ports are 15001 (outbound capture), 15006 (inbound capture), 15020 (merged metrics) and 15021 (health).",
+    "example": "kubectl exec reviews-v1-abc -c istio-proxy -- curl -s localhost:15000/stats | grep upstream_rq_5xx\nkubectl exec reviews-v1-abc -c istio-proxy -- curl -s -X POST localhost:15000/logging?level=debug",
+    "diagram": "flowchart LR\nA[\"localhost:15000 admin\"] --> B[\"/config_dump\"]\nA --> C[\"/stats\"]\nA --> D[\"/logging\"]\nE[\"15001 outbound\"] -.-> F[\"Envoy\"]\nG[\"15006 inbound\"] -.-> F\nA --> F",
+    "reference": "https://istio.io/latest/docs/ops/deployment/application-requirements/#ports-used-by-istio",
+    "tags": [
+      "envoy",
+      "ports",
+      "debugging"
+    ]
+  },
+  {
+    "id": "istio-056",
+    "domain": "istio",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "In Istio ambient mode, ztunnel encapsulates Pod-to-Pod traffic in the HBONE tunnel protocol. On which TCP port does each ztunnel accept HBONE connections?",
+    "answer": [
+      "15008",
+      "port 15008",
+      ":15008"
+    ],
+    "pattern": "^(port\\s*)?:?15008$",
+    "explanation": "HBONE (HTTP-Based Overlay Network Environment) multiplexes tunnelled connections over an mTLS HTTP/2 CONNECT session on port 15008. Node firewalls and NetworkPolicies must allow 15008 between nodes or ambient traffic silently fails; waypoints likewise receive traffic from ztunnel on 15008.",
+    "example": "kubectl exec -n istio-system ds/ztunnel -- ss -tlnp | grep 15008\nistioctl ztunnel-config connections",
+    "diagram": "flowchart LR\nA[\"App Pod\"] --> B[\"ztunnel node A\"]\nB -->|\"HBONE over mTLS to :15008\"| C[\"ztunnel node B\"]\nC --> D[\"Destination Pod\"]\nE[\"NetworkPolicy must allow 15008\"] -.-> C",
+    "reference": "https://istio.io/latest/docs/ambient/architecture/hbone/",
+    "tags": [
+      "ambient",
+      "hbone",
+      "ports"
+    ]
   }
 ]

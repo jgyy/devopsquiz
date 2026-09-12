@@ -1,0 +1,1050 @@
+[
+  {
+    "id": "sre-001",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "In SRE terminology, what is a Service Level Indicator (SLI)?",
+    "explanation": "An SLI is the raw measurement of service behaviour, usually a ratio of good events to valid events (availability, latency under a threshold, freshness). SLOs set targets on SLIs and SLAs wrap SLOs in a contract; getting the SLI right comes first because everything else is derived from it.",
+    "example": "# Availability SLI as a ratio of good to valid events\nsli_availability = good_requests / valid_requests\n\n# PromQL version\nsum(rate(http_requests_total{code!~\"5..\"}[30d]))\n/\nsum(rate(http_requests_total[30d]))",
+    "diagram": "flowchart LR\nA[\"SLI: measured ratio\"] --> B[\"SLO: target on the SLI\"]\nB --> C[\"Error budget: 1 - SLO\"]\nB --> D[\"SLA: contract with consequences\"]",
+    "reference": "https://sre.google/sre-book/service-level-objectives/",
+    "tags": [
+      "sli",
+      "fundamentals"
+    ],
+    "type": "single",
+    "options": [
+      "A contractual promise to customers with financial penalties if broken",
+      "A carefully defined quantitative measure of some aspect of the level of service provided, such as the fraction of successful requests",
+      "The target value an engineering team commits to hit for a metric",
+      "The amount of unreliability a team is allowed to spend on releases"
+    ],
+    "optionNotes": [
+      "A contractual promise with penalties is an SLA, not an SLI.",
+      "An SLI is the measurement itself, typically expressed as a ratio of good events to total events, such as successful requests over all requests.",
+      "The target value for an SLI is the SLO, not the SLI.",
+      "The allowed unreliability derived from an SLO is the error budget, not the SLI."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-002",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "What is the key difference between an SLO and an SLA?",
+    "explanation": "An SLO is an internal target on an SLI that drives engineering priorities and alerting. An SLA is an explicit or implicit contract with customers that includes consequences for missing it. Teams normally set the internal SLO stricter than the published SLA so that an SLO breach is a warning before an SLA breach.",
+    "example": "# Typical layering\nSLA:  99.9% monthly availability  -> 10% service credit if missed\nSLO:  99.95% monthly availability -> internal target, alerts fire here\nSLI:  successful requests / total requests over a rolling 30 days",
+    "diagram": "flowchart TD\nS[\"SLO 99.95% internal\"] -->|\"tighter than\"| A[\"SLA 99.9% contractual\"]\nS -->|\"breach\"| P[\"page on-call, freeze releases\"]\nA -->|\"breach\"| C[\"service credits, legal exposure\"]",
+    "reference": "https://sre.google/sre-book/service-level-objectives/",
+    "tags": [
+      "slo",
+      "sla"
+    ],
+    "type": "single",
+    "options": [
+      "An SLA is an internal reliability target; an SLO is a customer-facing contract",
+      "An SLO is an internal reliability target; an SLA is an external agreement with consequences (credits, penalties) if it is missed",
+      "They are the same thing, SLA is just the older term",
+      "SLOs measure latency while SLAs measure availability"
+    ],
+    "optionNotes": [
+      "This is reversed: SLOs are internal targets and SLAs are the external contracts.",
+      "SLOs are targets a team sets for itself and alerts on; SLAs are legal or commercial agreements that usually carry service credits and are typically set looser than the internal SLO.",
+      "They are distinct: an SLA is built on top of SLOs but adds contractual consequences.",
+      "Both can cover any SLI type; the difference is about who they bind and what happens when missed."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-003",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "A service has a 99.9% monthly availability SLO. Rounding to one decimal place, how many minutes of downtime per 30-day month does that allow? Answer with the number only.",
+    "explanation": "A 30-day month has 43,200 minutes. 0.1% of that is 43.2 minutes. Many people memorise 'three nines is about 43 minutes a month'; a 365-day year at three nines allows about 8.76 hours.",
+    "example": "# Nines cheat sheet (30-day month)\n99%    -> 7.2 h\n99.9%  -> 43.2 min\n99.95% -> 21.6 min\n99.99% -> 4.32 min\n99.999% -> 26 s",
+    "diagram": "flowchart LR\nM[\"30 days = 43200 min\"] --> E[\"error budget 0.1%\"]\nE --> R[\"43.2 min downtime allowed\"]",
+    "reference": "https://sre.google/sre-book/availability-table/",
+    "tags": [
+      "availability",
+      "math"
+    ],
+    "type": "fill",
+    "answer": [
+      "43.2",
+      "43",
+      "43.2 minutes",
+      "43 minutes",
+      "~43"
+    ],
+    "pattern": "^~?\\s*43(\\.2)?\\s*(min(ute)?s?)?$"
+  },
+  {
+    "id": "sre-004",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "A service has a 99.9% availability SLO over a rolling 30-day window and has served 10,000,000 requests in that window. How many failed requests does its error budget allow before the SLO is breached?",
+    "explanation": "The error budget is 1 minus the SLO, applied to the total number of valid events in the window. 1 - 0.999 = 0.001, and 0.001 x 10,000,000 = 10,000. Request-based error budgets are usually preferable to time-based ones because they weight busy periods correctly.",
+    "example": "budget_fraction = 1 - 0.999          # 0.001\nbudget_events   = 0.001 * 10_000_000 # 10000\nconsumed        = failed_requests / budget_events",
+    "diagram": "flowchart LR\nT[\"10M requests\"] --> B[\"budget = 0.1%\"]\nB --> N[\"10000 failures allowed\"]\nN -->|\"consumed\"| F[\"freeze risky changes\"]",
+    "reference": "https://sre.google/workbook/implementing-slos/",
+    "tags": [
+      "error-budget",
+      "slo"
+    ],
+    "type": "single",
+    "options": [
+      "1,000",
+      "10,000",
+      "100,000",
+      "1,000,000"
+    ],
+    "optionNotes": [
+      "1,000 would correspond to a 99.99% SLO.",
+      "0.1% of 10,000,000 is 10,000 failed requests.",
+      "100,000 would be a 99% SLO.",
+      "1,000,000 is 10% of traffic, far beyond any realistic SLO."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-005",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "An error budget policy typically states that when the error budget is exhausted, feature releases are slowed or frozen until reliability work restores the budget.",
+    "explanation": "Error budgets turn the tension between velocity and reliability into a data-driven agreement. When the budget is spent, the agreed policy shifts effort from features to reliability; when there is budget left, the team can take more risk.",
+    "example": "# Sample error budget policy excerpt\n- Budget remaining > 0: normal release cadence\n- Budget exhausted: no feature launches, only reliability fixes\n  and rollbacks until 30-day budget is positive again\n- Two consecutive months exhausted: postmortem with leadership",
+    "diagram": "flowchart TD\nB[\"error budget remaining?\"] -->|\"yes\"| R[\"ship features, take risk\"]\nB -->|\"no\"| F[\"freeze launches, do reliability work\"]\nF --> B",
+    "reference": "https://sre.google/workbook/error-budget-policy/",
+    "tags": [
+      "error-budget",
+      "policy"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "sre-006",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "For a 99.9% SLO over 30 days, what does a burn rate of 14.4 sustained for one hour mean?",
+    "explanation": "Burn rate is how fast you are spending error budget relative to the rate that would exhaust it exactly at the end of the window. With a 30-day (720 h) window, a burn rate of 14.4 over 1 hour consumes 14.4/720 = 2% of the budget. Alerting on a burn rate over a window is more meaningful than alerting on a raw error rate.",
+    "example": "# 1h window, 14.4x burn for a 99.9% SLO\n(\n  sum(rate(http_requests_total{code=~\"5..\"}[1h]))\n  / sum(rate(http_requests_total[1h]))\n) > (14.4 * 0.001)",
+    "diagram": "flowchart LR\nB[\"burn rate 14.4\"] --> W[\"1h window\"]\nW --> C[\"14.4 / 720 h = 2% budget\"]\nC --> P[\"page on-call\"]",
+    "reference": "https://sre.google/workbook/alerting-on-slos/",
+    "tags": [
+      "burn-rate",
+      "alerting"
+    ],
+    "type": "single",
+    "options": [
+      "The service is consuming its error budget 14.4 times slower than allowed",
+      "In that hour the service consumed 2% of the 30-day error budget, which is the classic threshold for a fast-burn page",
+      "The service has already breached the SLO for the month",
+      "Latency has increased by 14.4%"
+    ],
+    "optionNotes": [
+      "Burn rate above 1 means faster than allowed, not slower.",
+      "Burn rate 1 spends the budget in exactly 30 days (720 hours). At 14.4x, one hour consumes 14.4/720 = 2% of the budget, which Google's multiwindow alerting recommends as a paging threshold.",
+      "Only 2% of the budget is spent; the SLO is at risk, not yet breached.",
+      "Burn rate is about error budget consumption relative to the SLO, not latency percentages."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-007",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "Which statements correctly describe multiwindow, multi-burn-rate SLO alerting? Select all that apply.",
+    "explanation": "Multiwindow, multi-burn-rate alerts combine a long window (sensitivity to sustained burn) with a short window (fast reset), and require both to exceed a burn-rate threshold. Different burn-rate thresholds map to different urgencies: high burn pages, low burn opens a ticket. Everything is derived from a single SLO.",
+    "example": "# Fast burn: page\n(burn_rate_1h > 14.4) and (burn_rate_5m > 14.4)\n# Medium burn: page\n(burn_rate_6h > 6) and (burn_rate_30m > 6)\n# Slow burn: ticket\n(burn_rate_3d > 1) and (burn_rate_6h > 1)",
+    "diagram": "flowchart TD\nL[\"long window 1h > 14.4x\"] --> A{\"both true?\"}\nS[\"short window 5m > 14.4x\"] --> A\nA -->|\"yes\"| P[\"page\"]\nA -->|\"no\"| N[\"no alert\"]",
+    "reference": "https://sre.google/workbook/alerting-on-slos/",
+    "tags": [
+      "burn-rate",
+      "alerting"
+    ],
+    "type": "multi",
+    "options": [
+      "A long window (e.g. 1 h) detects a sustained problem while a short window (e.g. 5 min) ensures the alert stops firing quickly once the issue is fixed",
+      "Fast-burn alerts use a high burn-rate threshold and page immediately; slow-burn alerts use a low threshold and typically create a ticket",
+      "Both the long and short windows must exceed the threshold for the alert to fire",
+      "It replaces the need for an SLO because it alerts directly on error rate",
+      "It requires a separate SLO for each window"
+    ],
+    "optionNotes": [
+      "The long window provides confidence in the signal; the short window provides fast reset time so the alert does not linger after recovery.",
+      "Google's recommended setup pairs 14.4x over 1 h (page) and 6x over 6 h (page) with 1x over 3 days (ticket).",
+      "Requiring both windows to be above the threshold avoids alerting on stale conditions that have already recovered.",
+      "The burn-rate thresholds are derived from the SLO; it does not replace it.",
+      "There is one SLO; the windows are just different lookback periods over the same SLI."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "sre-008",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "According to the Google SRE book, which of these best matches the definition of toil?",
+    "explanation": "Toil is work tied to running a production service that is manual, repetitive, automatable, tactical, lacks enduring value and grows linearly with the service. Google SRE caps toil at 50% of an SRE's time so the rest can go to engineering that reduces future toil.",
+    "example": "# Toil examples\n- manually rotating a TLS cert every 90 days\n- hand-applying the same kubectl scale before every sale\n- copy-pasting alerts into tickets\n\n# Not toil\n- writing the cert-manager config that automates rotation",
+    "diagram": "flowchart LR\nT[\"manual, repetitive task\"] -->|\"automate\"| A[\"script or operator\"]\nA --> V[\"enduring value\"]\nT -->|\"leave as is\"| G[\"grows with service\"]",
+    "reference": "https://sre.google/sre-book/eliminating-toil/",
+    "tags": [
+      "toil"
+    ],
+    "type": "single",
+    "options": [
+      "Any work an engineer finds boring",
+      "Manual, repetitive, automatable, tactical work with no enduring value that scales linearly with service growth",
+      "All operational work including incident response and postmortems",
+      "Writing documentation and runbooks"
+    ],
+    "optionNotes": [
+      "Boredom is not the criterion; toil is defined by its characteristics, not how it feels.",
+      "Toil is operational work that is manual, repetitive, automatable, tactical, devoid of enduring value and scales with the service; SRE aims to keep it under 50% of time.",
+      "Incident response and postmortems have enduring value and are not toil by definition, even though they are operational.",
+      "Writing documentation is engineering work that produces lasting value, the opposite of toil."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-009",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "Google SRE sets a ceiling on the fraction of an SRE's time that may be spent on toil and operational work. What percentage is that ceiling? Answer with the number only.",
+    "explanation": "The SRE book states SRE teams should spend at most 50% of their time on toil and operational work, with the remainder on engineering projects that reduce toil or add features. Exceeding the cap for long periods is a signal to hand operational load back to the developer team or add automation.",
+    "example": "# Quarterly toil budget example\nteam_hours       = 4 SREs * 13 weeks * 40 h = 2080 h\ntoil_ceiling     = 50% = 1040 h\nmeasured_toil    = 1300 h  -> over budget, escalate",
+    "diagram": "flowchart LR\nW[\"SRE time\"] --> T[\"toil <= 50%\"]\nW --> E[\"engineering >= 50%\"]\nE -->|\"reduces\"| T",
+    "reference": "https://sre.google/sre-book/eliminating-toil/",
+    "tags": [
+      "toil"
+    ],
+    "type": "fill",
+    "answer": [
+      "50",
+      "50%",
+      "50 percent",
+      "fifty"
+    ],
+    "pattern": "^(50\\s*%?|50\\s*percent|fifty(\\s*percent)?)$"
+  },
+  {
+    "id": "sre-010",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "In a structured incident response (as in Google's Incident Command System-based model), which of these are distinct roles? Select all that apply.",
+    "explanation": "Google's incident management model separates command, operations, communications and planning/scribe duties so that no single person is debugging while also fielding executive questions. The IC delegates and may hand off; the comms lead owns updates; the scribe records the timeline; the ops lead does the fixing.",
+    "example": "# Incident channel header\nIC:      alice   (coordinating, do not DM her for status)\nOps:     bob, carol\nComms:   dave    (status page + #exec-updates every 30 min)\nScribe:  erin    (timeline in incident doc)",
+    "diagram": "flowchart TD\nIC[\"Incident Commander\"] --> O[\"Operations Lead: mitigate\"]\nIC --> C[\"Comms Lead: updates\"]\nIC --> S[\"Scribe: timeline\"]",
+    "reference": "https://sre.google/sre-book/managing-incidents/",
+    "tags": [
+      "incident-management",
+      "roles"
+    ],
+    "type": "multi",
+    "options": [
+      "Incident Commander, who owns the overall response and delegates",
+      "Communications Lead, who handles stakeholder and customer updates",
+      "Scribe, who keeps a timestamped log of actions and decisions",
+      "Operations Lead, who performs the hands-on mitigation work",
+      "Release Manager, who approves the postmortem"
+    ],
+    "optionNotes": [
+      "The Incident Commander (IC) coordinates, assigns work and maintains the big picture without doing hands-on debugging.",
+      "The comms lead keeps stakeholders informed on a cadence so the IC and responders are not interrupted.",
+      "The scribe records the timeline, which becomes the backbone of the postmortem.",
+      "The operations lead (or ops team) executes the technical mitigation under the IC's direction.",
+      "Postmortem approval is a separate follow-up process, not an incident role."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "sre-011",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "During a major incident, the Incident Commander starts personally debugging the database while also answering executive questions in the incident channel. What is the recommended correction?",
+    "explanation": "The incident commander's job is to coordinate, not to fix. When the IC dives into a terminal, nobody is tracking the overall state, prioritising work streams or fielding stakeholders. The correction is to explicitly hand off operations and communications and keep the IC free to command.",
+    "example": "# In-channel handoff\n@alice: I'm IC. @bob you are ops lead on the DB.\n@dave you own comms, status page update every 20 min.\nAll status questions go to @dave, not this thread.",
+    "diagram": "flowchart LR\nIC[\"IC debugging + answering execs\"] -->|\"loses big picture\"| X[\"chaos\"]\nIC -->|\"delegate\"| O[\"ops lead fixes\"]\nIC -->|\"delegate\"| C[\"comms lead updates\"]",
+    "reference": "https://sre.google/sre-book/managing-incidents/",
+    "tags": [
+      "incident-management",
+      "roles"
+    ],
+    "type": "single",
+    "options": [
+      "The IC should keep debugging because they know the system best",
+      "Hand off the technical work to an operations lead and stakeholder updates to a communications lead so the IC keeps the big picture",
+      "Close the incident channel to stop interruptions",
+      "Escalate the incident severity so more people join"
+    ],
+    "optionNotes": [
+      "Deep hands-on debugging causes the IC to lose situational awareness, which is the exact failure the role exists to prevent.",
+      "Delegation is the IC's core function; a separate ops lead and comms lead free the IC to coordinate, prioritise and make decisions.",
+      "Closing the channel removes the coordination point and hides the problem instead of fixing the role confusion.",
+      "More people without clear roles increases chaos; the fix is delegation, not headcount."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-012",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "Which of these is the most typical criterion for classifying an incident as the highest severity (e.g. SEV1 or P1)?",
+    "explanation": "Severity levels map impact and urgency to a response process: SEV1 means broad customer impact and triggers an incident commander, exec comms and all-hands paging, while lower severities get lighter processes. Clear written criteria prevent arguing about severity mid-incident.",
+    "example": "SEV1: full outage or data loss, all customers   -> page IC + exec comms\nSEV2: major feature degraded, many customers    -> page on-call team\nSEV3: minor degradation, workaround exists      -> ticket, business hours\nSEV4: cosmetic or internal only                 -> backlog",
+    "diagram": "flowchart TD\nI[\"assess impact\"] -->|\"all customers down\"| S1[\"SEV1: all hands\"]\nI -->|\"major feature broken\"| S2[\"SEV2: on-call\"]\nI -->|\"minor, workaround\"| S3[\"SEV3: ticket\"]",
+    "reference": "https://response.pagerduty.com/before/severity_levels/",
+    "tags": [
+      "severity",
+      "incident-management"
+    ],
+    "type": "single",
+    "options": [
+      "Any alert that fires outside business hours",
+      "Widespread customer-facing outage or data loss requiring immediate all-hands response",
+      "A single non-critical alert that auto-resolved",
+      "A cosmetic bug in an internal dashboard"
+    ],
+    "optionNotes": [
+      "Time of day does not determine severity; impact does.",
+      "Highest severity is reserved for major customer impact, revenue loss, security breach or data loss that needs immediate coordinated response.",
+      "Auto-resolved noise is at most a low-severity ticket.",
+      "Cosmetic internal issues are low severity or simply bugs."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-013",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Which practices reflect healthy on-call and paging hygiene? Select all that apply.",
+    "explanation": "Good paging hygiene means each page is urgent, actionable and novel, alerts are on user-visible symptoms rather than every internal cause, and non-urgent issues become tickets. On-call load must be bounded so engineers still have time for project work and recover from shifts.",
+    "example": "# Alert triage rule of thumb\nUser-impacting AND needs a human now  -> page\nUser-impacting AND can wait          -> ticket\nNot user-impacting                   -> dashboard or delete",
+    "diagram": "flowchart TD\nA[\"alert condition\"] -->|\"user impact + urgent\"| P[\"page\"]\nA -->|\"user impact, can wait\"| T[\"ticket\"]\nA -->|\"no user impact\"| D[\"dashboard only\"]",
+    "reference": "https://sre.google/sre-book/being-on-call/",
+    "tags": [
+      "on-call",
+      "alerting"
+    ],
+    "type": "multi",
+    "options": [
+      "Every page should be actionable and require human intervention",
+      "Page on symptoms visible to users rather than on internal causes",
+      "Route non-urgent conditions to tickets instead of pages",
+      "Page on every CPU spike above 80% to be safe",
+      "Rotate on-call so no engineer carries more than a sustainable share of shifts"
+    ],
+    "optionNotes": [
+      "A page that a human cannot act on trains responders to ignore pages.",
+      "Symptom-based paging (SLO burn) catches unknown causes and avoids noise from causes that do not affect users.",
+      "Conditions that can wait until business hours should not wake anyone up.",
+      "CPU alone is a cause, not a symptom; it often does not impact users and is a classic source of noise.",
+      "Sustainable rotations (Google suggests a maximum of ~2 significant incidents per 12-hour shift) protect responders from burnout."
+    ],
+    "answer": [
+      0,
+      1,
+      2,
+      4
+    ]
+  },
+  {
+    "id": "sre-014",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "A blameless postmortem focuses on identifying contributing systemic causes rather than on assigning fault to the individual whose action triggered the incident.",
+    "explanation": "Blameless postmortems assume people acted with good intent given the information they had. Focusing on systems, tooling and process gaps produces honest timelines and real fixes; blame drives incidents underground and hides the true causes.",
+    "example": "# Blameless phrasing\nBAD:  \"Bob ran the migration against prod by mistake.\"\nGOOD: \"The migration tool defaulted to the prod context and had no\n       confirmation step, so a routine run hit prod.\"",
+    "diagram": "flowchart LR\nI[\"incident\"] --> B{\"blame or system?\"}\nB -->|\"blame person\"| H[\"hidden facts, repeat\"]\nB -->|\"fix system\"| F[\"guardrails, no repeat\"]",
+    "reference": "https://sre.google/sre-book/postmortem-culture/",
+    "tags": [
+      "postmortem",
+      "culture"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "sre-015",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Which of these are characteristics of a good postmortem action item? Select all that apply.",
+    "explanation": "Effective action items are specific, owned by one person, tracked and prioritised like any other engineering work, and target contributing causes (missing rate limits, absent validation, unclear runbooks) rather than just the immediate trigger. Vague behavioural instructions never prevent recurrence.",
+    "example": "# Action items table\n| Action                                      | Owner | Priority | Due     |\n| Add --dry-run default to migrate CLI        | bob   | P1       | 2026-10-01 |\n| Alert on replication lag > 30s (SLO burn)   | carol | P1       | 2026-10-05 |\n| Update DB failover runbook with new steps   | erin  | P2       | 2026-10-15 |",
+    "diagram": "flowchart LR\nPM[\"postmortem\"] --> C[\"contributing causes\"]\nC --> AI[\"action item: owner + due date\"]\nAI --> T[\"tracked in backlog\"]\nT --> V[\"verified in later review\"]",
+    "reference": "https://sre.google/sre-book/postmortem-culture/",
+    "tags": [
+      "postmortem",
+      "action-items"
+    ],
+    "type": "multi",
+    "options": [
+      "It has a single named owner",
+      "It has a due date or is tracked in the team's issue tracker with priority",
+      "It is phrased as 'be more careful next time'",
+      "It addresses a contributing cause rather than only the trigger",
+      "It is created only if the incident was SEV1"
+    ],
+    "optionNotes": [
+      "Ownerless action items do not get done.",
+      "Tracking with priority and dates ties the action to real planning work instead of a document nobody reopens.",
+      "'Be more careful' is not actionable and blames people; good items change systems or tooling.",
+      "Fixing only the trigger leaves the systemic cause in place for the next, slightly different incident.",
+      "Any postmortem-worthy incident should produce concrete action items, regardless of severity."
+    ],
+    "answer": [
+      0,
+      1,
+      3
+    ]
+  },
+  {
+    "id": "sre-016",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Which common reliability metric (give the four-letter acronym) measures the average time from when an incident begins to when service is restored?",
+    "explanation": "MTTR (mean time to recovery/restore) captures how long outages last on average and is heavily influenced by detection, diagnosis and rollback speed. MTTD (mean time to detect) is the subset from start to detection, and MTBF (mean time between failures) measures how often failures happen.",
+    "example": "# Timeline of one incident\n10:00 fault introduced\n10:12 alert fires        -> TTD = 12 min\n10:40 rollback complete  -> TTR = 40 min\n# MTTR = average TTR across incidents in the period",
+    "diagram": "flowchart LR\nS[\"fault starts\"] -->|\"MTTD\"| D[\"detected\"]\nD -->|\"diagnose + fix\"| R[\"restored\"]\nS -->|\"MTTR total\"| R",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "mttr",
+      "metrics"
+    ],
+    "type": "fill",
+    "answer": [
+      "MTTR",
+      "mean time to recovery",
+      "mean time to restore",
+      "mean time to repair",
+      "mean time to resolve"
+    ],
+    "pattern": "^(mttr|mean\\s*time\\s*to\\s*(recover|recovery|restore|restoration|repair|resolve|resolution))$"
+  },
+  {
+    "id": "sre-017",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "A team reduces MTTR from 60 minutes to 10 minutes but MTBF stays the same. Which statement about availability is correct?",
+    "explanation": "Availability = MTBF / (MTBF + MTTR). Reducing MTTR directly increases availability even if the failure rate is unchanged. Many SRE investments (fast rollback, good alerting, runbooks) attack MTTR because it is often easier to shorten outages than to prevent them entirely.",
+    "example": "MTBF = 30 days = 43200 min\nMTTR = 60 min  -> 43200 / 43260 = 99.861%\nMTTR = 10 min  -> 43200 / 43210 = 99.977%",
+    "diagram": "flowchart LR\nB[\"MTBF constant\"] --> A[\"availability = MTBF / MTBF + MTTR\"]\nR[\"MTTR 60 to 10 min\"] --> A\nA --> U[\"availability up\"]",
+    "reference": "https://sre.google/sre-book/availability-table/",
+    "tags": [
+      "mttr",
+      "mtbf",
+      "availability"
+    ],
+    "type": "single",
+    "options": [
+      "Availability is unchanged because incidents happen just as often",
+      "Availability improves because each failure now causes less downtime, even though failures are equally frequent",
+      "Availability decreases because faster recovery masks underlying problems",
+      "Availability cannot be computed without knowing the SLA"
+    ],
+    "optionNotes": [
+      "Frequency alone does not determine availability; duration of each outage matters.",
+      "Availability is approximately MTBF / (MTBF + MTTR), so cutting MTTR with constant MTBF raises availability. This is why fast rollback and detection are such powerful reliability levers.",
+      "Faster recovery does not reduce availability; it may reduce pressure to fix root causes, but that is a separate concern.",
+      "Availability is a measured property; the SLA only sets the target."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-018",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "What is the purpose of the 'N+2' rule commonly used in SRE capacity planning?",
+    "explanation": "Capacity planning starts with a demand forecast (organic growth plus launches), then adds redundancy so the service survives simultaneous planned and unplanned loss of capacity. N+2 means the peak load fits on all units minus two, which also determines how many zones or clusters are needed.",
+    "example": "peak_qps          = 120000\nqps_per_cluster   = 30000\nN                 = ceil(120000 / 30000) = 4 clusters\nprovision N+2     = 6 clusters across >= 3 zones",
+    "diagram": "flowchart LR\nF[\"forecast peak demand\"] --> N[\"N units to serve it\"]\nN --> P[\"provision N+2\"]\nP --> M[\"1 in maintenance\"]\nP --> U[\"1 unplanned failure\"]\nP --> S[\"still within SLO\"]",
+    "reference": "https://sre.google/sre-book/software-engineering-in-sre/",
+    "tags": [
+      "capacity-planning"
+    ],
+    "type": "single",
+    "options": [
+      "Always run exactly two replicas of every service",
+      "Provision enough capacity that the service still meets demand after losing two units (e.g. one for planned maintenance and one for an unplanned failure)",
+      "Double the forecast demand and add two servers",
+      "Keep two spare engineers on-call during peak periods"
+    ],
+    "optionNotes": [
+      "N+2 is about spare capacity relative to demand, not a fixed replica count.",
+      "N is the capacity needed to serve peak demand; +2 covers one unit down for upgrades while another fails unexpectedly, so the service stays within SLO.",
+      "N+2 is additive redundancy over the forecast, not a doubling.",
+      "Capacity planning concerns compute and dependencies, not staffing."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-019",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "A backend is overloaded and every request is timing out. What is the name of the overload-protection technique in which the server deliberately rejects a portion of incoming requests early (e.g. with HTTP 503 or 429) so the remaining requests can succeed? (two words)",
+    "explanation": "Under overload, an unprotected server degrades into serving nothing well. Load shedding rejects requests cheaply and early, prioritising by criticality where possible, so that accepted requests complete within their deadlines. Clients should treat these rejections as a signal to back off.",
+    "example": "# Envoy admission control style\nif in_flight_requests > max_concurrency:\n    return 503 'overloaded', Retry-After: 2\n# prefer shedding low-priority traffic first\nif priority == 'batch' and cpu_util > 0.85:\n    return 429",
+    "diagram": "flowchart LR\nR[\"incoming requests\"] --> Q{\"over capacity?\"}\nQ -->|\"no\"| S[\"serve normally\"]\nQ -->|\"yes\"| D[\"reject cheaply: 503 or 429\"]\nD --> S",
+    "reference": "https://sre.google/sre-book/handling-overload/",
+    "tags": [
+      "load-shedding",
+      "overload"
+    ],
+    "type": "fill",
+    "answer": [
+      "load shedding",
+      "load-shedding",
+      "loadshedding",
+      "shed load"
+    ],
+    "pattern": "^(load[\\s-]*shedding|shed(ding)?\\s*load)$"
+  },
+  {
+    "id": "sre-020",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "An e-commerce checkout page normally shows personalised recommendations. During a recommendation-service outage the page still lets users pay but hides the recommendations block. What is this resilience pattern called? (two words)",
+    "explanation": "Graceful degradation means designing so that when a non-critical dependency fails, the system serves a reduced but useful response rather than an error. It requires classifying dependencies as critical or optional and wrapping optional calls with timeouts and fallbacks.",
+    "example": "try:\n    recs = recommendation_client.get(user_id, timeout=0.2)\nexcept (Timeout, ServiceUnavailable):\n    recs = []   # render checkout without the block\nrender_checkout(cart, recs)",
+    "diagram": "flowchart LR\nC[\"checkout request\"] --> P[\"payment service: critical\"]\nC --> R[\"recommendations: optional\"]\nR -->|\"timeout\"| F[\"fallback: empty list\"]\nP --> O[\"page rendered, user can pay\"]\nF --> O",
+    "reference": "https://sre.google/sre-book/addressing-cascading-failures/",
+    "tags": [
+      "graceful-degradation",
+      "resilience"
+    ],
+    "type": "fill",
+    "answer": [
+      "graceful degradation",
+      "graceful-degradation",
+      "degrade gracefully",
+      "graceful degrade"
+    ],
+    "pattern": "^(graceful[\\s-]*degrad(ation|e)|degrad(e|ing)\\s*gracefully)$"
+  },
+  {
+    "id": "sre-021",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "In the circuit breaker pattern, after the open-state cool-down expires the breaker enters a state in which a limited number of trial requests are allowed through to test whether the dependency has recovered. What is this state called?",
+    "explanation": "A circuit breaker has three states: closed (normal), open (fail fast without calling the dependency after too many failures) and half-open (after a cool-down, allow a few trial calls to test recovery). This stops a struggling dependency from being hammered and lets callers fail fast instead of blocking.",
+    "example": "# resilience4j style config\nfailureRateThreshold: 50\nslidingWindowSize: 100\nwaitDurationInOpenState: 30s\npermittedNumberOfCallsInHalfOpenState: 5",
+    "diagram": "flowchart LR\nC[\"closed: calls pass\"] -->|\"failure rate > 50%\"| O[\"open: fail fast\"]\nO -->|\"after 30s\"| H[\"half-open: 5 probes\"]\nH -->|\"probes succeed\"| C\nH -->|\"probes fail\"| O",
+    "reference": "https://martinfowler.com/bliki/CircuitBreaker.html",
+    "tags": [
+      "circuit-breaker",
+      "resilience"
+    ],
+    "type": "fill",
+    "answer": [
+      "half-open",
+      "half open",
+      "halfopen",
+      "half-open state"
+    ],
+    "pattern": "^half[\\s-]*open(\\s*state)?$"
+  },
+  {
+    "id": "sre-022",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Why is random jitter added to exponential backoff when clients retry a failed request?",
+    "explanation": "Exponential backoff alone still produces synchronised retry waves because every client computes the same delay sequence. Adding jitter (e.g. 'full jitter': sleep = random(0, base * 2^attempt)) spreads the load, smoothing the thundering-herd effect and letting the server recover.",
+    "example": "import random, time\nbase, cap = 0.1, 10\nfor attempt in range(5):\n    try:\n        return call()\n    except Transient:\n        sleep = random.uniform(0, min(cap, base * 2 ** attempt))  # full jitter\n        time.sleep(sleep)",
+    "diagram": "flowchart LR\nF[\"1000 clients fail at t=0\"] --> N[\"no jitter: all retry at 1s, 2s, 4s\"]\nN --> W[\"synchronised waves\"]\nF --> J[\"jitter: retries spread 0-1s, 0-2s...\"]\nJ --> S[\"smooth load, recovery\"]",
+    "reference": "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/",
+    "tags": [
+      "retries",
+      "backoff",
+      "jitter"
+    ],
+    "type": "single",
+    "options": [
+      "To make retries happen faster on average",
+      "To spread retries from many clients over time so they do not all hit the server in synchronised waves",
+      "To guarantee a retry succeeds on the second attempt",
+      "To reduce the total number of retries to exactly one"
+    ],
+    "optionNotes": [
+      "Jitter does not aim to speed retries; it randomises them.",
+      "Without jitter, thousands of clients that failed at the same instant retry at the same instants (1s, 2s, 4s...), recreating the overload spike each time. Jitter desynchronises them.",
+      "No retry policy can guarantee success; jitter only shapes timing.",
+      "Retry count is set by a separate max-attempts parameter."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-023",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "A service chain is A -> B -> C. C becomes slow, and each of A and B retries failed calls 3 times. Which statements about this situation are correct? Select all that apply.",
+    "explanation": "Retries are load amplifiers. Nested retries across N layers give up to (retries+1)^N attempts per request, which turns a slow dependency into a cascading failure. Mitigations: retry at only one layer, use backoff with jitter, enforce a retry budget, and only retry idempotent operations or use idempotency keys.",
+    "example": "# Envoy retry budget: retries never exceed 20% of active requests\nretry_budget:\n  budget_percent: 20\n  min_retry_concurrency: 3\n# Plus per-route\nretry_policy:\n  num_retries: 1\n  retry_on: 5xx,reset",
+    "diagram": "flowchart LR\nU[\"1 user request\"] --> A[\"A: 3 tries\"]\nA --> B[\"B: 3 tries each\"]\nB --> C[\"C: up to 9 calls\"]\nC -->|\"overload\"| X[\"cascading failure\"]",
+    "reference": "https://sre.google/sre-book/addressing-cascading-failures/",
+    "tags": [
+      "retries",
+      "retry-storm",
+      "cascading-failure"
+    ],
+    "type": "multi",
+    "options": [
+      "A single user request can generate up to 9 calls to C, amplifying load on the already-struggling service",
+      "Retries should be limited to one layer of the stack, ideally near the client edge, to avoid multiplicative amplification",
+      "Using a retry budget (e.g. retries capped at 10% of normal requests) bounds the extra load",
+      "Retrying immediately without backoff is fine as long as the retry count is small",
+      "Retrying non-idempotent operations is always safe"
+    ],
+    "optionNotes": [
+      "3 retries at A times 3 retries at B means each user request may fan out to 9 attempts on C, which is a retry storm.",
+      "Retrying at every hop multiplies load; a common rule is to retry at one level only.",
+      "A retry budget or token bucket guarantees that retries never exceed a small fraction of baseline traffic, so a bad dependency cannot be swamped.",
+      "Immediate retries hit the server while it is still overloaded; backoff with jitter is required.",
+      "Non-idempotent retries (e.g. charge card) can cause duplicate side effects unless idempotency keys are used."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "sre-024",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "Why should a service propagate the caller's remaining deadline to downstream calls instead of using a fixed timeout at every hop?",
+    "explanation": "Deadline propagation carries the caller's remaining time budget through every hop (gRPC does this automatically with deadlines). Downstream services then stop work that can no longer be useful, which is critical during overload where zombie requests would otherwise consume capacity and worsen a cascading failure.",
+    "example": "// gRPC Go: deadline flows through ctx to every downstream call\nctx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)\ndefer cancel()\nresp, err := ordersClient.Get(ctx, req) // remaining deadline sent in metadata",
+    "diagram": "flowchart LR\nC[\"client deadline 1s\"] --> A[\"A: 900ms left\"]\nA --> B[\"B: 600ms left\"]\nB --> D[\"C: 200ms left\"]\nD -->|\"deadline exceeded\"| X[\"abort, free capacity\"]",
+    "reference": "https://grpc.io/blog/deadlines/",
+    "tags": [
+      "timeouts",
+      "deadlines"
+    ],
+    "type": "single",
+    "options": [
+      "Fixed timeouts are illegal in gRPC",
+      "So that downstream work is cancelled once the original caller has already given up, avoiding wasted capacity on responses nobody will read",
+      "Because deadlines make requests faster",
+      "So that retries are disabled downstream"
+    ],
+    "optionNotes": [
+      "gRPC supports both; deadline propagation is a best practice, not a requirement.",
+      "If the client's deadline is 1s but each of three hops uses a 1s timeout, the last hop may still be working long after the client timed out; propagating the remaining deadline lets each hop abort useless work.",
+      "Deadlines bound work, they do not accelerate it.",
+      "Retries are a separate policy; deadlines simply cap total time."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-025",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Which HTTP status code should an API return when a client has exceeded its rate limit? Answer with the number only.",
+    "explanation": "429 Too Many Requests signals that the client has sent too many requests in a given time window and should back off, ideally honouring a Retry-After header. 503 is for server-side overload, so distinguishing them lets clients react correctly.",
+    "example": "HTTP/1.1 429 Too Many Requests\nRetry-After: 30\nRateLimit-Limit: 100\nRateLimit-Remaining: 0\nRateLimit-Reset: 30",
+    "diagram": "flowchart LR\nR[\"request\"] --> B{\"tokens left in bucket?\"}\nB -->|\"yes\"| S[\"200 OK\"]\nB -->|\"no\"| T[\"429 + Retry-After\"]",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+    "tags": [
+      "rate-limiting",
+      "http"
+    ],
+    "type": "fill",
+    "answer": [
+      "429",
+      "429 too many requests",
+      "too many requests"
+    ],
+    "pattern": "^(429(\\s*too\\s*many\\s*requests)?|too\\s*many\\s*requests)$"
+  },
+  {
+    "id": "sre-026",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Which rate-limiting algorithm lets tokens accrue at a fixed refill rate up to a maximum capacity, allowing short bursts up to that capacity while enforcing a steady average rate over time? (two words)",
+    "explanation": "Token bucket is the most common rate limiter for APIs because it tolerates natural burstiness. Capacity controls burst size and refill rate controls the sustained average. Sliding-window logs or counters are alternatives when strict window semantics matter more than burst tolerance.",
+    "example": "# 100 req/s sustained, bursts up to 500\nbucket_capacity = 500\nrefill_rate     = 100  # tokens per second\n\ndef allow():\n    refill()\n    if tokens >= 1:\n        tokens -= 1; return True\n    return False  # -> 429",
+    "diagram": "flowchart LR\nR[\"refill 100/s\"] --> B[\"bucket cap 500\"]\nQ[\"request\"] --> B\nB -->|\"token available\"| A[\"allow\"]\nB -->|\"empty\"| D[\"429\"]",
+    "reference": "https://en.wikipedia.org/wiki/Token_bucket",
+    "tags": [
+      "rate-limiting",
+      "algorithms"
+    ],
+    "type": "fill",
+    "answer": [
+      "token bucket",
+      "token-bucket",
+      "tokenbucket",
+      "token bucket algorithm"
+    ],
+    "pattern": "^token[\\s-]*bucket(\\s*algorithm)?$"
+  },
+  {
+    "id": "sre-027",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "What is a canary release?",
+    "explanation": "Canary releases limit blast radius by sending a small slice of real traffic (e.g. 1% then 10% then 50%) to the new version while automated analysis compares error rate, latency and saturation to the stable baseline. Any regression triggers automatic rollback before most users are affected.",
+    "example": "# Argo Rollouts canary steps\nstrategy:\n  canary:\n    steps:\n    - setWeight: 5\n    - pause: {duration: 10m}\n    - analysis: {templates: [{templateName: error-rate}]}\n    - setWeight: 50\n    - pause: {duration: 10m}",
+    "diagram": "flowchart LR\nT[\"traffic\"] -->|\"95%\"| S[\"stable v1\"]\nT -->|\"5%\"| C[\"canary v2\"]\nC --> A{\"SLIs healthy?\"}\nA -->|\"yes\"| P[\"promote to 100%\"]\nA -->|\"no\"| R[\"rollback\"]",
+    "reference": "https://sre.google/workbook/canarying-releases/",
+    "tags": [
+      "canary",
+      "releases"
+    ],
+    "type": "single",
+    "options": [
+      "Deploying to all users simultaneously with a fast rollback script ready",
+      "Routing a small percentage of production traffic to the new version, comparing its health against the baseline, then progressively increasing the share",
+      "Running the new version only in a staging environment with synthetic traffic",
+      "Deploying two full production environments and switching a load balancer between them"
+    ],
+    "optionNotes": [
+      "Big-bang deployment is what canarying avoids.",
+      "A canary exposes real traffic to the new version at small scale so regressions affect few users and can be detected by comparing SLIs before wider rollout.",
+      "Staging tests are valuable but do not use real production traffic and are not a canary.",
+      "Two full environments with a switch describes blue/green."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-028",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "Compared with a canary release, what is the main trade-off of a blue/green deployment?",
+    "explanation": "Blue/green keeps the old (blue) environment intact while the new (green) one is validated, then switches all traffic at once. Rollback is fast and clean, but validation before the switch does not see real traffic at scale and the switch itself exposes everyone. Canarying trades slower rollout for a smaller blast radius.",
+    "example": "# Blue/green switch on a Kubernetes Service selector\nkubectl patch svc api -p '{\"spec\":{\"selector\":{\"version\":\"green\"}}}'\n# rollback\nkubectl patch svc api -p '{\"spec\":{\"selector\":{\"version\":\"blue\"}}}'",
+    "diagram": "flowchart LR\nLB[\"load balancer\"] -->|\"100% today\"| B[\"blue v1\"]\nLB -.->|\"switch\"| G[\"green v2\"]\nG -->|\"bug\"| R[\"flip back to blue\"]",
+    "reference": "https://martinfowler.com/bliki/BlueGreenDeployment.html",
+    "tags": [
+      "blue-green",
+      "releases"
+    ],
+    "type": "single",
+    "options": [
+      "Blue/green gives near-instant rollback by switching traffic back, but requires double the capacity and exposes all users at once when traffic is switched",
+      "Blue/green is cheaper because it needs no extra infrastructure",
+      "Blue/green is the only strategy that supports database schema changes",
+      "Blue/green routes traffic by user cohort while canary routes by percentage"
+    ],
+    "optionNotes": [
+      "Blue/green runs two complete environments; the cutover is atomic, so rollback is a switch flip but any bug hits 100% of users until then.",
+      "Blue/green needs roughly 2x capacity during the transition, making it more expensive, not cheaper.",
+      "Schema changes need backward-compatible migrations under either strategy.",
+      "Both strategies can use either split; the defining difference is full-environment cutover versus gradual traffic shift."
+    ],
+    "answer": 0
+  },
+  {
+    "id": "sre-029",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "A change freeze window (e.g. during a peak sales event) should still allow emergency fixes through an explicit, documented exception process rather than blocking all changes absolutely.",
+    "explanation": "Freeze windows reduce change-induced risk during high-stakes periods, but production still breaks and security patches still arrive. A well-designed freeze defines who can approve an exception, what evidence is needed and how the change is monitored, so critical fixes are not delayed by an absolute ban.",
+    "example": "# Freeze policy excerpt\nWindow: 2026-11-26 00:00 to 2026-12-01 23:59 UTC\nBlocked: feature deploys, infra changes, config changes\nAllowed with IC + director approval: security patches, incident mitigations\nAll exceptions: canary first, on-call watching dashboards for 1h",
+    "diagram": "flowchart TD\nC[\"change during freeze\"] --> Q{\"emergency or security?\"}\nQ -->|\"no\"| W[\"wait until freeze ends\"]\nQ -->|\"yes\"| A[\"exception approval\"]\nA --> D[\"canary + close monitoring\"]",
+    "reference": "https://sre.google/sre-book/release-engineering/",
+    "tags": [
+      "change-management",
+      "freeze"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "sre-030",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "What is the core idea of chaos engineering?",
+    "explanation": "Chaos engineering treats resilience claims as hypotheses to test: define steady state, inject a fault such as zone loss or dependency latency, measure whether SLIs stay within bounds, and abort on excessive impact. Starting small (one instance, one region, off-peak) and automating aborts keeps it safe.",
+    "example": "# Chaos Mesh: inject 500ms latency into 10% of pods\napiVersion: chaos-mesh.org/v1alpha1\nkind: NetworkChaos\nspec:\n  action: delay\n  mode: fixed-percent\n  value: '10'\n  selector: {labelSelectors: {app: payments}}\n  delay: {latency: 500ms}\n  duration: 5m",
+    "diagram": "flowchart LR\nH[\"hypothesis: SLO holds if zone-b dies\"] --> I[\"inject: drain zone-b\"]\nI --> O[\"observe SLIs\"]\nO -->|\"holds\"| C[\"confidence\"]\nO -->|\"breaks\"| A[\"abort, fix, action item\"]",
+    "reference": "https://principlesofchaos.org/",
+    "tags": [
+      "chaos-engineering"
+    ],
+    "type": "single",
+    "options": [
+      "Randomly deleting production data to test backups",
+      "Running controlled experiments that inject failures (e.g. kill instances, add latency) to verify the system behaves as hypothesised, ideally in production with limited blast radius",
+      "Letting developers deploy without review to see what breaks",
+      "Load testing with as much traffic as possible until the system crashes"
+    ],
+    "optionNotes": [
+      "Chaos experiments are controlled and hypothesis-driven, not destructive of customer data.",
+      "Chaos engineering forms a steady-state hypothesis, injects a realistic fault, observes whether the hypothesis holds and stops immediately if impact exceeds the agreed blast radius.",
+      "Skipping review is negligence, not an experiment.",
+      "Load testing to failure is capacity testing; chaos engineering targets failure modes such as dependency loss."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-031",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "An alert fires at 3am for 'replication lag > 60s'. What should be linked directly from the alert so the on-call engineer can respond effectively?",
+    "explanation": "Runbooks (or playbooks) are the operational documentation for a specific alert: what it means, how to confirm user impact, dashboards to check, common causes and exact mitigation steps. They should be kept next to the alert definition and reviewed after every incident where they proved wrong or incomplete.",
+    "example": "# Alert rule with runbook annotation\n- alert: PostgresReplicationLagHigh\n  expr: pg_replication_lag_seconds > 60\n  for: 5m\n  labels: {severity: page}\n  annotations:\n    runbook_url: https://runbooks.example.com/postgres/replication-lag\n    summary: 'Replica {{ $labels.instance }} lagging'",
+    "diagram": "flowchart LR\nA[\"page fires\"] --> R[\"runbook link\"]\nR --> V[\"verify impact\"]\nV --> M[\"mitigation steps\"]\nM --> U[\"update runbook after incident\"]",
+    "reference": "https://sre.google/sre-book/being-on-call/",
+    "tags": [
+      "runbooks",
+      "on-call"
+    ],
+    "type": "single",
+    "options": [
+      "The source code of the database driver",
+      "A runbook describing what the alert means, how to verify impact, likely causes, and step-by-step mitigation commands",
+      "The team's quarterly OKR document",
+      "A link to the postmortem template"
+    ],
+    "optionNotes": [
+      "Source code does not tell a sleepy responder what to do first.",
+      "Every page should link to a runbook with meaning, verification steps, known causes and concrete commands; the SRE book notes that runbook-backed alerts cut MTTR dramatically.",
+      "OKRs are irrelevant during response.",
+      "The postmortem comes after mitigation, not at page time."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-032",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "A 'game day' is a scheduled exercise in which a team deliberately simulates an outage or disaster scenario to practise incident response and validate runbooks, monitoring and recovery procedures.",
+    "explanation": "Game days (Google calls the disaster-focused variant DiRT) exercise both systems and people: do the alerts fire, are the runbooks accurate, does the on-call know how to fail over. Findings become action items, and rehearsed responders resolve real incidents far faster.",
+    "example": "# Game day plan\nScenario: primary region loses network for 30 min (simulated via firewall rule)\nParticipants: on-call primary, secondary, IC\nSuccess: failover completes < 10 min, SLO alerts fire, status page updated\nAbort: real customer error rate > 0.5%",
+    "diagram": "flowchart LR\nP[\"plan scenario\"] --> S[\"simulate failure\"]\nS --> R[\"team responds using runbooks\"]\nR --> D[\"debrief: gaps found\"]\nD --> A[\"action items\"]",
+    "reference": "https://sre.google/sre-book/accelerating-sre-on-call/",
+    "tags": [
+      "game-day",
+      "training"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "sre-033",
+    "domain": "sre",
+    "difficulty": "easy",
+    "prompt": "Google's four golden signals of monitoring are latency, traffic, errors, and one more. Name the fourth signal.",
+    "explanation": "The four golden signals are latency, traffic, errors and saturation. Saturation measures how full the service is relative to its capacity (CPU, memory, queue depth, connection pool) and is the leading indicator that latency and errors are about to degrade.",
+    "example": "# Saturation examples\nnode CPU util:          85%\nconnection pool in use: 195 / 200\nkafka consumer lag:     240000 messages\n# leading indicator: alert before errors appear",
+    "diagram": "flowchart TD\nG[\"golden signals\"] --> L[\"latency\"]\nG --> T[\"traffic\"]\nG --> E[\"errors\"]\nG --> S[\"saturation: how full\"]",
+    "reference": "https://sre.google/sre-book/monitoring-distributed-systems/",
+    "tags": [
+      "golden-signals"
+    ],
+    "type": "fill",
+    "answer": [
+      "saturation"
+    ],
+    "pattern": "^saturation$"
+  },
+  {
+    "id": "sre-034",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "What is the difference between the RED and USE monitoring methods?",
+    "explanation": "RED (Rate, Errors, Duration) is the request-centric view: how many requests, how many fail, how long they take. USE (Utilization, Saturation, Errors) is the resource-centric view applied to every CPU, disk, network link or pool. Together with the golden signals they give a checklist for what every dashboard needs.",
+    "example": "# RED for the API\nrate:     sum(rate(http_requests_total[5m]))\nerrors:   sum(rate(http_requests_total{code=~\"5..\"}[5m]))\nduration: histogram_quantile(0.99, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))\n\n# USE for a disk\nutilization: rate(node_disk_io_time_seconds_total[5m])\nsaturation:  node_disk_io_time_weighted_seconds_total\nerrors:      node_disk_io_errors_total",
+    "diagram": "flowchart LR\nRED[\"RED: requests\"] --> R[\"rate\"]\nRED --> E[\"errors\"]\nRED --> D[\"duration\"]\nUSE[\"USE: resources\"] --> U[\"utilization\"]\nUSE --> S[\"saturation\"]\nUSE --> X[\"errors\"]",
+    "reference": "https://www.brendangregg.com/usemethod.html",
+    "tags": [
+      "red",
+      "use",
+      "monitoring-methods"
+    ],
+    "type": "single",
+    "options": [
+      "RED is for request-driven services (Rate, Errors, Duration); USE is for resources (Utilization, Saturation, Errors)",
+      "RED is for Kubernetes and USE is for virtual machines",
+      "They are identical, USE is just the Prometheus name for RED",
+      "RED measures resources and USE measures requests"
+    ],
+    "optionNotes": [
+      "RED (Tom Wilkie) describes service-level request health; USE (Brendan Gregg) checks each hardware or software resource for utilization, saturation and errors.",
+      "Both methods are platform-agnostic.",
+      "They come from different authors and measure different things.",
+      "This is reversed."
+    ],
+    "answer": 0
+  },
+  {
+    "id": "sre-035",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "A frontend has a 99.95% availability SLO. It makes a hard (blocking) call to a backend that only promises 99.9%. What is the most accurate conclusion?",
+    "explanation": "A service's SLO can be no better than the SLO of any dependency in its critical path, and chaining dependencies compounds unreliability. SRE guidance is that critical dependencies should be at least one nine more reliable than the service, or the dependency must be made non-critical through fallbacks, caching or redundancy.",
+    "example": "frontend_max_avail = own_avail * backend_avail\n                   = 0.9999 * 0.999 = 0.9989  # ~99.89%, below 99.95%\n\n# options\n1. cache backend responses, serve stale on failure\n2. SLO 99.9% for frontend\n3. backend commits to 99.99%",
+    "diagram": "flowchart LR\nF[\"frontend SLO 99.95%\"] -->|\"hard dependency\"| B[\"backend 99.9%\"]\nB --> M[\"frontend max ~99.89%\"]\nM --> O[\"fallback, cache, or renegotiate\"]",
+    "reference": "https://sre.google/sre-book/service-best-practices/",
+    "tags": [
+      "dependencies",
+      "slo"
+    ],
+    "type": "single",
+    "options": [
+      "The frontend can still meet 99.95% because SLOs are independent",
+      "The frontend cannot reliably meet 99.95% since its availability is bounded by its critical dependencies; it must either loosen its SLO, make the dependency non-critical (fallback/cache), or get the backend to commit to a tighter SLO",
+      "The backend SLO must be raised to 100%",
+      "Adding retries to the frontend solves the problem entirely"
+    ],
+    "optionNotes": [
+      "A hard dependency's failures become the frontend's failures, so availabilities multiply, they do not stay independent.",
+      "Availability of a chain of critical dependencies is roughly the product of their availabilities, so 99.9% x anything is below 99.95%. The fix is architectural (soft dependency, caching, redundancy) or renegotiating SLOs.",
+      "100% is impossible and is not a realistic SLO.",
+      "Retries help with transient errors but do not cover sustained backend outages and add load risk."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-036",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "Why do SRE teams deliberately avoid setting a 100% availability target?",
+    "explanation": "Reliability targets should be as high as needed and no higher. Each additional nine multiplies cost and engineering effort, users cannot perceive the difference once you exceed the reliability of their own connection, and a 100% target means zero error budget and therefore no room for change.",
+    "example": "# Marginal cost illustration\n99.9%  -> single region, standard HA\n99.99% -> multi-region active-active, extensive automation\n99.999% -> 26 s/month; every deploy and dependency must be near-perfect",
+    "diagram": "flowchart LR\nN[\"more nines\"] --> C[\"cost grows exponentially\"]\nN --> V[\"error budget shrinks to zero\"]\nV --> S[\"no releases possible\"]\nU[\"user network ~99.9%\"] -.->|\"masks the gain\"| N",
+    "reference": "https://sre.google/sre-book/embracing-risk/",
+    "tags": [
+      "availability",
+      "risk"
+    ],
+    "type": "single",
+    "options": [
+      "Because monitoring tools cannot display 100%",
+      "Because past a point users cannot distinguish extra reliability from their own network and device failures, and each extra nine costs disproportionately more while removing all room for change",
+      "Because SLAs are legally capped at 99.99%",
+      "Because 100% would require hiring more on-call engineers"
+    ],
+    "optionNotes": [
+      "Tooling is not the constraint.",
+      "Users experience the reliability of the whole path including their ISP and device; beyond that, extra nines are invisible, expensive and imply a zero error budget, which forbids any release velocity.",
+      "There is no legal cap; contracts vary.",
+      "Staffing is not the fundamental reason; economics and physics are."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-037",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "One backend instance in a pool of ten becomes slow; the load balancer removes it, the remaining nine become overloaded, they get removed too, and the whole service collapses. Which measures would help prevent this cascading failure? Select all that apply.",
+    "explanation": "Cascading failures happen when the loss of some capacity pushes remaining capacity past its limit, so it also fails. Defences are capacity headroom, per-instance load shedding so servers fail partially rather than totally, and clients that back off rather than retry harder. Aggressive retries and ignoring health signals both make the collapse faster.",
+    "example": "# Per-instance concurrency limit (Envoy)\ncircuit_breakers:\n  thresholds:\n  - max_requests: 800   # shed beyond this with 503\n    max_pending_requests: 100\n# Capacity: peak needs 8 instances -> run 10 (N+2)",
+    "diagram": "flowchart LR\nS[\"1 slow instance removed\"] --> O[\"9 left overloaded\"]\nO --> R[\"more removed\"]\nR --> X[\"total collapse\"]\nL[\"load shedding + headroom\"] -.->|\"breaks the loop\"| O",
+    "reference": "https://sre.google/sre-book/addressing-cascading-failures/",
+    "tags": [
+      "cascading-failure",
+      "troubleshooting"
+    ],
+    "type": "multi",
+    "options": [
+      "Load shedding on each instance so it rejects excess requests instead of degrading",
+      "Provisioning enough headroom (e.g. N+2) so losing instances does not overload the rest",
+      "Configuring the load balancer to keep sending traffic to instances even when unhealthy",
+      "Adding more aggressive client retries so the remaining instances get more chances",
+      "Client-side rate limiting and backoff so demand drops when the service signals overload"
+    ],
+    "optionNotes": [
+      "Rejecting excess load keeps each instance healthy so it is not pulled from the pool, halting the domino effect.",
+      "Headroom is the first line of defence: if nine instances can carry the full load, losing one is a non-event.",
+      "Sending traffic to failing instances just produces errors; the fix is capacity and shedding, not ignoring health checks.",
+      "More retries increase load on an already overloaded pool and accelerate the collapse.",
+      "Clients backing off in response to 503/429 reduces total demand and lets the pool recover."
+    ],
+    "answer": [
+      0,
+      1,
+      4
+    ]
+  },
+  {
+    "id": "sre-038",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "A cache entry for a popular key expires and thousands of concurrent requests miss simultaneously, all hitting the database at once and taking it down. What is this failure called and which mitigation directly addresses it?",
+    "explanation": "A thundering herd occurs when many waiters wake up for the same event and all do the same expensive work. For caches the fixes are request coalescing (singleflight), locking the key during recompute, serving stale data while one worker refreshes, and jittered or probabilistic early expiry so hot keys never expire at the same moment.",
+    "example": "// Go singleflight: N concurrent misses -> 1 DB query\nv, err, _ := group.Do(key, func() (any, error) {\n    v, err := db.Load(key)\n    cache.Set(key, v, ttl + jitter())\n    return v, err\n})",
+    "diagram": "flowchart LR\nE[\"hot key expires\"] --> M[\"1000 simultaneous misses\"]\nM -->|\"no coalescing\"| D[\"1000 DB queries: DB down\"]\nM -->|\"singleflight\"| O[\"1 DB query, 999 wait\"]",
+    "reference": "https://en.wikipedia.org/wiki/Cache_stampede",
+    "tags": [
+      "thundering-herd",
+      "cache",
+      "troubleshooting"
+    ],
+    "type": "single",
+    "options": [
+      "Retry storm; add exponential backoff to the clients",
+      "Thundering herd (cache stampede); use request coalescing or a lock so only one request recomputes the value while others wait or serve stale data",
+      "Split brain; add a quorum to the cache",
+      "Cascading failure; add more database replicas"
+    ],
+    "optionNotes": [
+      "Retries are not the trigger here; the simultaneous misses are.",
+      "A cache stampede is a thundering herd on the backend. Single-flight/coalescing, probabilistic early expiration and stale-while-revalidate ensure only one recomputation happens per key.",
+      "Split brain is a partition problem in distributed consensus, unrelated.",
+      "It can cascade, but replicas treat the symptom expensively; preventing the stampede is the direct fix."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "sre-039",
+    "domain": "sre",
+    "difficulty": "medium",
+    "prompt": "What is the SRE term for the maximum amount of unreliability a service is permitted over an SLO window, calculated as 1 minus the SLO target (two words)?",
+    "explanation": "The error budget is 100% minus the SLO, expressed as a fraction of events or time. It is the shared currency between product and SRE: spend it on launches and experiments while it lasts, and prioritise reliability work when it runs out.",
+    "example": "SLO           = 99.9%\nerror_budget  = 100% - 99.9% = 0.1%\nover 30 days  = 43.2 min of downtime, or 0.1% of requests",
+    "diagram": "flowchart LR\nO[\"SLO 99.9%\"] --> B[\"error budget 0.1%\"]\nB -->|\"spend on\"| L[\"launches, experiments\"]\nB -->|\"exhausted\"| R[\"reliability work\"]",
+    "reference": "https://sre.google/sre-book/embracing-risk/",
+    "tags": [
+      "error-budget"
+    ],
+    "type": "fill",
+    "answer": [
+      "error budget",
+      "error-budget",
+      "errorbudget",
+      "the error budget"
+    ],
+    "pattern": "^(the\\s+)?error[\\s-]*budget$"
+  },
+  {
+    "id": "sre-040",
+    "domain": "sre",
+    "difficulty": "hard",
+    "prompt": "A product team wants to increase deploy frequency from weekly to multiple times per day. From an SRE perspective, which reasoning is correct about the reliability impact?",
+    "explanation": "Most outages are caused by change, but the safest response is not fewer changes; it is smaller changes with strong guardrails: progressive rollouts, automated analysis, quick rollback and feature flags. The error budget makes the velocity/reliability trade-off explicit and data-driven instead of a matter of opinion.",
+    "example": "# Guardrails that make high velocity safe\n- trunk-based small PRs\n- canary 1% -> 10% -> 100% with automated SLI comparison\n- rollback < 5 min, one command\n- feature flags for risky behaviour\n- error budget policy governs when to slow down",
+    "diagram": "flowchart LR\nB[\"big weekly release\"] --> H[\"high risk per change\"]\nS[\"small daily releases\"] --> C[\"canary + fast rollback\"]\nC --> L[\"low risk per change\"]\nE[\"error budget\"] -->|\"arbiter\"| S",
+    "reference": "https://sre.google/sre-book/embracing-risk/",
+    "tags": [
+      "velocity",
+      "risk",
+      "error-budget"
+    ],
+    "type": "single",
+    "options": [
+      "More frequent deploys always reduce reliability, so SRE should refuse",
+      "Smaller, more frequent changes with automated canary analysis and fast rollback usually lower risk per change and shorten MTTR, while the error budget remains the objective arbiter of whether velocity must slow",
+      "Deploy frequency has no relationship to reliability",
+      "Reliability only depends on the number of on-call engineers"
+    ],
+    "optionNotes": [
+      "Blanket refusal ignores that large infrequent releases carry more untested change per deploy.",
+      "Small batches are easier to test, canary and roll back; the error budget policy provides an objective, non-adversarial mechanism to slow down only when reliability actually suffers.",
+      "Change is the dominant cause of outages, so the relationship is strong; the question is how to manage it.",
+      "Staffing affects response, not the risk introduced by each change."
+    ],
+    "answer": 1
+  }
+]

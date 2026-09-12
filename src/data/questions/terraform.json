@@ -2143,5 +2143,184 @@
       "drift",
       "lifecycle"
     ]
+  },
+  {
+    "id": "terraform-083",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Terraform subcommand prints the values of the root module's output blocks from the current state, optionally as JSON?",
+    "answer": [
+      "terraform output",
+      "output"
+    ],
+    "pattern": "^(terraform\\s+)?output$",
+    "explanation": "`terraform output` reads outputs from state without running a plan, so CI jobs and wrapper scripts use it to hand values (load balancer DNS names, cluster endpoints) to later steps. `-json` gives a machine-readable document, `-raw` prints one string value without quotes, and a name argument selects a single output. Sensitive outputs are redacted unless `-json` or `-raw` is used.",
+    "example": "terraform output\nterraform output -raw alb_dns_name\nterraform output -json | jq -r '.vpc_id.value'",
+    "diagram": "flowchart LR\n  S[\"terraform.tfstate\"] --> O[\"terraform output\"]\n  O -->|\"-raw\"| R[\"plain string\"]\n  O -->|\"-json\"| J[\"JSON for jq\"]\n  R --> C[\"next CI step\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/output",
+    "tags": [
+      "cli",
+      "outputs",
+      "basics"
+    ]
+  },
+  {
+    "id": "terraform-084",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which Terraform subcommand opens an interactive REPL for evaluating expressions and functions against the current configuration and state?",
+    "answer": [
+      "terraform console",
+      "console"
+    ],
+    "pattern": "^(terraform\\s+)?console$",
+    "explanation": "`terraform console` loads the configuration, variables and state and lets you type expressions such as `cidrsubnet(var.vpc_cidr, 8, 3)` or `aws_instance.web[*].private_ip` to see the result immediately. It is the fastest way to debug `for` expressions and type conversions before committing them, and it never modifies infrastructure (it holds only a read lock on state).",
+    "example": "$ terraform console\n> cidrsubnet(\"10.0.0.0/16\", 8, 3)\n\"10.0.3.0/24\"\n> [for s in aws_subnet.private : s.id]\n[\"subnet-0a1\", \"subnet-0b2\"]\n> exit\n\necho 'length(var.azs)' | terraform console",
+    "diagram": "flowchart LR\n  C[\"config and state\"] --> R[\"terraform console REPL\"]\n  E[\"expression\"] --> R\n  R --> V[\"evaluated value\"]\n  V --> F[\"fix expression in .tf\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/console",
+    "tags": [
+      "cli",
+      "expressions",
+      "debugging"
+    ]
+  },
+  {
+    "id": "terraform-085",
+    "domain": "terraform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which environment variable enables Terraform's detailed internal logging (with levels such as TRACE, DEBUG, INFO, WARN, ERROR)?",
+    "answer": [
+      "tf_log",
+      "tf_log=debug",
+      "tf_log=trace",
+      "$tf_log"
+    ],
+    "pattern": "^\\$?tf_log(=(trace|debug|info|warn|error))?$",
+    "explanation": "`TF_LOG` sets the verbosity of Terraform's own logs to stderr; `TF_LOG=DEBUG` or `TRACE` shows provider RPC calls and API requests, which is how you diagnose slow refreshes or opaque provider errors. `TF_LOG_PATH` redirects the output to a file, and `TF_LOG_CORE` / `TF_LOG_PROVIDER` scope the level to core or providers separately. Logs can contain secrets, so scrub them before sharing.",
+    "example": "export TF_LOG=DEBUG\nexport TF_LOG_PATH=./tf-debug.log\nterraform plan\n\n# only provider traffic\nTF_LOG_PROVIDER=TRACE terraform apply",
+    "diagram": "flowchart LR\n  E[\"TF_LOG=DEBUG\"] --> T[\"terraform core\"]\n  T --> P[\"provider RPC logs\"]\n  P --> F[\"TF_LOG_PATH file\"]\n  F --> D[\"diagnose slow or failing calls\"]",
+    "reference": "https://developer.hashicorp.com/terraform/internals/debugging",
+    "tags": [
+      "debugging",
+      "environment-variables",
+      "cli"
+    ]
+  },
+  {
+    "id": "terraform-086",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Besides `terraform.tfvars`, which filename suffix causes a variable definitions file to be loaded automatically, e.g. `prod.____`?",
+    "answer": [
+      ".auto.tfvars",
+      "auto.tfvars",
+      "*.auto.tfvars",
+      "prod.auto.tfvars",
+      ".auto.tfvars.json"
+    ],
+    "pattern": "^(\\*|prod)?\\.?auto\\.tfvars(\\.json)?$",
+    "explanation": "Terraform automatically loads `terraform.tfvars`, `terraform.tfvars.json`, and any file ending in `.auto.tfvars` or `.auto.tfvars.json`, in lexical order, with later files overriding earlier ones. Any other `.tfvars` file (such as `prod.tfvars`) must be passed explicitly with `-var-file`. The `.auto` convention is handy for generated or per-developer values that should apply without extra flags.",
+    "example": "$ ls\nmain.tf  variables.tf  terraform.tfvars  region.auto.tfvars  prod.tfvars\n$ terraform plan                       # loads terraform.tfvars + region.auto.tfvars\n$ terraform plan -var-file=prod.tfvars  # prod.tfvars needs the flag",
+    "diagram": "flowchart TD\n  A[\"terraform.tfvars\"] --> L[\"auto-loaded\"]\n  B[\"*.auto.tfvars\"] --> L\n  C[\"prod.tfvars\"] -->|\"-var-file only\"| M[\"manual\"]\n  L --> P[\"terraform plan\"]\n  M --> P",
+    "reference": "https://developer.hashicorp.com/terraform/language/values/variables#variable-definitions-tfvars-files",
+    "tags": [
+      "variables",
+      "tfvars",
+      "configuration"
+    ]
+  },
+  {
+    "id": "terraform-087",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which flag on `terraform show` renders a saved plan file or the current state as machine-readable JSON for tools such as OPA, Checkov or Infracost?",
+    "answer": [
+      "-json",
+      "--json",
+      "json",
+      "terraform show -json"
+    ],
+    "pattern": "^(terraform\\s+show\\s+)?-{0,2}json$",
+    "explanation": "`terraform show -json tfplan` emits the documented JSON plan representation (`resource_changes`, `planned_values`, `configuration`), which policy engines and cost estimators consume instead of parsing human text. Without a plan argument it dumps the state in the JSON state format. The JSON output is versioned (`format_version`) so tools can detect breaking changes.",
+    "example": "terraform plan -out=tfplan\nterraform show -json tfplan > plan.json\njq '.resource_changes[] | select(.change.actions | index(\"delete\")) | .address' plan.json\nconftest test plan.json   # OPA policy check",
+    "diagram": "flowchart LR\n  P[\"terraform plan -out tfplan\"] --> S[\"terraform show -json\"]\n  S --> J[\"plan.json\"]\n  J --> O[\"OPA conftest\"]\n  J --> I[\"Infracost\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/show",
+    "tags": [
+      "cli",
+      "json",
+      "policy-as-code"
+    ]
+  },
+  {
+    "id": "terraform-088",
+    "domain": "terraform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `terraform state` subcommand downloads the current state from the configured remote backend and prints it to stdout?",
+    "answer": [
+      "terraform state pull",
+      "state pull",
+      "pull"
+    ],
+    "pattern": "^(terraform\\s+)?(state\\s+)?pull$",
+    "explanation": "`terraform state pull` fetches the full state from the backend (S3, HCP Terraform, GCS and so on) and writes it as JSON to stdout, so you can inspect it with `jq`, back it up, or hand-repair it before uploading with `terraform state push`. It is safer than reading the backend object directly because Terraform upgrades the state format on the way out.",
+    "example": "terraform state pull > backup-$(date +%F).tfstate\nterraform state pull | jq '.resources[] | select(.type==\"aws_instance\") | .instances[].attributes.id'\n# after careful editing\nterraform state push repaired.tfstate",
+    "diagram": "flowchart LR\n  B[\"remote backend S3\"] -->|\"state pull\"| L[\"local JSON stdout\"]\n  L --> J[\"jq inspect or backup\"]\n  J -->|\"state push\"| B",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/state/pull",
+    "tags": [
+      "state",
+      "cli",
+      "backends"
+    ]
+  },
+  {
+    "id": "terraform-089",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Terraform subcommand (command and subcommands, no flags) adds provider checksums for additional platforms, e.g. `-platform=linux_arm64`, to the dependency lock file so CI on other OSes can verify providers?",
+    "answer": [
+      "terraform providers lock",
+      "providers lock"
+    ],
+    "pattern": "^(terraform\\s+)?providers\\s+lock$",
+    "explanation": "`terraform init` only records checksums for the platform it ran on, so a lock file generated on macOS makes `init` fail with a checksum mismatch on a Linux runner. `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64 ...` fetches each provider for every listed platform and writes all `h1:`/`zh:` hashes into `.terraform.lock.hcl`, letting one committed lock file serve every developer and CI target.",
+    "example": "terraform providers lock \\\n  -platform=linux_amd64 \\\n  -platform=linux_arm64 \\\n  -platform=darwin_arm64 \\\n  -platform=windows_amd64\ngit add .terraform.lock.hcl",
+    "diagram": "flowchart LR\n  D[\"init on macOS\"] --> L[\"lock file darwin hashes only\"]\n  L --> CI[\"Linux CI init fails checksum\"]\n  PL[\"terraform providers lock -platform\"] --> L2[\"hashes for all platforms\"]\n  L2 --> OK[\"init passes everywhere\"]",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/providers/lock",
+    "tags": [
+      "lock-file",
+      "providers",
+      "ci"
+    ]
+  },
+  {
+    "id": "terraform-090",
+    "domain": "terraform",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `terraform apply` (and `plan`) flag limits how many resource operations Terraform performs concurrently, defaulting to 10?",
+    "answer": [
+      "-parallelism",
+      "--parallelism",
+      "parallelism",
+      "-parallelism=n",
+      "-parallelism=1"
+    ],
+    "pattern": "^(terraform\\s+(apply|plan)\\s+)?-{0,2}parallelism(=(\\d+|n))?$",
+    "explanation": "Terraform walks the resource graph and by default runs up to 10 independent operations at once. `-parallelism=N` raises that for large graphs against providers that tolerate it, or lowers it (even to 1) when an API enforces strict rate limits or when a provider has ordering bugs. It affects only the concurrency of a single run, not the dependency ordering, which the graph still guarantees.",
+    "example": "terraform apply -parallelism=3     # gentle on a rate-limited API\nterraform plan  -parallelism=30    # faster refresh of a large state\n\n# equivalent via env var for CI\nexport TF_CLI_ARGS_apply=\"-parallelism=3\"",
+    "diagram": "flowchart LR\n  G[\"resource graph\"] --> W[\"walker\"]\n  W -->|\"parallelism 10 default\"| O[\"10 concurrent API calls\"]\n  W -->|\"parallelism 1\"| S[\"serial calls\"]\n  O --> A[\"provider API\"]\n  S --> A",
+    "reference": "https://developer.hashicorp.com/terraform/cli/commands/apply#parallelism-n",
+    "tags": [
+      "cli",
+      "performance",
+      "rate-limits"
+    ]
   }
 ]

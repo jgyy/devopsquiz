@@ -1364,5 +1364,186 @@
       "api-versioning",
       "deprecation"
     ]
+  },
+  {
+    "id": "platform-051",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `argocd` CLI subcommand (command and subcommand, no flags) triggers an immediate synchronisation of an Application to the state in Git?",
+    "answer": [
+      "argocd app sync",
+      "app sync",
+      "sync"
+    ],
+    "pattern": "^(argocd\\s+)?(app\\s+)?sync$",
+    "explanation": "`argocd app sync <name>` tells the Argo CD API server to reconcile the Application now instead of waiting for the automated sync poll. Flags such as `--prune`, `--dry-run` and `--resource` refine what is applied. In GitOps flows the CLI sync is mainly for manual promotions and debugging; steady-state changes should come from Git commits picked up by `syncPolicy.automated`.",
+    "example": "argocd app sync orders-prod --prune\nargocd app wait orders-prod --health --timeout 300\nargocd app diff orders-prod   # what would change",
+    "diagram": "flowchart LR\n  G[\"Git repo\"] --> A[\"Argo CD Application\"]\n  U[\"argocd app sync\"] --> A\n  A -->|\"kubectl apply equivalent\"| K[\"cluster\"]\n  K -->|\"health\"| A",
+    "reference": "https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_sync/",
+    "tags": [
+      "gitops",
+      "argocd",
+      "cli"
+    ]
+  },
+  {
+    "id": "platform-052",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "In the Kubernetes Gateway API, which resource kind do application developers create to match HTTP hostnames and paths and route them to backend Services?",
+    "answer": [
+      "httproute",
+      "httproutes",
+      "httproute kind",
+      "kind: httproute"
+    ],
+    "pattern": "^(kind:\\s*)?httproutes?(\\s+kind)?$",
+    "explanation": "`HTTPRoute` is the developer-facing routing object: it attaches to a `Gateway` via `parentRefs`, declares `hostnames`, `matches` on path or header, optional `filters` (redirects, header rewrites, mirroring) and `backendRefs` to Services with weights. The platform team owns the `GatewayClass` and `Gateway`, so tenants only need namespace-scoped `HTTPRoute` permissions.",
+    "example": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata: {name: shop, namespace: shop}\nspec:\n  parentRefs: [{name: public, namespace: infra}]\n  hostnames: [\"shop.example.com\"]\n  rules:\n    - matches: [{path: {type: PathPrefix, value: /api}}]\n      backendRefs: [{name: api, port: 8080}]",
+    "diagram": "flowchart LR\n  GC[\"GatewayClass platform\"] --> GW[\"Gateway public\"]\n  GW --> HR[\"HTTPRoute shop\"]\n  HR -->|\"/api\"| S1[\"Service api\"]\n  HR -->|\"/\"| S2[\"Service web\"]",
+    "reference": "https://gateway-api.sigs.k8s.io/api-types/httproute/",
+    "tags": [
+      "gateway-api",
+      "ingress",
+      "cnpe"
+    ]
+  },
+  {
+    "id": "platform-053",
+    "domain": "platform",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "What is the file name of the JSON configuration that defines a Dev Container (image, features, extensions, ports) for tools like VS Code and GitHub Codespaces?",
+    "answer": [
+      "devcontainer.json",
+      ".devcontainer/devcontainer.json",
+      ".devcontainer.json"
+    ],
+    "pattern": "^(\\.devcontainer/)?\\.?devcontainer\\.json$",
+    "explanation": "`devcontainer.json`, usually placed in a `.devcontainer/` folder at the repo root, is read by any Dev Container spec implementation (VS Code, Codespaces, the `devcontainer` CLI, JetBrains). It pins the base image or Dockerfile, adds Features, forwards ports, and runs `postCreateCommand`, giving every engineer the same golden-path toolchain on day one.",
+    "example": "// .devcontainer/devcontainer.json\n{\n  \"image\": \"mcr.microsoft.com/devcontainers/go:1.24\",\n  \"features\": {\n    \"ghcr.io/devcontainers/features/kubectl-helm-minikube:1\": {}\n  },\n  \"forwardPorts\": [8080],\n  \"postCreateCommand\": \"make setup\"\n}",
+    "diagram": "flowchart LR\n  R[\"repo .devcontainer/devcontainer.json\"] --> I[\"base image plus Features\"]\n  I --> C[\"container workspace\"]\n  C --> V[\"VS Code or Codespaces\"]\n  C --> P[\"postCreateCommand\"]",
+    "reference": "https://containers.dev/implementors/json_reference/",
+    "tags": [
+      "devcontainers",
+      "developer-experience",
+      "golden-path"
+    ]
+  },
+  {
+    "id": "platform-054",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Backstage catalog entity `kind` defines a Software Template that the Scaffolder plugin uses to generate new projects from a golden path?",
+    "answer": [
+      "template",
+      "kind: template",
+      "template entity",
+      "software template"
+    ],
+    "pattern": "^(kind:\\s*)?(software\\s+)?template(\\s+entity)?$",
+    "explanation": "A `Template` entity (`scaffolder.backstage.io/v1beta3`) declares input `parameters` (rendered as a form) and ordered `steps` that call actions such as `fetch:template`, `publish:github` and `catalog:register`. Registering the Template in the catalog makes it appear under Create in the portal, so a developer can bootstrap a service that already conforms to the platform's standards.",
+    "example": "apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\nmetadata:\n  name: go-service\n  title: Go microservice\nspec:\n  owner: group:platform\n  type: service\n  parameters: [...]\n  steps:\n    - id: fetch\n      action: fetch:template\n    - id: publish\n      action: publish:github",
+    "diagram": "flowchart LR\n  T[\"Template entity\"] --> F[\"form from parameters\"]\n  F --> S[\"scaffolder steps\"]\n  S --> R[\"new Git repo\"]\n  S --> C[\"catalog:register Component\"]",
+    "reference": "https://backstage.io/docs/features/software-templates/writing-templates",
+    "tags": [
+      "backstage",
+      "scaffolder",
+      "golden-path"
+    ]
+  },
+  {
+    "id": "platform-055",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which Crossplane resource kind defines the schema of a new composite resource type (and optionally its namespaced claim) that platform teams expose as a self-service API?",
+    "answer": [
+      "compositeresourcedefinition",
+      "xrd",
+      "compositeresourcedefinitions",
+      "kind: compositeresourcedefinition",
+      "composite resource definition"
+    ],
+    "pattern": "^(kind:\\s*)?(compositeresourcedefinitions?|composite\\s+resource\\s+definitions?|xrds?)$",
+    "explanation": "A `CompositeResourceDefinition` (XRD) is to Crossplane what a CRD is to Kubernetes: it declares the group, names and OpenAPI schema of a composite resource (XR) and, if `claimNames` is set, a namespaced claim kind for tenants. One or more `Composition`s then implement the XRD by mapping it to managed resources. Crossplane generates the actual CRDs from the XRD.",
+    "example": "apiVersion: apiextensions.crossplane.io/v1\nkind: CompositeResourceDefinition\nmetadata:\n  name: xpostgresqlinstances.platform.example.com\nspec:\n  group: platform.example.com\n  names: {kind: XPostgreSQLInstance, plural: xpostgresqlinstances}\n  claimNames: {kind: PostgreSQLInstance, plural: postgresqlinstances}\n  versions:\n    - name: v1alpha1\n      served: true\n      referenceable: true\n      schema: {openAPIV3Schema: {...}}",
+    "diagram": "flowchart LR\n  X[\"XRD schema\"] --> XR[\"composite resource kind\"]\n  X --> CL[\"namespaced claim kind\"]\n  C[\"Composition\"] -->|\"implements\"| XR\n  CL --> XR\n  XR --> MR[\"managed cloud resources\"]",
+    "reference": "https://docs.crossplane.io/latest/composition/composite-resource-definitions/",
+    "tags": [
+      "crossplane",
+      "self-service",
+      "cnpe"
+    ]
+  },
+  {
+    "id": "platform-056",
+    "domain": "platform",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which KEDA custom resource kind do you create to scale a Deployment based on an external event source such as a queue length or a Prometheus query?",
+    "answer": [
+      "scaledobject",
+      "scaledobjects",
+      "kind: scaledobject"
+    ],
+    "pattern": "^(kind:\\s*)?scaledobjects?$",
+    "explanation": "A `ScaledObject` points at a `scaleTargetRef` (Deployment, StatefulSet or any `/scale` subresource) and lists `triggers` from KEDA's scaler catalogue (Kafka, RabbitMQ, SQS, Prometheus, cron and dozens more). KEDA creates and owns an HPA for the target and can scale to zero when the trigger is idle. Batch-style work that should run to completion per event uses `ScaledJob` instead.",
+    "example": "apiVersion: keda.sh/v1alpha1\nkind: ScaledObject\nmetadata: {name: worker, namespace: jobs}\nspec:\n  scaleTargetRef: {name: worker}\n  minReplicaCount: 0\n  maxReplicaCount: 50\n  triggers:\n    - type: rabbitmq\n      metadata:\n        queueName: images\n        mode: QueueLength\n        value: \"20\"",
+    "diagram": "flowchart LR\n  Q[\"RabbitMQ queue depth\"] --> K[\"KEDA scaler\"]\n  SO[\"ScaledObject\"] --> K\n  K -->|\"creates HPA\"| H[\"HPA\"]\n  H --> D[\"Deployment 0..50 replicas\"]",
+    "reference": "https://keda.sh/docs/latest/concepts/scaling-deployments/",
+    "tags": [
+      "keda",
+      "autoscaling",
+      "cnpe"
+    ]
+  },
+  {
+    "id": "platform-057",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Argo Rollouts resource kind defines a reusable set of metric queries (for example against Prometheus) with success conditions that a canary Rollout runs during its analysis steps?",
+    "answer": [
+      "analysistemplate",
+      "analysistemplates",
+      "kind: analysistemplate",
+      "clusteranalysistemplate"
+    ],
+    "pattern": "^(kind:\\s*)?(cluster)?analysistemplates?$",
+    "explanation": "An `AnalysisTemplate` (or cluster-scoped `ClusterAnalysisTemplate`) declares `metrics` with a `provider` (Prometheus, Datadog, Kayenta, a Job, web request), an `interval`, and `successCondition`/`failureLimit`. A Rollout references it from a step's `analysis` block or a background `analysis`; each run creates an `AnalysisRun` whose result decides whether the canary is promoted or aborted automatically.",
+    "example": "apiVersion: argoproj.io/v1alpha1\nkind: AnalysisTemplate\nmetadata: {name: success-rate}\nspec:\n  args: [{name: service}]\n  metrics:\n    - name: success-rate\n      interval: 1m\n      count: 5\n      successCondition: result[0] >= 0.99\n      provider:\n        prometheus:\n          address: http://prometheus:9090\n          query: |\n            sum(rate(http_requests_total{service=\"{{args.service}}\",code!~\"5..\"}[2m])) /\n            sum(rate(http_requests_total{service=\"{{args.service}}\"}[2m]))",
+    "diagram": "flowchart LR\n  R[\"Rollout canary step\"] --> AT[\"AnalysisTemplate\"]\n  AT --> AR[\"AnalysisRun\"]\n  AR -->|\"query\"| P[\"Prometheus\"]\n  AR -->|\"success\"| PR[\"promote\"]\n  AR -->|\"fail\"| AB[\"abort and rollback\"]",
+    "reference": "https://argo-rollouts.readthedocs.io/en/stable/features/analysis/",
+    "tags": [
+      "argo-rollouts",
+      "progressive-delivery",
+      "cnpe"
+    ]
+  },
+  {
+    "id": "platform-058",
+    "domain": "platform",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which Backstage annotation key on a catalog entity tells the TechDocs plugin where to find the documentation source (for example `dir:.`)?",
+    "answer": [
+      "backstage.io/techdocs-ref",
+      "techdocs-ref",
+      "backstage.io/techdocs-ref: dir:."
+    ],
+    "pattern": "^(backstage\\.io/)?techdocs-ref(:\\s*dir:\\.?)?$",
+    "explanation": "`backstage.io/techdocs-ref` maps an entity to its docs: `dir:.` means the `mkdocs.yml` and `docs/` folder live next to `catalog-info.yaml`, while `url:` points at another repository. The TechDocs builder generates the site from Markdown and stores it in the configured publisher (S3, GCS, local), and the portal renders it under the entity's Docs tab, keeping documentation with the code that owns it.",
+    "example": "# catalog-info.yaml\napiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: orders-api\n  annotations:\n    backstage.io/techdocs-ref: dir:.\n    github.com/project-slug: acme/orders-api\nspec:\n  type: service\n  owner: group:orders\n  lifecycle: production",
+    "diagram": "flowchart LR\n  E[\"Component annotation techdocs-ref dir:.\"] --> B[\"TechDocs builder mkdocs\"]\n  M[\"docs/ and mkdocs.yml\"] --> B\n  B --> S[\"published site in storage\"]\n  S --> P[\"portal Docs tab\"]",
+    "reference": "https://backstage.io/docs/features/techdocs/configuration/#configuring-a-single-entity-for-techdocs",
+    "tags": [
+      "backstage",
+      "techdocs",
+      "annotations"
+    ]
   }
 ]

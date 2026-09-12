@@ -2152,5 +2152,173 @@
       "submodules",
       "ci"
     ]
+  },
+  {
+    "id": "git-083",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `git` subcommand shows the line-by-line changes between your working tree and the staging area (index) that have not been staged yet?",
+    "answer": [
+      "git diff",
+      "diff"
+    ],
+    "pattern": "^(git\\s+)?diff$",
+    "explanation": "`git diff` with no arguments compares the working tree against the index, so it shows exactly what `git add` would stage. Use `git diff --staged` (alias `--cached`) to see what is already staged versus `HEAD`, and `git diff HEAD` to see both together.",
+    "example": "git diff              # unstaged changes\ngit diff --staged     # staged vs HEAD\ngit diff HEAD         # all changes vs last commit\ngit diff main..feature -- src/",
+    "diagram": "flowchart LR\nA[\"Working tree\"] -->|\"git diff\"| B[\"Index / staging area\"]\nB -->|\"git diff --staged\"| C[\"HEAD commit\"]\nA -->|\"git diff HEAD\"| C",
+    "reference": "https://git-scm.com/docs/git-diff",
+    "tags": [
+      "diff",
+      "staging"
+    ]
+  },
+  {
+    "id": "git-084",
+    "domain": "git",
+    "difficulty": "easy",
+    "type": "fill",
+    "prompt": "Which `git log` flag condenses each commit to a single line showing an abbreviated hash and the subject?",
+    "answer": [
+      "--oneline",
+      "oneline",
+      "git log --oneline"
+    ],
+    "pattern": "^(git\\s+log\\s+)?-{0,2}oneline$",
+    "explanation": "`--oneline` is shorthand for `--pretty=oneline --abbrev-commit`, so each commit takes one line with a short SHA. It pairs well with `--graph` and `--decorate` to visualise branch topology quickly in the terminal.",
+    "example": "git log --oneline\ngit log --oneline --graph --decorate --all\ngit log --oneline -n 10",
+    "diagram": "flowchart LR\nA[\"git log\"] -->|\"default: multi-line per commit\"| B[\"Full hash, author, date, message\"]\nA -->|\"--oneline\"| C[\"abc1234 Subject line\"]\nC -->|\"--graph --all\"| D[\"ASCII branch graph\"]",
+    "reference": "https://git-scm.com/docs/git-log",
+    "tags": [
+      "log"
+    ]
+  },
+  {
+    "id": "git-085",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `git commit` flag creates a commit whose subject starts with `fixup! <subject>` so that `git rebase -i --autosquash` will automatically fold it into the referenced earlier commit?",
+    "answer": [
+      "--fixup",
+      "fixup",
+      "git commit --fixup"
+    ],
+    "pattern": "^(git\\s+commit\\s+)?-{0,2}fixup(=\\S+|\\s+\\S+)?$",
+    "explanation": "`git commit --fixup=<commit>` records a commit titled `fixup! <original subject>`. During `git rebase -i --autosquash` Git reorders it directly after the target and marks it `fixup`, so the change is merged without an extra message. Set `rebase.autoSquash=true` to make autosquash the default.",
+    "example": "git commit --fixup=abc1234\ngit rebase -i --autosquash main\n# todo list:\n# pick abc1234 Add login form\n# fixup 9f8e7d6 fixup! Add login form",
+    "diagram": "flowchart LR\nA[\"git commit --fixup=abc1234\"] --> B[\"Commit titled fixup! Add login form\"]\nB --> C[\"git rebase -i --autosquash\"]\nC --> D[\"Todo reordered: fixup placed under abc1234\"]\nD --> E[\"Single clean commit\"]",
+    "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---fixupamendrewordltcommitgt",
+    "tags": [
+      "rebase",
+      "history-rewriting"
+    ]
+  },
+  {
+    "id": "git-086",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `git config` key sets the name of the initial branch that `git init` creates, for example to `main` instead of `master`?",
+    "answer": [
+      "init.defaultBranch",
+      "init.defaultbranch",
+      "defaultBranch"
+    ],
+    "pattern": "^(init\\.)?defaultbranch$",
+    "explanation": "`init.defaultBranch` controls the branch name a new repository starts with; Git still defaults to `master` and prints a hint unless it is set. Setting it globally (`--global`) makes every new repo on the machine start on `main` (or any name you choose).",
+    "example": "git config --global init.defaultBranch main\ngit init demo   # creates branch main\n# rename an existing repo's branch:\ngit branch -m master main",
+    "diagram": "flowchart LR\nA[\"git config --global init.defaultBranch main\"] --> B[\"~/.gitconfig\"]\nB --> C[\"git init\"]\nC --> D[\"Initial branch named main\"]",
+    "reference": "https://git-scm.com/docs/git-config#Documentation/git-config.txt-initdefaultBranch",
+    "tags": [
+      "config",
+      "branches"
+    ]
+  },
+  {
+    "id": "git-087",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Which `git` subcommand restricts the working tree to a chosen set of directories in a large monorepo, so only those paths are checked out (often combined with a partial clone)?",
+    "answer": [
+      "git sparse-checkout",
+      "sparse-checkout",
+      "sparse checkout"
+    ],
+    "pattern": "^(git\\s+)?sparse[-\\s]?checkout(\\s+\\S+)*$",
+    "explanation": "`git sparse-checkout` writes patterns to `.git/info/sparse-checkout` and updates the index so only matching paths are materialised on disk. With `--cone` mode you list directories rather than patterns, which is much faster. It is the standard companion to `git clone --filter=blob:none` for monorepos.",
+    "example": "git clone --filter=blob:none --sparse https://example.com/mono.git\ncd mono\ngit sparse-checkout set services/api libs/shared\ngit sparse-checkout list",
+    "diagram": "flowchart LR\nA[\"git sparse-checkout set services/api\"] --> B[\".git/info/sparse-checkout\"]\nB --> C[\"Index marks other paths skip-worktree\"]\nC --> D[\"Working tree contains only services/api\"]",
+    "reference": "https://git-scm.com/docs/git-sparse-checkout",
+    "tags": [
+      "monorepo",
+      "sparse-checkout"
+    ]
+  },
+  {
+    "id": "git-088",
+    "domain": "git",
+    "difficulty": "medium",
+    "type": "fill",
+    "prompt": "Many projects require a Developer Certificate of Origin. What is the exact name of the trailer that `git commit -s` (`--signoff`) appends to the commit message?",
+    "answer": [
+      "Signed-off-by",
+      "Signed-off-by:",
+      "signed off by",
+      "signed-off-by"
+    ],
+    "pattern": "^signed[-\\s]?off[-\\s]?by:?$",
+    "explanation": "`git commit -s` adds a `Signed-off-by: Name <email>` trailer built from `user.name` and `user.email`. It is a plain-text attestation of the DCO, not a cryptographic signature; `git commit -S` (capital S) is the separate flag that GPG/SSH-signs the commit.",
+    "example": "git commit -s -m \"fix: handle empty payload\"\n# message becomes:\n# fix: handle empty payload\n#\n# Signed-off-by: Jane Doe <jane@example.com>",
+    "diagram": "flowchart LR\nA[\"git commit -s\"] --> B[\"Reads user.name and user.email\"]\nB --> C[\"Appends trailer Signed-off-by: Name email\"]\nC --> D[\"DCO check in CI passes\"]\nE[\"-S capital S = cryptographic signature\"] -.-> A",
+    "reference": "https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff",
+    "tags": [
+      "dco",
+      "commit-message"
+    ]
+  },
+  {
+    "id": "git-089",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which `git rev-parse` flag prints the absolute path of the repository's top-level working directory, handy in scripts that must run from the repo root?",
+    "answer": [
+      "--show-toplevel",
+      "show-toplevel",
+      "git rev-parse --show-toplevel"
+    ],
+    "pattern": "^(git\\s+rev-parse\\s+)?-{0,2}show-toplevel$",
+    "explanation": "`git rev-parse --show-toplevel` resolves the root of the current worktree regardless of which subdirectory you are in, which makes scripts and hooks location-independent. Related flags are `--git-dir` (path to `.git`) and `--show-prefix` (your path relative to the root).",
+    "example": "cd \"$(git rev-parse --show-toplevel)\"\ngit rev-parse --git-dir       # .git\ngit rev-parse --show-prefix   # src/app/",
+    "diagram": "flowchart LR\nA[\"cwd: repo/src/app\"] -->|\"git rev-parse --show-toplevel\"| B[\"/home/me/repo\"]\nA -->|\"--show-prefix\"| C[\"src/app/\"]\nA -->|\"--git-dir\"| D[\"/home/me/repo/.git\"]",
+    "reference": "https://git-scm.com/docs/git-rev-parse",
+    "tags": [
+      "scripting",
+      "rev-parse"
+    ]
+  },
+  {
+    "id": "git-090",
+    "domain": "git",
+    "difficulty": "hard",
+    "type": "fill",
+    "prompt": "Which single-letter `git log` option (the so-called pickaxe) lists only commits that changed the number of occurrences of a given string, for example to find when `MAX_RETRIES` was introduced or removed?",
+    "answer": [
+      "-S",
+      "S",
+      "git log -S",
+      "--pickaxe"
+    ],
+    "pattern": "^(git\\s+log\\s+)?-?s(\\s*\\S+)?$",
+    "explanation": "`git log -S<string>` shows commits where the count of `<string>` in the diff changed, which pinpoints additions and removals without noise from lines that merely moved. `-G<regex>` is the looser cousin that matches any diff line touching the pattern. Add `-p` to see the actual hunks.",
+    "example": "git log -S MAX_RETRIES --oneline\ngit log -S\"MAX_RETRIES\" -p -- src/client.go\ngit log -G'retry\\(' --oneline",
+    "diagram": "flowchart LR\nA[\"git log -S MAX_RETRIES\"] --> B[\"Scan each commit diff\"]\nB -->|\"occurrence count changed\"| C[\"Commit listed\"]\nB -->|\"count unchanged\"| D[\"Commit skipped\"]\nE[\"-G regex matches any touched line\"] -.-> A",
+    "reference": "https://git-scm.com/docs/git-log#Documentation/git-log.txt--Sltstringgt",
+    "tags": [
+      "log",
+      "archaeology"
+    ]
   }
 ]

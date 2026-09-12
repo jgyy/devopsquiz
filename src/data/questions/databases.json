@@ -1,0 +1,1055 @@
+[
+  {
+    "id": "databases-001",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "What is the default TCP port PostgreSQL listens on?",
+    "explanation": "PostgreSQL's default listening port is 5432, set by the `port` parameter in `postgresql.conf`. Knowing default ports matters for security groups, NetworkPolicies and connection strings; MySQL uses 3306 and Redis uses 6379 by contrast.",
+    "example": "psql -h db.internal -p 5432 -U app -d orders\n# or via URI\npsql postgresql://app@db.internal:5432/orders",
+    "diagram": "flowchart LR\nA[\"app pod\"] -->|\"tcp 5432\"| P[\"PostgreSQL\"]\nB[\"app pod\"] -->|\"tcp 3306\"| M[\"MySQL\"]\nC[\"app pod\"] -->|\"tcp 6379\"| R[\"Redis\"]",
+    "reference": "https://www.postgresql.org/docs/current/runtime-config-connection.html",
+    "tags": [
+      "postgresql",
+      "ports"
+    ],
+    "type": "fill",
+    "answer": [
+      "5432",
+      "port 5432",
+      "tcp/5432"
+    ],
+    "pattern": "^(tcp/?|port\\s*)?5432$"
+  },
+  {
+    "id": "databases-002",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "You need a PostgreSQL logical backup that can be restored selectively (single tables) and in parallel with `pg_restore -j`. Which `pg_dump` format should you use?",
+    "explanation": "`pg_dump -Fc` writes the custom archive format: compressed, restorable with `pg_restore`, and the only format besides directory (`-Fd`) that supports parallel restore with `-j`. Plain SQL dumps are just scripts piped into `psql`, and tar archives cannot be restored in parallel.",
+    "example": "pg_dump -Fc -h db -U app orders > orders.dump\npg_restore -j 4 -d orders_restore orders.dump\n# restore only one table\npg_restore -t customers -d orders_restore orders.dump",
+    "diagram": "flowchart LR\nP[\"pg_dump -Fc\"] --> A[\"orders.dump custom archive\"]\nA -->|\"pg_restore -j 4\"| F[\"full parallel restore\"]\nA -->|\"pg_restore -t customers\"| S[\"single table restore\"]",
+    "reference": "https://www.postgresql.org/docs/current/app-pgdump.html",
+    "tags": [
+      "postgresql",
+      "backups",
+      "pg_dump"
+    ],
+    "type": "single",
+    "options": [
+      "`-F p` (plain SQL)",
+      "`-F c` (custom)",
+      "`-F t` (tar)",
+      "`--data-only`"
+    ],
+    "optionNotes": [
+      "Plain SQL output is a script for `psql`; it cannot be fed to `pg_restore`, so it supports neither selective object restore nor parallel restore.",
+      "The custom format is compressed by default, understood by `pg_restore`, and supports selecting objects with `-t`/`-n` and parallel restore with `-j`, making it the standard choice.",
+      "Tar format works with `pg_restore` but does not compress and, importantly, does not support parallel restore.",
+      "`--data-only` is a content filter (skip DDL), not an output format, and does not by itself enable pg_restore features."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-003",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which of the following rely on PostgreSQL's Write-Ahead Log (WAL)? (Select all that apply.)",
+    "explanation": "PostgreSQL writes a record of every change to the WAL and fsyncs it before the change can be considered committed, so after a crash the server replays WAL to reach a consistent state. The same stream is shipped to streaming replicas and archived with `archive_command` for point-in-time recovery.",
+    "example": "SELECT pg_current_wal_lsn();\n# pg_wal/ holds 16 MB segment files\nls /var/lib/postgresql/16/main/pg_wal | head\n# archive_command = 'wal-g wal-push %p'",
+    "diagram": "flowchart LR\nT[\"COMMIT\"] --> W[\"WAL record fsynced\"]\nW --> D[\"data files updated later by checkpoint\"]\nW --> R[\"streamed to replica\"]\nW --> A[\"archived for PITR\"]",
+    "reference": "https://www.postgresql.org/docs/current/wal-intro.html",
+    "tags": [
+      "postgresql",
+      "wal"
+    ],
+    "type": "multi",
+    "options": [
+      "Crash recovery after an unclean shutdown",
+      "Streaming replication to a hot standby",
+      "Point-in-time recovery via continuous archiving",
+      "Caching frequently read rows to speed up SELECTs",
+      "Storing query plans so EXPLAIN output is reused"
+    ],
+    "optionNotes": [
+      "After a crash the server replays WAL from the last checkpoint to bring data files to a consistent committed state.",
+      "Streaming replication ships the WAL byte stream to standbys, which replay it continuously.",
+      "Archived WAL segments replayed on top of a base backup are what make PITR to an arbitrary timestamp possible.",
+      "Read caching is done by shared_buffers and the OS page cache, not WAL.",
+      "PostgreSQL has no persistent shared plan cache; plans are per-session and unrelated to WAL."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "databases-004",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "You must replicate only two tables from a PostgreSQL 16 primary into a PostgreSQL 17 server. Which replication mode fits?",
+    "explanation": "Streaming replication replays raw WAL and produces a read-only byte-identical standby, so it must match major version and cannot be selective. Logical replication decodes WAL into logical row changes for published tables and lets a subscriber on a different major version, or with extra local tables, apply them.",
+    "example": "-- on primary (16)\nCREATE PUBLICATION orders_pub FOR TABLE orders, order_items;\n-- on subscriber (17)\nCREATE SUBSCRIPTION orders_sub\n  CONNECTION 'host=pg16 dbname=shop user=repl'\n  PUBLICATION orders_pub;",
+    "diagram": "flowchart LR\nP[\"primary PG16\"] -->|\"physical WAL, same major\"| S[\"standby PG16 read-only clone\"]\nP -->|\"logical decoding of 2 tables\"| L[\"subscriber PG17 writable\"]",
+    "reference": "https://www.postgresql.org/docs/current/logical-replication.html",
+    "tags": [
+      "postgresql",
+      "replication"
+    ],
+    "type": "single",
+    "options": [
+      "Streaming (physical) replication",
+      "Logical replication with a publication and subscription",
+      "pg_basebackup taken nightly",
+      "Synchronous commit with `synchronous_standby_names`"
+    ],
+    "optionNotes": [
+      "Physical streaming replication ships the whole cluster byte-for-byte and requires the same major version, so it can neither filter tables nor cross 16 to 17.",
+      "Logical replication decodes WAL into row changes for chosen tables via `CREATE PUBLICATION` / `CREATE SUBSCRIPTION`, and works across major versions and even into a database that has other tables.",
+      "`pg_basebackup` produces a physical copy of the entire cluster, not a continuous per-table feed.",
+      "`synchronous_standby_names` only controls commit durability for physical standbys; it is not a replication mode."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-005",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "In PostgreSQL, UPDATE and DELETE do not reclaim space immediately; VACUUM (usually via autovacuum) is needed to mark dead tuples reusable and to prevent transaction ID wraparound.",
+    "explanation": "PostgreSQL uses MVCC: an UPDATE writes a new row version and leaves the old one as a dead tuple. VACUUM marks dead tuples' space reusable and freezes old transaction IDs; if autovacuum falls behind, tables bloat and eventually the server refuses writes to avoid XID wraparound.",
+    "example": "SELECT relname, n_dead_tup, last_autovacuum\nFROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 5;\nVACUUM (VERBOSE, ANALYZE) orders;",
+    "diagram": "flowchart LR\nU[\"UPDATE row\"] --> N[\"new tuple version\"]\nU --> Dd[\"old tuple marked dead\"]\nDd -->|\"autovacuum\"| F[\"space reusable, XIDs frozen\"]\nDd -->|\"no vacuum\"| B[\"bloat and wraparound risk\"]",
+    "reference": "https://www.postgresql.org/docs/current/routine-vacuuming.html",
+    "tags": [
+      "postgresql",
+      "vacuum",
+      "mvcc"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "databases-006",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "A microservice fleet opens thousands of short-lived PostgreSQL connections. You put PgBouncer in front. Which `pool_mode` gives the highest connection reuse while still working with ordinary transactional SQL?",
+    "explanation": "PostgreSQL forks a process per connection, so thousands of connections are expensive. PgBouncer in `transaction` mode multiplexes many clients over few server connections by handing back the backend after each transaction; this is the usual production choice, with the caveat that session state (SET, LISTEN, temp tables) is not preserved between transactions.",
+    "example": "[pgbouncer]\nlisten_port = 6432\npool_mode = transaction\nmax_client_conn = 5000\ndefault_pool_size = 20\nmax_prepared_statements = 200",
+    "diagram": "flowchart LR\nC[\"5000 client conns\"] --> B[\"PgBouncer pool_mode=transaction\"]\nB -->|\"20 server conns\"| P[\"PostgreSQL\"]\nB -.->|\"released after each txn\"| B",
+    "reference": "https://www.pgbouncer.org/config.html",
+    "tags": [
+      "postgresql",
+      "pgbouncer",
+      "connection-pooling"
+    ],
+    "type": "single",
+    "options": [
+      "`session`",
+      "`transaction`",
+      "`statement`",
+      "`persistent`"
+    ],
+    "optionNotes": [
+      "Session mode assigns a server connection for the lifetime of the client connection, so it provides almost no multiplexing for idle-but-open clients.",
+      "Transaction mode returns the server connection to the pool after each transaction, giving high reuse; the trade-off is that session-level features such as prepared statements (before PgBouncer 1.21), `SET`, and advisory locks need care.",
+      "Statement mode releases the connection after every statement and forbids multi-statement transactions, which breaks normal application code.",
+      "`persistent` is not a PgBouncer pool mode."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-007",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which PostgreSQL configuration file controls client authentication, i.e. which hosts, users and databases may connect and with what auth method?",
+    "explanation": "`pg_hba.conf` (host-based authentication) is read top to bottom; the first matching line decides the auth method (`scram-sha-256`, `md5`, `trust`, `cert`, `reject`). `postgresql.conf` sets server parameters such as `listen_addresses` and `port`, but not who may connect.",
+    "example": "# TYPE  DATABASE  USER  ADDRESS        METHOD\nhostssl orders    app   10.0.0.0/8     scram-sha-256\nhost    all       all   0.0.0.0/0      reject\n# reload after edit\nSELECT pg_reload_conf();",
+    "diagram": "flowchart TD\nC[\"client 10.0.3.7 user app db orders\"] --> H[\"pg_hba.conf rules top to bottom\"]\nH -->|\"first match hostssl scram\"| A[\"SCRAM auth over TLS\"]\nH -->|\"no match\"| R[\"connection rejected\"]",
+    "reference": "https://www.postgresql.org/docs/current/auth-pg-hba-conf.html",
+    "tags": [
+      "postgresql",
+      "authentication"
+    ],
+    "type": "fill",
+    "answer": [
+      "pg_hba.conf",
+      "pg_hba"
+    ],
+    "pattern": "^pg_hba(\\.conf)?$"
+  },
+  {
+    "id": "databases-008",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "What does `EXPLAIN ANALYZE` add over plain `EXPLAIN` in PostgreSQL?",
+    "explanation": "`EXPLAIN` prints the planner's chosen plan with estimated costs and rows. `EXPLAIN ANALYZE` executes the query and annotates each node with actual time and row counts, so a Seq Scan estimating 10 rows that actually returned 2 million becomes obvious. Because it really runs, wrap destructive statements in `BEGIN ... ROLLBACK`.",
+    "example": "EXPLAIN (ANALYZE, BUFFERS)\nSELECT * FROM orders WHERE customer_id = 42;\n-- Index Scan using orders_customer_idx on orders\n--   (cost=0.43..8.45 rows=1 width=64) (actual time=0.031..0.034 rows=3 loops=1)",
+    "diagram": "flowchart LR\nE[\"EXPLAIN\"] --> P[\"estimated plan and cost\"]\nA[\"EXPLAIN ANALYZE\"] --> X[\"query executed\"]\nX --> R[\"actual time and rows per node\"]\nR --> C[\"compare estimate vs actual\"]",
+    "reference": "https://www.postgresql.org/docs/current/sql-explain.html",
+    "tags": [
+      "postgresql",
+      "performance",
+      "explain"
+    ],
+    "type": "single",
+    "options": [
+      "It shows the estimated plan without touching data",
+      "It actually executes the query and reports real timing and row counts next to the estimates",
+      "It rewrites the query to use the best index automatically",
+      "It records the query in the slow query log"
+    ],
+    "optionNotes": [
+      "Plain `EXPLAIN` shows only planner estimates; that is exactly what ANALYZE improves upon.",
+      "`EXPLAIN ANALYZE` runs the statement and prints actual time, actual rows and loops for each node, which exposes bad estimates and where time is really spent. Wrap it in a transaction and roll back when the statement writes data.",
+      "The planner does not rewrite your query; EXPLAIN only reports what it would do.",
+      "Slow query logging is controlled by `log_min_duration_statement`, not EXPLAIN."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-009",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "Which keyword do you add to `CREATE INDEX` in PostgreSQL so the index is built without blocking writes on the table?",
+    "explanation": "`CREATE INDEX CONCURRENTLY` avoids the write-blocking SHARE lock by scanning the table twice and waiting for in-flight transactions. It costs more I/O and time, cannot run in a transaction (migration tools need a non-transactional step), and on failure leaves an INVALID index that you must `DROP INDEX` before retrying.",
+    "example": "CREATE INDEX CONCURRENTLY orders_customer_idx ON orders (customer_id);\n-- check for leftovers from a failed build\nSELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid;",
+    "diagram": "flowchart LR\nN[\"CREATE INDEX\"] -->|\"SHARE lock\"| B[\"writes blocked until done\"]\nC[\"CREATE INDEX CONCURRENTLY\"] -->|\"two scans, no write lock\"| W[\"writes continue\"]\nC -->|\"on failure\"| I[\"INVALID index, drop and retry\"]",
+    "reference": "https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY",
+    "tags": [
+      "postgresql",
+      "indexes",
+      "migrations"
+    ],
+    "type": "fill",
+    "answer": [
+      "CONCURRENTLY",
+      "CREATE INDEX CONCURRENTLY"
+    ],
+    "pattern": "^(create\\s+index\\s+)?concurrently$"
+  },
+  {
+    "id": "databases-010",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "What is the default TCP port for MySQL and MariaDB?",
+    "explanation": "MySQL's classic protocol listens on 3306 (the X protocol on 33060). Use it in firewall rules, Kubernetes Services and DSNs; do not confuse it with PostgreSQL's 5432.",
+    "example": "mysql -h db.internal -P 3306 -u app -p shop\n# Kubernetes Service\nports:\n- port: 3306\n  targetPort: 3306",
+    "diagram": "flowchart LR\nA[\"app\"] -->|\"tcp 3306 classic protocol\"| M[\"MySQL\"]\nA -->|\"tcp 33060 X protocol\"| M",
+    "reference": "https://dev.mysql.com/doc/refman/8.4/en/port-reference.html",
+    "tags": [
+      "mysql",
+      "ports"
+    ],
+    "type": "fill",
+    "answer": [
+      "3306",
+      "port 3306",
+      "tcp/3306"
+    ],
+    "pattern": "^(tcp/?|port\\s*)?3306$"
+  },
+  {
+    "id": "databases-011",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "In MySQL, what is the binary log (binlog) used for?",
+    "explanation": "The binlog is MySQL's logical change stream: replicas pull it to stay in sync, and `mysqlbinlog` can replay it on top of a restored `mysqldump` to recover to a specific moment. InnoDB's redo log handles crash recovery, and the slow log handles query timing.",
+    "example": "SHOW BINARY LOGS;\nSHOW REPLICA STATUS\\G\n# replay to a point in time after a restore\nmysqlbinlog --stop-datetime='2026-09-12 09:59:00' binlog.000042 | mysql -u root -p",
+    "diagram": "flowchart LR\nC[\"COMMIT\"] --> B[\"binlog event\"]\nB -->|\"I/O and SQL threads\"| R[\"replica\"]\nB -->|\"mysqlbinlog replay\"| P[\"point-in-time recovery\"]\nC --> I[\"InnoDB redo log for crash recovery\"]",
+    "reference": "https://dev.mysql.com/doc/refman/8.4/en/binary-log.html",
+    "tags": [
+      "mysql",
+      "binlog",
+      "replication"
+    ],
+    "type": "single",
+    "options": [
+      "Storing InnoDB crash-recovery redo records",
+      "Recording committed data changes for replication and point-in-time recovery",
+      "Logging slow queries above `long_query_time`",
+      "Caching compiled query execution plans"
+    ],
+    "optionNotes": [
+      "Crash recovery uses the InnoDB redo log (`ib_logfile*` / `#ib_redo*`), which is separate from the binlog.",
+      "The binlog records every committed change (row or statement based); replicas read it via the I/O thread, and replaying it after restoring a full backup gives point-in-time recovery.",
+      "Slow queries go to the slow query log, enabled with `slow_query_log=ON`.",
+      "MySQL has no persistent plan cache; the binlog is a change log."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-012",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which command-line tool ships with MySQL to produce a logical SQL backup of a database?",
+    "explanation": "`mysqldump` writes CREATE and INSERT statements that can be replayed with the `mysql` client. Use `--single-transaction` for a consistent InnoDB snapshot without locking, and `--source-data=2` to record the binlog position for PITR or seeding a replica.",
+    "example": "mysqldump --single-transaction --source-data=2 \\\n  -h db -u backup -p shop | gzip > shop-$(date +%F).sql.gz",
+    "diagram": "flowchart LR\nM[\"mysqldump --single-transaction\"] --> S[\"shop.sql with CREATE and INSERT\"]\nS -->|\"mysql shop < shop.sql\"| R[\"restored database\"]\nM -->|\"--source-data\"| B[\"binlog position for PITR\"]",
+    "reference": "https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html",
+    "tags": [
+      "mysql",
+      "backups"
+    ],
+    "type": "fill",
+    "answer": [
+      "mysqldump"
+    ],
+    "pattern": "^mysqldump$"
+  },
+  {
+    "id": "databases-013",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "What is the default TCP port Redis listens on?",
+    "explanation": "Redis defaults to port 6379 (TLS is often configured on 6380 by convention, and Cluster uses port+10000 for the bus). Because Redis historically had no auth, an exposed 6379 is a common finding in security scans; set `requirepass` or ACLs and bind privately.",
+    "example": "redis-cli -h cache.internal -p 6379 PING\n# PONG\n# redis.conf\nbind 10.0.0.5\nrequirepass ${REDIS_PASSWORD}",
+    "diagram": "flowchart LR\nA[\"app\"] -->|\"tcp 6379\"| R[\"Redis\"]\nR -->|\"tcp 16379 cluster bus\"| R2[\"other cluster node\"]",
+    "reference": "https://redis.io/docs/latest/operate/oss_and_stack/management/config/",
+    "tags": [
+      "redis",
+      "ports"
+    ],
+    "type": "fill",
+    "answer": [
+      "6379",
+      "port 6379",
+      "tcp/6379"
+    ],
+    "pattern": "^(tcp/?|port\\s*)?6379$"
+  },
+  {
+    "id": "databases-014",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "You run Redis as a primary datastore and can tolerate losing at most one second of writes on a crash. Which persistence setting fits?",
+    "explanation": "RDB produces compact snapshots that are fast to restore but only as fresh as the last save. AOF appends each write; `appendfsync everysec` is the usual balance between durability and throughput, losing at most about a second. Redis recommends enabling both when durability matters.",
+    "example": "# redis.conf\nappendonly yes\nappendfsync everysec\nsave 3600 1 300 100 60 10000\n# check\nredis-cli INFO persistence | grep -E 'aof_enabled|rdb_last_save'",
+    "diagram": "flowchart LR\nW[\"write\"] --> A[\"AOF append, fsync every 1s\"]\nW --> M[\"memory\"]\nM -->|\"scheduled\"| S[\"RDB snapshot dump.rdb\"]\nA --> L[\"loss bounded to about 1s\"]\nS --> L2[\"loss up to snapshot interval\"]",
+    "reference": "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/",
+    "tags": [
+      "redis",
+      "persistence"
+    ],
+    "type": "single",
+    "options": [
+      "RDB snapshots only, `save 3600 1`",
+      "AOF enabled with `appendfsync everysec`",
+      "Persistence disabled, rely on replicas",
+      "AOF with `appendfsync no`"
+    ],
+    "optionNotes": [
+      "RDB writes a point-in-time snapshot on a schedule; with `save 3600 1` a crash can lose up to an hour of writes.",
+      "AOF logs every write and with `everysec` fsyncs once per second, bounding loss to about one second; combining it with RDB is the recommended production setup.",
+      "Replicas are asynchronous; a crash of the primary plus a bad failover can lose data, and a full-cluster restart loses everything.",
+      "`appendfsync no` leaves flushing to the OS, which typically means up to 30 seconds of exposure on Linux."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-015",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Redis is used purely as a cache with `maxmemory` set. Which `maxmemory-policy` evicts the least recently used keys across all keys regardless of TTL?",
+    "explanation": "The default `noeviction` policy returns errors on writes at the memory limit, which surprises many teams. For a cache where every key may be recreated, `allkeys-lru` (or `allkeys-lfu`) lets Redis evict any key; the `volatile-*` policies only touch keys with a TTL, so untagged keys accumulate.",
+    "example": "redis-cli CONFIG SET maxmemory 2gb\nredis-cli CONFIG SET maxmemory-policy allkeys-lru\nredis-cli INFO stats | grep evicted_keys",
+    "diagram": "flowchart TD\nF[\"maxmemory reached\"] --> P{\"maxmemory-policy\"}\nP -->|\"noeviction\"| E[\"writes fail OOM\"]\nP -->|\"allkeys-lru\"| A[\"evict LRU among all keys\"]\nP -->|\"volatile-lru\"| V[\"evict LRU only among keys with TTL\"]",
+    "reference": "https://redis.io/docs/latest/develop/reference/eviction/",
+    "tags": [
+      "redis",
+      "caching",
+      "eviction"
+    ],
+    "type": "single",
+    "options": [
+      "`noeviction`",
+      "`volatile-lru`",
+      "`allkeys-lru`",
+      "`volatile-ttl`"
+    ],
+    "optionNotes": [
+      "`noeviction` (the default) makes writes fail with OOM once `maxmemory` is reached, which is wrong for a cache.",
+      "`volatile-lru` only considers keys that have an expiry set; keys without TTL are never evicted and can fill memory.",
+      "`allkeys-lru` samples all keys and evicts approximate least-recently-used ones, the usual choice for a pure cache.",
+      "`volatile-ttl` evicts keys with the shortest remaining TTL, again only among keys that have one."
+    ],
+    "answer": 2
+  },
+  {
+    "id": "databases-016",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Your Redis dataset fits on one node, but you need automatic failover of the primary. Which deployment topology is the simplest fit?",
+    "explanation": "Sentinel provides monitoring, notification and automatic failover for a replicated (non-sharded) Redis setup; clients ask Sentinel for the current primary. Redis Cluster is for datasets or throughput that exceed one node, splitting 16384 hash slots across primaries, each with its own replicas.",
+    "example": "# sentinel.conf\nsentinel monitor mymaster 10.0.0.5 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 60000\n# client\nredis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster",
+    "diagram": "flowchart LR\nS1[\"sentinel\"] --> P[\"primary\"]\nS2[\"sentinel\"] --> P\nS3[\"sentinel\"] --> P\nP --> R[\"replica\"]\nS1 -->|\"quorum says down, promote\"| R\nC[\"client\"] -->|\"who is primary?\"| S1",
+    "reference": "https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/",
+    "tags": [
+      "redis",
+      "high-availability"
+    ],
+    "type": "single",
+    "options": [
+      "Redis Cluster with 3 shards",
+      "Redis Sentinel monitoring a primary and replicas",
+      "A single Redis with AOF",
+      "Two independent Redis instances behind round-robin DNS"
+    ],
+    "optionNotes": [
+      "Cluster shards the keyspace across nodes for horizontal scale; it also does failover but adds multi-key and client complexity you do not need for a single-node dataset.",
+      "Sentinel processes monitor the primary, agree by quorum that it is down, promote a replica and tell Sentinel-aware clients the new address; it is the HA answer when sharding is unnecessary.",
+      "AOF protects data on disk but a single instance has no failover at all.",
+      "Round-robin DNS between unrelated instances gives inconsistent data and no failover logic."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-017",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "In a MongoDB replica set, why is an odd number of voting members (or an arbiter) recommended?",
+    "explanation": "A MongoDB primary must be elected by a majority of voting members and steps down if it cannot see a majority. Three data-bearing members (or two plus an arbiter) tolerate one failure while still forming a majority; four members tolerate the same single failure but risk 2-2 splits, so odd counts are the norm.",
+    "example": "rs.initiate({_id: 'rs0', members: [\n  {_id: 0, host: 'mongo-0:27017'},\n  {_id: 1, host: 'mongo-1:27017'},\n  {_id: 2, host: 'mongo-2:27017'}]})\nrs.status().members.map(m => [m.name, m.stateStr])",
+    "diagram": "flowchart LR\nP[\"primary\"] -->|\"oplog\"| S1[\"secondary\"]\nP -->|\"oplog\"| S2[\"secondary\"]\nP -.->|\"primary lost\"| E[\"election needs 2 of 3 votes\"]\nE --> S1",
+    "reference": "https://www.mongodb.com/docs/manual/core/replica-set-elections/",
+    "tags": [
+      "mongodb",
+      "replication",
+      "high-availability"
+    ],
+    "type": "single",
+    "options": [
+      "Because MongoDB only supports 3 or 5 members",
+      "So a strict majority can always be formed to elect a primary and avoid ties during a partition",
+      "Because even numbers cause oplog corruption",
+      "To halve the storage cost of replication"
+    ],
+    "optionNotes": [
+      "Replica sets support up to 50 members with 7 voters; the odd-number advice is about majorities, not a hard limit.",
+      "Elections require a majority of voting members; with an even count a symmetric partition leaves neither side with a majority, so no primary and the set becomes read-only.",
+      "Even member counts do not corrupt the oplog; the problem is purely about achieving a majority.",
+      "Arbiters hold no data, but the reason for them is voting, not storage savings."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-018",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which disaster-recovery metric (three-letter acronym) expresses the maximum acceptable amount of data loss, measured as a time window before an incident?",
+    "explanation": "RPO (Recovery Point Objective) is how far back in time your last recoverable state may be, e.g. an RPO of 5 minutes means backups or WAL archiving must capture data at least every 5 minutes. RTO (Recovery Time Objective) is instead how long restoration may take.",
+    "example": "# RPO 5 min: archive WAL continuously, snapshot hourly\narchive_timeout = 300\n# RTO 30 min: rehearse restore, keep a warm standby",
+    "diagram": "flowchart LR\nB[\"last backup\"] -->|\"RPO = data loss window\"| I[\"incident\"]\nI -->|\"RTO = time to recover\"| U[\"service restored\"]",
+    "reference": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/disaster-recovery-dr-objectives.html",
+    "tags": [
+      "backups",
+      "disaster-recovery"
+    ],
+    "type": "fill",
+    "answer": [
+      "RPO",
+      "recovery point objective"
+    ],
+    "pattern": "^(rpo|recovery point objective)$"
+  },
+  {
+    "id": "databases-019",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "For PostgreSQL point-in-time recovery (PITR) to a timestamp yesterday afternoon, which two artifacts must you have?",
+    "explanation": "PITR = physical base backup (`pg_basebackup` or a tool such as pgBackRest, WAL-G or Barman) + every WAL segment since, archived via `archive_command`. Recovery restores the base backup, sets `restore_command` and `recovery_target_time`, and replays WAL until that point. Test restores regularly; an untested backup is a hope, not a plan.",
+    "example": "# postgresql.conf on the restored server\nrestore_command = 'wal-g wal-fetch %f %p'\nrecovery_target_time = '2026-09-11 15:42:00+08'\nrecovery_target_action = 'promote'\ntouch $PGDATA/recovery.signal",
+    "diagram": "flowchart LR\nB[\"base backup Mon 02:00\"] --> R[\"restore data dir\"]\nW[\"WAL archive Mon 02:00 to now\"] -->|\"replay until 15:42\"| R\nR --> T[\"cluster at target time, promote\"]",
+    "reference": "https://www.postgresql.org/docs/current/continuous-archiving.html",
+    "tags": [
+      "postgresql",
+      "backups",
+      "pitr"
+    ],
+    "type": "single",
+    "options": [
+      "A `pg_dump` from last night and the slow query log",
+      "A base backup taken before the target time plus a continuous WAL archive covering up to it",
+      "A streaming replica and `pg_hba.conf`",
+      "The `postgresql.conf` and a `VACUUM FULL` output"
+    ],
+    "optionNotes": [
+      "A logical dump restores only to the moment it was taken and cannot be rolled forward; the slow log is irrelevant.",
+      "PITR replays archived WAL segments on top of a physical base backup until `recovery_target_time`; without either piece you cannot reach an arbitrary instant.",
+      "A replica replays changes live, including yesterday's accidental DELETE, and cannot travel back in time.",
+      "Configuration and VACUUM output contain no data to recover."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-020",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which of the following are schema migration tools that version and apply database changes in order? (Select all that apply.)",
+    "explanation": "Migration tools keep schema changes as ordered, versioned scripts checked into git and applied by CI/CD, recording what ran in a tracking table so every environment converges. Flyway, Liquibase and Alembic (plus framework-native ones like Django or Prisma Migrate) are the common choices; poolers and IaC tools operate at a different layer.",
+    "example": "# Flyway\nflyway -url=jdbc:postgresql://db/shop -user=app migrate\n# Alembic\nalembic revision -m 'add orders index' && alembic upgrade head",
+    "diagram": "flowchart LR\nG[\"migrations in git V1 V2 V3\"] --> T[\"flyway migrate in CI\"]\nT --> H[\"history table records applied versions\"]\nT --> DB[\"schema converges in every env\"]",
+    "reference": "https://documentation.red-gate.com/flyway/getting-started-with-flyway/why-database-migrations",
+    "tags": [
+      "migrations",
+      "flyway",
+      "liquibase",
+      "alembic"
+    ],
+    "type": "multi",
+    "options": [
+      "Flyway",
+      "Liquibase",
+      "Alembic",
+      "PgBouncer",
+      "Terraform"
+    ],
+    "optionNotes": [
+      "Flyway applies versioned SQL or Java migrations (V1__init.sql, V2__add_index.sql) and records them in a history table.",
+      "Liquibase applies changesets from XML, YAML, JSON or SQL changelogs, tracking them in DATABASECHANGELOG.",
+      "Alembic is SQLAlchemy's migration tool for Python projects, generating revision scripts with upgrade and downgrade functions.",
+      "PgBouncer is a connection pooler, not a migration tool.",
+      "Terraform provisions infrastructure such as RDS instances; it does not manage table schemas."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "databases-021",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "You must rename column `email` to `email_address` on a hot table without downtime while the old and new application versions run side by side. Which approach follows the expand/contract pattern?",
+    "explanation": "Expand/contract splits a breaking schema change into backward-compatible steps: expand the schema, make code write both old and new, backfill in batches, move reads, then contract by removing the old column after every consumer is upgraded. Each release is compatible with the previous one, so rolling deploys and rollbacks are safe.",
+    "example": "-- release 1 (expand)\nALTER TABLE users ADD COLUMN email_address text;\n-- app writes both columns; backfill in batches\nUPDATE users SET email_address = email WHERE id BETWEEN 1 AND 10000;\n-- release 3 (contract)\nALTER TABLE users DROP COLUMN email;",
+    "diagram": "flowchart LR\nE[\"expand: add email_address\"] --> D[\"dual-write and backfill\"]\nD --> S[\"switch reads to new column\"]\nS --> C[\"contract: drop email\"]",
+    "reference": "https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-and-managing-your-instance/updating-the-virtual-machine-and-physical-resources#expandcontract",
+    "tags": [
+      "migrations",
+      "zero-downtime"
+    ],
+    "type": "single",
+    "options": [
+      "`ALTER TABLE users RENAME COLUMN email TO email_address;` during a deploy window",
+      "Add `email_address`, dual-write from the app, backfill, switch reads, then drop `email` in a later release",
+      "Drop `email`, redeploy the app, then add `email_address`",
+      "Create a view named `users_v2` and update only the new app to use it"
+    ],
+    "optionNotes": [
+      "A rename is instant, but the moment it runs every old-version pod fails with column-not-found until the rollout finishes, and rollback breaks the new version.",
+      "Expand (add new column), migrate (dual-write and backfill), contract (remove old column once no code references it) keeps both app versions working at every step and is reversible.",
+      "Dropping first destroys data and breaks everything immediately.",
+      "A view does not migrate data or resolve the coexistence of both column names for writes."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-022",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "Which of these PostgreSQL migration statements are likely to take a long-held exclusive lock or rewrite the whole table on a large, busy table? (Select all that apply.)",
+    "explanation": "Safe migrations on hot tables require knowing which DDL is metadata-only and which scans or rewrites. Type changes rewrite the table, plain CREATE INDEX blocks writes (use CONCURRENTLY), and constraint additions validate all rows (use NOT VALID followed by VALIDATE). Always set `lock_timeout` so a migration waiting behind a long transaction fails fast instead of queueing every other query behind it.",
+    "example": "SET lock_timeout = '5s';\nALTER TABLE orders ADD CONSTRAINT fk_customer\n  FOREIGN KEY (customer_id) REFERENCES customers (id) NOT VALID;\nALTER TABLE orders VALIDATE CONSTRAINT fk_customer;  -- SHARE UPDATE EXCLUSIVE only",
+    "diagram": "flowchart TD\nM[\"DDL on hot table\"] --> Q{\"metadata only?\"}\nQ -->|\"yes: add nullable col, const default\"| F[\"fast, brief lock\"]\nQ -->|\"no: type change, plain index, FK\"| L[\"long lock or rewrite\"]\nL --> A[\"use CONCURRENTLY, NOT VALID, lock_timeout\"]",
+    "reference": "https://www.postgresql.org/docs/current/sql-altertable.html#SQL-ALTERTABLE-NOTES",
+    "tags": [
+      "postgresql",
+      "migrations",
+      "locking"
+    ],
+    "type": "multi",
+    "options": [
+      "`ALTER TABLE orders ADD COLUMN note text;`",
+      "`ALTER TABLE orders ALTER COLUMN amount TYPE numeric(14,2);`",
+      "`ALTER TABLE orders ADD COLUMN status text NOT NULL DEFAULT 'new';` on PostgreSQL 11+",
+      "`CREATE INDEX orders_status_idx ON orders (status);`",
+      "`ALTER TABLE orders ADD CONSTRAINT fk FOREIGN KEY (customer_id) REFERENCES customers (id);`"
+    ],
+    "optionNotes": [
+      "Adding a nullable column with no default is a catalog-only change and completes almost instantly, though it still needs a brief ACCESS EXCLUSIVE lock, so set `lock_timeout`.",
+      "Changing a column type generally rewrites every row under an ACCESS EXCLUSIVE lock, blocking reads and writes for the whole rewrite.",
+      "Since PostgreSQL 11 a constant default is stored in the catalog and not written to each row, so this is fast; it is a common misconception that it rewrites.",
+      "A non-concurrent CREATE INDEX holds a SHARE lock that blocks writes for the entire build.",
+      "Adding a foreign key validates every existing row while holding locks on both tables; use `NOT VALID` then `VALIDATE CONSTRAINT` separately to avoid the long block."
+    ],
+    "answer": [
+      1,
+      3,
+      4
+    ]
+  },
+  {
+    "id": "databases-023",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which guarantees does a Kubernetes StatefulSet provide that make it more suitable than a Deployment for running a database? (Select all that apply.)",
+    "explanation": "Databases need stable identity (so replicas can find the primary), ordered startup, and a persistent volume that stays with the same pod ordinal. StatefulSets provide exactly that via headless-Service DNS and per-pod PVCs. They do not manage replication or failover, which is why operators exist.",
+    "example": "apiVersion: apps/v1\nkind: StatefulSet\nmetadata: {name: pg}\nspec:\n  serviceName: pg\n  replicas: 3\n  volumeClaimTemplates:\n  - metadata: {name: data}\n    spec:\n      accessModes: [ReadWriteOnce]\n      resources: {requests: {storage: 100Gi}}",
+    "diagram": "flowchart LR\nS[\"StatefulSet pg\"] --> P0[\"pg-0 + PVC data-pg-0\"]\nS --> P1[\"pg-1 + PVC data-pg-1\"]\nS --> P2[\"pg-2 + PVC data-pg-2\"]\nH[\"headless service pg\"] --> P0",
+    "reference": "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/",
+    "tags": [
+      "kubernetes",
+      "statefulset"
+    ],
+    "type": "multi",
+    "options": [
+      "Stable, predictable pod names and DNS identities such as `pg-0`, `pg-1`",
+      "A dedicated PersistentVolumeClaim per pod that is reattached to the same ordinal after rescheduling",
+      "Ordered, graceful creation and termination of pods",
+      "Automatic configuration of database replication and failover",
+      "Bypassing the scheduler for faster startup"
+    ],
+    "optionNotes": [
+      "Pods get ordinal names and, with a headless Service, stable DNS entries, so replicas can reliably find the primary.",
+      "`volumeClaimTemplates` create one PVC per ordinal; the PVC survives pod deletion and follows the same ordinal, which a database's data directory needs.",
+      "By default pods are created in order 0..N-1 and terminated in reverse, which helps bootstrap primaries before replicas.",
+      "A StatefulSet knows nothing about the database; replication and failover need an operator or sidecar.",
+      "StatefulSets use the normal scheduler; there is no performance shortcut."
+    ],
+    "answer": [
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "databases-024",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "What does a Kubernetes operator such as CloudNativePG add on top of a bare StatefulSet when running PostgreSQL?",
+    "explanation": "A StatefulSet only gives stable pods and volumes; it has no idea which pod is primary or how to promote a replica. CloudNativePG (and alternatives like Zalando Postgres Operator or Crunchy PGO) encode that day-2 knowledge: failover, `-rw`/`-ro` Services, continuous backup and PITR, and safe upgrades, all driven from a CR in git.",
+    "example": "apiVersion: postgresql.cnpg.io/v1\nkind: Cluster\nmetadata: {name: shop-db}\nspec:\n  instances: 3\n  storage: {size: 100Gi}\n  backup:\n    barmanObjectStore:\n      destinationPath: s3://backups/shop-db\n# apps connect to shop-db-rw:5432 and shop-db-ro:5432",
+    "diagram": "flowchart LR\nCR[\"Cluster CR instances 3\"] --> O[\"CloudNativePG operator\"]\nO --> P[\"primary pod\"]\nO --> R1[\"replica pod\"]\nO --> R2[\"replica pod\"]\nO --> S[\"shop-db-rw and shop-db-ro Services\"]\nO --> B[\"WAL and base backups to S3\"]",
+    "reference": "https://cloudnative-pg.io/documentation/current/",
+    "tags": [
+      "kubernetes",
+      "operators",
+      "postgresql"
+    ],
+    "type": "single",
+    "options": [
+      "A faster storage driver",
+      "Declarative management of replication, automated failover, backups to object storage and rolling minor-version upgrades",
+      "A built-in SQL client UI",
+      "Automatic sharding of tables across pods"
+    ],
+    "optionNotes": [
+      "Storage performance comes from the CSI driver and storage class, not the operator.",
+      "CloudNativePG reconciles a `Cluster` CR: it bootstraps the primary, configures streaming replicas, promotes on failure, switches the `-rw` Service, manages WAL archiving and base backups via Barman Cloud plugin, and performs rolling updates.",
+      "Operators do not ship a client UI; use psql, pgAdmin or similar.",
+      "CloudNativePG manages HA replicas of one database, not sharding; that is a different layer (Citus, application sharding)."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-025",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Adding asynchronous read replicas to a PostgreSQL or MySQL primary increases write throughput because writes are spread across the replicas.",
+    "explanation": "Read replicas only offload SELECT traffic; every write still goes to the single primary and is then replayed on each replica, so write capacity is unchanged (and the primary does slightly more work shipping WAL/binlog). Scaling writes needs sharding, partitioning, or a larger primary.",
+    "example": "# app config\nprimary:  postgres://shop-db-rw:5432/shop   # writes and consistent reads\nreplica:  postgres://shop-db-ro:5432/shop   # reporting, list pages\n# replicas may lag: check pg_last_xact_replay_timestamp()",
+    "diagram": "flowchart LR\nA[\"app\"] -->|\"writes\"| P[\"primary\"]\nA -->|\"reads\"| R1[\"replica\"]\nA -->|\"reads\"| R2[\"replica\"]\nP -->|\"async WAL\"| R1\nP -->|\"async WAL\"| R2",
+    "reference": "https://www.postgresql.org/docs/current/hot-standby.html",
+    "tags": [
+      "replication",
+      "scaling"
+    ],
+    "type": "boolean",
+    "answer": false
+  },
+  {
+    "id": "databases-026",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "The PostgreSQL primary has died and you must make the streaming standby writable. Which `pg_ctl` subcommand does this?",
+    "explanation": "A hot standby is read-only until promoted. `pg_ctl promote` (or `SELECT pg_promote();`) removes `standby.signal`, finishes replaying available WAL, and begins a new timeline. Fence the old primary first to avoid split-brain, then rebuild it as a replica with `pg_rewind` or a fresh base backup; tools like Patroni or CloudNativePG automate this decision and the VIP/Service switch.",
+    "example": "# on the standby\npg_ctl promote -D /var/lib/postgresql/16/main\n# or\npsql -c 'SELECT pg_promote();'\npsql -c 'SELECT pg_is_in_recovery();'   # f",
+    "diagram": "flowchart LR\nP[\"primary down\"] -.-> S[\"standby in recovery\"]\nS -->|\"pg_ctl promote\"| N[\"new primary, new timeline\"]\nA[\"app\"] -->|\"repoint DSN or VIP\"| N\nP -->|\"pg_rewind\"| R[\"rejoin as standby\"]",
+    "reference": "https://www.postgresql.org/docs/current/app-pg-ctl.html",
+    "tags": [
+      "postgresql",
+      "failover",
+      "high-availability"
+    ],
+    "type": "fill",
+    "answer": [
+      "promote",
+      "pg_ctl promote"
+    ],
+    "pattern": "^(pg_ctl\\s+)?promote$"
+  },
+  {
+    "id": "databases-027",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "Which four-letter acronym names the transaction guarantees Atomicity, Consistency, Isolation and Durability?",
+    "explanation": "ACID transactions either apply fully or not at all (atomicity), move the database between valid states (consistency), hide concurrent partial work (isolation), and survive crashes once committed (durability, via WAL/redo logs and fsync). Relational databases and many modern stores (MongoDB multi-document transactions, FoundationDB) provide it.",
+    "example": "BEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 1;\nUPDATE accounts SET balance = balance + 100 WHERE id = 2;\nCOMMIT;  -- both or neither",
+    "diagram": "flowchart LR\nA[\"Atomicity all or nothing\"] --> T[\"transaction\"]\nC[\"Consistency valid state to valid state\"] --> T\nI[\"Isolation concurrent txns hidden\"] --> T\nD[\"Durability survives crash after COMMIT\"] --> T",
+    "reference": "https://www.postgresql.org/docs/current/tutorial-transactions.html",
+    "tags": [
+      "transactions",
+      "acid"
+    ],
+    "type": "fill",
+    "answer": [
+      "ACID"
+    ],
+    "pattern": "^acid$"
+  },
+  {
+    "id": "databases-028",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "Two transactions read a row, and each then updates it based on what it read (a lost-update scenario). Which PostgreSQL isolation level makes the second committer fail with a serialization error rather than silently overwriting?",
+    "explanation": "READ COMMITTED sees a fresh snapshot per statement and allows lost updates in read-modify-write patterns. REPEATABLE READ (snapshot isolation) aborts a transaction that tries to update a row changed since its snapshot, and SERIALIZABLE goes further to detect write-skew. Applications using these levels must retry on serialization failures.",
+    "example": "BEGIN ISOLATION LEVEL REPEATABLE READ;\nSELECT stock FROM items WHERE id = 7;   -- 10\n-- another txn commits stock = 9 here\nUPDATE items SET stock = 9 WHERE id = 7;\n-- ERROR: could not serialize access due to concurrent update",
+    "diagram": "flowchart LR\nT1[\"txn A reads stock 10\"] --> U1[\"A updates stock 9 and commits\"]\nT2[\"txn B reads stock 10\"] --> U2{\"B updates\"}\nU2 -->|\"READ COMMITTED\"| L[\"overwrites, lost update\"]\nU2 -->|\"REPEATABLE READ\"| E[\"serialization error, retry\"]",
+    "reference": "https://www.postgresql.org/docs/current/transaction-iso.html",
+    "tags": [
+      "transactions",
+      "isolation",
+      "postgresql"
+    ],
+    "type": "single",
+    "options": [
+      "READ UNCOMMITTED",
+      "READ COMMITTED (the default)",
+      "REPEATABLE READ",
+      "None; you must use SELECT ... FOR UPDATE"
+    ],
+    "optionNotes": [
+      "PostgreSQL treats READ UNCOMMITTED as READ COMMITTED; it never exposes dirty reads and offers no extra protection.",
+      "Under READ COMMITTED the second UPDATE simply waits for the first to commit, re-reads the new row version and applies its change on top, so the first update is lost without any error.",
+      "REPEATABLE READ takes a snapshot at transaction start; if a row it wants to update was modified by a concurrent committed transaction, the update fails with `could not serialize access due to concurrent update`, so the app can retry.",
+      "Explicit row locks are one valid technique, but REPEATABLE READ (and SERIALIZABLE) already detect this conflict, so 'none' is incorrect."
+    ],
+    "answer": 2
+  },
+  {
+    "id": "databases-029",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "An API endpoint lists 100 orders and the database log shows 101 nearly identical queries per request. What is this pattern called and what is the usual fix?",
+    "explanation": "N+1 is the classic ORM anti-pattern: lazy-loading a relation inside a loop issues one query per row. Each query is fast, so it hides in dev, but at scale the round-trip latency dominates. Detect it with slow/duplicate query logging or APM traces and fix with eager loading or batching.",
+    "example": "# Django: 101 queries\nfor o in Order.objects.all(): print(o.customer.name)\n# 1 query with JOIN\nfor o in Order.objects.select_related('customer'): print(o.customer.name)",
+    "diagram": "flowchart LR\nL[\"SELECT orders\"] --> Q1[\"SELECT customer 1\"]\nL --> Q2[\"SELECT customer 2\"]\nL --> QN[\"SELECT customer N\"]\nF[\"fix: SELECT orders JOIN customers\"] --> O[\"1 round trip\"]",
+    "reference": "https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-related",
+    "tags": [
+      "performance",
+      "orm",
+      "n-plus-one"
+    ],
+    "type": "single",
+    "options": [
+      "Write amplification; add more replicas",
+      "The N+1 query problem; fetch the related rows in one query using a JOIN or an `IN (...)` batch (eager loading)",
+      "A deadlock; add retries",
+      "Index bloat; run REINDEX"
+    ],
+    "optionNotes": [
+      "Write amplification concerns storage writes, and replicas do not reduce the number of queries per request.",
+      "One query loads the parent list and N more load each child; ORMs call the fix eager loading (`JOIN`, `select_related`, `includes`, `WHERE id IN (...)`), collapsing 101 round trips into one or two.",
+      "A deadlock produces errors and waits, not a linear count of identical fast queries.",
+      "Bloat slows individual queries; it does not multiply their count."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-030",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Which `postgresql.conf` parameter logs every statement that runs longer than a given number of milliseconds (for example 500) to the server log?",
+    "explanation": "`log_min_duration_statement = 500` writes any statement taking 500 ms or more to the log with its duration, which is PostgreSQL's slow query log. `log_statement` logs by statement type regardless of time and is far noisier; `pg_stat_statements` complements it with aggregate stats.",
+    "example": "ALTER SYSTEM SET log_min_duration_statement = '500ms';\nSELECT pg_reload_conf();\n# log line\n# LOG: duration: 1432.118 ms  statement: SELECT ... FROM orders WHERE ...",
+    "diagram": "flowchart LR\nQ[\"statement runs\"] --> C{\"duration >= 500 ms?\"}\nC -->|\"yes\"| L[\"logged with duration\"]\nC -->|\"no\"| N[\"not logged\"]\nL --> A[\"analyze with EXPLAIN ANALYZE\"]",
+    "reference": "https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-LOG-MIN-DURATION-STATEMENT",
+    "tags": [
+      "postgresql",
+      "logging",
+      "performance"
+    ],
+    "type": "fill",
+    "answer": [
+      "log_min_duration_statement",
+      "log_min_duration_statement = 500"
+    ],
+    "pattern": "^log_min_duration_statement(\\s*=\\s*'?500\\s*(ms)?'?)?$"
+  },
+  {
+    "id": "databases-031",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Applications start failing with `FATAL: sorry, too many clients already` from PostgreSQL. Which is the most sustainable fix?",
+    "explanation": "`max_connections` is a hard cap and every slot is a backend process, so raising it far beyond CPU count causes contention. The standard answer is a pooler (PgBouncer, pgcat, or built-in pools with sane limits) so the database sees a small steady number of connections. Also check for leaked connections: `SELECT state, count(*) FROM pg_stat_activity GROUP BY 1`.",
+    "example": "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;\n--  idle | 480\n--  active | 12\nSHOW max_connections;   -- 500\n# fix: pool_mode=transaction, default_pool_size=30 in PgBouncer",
+    "diagram": "flowchart LR\nA[\"many app pods each with pool of 20\"] -->|\"1000 conns\"| E[\"too many clients already\"]\nA -->|\"via PgBouncer\"| B[\"pooler\"]\nB -->|\"60 conns\"| P[\"PostgreSQL max_connections 200\"]",
+    "reference": "https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-MAX-CONNECTIONS",
+    "tags": [
+      "postgresql",
+      "troubleshooting",
+      "connections"
+    ],
+    "type": "single",
+    "options": [
+      "Raise `max_connections` to 10000",
+      "Put a connection pooler (PgBouncer or the app's pool) in front and size pools to the database's real capacity",
+      "Restart PostgreSQL every hour",
+      "Set `superuser_reserved_connections` to 0"
+    ],
+    "optionNotes": [
+      "Each PostgreSQL connection is a process consuming memory and CPU for context switching; thousands of connections degrade throughput even when idle.",
+      "Pooling multiplexes many short-lived client connections over a bounded set of server connections (often a few hundred at most), which is how PostgreSQL is meant to be scaled for many clients.",
+      "Restarting drops in-flight work and does not change the arrival rate of connections.",
+      "That would just consume the reserved admin slots too, locking out the DBA during the incident."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-032",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Which measures actually protect a PostgreSQL connection from a network attacker who can sniff or spoof traffic between the app and the database? (Select all that apply.)",
+    "explanation": "TLS to the database needs both encryption and server authentication. Only `verify-ca`/`verify-full` (with the CA bundle) check the server certificate; `require` stops sniffing but not impersonation, and `prefer` can be downgraded. Enforce it server-side too by using `hostssl` in `pg_hba.conf` and `ssl = on`.",
+    "example": "# client DSN\npostgresql://app@shop-db-rw:5432/shop?sslmode=verify-full&sslrootcert=/etc/ssl/ca.crt\n# pg_hba.conf\nhostssl shop app 10.0.0.0/8 scram-sha-256\n# postgresql.conf\nssl = on",
+    "diagram": "flowchart LR\nA[\"app sslmode=verify-full\"] -->|\"TLS, cert and hostname checked\"| P[\"PostgreSQL hostssl only\"]\nM[\"MITM\"] -.->|\"rejected: cert mismatch\"| A\nX[\"sslmode=prefer\"] -.->|\"can downgrade to plaintext\"| M",
+    "reference": "https://www.postgresql.org/docs/current/libpq-ssl.html",
+    "tags": [
+      "postgresql",
+      "tls",
+      "security"
+    ],
+    "type": "multi",
+    "options": [
+      "Client sets `sslmode=verify-full` with a trusted CA certificate",
+      "Client sets `sslmode=prefer`",
+      "Server `pg_hba.conf` uses `hostssl` entries only, so plaintext connections are rejected",
+      "Using `scram-sha-256` password authentication instead of `md5`",
+      "Client sets `sslmode=require`"
+    ],
+    "optionNotes": [
+      "`verify-full` encrypts, verifies the server certificate chain and checks the hostname, defeating both sniffing and man-in-the-middle impersonation.",
+      "`prefer` silently falls back to plaintext if TLS negotiation fails, so an attacker who blocks TLS gets cleartext traffic.",
+      "`hostssl` rules only match TLS connections, so a client that tries plaintext is refused, enforcing encryption from the server side.",
+      "SCRAM protects the password exchange from replay but does not encrypt query traffic or authenticate the server; it is good practice but not transport protection.",
+      "`require` encrypts but does not verify the certificate, so a MITM presenting any certificate is accepted; it stops passive sniffing only."
+    ],
+    "answer": [
+      0,
+      2
+    ]
+  },
+  {
+    "id": "databases-033",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Which are acceptable ways to supply a database password (or credential) to an application running on Kubernetes? (Select all that apply.)",
+    "explanation": "Credentials belong in a secret store, not in images, ConfigMaps or git. Kubernetes Secrets plus External Secrets Operator (or Vault, AWS Secrets Manager with IAM database auth) let you rotate without redeploying application code. Prefer dynamic or IAM-based database credentials where the platform supports them.",
+    "example": "apiVersion: external-secrets.io/v1\nkind: ExternalSecret\nmetadata: {name: shop-db}\nspec:\n  secretStoreRef: {name: vault, kind: ClusterSecretStore}\n  target: {name: shop-db-credentials}\n  data:\n  - secretKey: password\n    remoteRef: {key: database/creds/shop, property: password}",
+    "diagram": "flowchart LR\nV[\"Vault or cloud secret manager\"] -->|\"External Secrets Operator\"| S[\"Kubernetes Secret\"]\nS -->|\"env or volume\"| A[\"app pod\"]\nA -->|\"scram over TLS\"| D[\"database\"]\nV -.->|\"rotate\"| S",
+    "reference": "https://external-secrets.io/latest/",
+    "tags": [
+      "kubernetes",
+      "secrets",
+      "security"
+    ],
+    "type": "multi",
+    "options": [
+      "A Kubernetes Secret synced from Vault or a cloud secret manager by External Secrets Operator",
+      "Short-lived dynamic credentials or IAM database authentication instead of a static password",
+      "Hard-coded in the container image's config file",
+      "A ConfigMap, since it is easy to edit",
+      "Committed in plaintext in the Helm values.yaml in git"
+    ],
+    "optionNotes": [
+      "Secrets are RBAC-scoped and can be encrypted at rest; syncing from a secret manager centralizes rotation and audit.",
+      "Vault database secrets engines or cloud IAM auth issue per-pod, expiring credentials, removing long-lived passwords entirely.",
+      "Anyone who can pull the image gets the credential, and rotating it requires a rebuild.",
+      "ConfigMaps are plaintext, readable by anyone with get on configmaps, and are not treated as sensitive by tooling.",
+      "Git history is forever; even a private repo leaks via clones, CI logs and laptops."
+    ],
+    "answer": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "databases-034",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "What is the key difference between table partitioning and sharding?",
+    "explanation": "Partitioning is a single-node optimization: the table is physically split (e.g. `orders_2026_09`) so queries prune partitions and old data is dropped instantly. Sharding is horizontal scale-out across nodes keyed by a shard key; it multiplies capacity but makes joins, transactions and rebalancing across shards hard. Partition first; shard when one node truly cannot cope.",
+    "example": "-- partitioning (one server)\nCREATE TABLE orders (id bigint, created_at timestamptz, ...)\n  PARTITION BY RANGE (created_at);\nCREATE TABLE orders_2026_09 PARTITION OF orders\n  FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');\n-- sharding: tenant_id % 4 picks one of four separate clusters",
+    "diagram": "flowchart TD\nP[\"partitioning: one server\"] --> P1[\"orders_2026_08\"]\nP --> P2[\"orders_2026_09\"]\nS[\"sharding: many servers\"] --> S1[\"shard A tenants 0-999\"]\nS --> S2[\"shard B tenants 1000-1999\"]",
+    "reference": "https://www.postgresql.org/docs/current/ddl-partitioning.html",
+    "tags": [
+      "scaling",
+      "partitioning",
+      "sharding"
+    ],
+    "type": "single",
+    "options": [
+      "Partitioning is for reads, sharding is for writes",
+      "Partitioning splits a table into pieces within one database server; sharding distributes data across multiple independent servers",
+      "Sharding requires PostgreSQL; partitioning requires MySQL",
+      "They are two names for the same technique"
+    ],
+    "optionNotes": [
+      "Both can help either workload; the distinction is where the pieces live, not the operation type.",
+      "Declarative partitioning (by range, list or hash) keeps all partitions under one server and query planner, easing maintenance such as dropping old months; sharding spreads rows over many servers to scale beyond one machine's CPU, memory and storage, at the cost of cross-shard queries and transactions.",
+      "Both PostgreSQL and MySQL support partitioning, and sharding is an architectural pattern (Citus, Vitess, application-level) for either.",
+      "They differ in scope: single node versus many nodes."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-035",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "According to the CAP theorem, during a network partition a distributed database must choose between which two properties?",
+    "explanation": "CAP says a system cannot guarantee Consistency (every read sees the latest write), Availability (every request gets a non-error response) and Partition tolerance simultaneously. Since partitions happen, the practical choice is CP (reject requests on the minority side) versus AP (serve possibly stale data). Consensus stores like etcd are CP; many eventually-consistent stores are AP.",
+    "example": "# etcd (CP): minority side of a partition refuses writes\n# Cassandra with CL=ONE (AP): each side keeps serving and reconciles later\n# MongoDB: minority side steps down primary, becomes read-only",
+    "diagram": "flowchart TD\nN[\"network partition\"] --> C{\"choose\"}\nC -->|\"CP\"| R[\"reject requests on minority side\"]\nC -->|\"AP\"| S[\"serve possibly stale data, reconcile later\"]",
+    "reference": "https://www.ibm.com/think/topics/cap-theorem",
+    "tags": [
+      "distributed-systems",
+      "cap"
+    ],
+    "type": "single",
+    "options": [
+      "Consistency and Availability",
+      "Availability and Durability",
+      "Consistency and Atomicity",
+      "Performance and Partition tolerance"
+    ],
+    "optionNotes": [
+      "When nodes cannot talk to each other, a system either refuses some requests to stay consistent (CP, e.g. etcd, a MongoDB replica set losing its primary) or keeps answering with possibly stale data (AP, e.g. Cassandra with low consistency levels).",
+      "Durability is an ACID property and is not what CAP trades off.",
+      "Atomicity is likewise an ACID property, unrelated to partitions.",
+      "Partition tolerance is not optional in a real network, so the choice is never against it."
+    ],
+    "answer": 0
+  },
+  {
+    "id": "databases-036",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "PostgreSQL crashes with `PANIC: could not write to file \"pg_wal/xlogtemp.1234\": No space left on device`. `pg_wal` is 300 GB and growing. What is the most likely root cause to check first?",
+    "explanation": "Runaway `pg_wal` almost always means WAL retention: check `pg_stat_archiver` for `failed_count` and `last_failed_wal`, and `pg_replication_slots` for slots with `active = false` and large `wal_status`/`safe_wal_size`. Fix the archiver or drop the orphaned slot, and set `max_slot_wal_keep_size` so a stuck slot cannot take the primary down again. Never delete files from `pg_wal` by hand.",
+    "example": "SELECT archived_count, failed_count, last_failed_wal FROM pg_stat_archiver;\nSELECT slot_name, active, wal_status, safe_wal_size FROM pg_replication_slots;\nSELECT pg_drop_replication_slot('old_replica');\nALTER SYSTEM SET max_slot_wal_keep_size = '50GB';",
+    "diagram": "flowchart LR\nW[\"WAL segment written\"] --> A{\"archived and consumed by all slots?\"}\nA -->|\"yes\"| R[\"recycled\"]\nA -->|\"archive failing or dead slot\"| K[\"kept in pg_wal\"]\nK --> F[\"disk full, PANIC\"]",
+    "reference": "https://www.postgresql.org/docs/current/wal-configuration.html",
+    "tags": [
+      "postgresql",
+      "troubleshooting",
+      "wal",
+      "replication-slots"
+    ],
+    "type": "single",
+    "options": [
+      "Autovacuum is disabled",
+      "A failing `archive_command` or an inactive replication slot is preventing old WAL segments from being recycled",
+      "`shared_buffers` is too large",
+      "The slow query log filled the disk"
+    ],
+    "optionNotes": [
+      "Disabled autovacuum causes table bloat under `base/`, not runaway growth of `pg_wal`.",
+      "WAL segments are only recycled once archived (if `archive_mode=on`) and once every replication slot has consumed them; a broken archiver or a dead replica holding a slot pins WAL forever until the disk fills.",
+      "`shared_buffers` is memory, not disk.",
+      "The server log can fill disks but it lives elsewhere and the error explicitly names `pg_wal`."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-037",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "Users report seeing stale data right after saving. Metrics show the PostgreSQL read replica is 45 seconds behind. Which check most directly tells you whether the replica is falling behind on receiving WAL or on replaying it?",
+    "explanation": "`pg_stat_replication` on the primary exposes the pipeline per standby: sent, written, flushed, replayed. The gap tells you whether to look at network/disk (receive side) or at replay conflicts and CPU on the standby. For read-your-own-writes, route the user's immediate read to the primary or wait until the replica passes the commit LSN.",
+    "example": "SELECT client_addr, state,\n  pg_wal_lsn_diff(sent_lsn, replay_lsn) AS replay_lag_bytes,\n  write_lag, flush_lag, replay_lag\nFROM pg_stat_replication;\n-- on replica\nSELECT now() - pg_last_xact_replay_timestamp() AS lag;",
+    "diagram": "flowchart LR\nP[\"primary sent_lsn\"] -->|\"network\"| W[\"replica write_lsn\"]\nW -->|\"fsync\"| F[\"flush_lsn\"]\nF -->|\"startup process, may conflict with long queries\"| R[\"replay_lsn\"]\nR --> V[\"visible to reads\"]",
+    "reference": "https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-REPLICATION-VIEW",
+    "tags": [
+      "postgresql",
+      "troubleshooting",
+      "replication-lag"
+    ],
+    "type": "single",
+    "options": [
+      "`SHOW max_connections;` on the replica",
+      "Compare `sent_lsn`, `write_lsn`, `flush_lsn` and `replay_lsn` in `pg_stat_replication` on the primary",
+      "Run `VACUUM FULL` on the replica",
+      "Check `pg_stat_archiver` on the replica"
+    ],
+    "optionNotes": [
+      "Connection limits are unrelated to replication lag.",
+      "If `sent_lsn` is far ahead of `write_lsn`/`flush_lsn` the network or replica disk is the bottleneck; if `flush_lsn` is current but `replay_lsn` lags, the replica's startup process is stalled, commonly by a long-running query conflicting with replay (see `hot_standby_feedback` and `max_standby_streaming_delay`).",
+      "You cannot vacuum a read-only replica, and bloat does not explain lag.",
+      "The archiver runs on the primary; the replica's status is in `pg_stat_wal_receiver`."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-038",
+    "domain": "databases",
+    "difficulty": "hard",
+    "prompt": "Every request to the orders API hangs and `pg_stat_activity` shows dozens of sessions with `wait_event_type = Lock`. One session has been `idle in transaction` for 40 minutes. What is happening and what is the immediate fix?",
+    "explanation": "Lock queues in PostgreSQL are FIFO-ish: a single stuck transaction holding a row or table lock stalls a waiting DDL, which then blocks every new query on that table. Use `pg_blocking_pids()` to find the head of the chain, terminate it, and add `idle_in_transaction_session_timeout` so leaked transactions self-destruct.",
+    "example": "SELECT pid, state, now() - xact_start AS age, query\nFROM pg_stat_activity WHERE pid = ANY (\n  SELECT unnest(pg_blocking_pids(pid)) FROM pg_stat_activity WHERE wait_event_type = 'Lock');\nSELECT pg_terminate_backend(12345);\nALTER SYSTEM SET idle_in_transaction_session_timeout = '5min';",
+    "diagram": "flowchart LR\nI[\"idle in transaction 40 min holds lock\"] --> D[\"ALTER TABLE waits for ACCESS EXCLUSIVE\"]\nD --> Q[\"all new SELECT and UPDATE queue behind\"]\nK[\"pg_terminate_backend\"] --> I\nK --> U[\"queue drains\"]",
+    "reference": "https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-IDLE-IN-TRANSACTION-SESSION-TIMEOUT",
+    "tags": [
+      "postgresql",
+      "troubleshooting",
+      "locking"
+    ],
+    "type": "single",
+    "options": [
+      "Disk is full; add storage",
+      "The idle-in-transaction session holds a lock (e.g. from an unfinished migration or a leaked transaction) that everyone else queues behind; terminate it with `pg_terminate_backend` and set `idle_in_transaction_session_timeout`",
+      "Autovacuum is running; wait for it",
+      "The connection pooler is saturated; restart PgBouncer"
+    ],
+    "optionNotes": [
+      "Disk exhaustion produces write errors, not lock waits.",
+      "A transaction that started DDL or an UPDATE and never committed keeps its locks; any ACCESS EXCLUSIVE lock request queues behind it and, in turn, blocks all subsequent readers. Kill the offender, then prevent recurrence with `idle_in_transaction_session_timeout` and `lock_timeout` in migrations.",
+      "Autovacuum takes weak locks that do not block ordinary reads and writes (except anti-wraparound in rare cases), and would not show as an idle session.",
+      "A saturated pooler would show connections waiting client-side, not sessions inside PostgreSQL blocked on locks."
+    ],
+    "answer": 1
+  },
+  {
+    "id": "databases-039",
+    "domain": "databases",
+    "difficulty": "medium",
+    "prompt": "Redis Cluster distributes keys across primaries using 16384 hash slots, and a multi-key command fails unless all its keys map to the same slot (which hash tags like `{user:42}` can guarantee).",
+    "explanation": "Redis Cluster computes CRC16(key) mod 16384 to place each key on a slot owned by one primary. Commands touching keys in different slots return CROSSSLOT errors, so applications use hash tags, the substring inside braces, to force related keys onto the same slot; this is the main client-side change when moving from a single Redis or Sentinel to Cluster.",
+    "example": "redis-cli -c CLUSTER KEYSLOT '{user:42}:cart'    # 7365\nredis-cli -c CLUSTER KEYSLOT '{user:42}:profile' # 7365 same slot\nredis-cli -c MGET '{user:42}:cart' '{user:42}:profile'   # ok",
+    "diagram": "flowchart LR\nK[\"key CRC16 mod 16384\"] --> S[\"slot 7365\"]\nS --> P2[\"primary B slots 5461-10922\"]\nP1[\"primary A slots 0-5460\"]\nP3[\"primary C slots 10923-16383\"]\nH[\"hash tag {user:42}\"] --> K",
+    "reference": "https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/",
+    "tags": [
+      "redis",
+      "cluster",
+      "sharding"
+    ],
+    "type": "boolean",
+    "answer": true
+  },
+  {
+    "id": "databases-040",
+    "domain": "databases",
+    "difficulty": "easy",
+    "prompt": "A nightly backup job that succeeds every night is sufficient evidence that you can meet your RTO; restore drills are optional.",
+    "explanation": "A backup you have never restored is unverified: it may be corrupt, missing WAL, encrypted with a lost key, or simply take 9 hours when the RTO is 1 hour. Mature teams automate periodic restore tests (for example restoring to a scratch instance and running checks) and measure the actual time, and treat that as the real RTO.",
+    "example": "# weekly CI job\npgbackrest --stanza=shop restore --pg1-path=/tmp/verify\npg_ctl -D /tmp/verify start && psql -c 'SELECT count(*) FROM orders'\n# record wall-clock time vs RTO target",
+    "diagram": "flowchart LR\nB[\"nightly backup OK\"] --> T[\"scheduled restore drill\"]\nT --> V[\"data checks pass?\"]\nV -->|\"yes and time under RTO\"| C[\"backup trusted\"]\nV -->|\"no\"| F[\"fix before the real incident\"]",
+    "reference": "https://pgbackrest.org/user-guide.html#quickstart/perform-restore",
+    "tags": [
+      "backups",
+      "disaster-recovery"
+    ],
+    "type": "boolean",
+    "answer": false
+  }
+]
