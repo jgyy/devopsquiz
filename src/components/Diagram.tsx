@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   /** Mermaid source text. */
@@ -72,7 +73,9 @@ export default function Diagram({ source }: Props) {
           <code>{source}</code>
         </pre>
       )}
-      {expanded && svg && (
+      {/* Portalled to <body>: the feedback sidebar is position: sticky, which creates its own stacking
+          context, so an overlay rendered inside it would sit under the sticky quiz header. */}
+      {expanded && svg && createPortal(
         <div className="diagram-overlay" role="dialog" aria-modal="true" aria-label="Diagram" onClick={() => setExpanded(false)}>
           <div className="diagram-overlay-body" onClick={(e) => e.stopPropagation()}>
             <button className="link diagram-close" onClick={() => setExpanded(false)} aria-label="Close" autoFocus>
@@ -80,7 +83,8 @@ export default function Diagram({ source }: Props) {
             </button>
             <div className="diagram-svg large" dangerouslySetInnerHTML={{ __html: svg }} />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </figure>
   )
